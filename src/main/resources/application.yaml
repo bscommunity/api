@@ -3,12 +3,14 @@ ktor:
     modules:
       - org.bscm.ApplicationKt.module
   deployment:
-    port: 8080
-postgres:
-  url: "jdbc:postgresql://localhost/default"
-  user: username
-  password:
-    passwordjwt:
-  domain: "https://jwt-provider-domain/"
-  audience: "jwt-audience"
-  realm: "ktor sample app"
+    port: "$PORT:8080"
+storage:
+  driverClassName: "org.postgresql.Driver"
+  jdbcURL: $POSTGRES_URL
+  user: $POSTGRES_USER
+  password: $POSTGRES_PASSWORD
+jwt:
+  secret: $JWT_SECRET
+  domain: "bs-community.com"
+  audience: "bs-community"
+  realm: "bs-community"
