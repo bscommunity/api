@@ -1,6 +1,7 @@
 package org.bscm.repository
 
 import org.bscm.models.User
+import org.bscm.models.dto.CreateUserRequest
 import java.util.UUID
 
 interface UserRepository {
@@ -8,6 +9,6 @@ interface UserRepository {
     suspend fun getUserById(id: UUID): User?
     suspend fun getUserByUsername(username: String): User?
     suspend fun createUser(user: User): User
-    suspend fun updateUser(id: UUID, user: User): Boolean
+    suspend fun updateUser(id: UUID, user: CreateUserRequest): Boolean
     suspend fun deleteUser(id: UUID): Boolean
 }

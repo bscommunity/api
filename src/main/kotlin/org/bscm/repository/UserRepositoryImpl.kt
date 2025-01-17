@@ -1,6 +1,7 @@
 package org.bscm.repository
 
 import org.bscm.models.User
+import org.bscm.models.dto.CreateUserRequest
 import org.bscm.models.entities.UserEntity
 import org.bscm.models.tables.UserTable
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -38,13 +39,12 @@ class UserRepositoryImpl : UserRepository {
         userEntityToUser(newUser)
     }
 
-    override suspend fun updateUser(id: UUID, user: User): Boolean = newSuspendedTransaction {
+    override suspend fun updateUser(id: UUID, user: CreateUserRequest): Boolean = newSuspendedTransaction {
         val existingUser = UserEntity.findById(id) ?: return@newSuspendedTransaction false
         existingUser.apply {
             username = user.username
             email = user.email
             imageUrl = user.imageUrl
-            createdAt = user.createdAt
         }
         true
     }

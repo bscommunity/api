@@ -51,7 +51,7 @@ fun Route.userRoutes(userRepository: UserRepository) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
                 return@put
             }
-            val user = call.receive<User>()
+            val user = call.receive<CreateUserRequest>()
             val updated = userRepository.updateUser(id, user)
             if (updated) {
                 call.respond(HttpStatusCode.OK, "User updated successfully")
