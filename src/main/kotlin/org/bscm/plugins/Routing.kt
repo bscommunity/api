@@ -6,11 +6,13 @@ import io.ktor.server.plugins.swagger.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.repository.UserRepository
-import org.bscm.repository.UserRepositoryImpl
 import org.bscm.routes.userRoutes
+import org.koin.ktor.ext.inject
+
+// Disclaimer: Dependency Injection can't be made inside 'routing { }' block
 
 fun Application.configureRouting() {
-    val userRepository = UserRepositoryImpl()
+    val userRepository by inject<UserRepository>()
 
     routing {
         swaggerUI(path = "swagger", swaggerFile = "openapi/documentation.yaml")

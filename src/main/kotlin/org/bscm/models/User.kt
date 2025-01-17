@@ -12,12 +12,12 @@ import java.util.*
 @Serializable
 data class User(
     @Serializable(with = UUIDSerializer::class)
-    val id: UUID,
+    val id: UUID = UUID.randomUUID(),
     val username: String,
     val email: String,
     val imageUrl: String,
     @Serializable(with = LocalDateSerializer::class)
-    val createdAt: LocalDate
+    val createdAt: LocalDate = LocalDate.now()
 ) {
     companion object {
         fun create(request: CreateUserRequest): User {

@@ -5,8 +5,6 @@ import org.koin.ktor.plugin.Koin
 import io.ktor.server.application.*
 import org.bscm.repository.UserRepository
 import org.bscm.repository.UserRepositoryImpl
-import org.koin.core.module.dsl.bind
-import org.koin.core.module.dsl.singleOf
 import org.koin.logger.slf4jLogger
 
 fun Application.configureDI() {
@@ -17,5 +15,5 @@ fun Application.configureDI() {
 }
 
 val mainModule = module {
-    singleOf(::UserRepositoryImpl) { bind<UserRepository>() }
+    single<UserRepository> { UserRepositoryImpl() }
 }

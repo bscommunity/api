@@ -7,18 +7,12 @@ import io.ktor.server.routing.*
 import org.bscm.models.User
 import org.bscm.models.dto.CreateUserRequest
 import org.bscm.repository.UserRepository
-import org.bscm.repository.UserRepositoryImpl
-import org.koin.java.KoinJavaComponent.inject
-import org.koin.ktor.ext.inject
 import java.util.*
 
 fun Route.userRoutes(userRepository: UserRepository) {
-    /*val userRepository by inject<UserRepository>()*/
-
     route("/users") {
         // Get all users
         get {
-            println("Getting all users")
             val users = userRepository.getAllUsers()
             call.respond(users)
         }
