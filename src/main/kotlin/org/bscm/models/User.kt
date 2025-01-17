@@ -3,6 +3,7 @@
 package org.bscm.models
 
 import kotlinx.serialization.Serializable
+import org.bscm.models.dto.CreateUserRequest
 import org.bscm.serialization.LocalDateSerializer
 import org.bscm.serialization.UUIDSerializer
 import java.time.LocalDate
@@ -13,8 +14,20 @@ data class User(
     @Serializable(with = UUIDSerializer::class)
     val id: UUID,
     val username: String,
-    val email: String?,
-    val imageUrl: String?,
+    val email: String,
+    val imageUrl: String,
     @Serializable(with = LocalDateSerializer::class)
     val createdAt: LocalDate
-)
+) {
+    companion object {
+        fun create(request: CreateUserRequest): User {
+            return User(
+                id = UUID.randomUUID(), // Auto-generate UUID
+                username = request.username,
+                email = request.email,
+                imageUrl = request.imageUrl,
+                createdAt = LocalDate.now() // Auto-generate current date
+            )
+        }
+    }
+}
