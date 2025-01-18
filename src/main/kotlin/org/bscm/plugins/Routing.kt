@@ -6,6 +6,7 @@ import io.ktor.server.plugins.swagger.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.repository.UserRepository
+import org.bscm.routes.authRoutes
 import org.bscm.routes.userRoutes
 import org.koin.ktor.ext.inject
 
@@ -15,13 +16,14 @@ fun Application.configureRouting() {
     val userRepository by inject<UserRepository>()
 
     routing {
-        swaggerUI(path = "swagger", swaggerFile = "openapi/documentation.yaml")
+        swaggerUI(path = "docs", swaggerFile = "openapi/documentation.yaml")
         staticResources("/static", "static") // eg. `/static/index.html`
 
         get("/") {
             call.respondText("Hello World!")
         }
 
+        authRoutes()
         userRoutes(userRepository)
     }
 }
