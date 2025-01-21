@@ -1,15 +1,14 @@
 package org.bscm.repository
 
 import org.bscm.models.Chart
-import org.bscm.models.User
-import org.bscm.models.dto.CreateUserRequest
-import org.bscm.models.dto.UpdateUserRequest
-import java.util.UUID
+import org.bscm.models.dto.CreateChartRequest
+import org.bscm.models.dto.UpdateChartRequest
+import java.util.*
 
 interface ChartRepository {
     suspend fun getAllCharts(): List<Chart>
     suspend fun getChartById(id: UUID): Chart?
-    suspend fun createChart(chart: Chart): Chart
-    suspend fun updateChart(id: UUID, chart: Chart): Chart
+    suspend fun createChart(chart: CreateChartRequest): Chart
+    suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart
     suspend fun deleteChart(id: UUID): Boolean
 }
