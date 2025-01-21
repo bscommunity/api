@@ -13,5 +13,6 @@ class UserEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var username by UserTable.username
     var email by UserTable.email
     var imageUrl by UserTable.imageUrl
+    var discordId by UserTable.discordId
     var createdAt by UserTable.createdAt
 }

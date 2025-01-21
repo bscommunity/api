@@ -1,28 +1,49 @@
 package org.bscm.plugins
 
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.request.*
+import com.auth0.jwt.*
+import com.auth0.jwt.algorithms.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
-import io.ktor.server.request.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.config.*
 import io.ktor.server.response.*
-import io.ktor.server.sessions.*
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import org.bscm.serialization.LocalDateSerializer
-import java.time.LocalDate
 
-const val DISCORD_API_ENDPOINT = "https://discord.com/api/v10";
+import org.bscm.auth.DISCORD_API_ENDPOINT
+import org.bscm.services.JWTService
+import org.koin.ktor.ext.inject
+
 val redirects = mutableMapOf<String, String>()
 
-fun Application.configureSecurity() {
-    install(Sessions) {
-        cookie<UserSession>("user_session")
-    }
+fun Application.configureSecurity(
+    config: ApplicationConfig
+) {
+    val jwtService by inject<JWTService>()
+
+    val secret = config.property("jwt.secret").getString()
+    val jwtRealm = config.property("jwt.realm").getString()
 
     install(Authentication) {
+        jwt("auth-jwt") {
+            verifier(
+                JWT
+                    .require(Algorithm.HMAC256(secret))
+                    .build()
+            )
+            validate { credential ->
+                val userId = credential.subject?.let { jwtService.verifyToken(it) }
+                if (userId != null) {
+                    JWTPrincipal(credential.payload)
+                } else {
+                    null
+                }
+            }
+            challenge { _, _ ->
+                call.respond(HttpStatusCode.Unauthorized, "Token is not valid or has expired")
+            }
+            realm = jwtRealm
+        }
+
         oauth("auth-oauth-discord") {
             urlProvider = { "http://localhost:8080/callback" }
             providerLookup = {
@@ -48,42 +69,3 @@ fun Application.configureSecurity() {
         }
     }
 }
-
-suspend fun getDiscordData(
-    httpClient: HttpClient,
-    userSession: UserSession
-): DiscordUser = httpClient.get("${DISCORD_API_ENDPOINT}/users/@me") {
-    headers {
-        append(HttpHeaders.Authorization, "Bearer ${userSession.token}")
-    }
-}.body()
-
-suspend fun getSession(
-    call: ApplicationCall
-): UserSession? {
-    val userSession: UserSession? = call.sessions.get()
-    //if there is no session, redirect to log in
-    if (userSession == null) {
-        val redirectUrl = URLBuilder("http://0.0.0.0:8080/login").run {
-            parameters.append("redirectUrl", call.request.uri)
-            build()
-        }
-        call.respondRedirect(redirectUrl)
-        return null
-    }
-    return userSession
-}
-
-@Serializable
-data class UserSession(val state: String, val token: String)
-
-@Serializable()
-data class DiscordUser(
-    val id: String,
-    val username: String,
-    @SerialName("global_name") val globalName: String,
-    val discriminator: String?,
-    val avatar: String?,
-    val email: String? = null,
-    val verified: Boolean
-)

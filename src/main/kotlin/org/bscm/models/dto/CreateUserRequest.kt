@@ -6,5 +6,6 @@ import kotlinx.serialization.Serializable
 data class CreateUserRequest(
     val username: String,
     val email: String,
-    val imageUrl: String
+    val discordId: String,
+    val imageUrl: String?
 )
