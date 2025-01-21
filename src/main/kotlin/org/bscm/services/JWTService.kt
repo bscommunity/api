@@ -2,11 +2,10 @@ package org.bscm.services
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import io.ktor.server.config.*
 import java.util.*
 
 class JWTService(
-    private val secret: String,
+    secret: String,
 ) {
     // The issuer and audience are used to validate the token
     private val algorithm = Algorithm.HMAC256(secret)

@@ -2,8 +2,10 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
+import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.UserTable
-import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 
 fun Application.configureDatabases(config: ApplicationConfig) {
@@ -19,6 +21,6 @@ fun Application.configureDatabases(config: ApplicationConfig) {
 
     // Initialize tables
     transaction {
-        SchemaUtils.create(UserTable)
+        SchemaUtils.create(UserTable, ChartTable)
     }
 }

@@ -40,6 +40,7 @@ class ChartRepositoryImpl : ChartRepository {
             this.isDeluxe = chart.isDeluxe
             this.isExplicit = chart.isExplicit
             this.isFeatured = chart.isFeatured
+
         }
         chartEntityToChart(newChart)
     }
