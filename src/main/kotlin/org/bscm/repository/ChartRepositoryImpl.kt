@@ -2,24 +2,40 @@ package org.bscm.repository
 
 import io.ktor.server.plugins.*
 import org.bscm.models.Chart
+import org.bscm.models.Version
 import org.bscm.models.dto.CreateChartRequest
 import org.bscm.models.dto.UpdateChartRequest
 import org.bscm.models.entities.ChartEntity
+import org.bscm.models.entities.VersionEntity
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.util.*
 
 class ChartRepositoryImpl : ChartRepository {
 
-    private fun chartEntityToChart(entity: ChartEntity): Chart = Chart(
+    private fun chartEntityToChart(entity: ChartEntity, versionEntities: List<VersionEntity>? = null): Chart = Chart(
         id = entity.id.value,
-        name = entity.name,
+        track = entity.track,
         artist = entity.artist,
         coverUrl = entity.coverUrl,
-        duration = entity.duration,
         isDeluxe = entity.isDeluxe,
         isExplicit = entity.isExplicit,
+        difficulty = entity.difficulty,
         isFeatured = entity.isFeatured,
-        notesAmount = entity.notesAmount
+        versions = versionEntities?.map(::versionEntityToVersion) ?: emptyList()
+    )
+
+    private fun versionEntityToVersion(entity: VersionEntity): Version = Version(
+        id = entity.id.value,
+        chartId = entity.chart.id.value,
+        index = entity.index,
+        chartUrl = entity.chartUrl,
+        duration = entity.duration,
+        notesAmount = entity.notesAmount,
+        effectsAmount = entity.effectsAmount,
+        bpm = entity.bpm,
+        downloadsAmount = entity.downloadsAmount,
+        knownIssues = entity.knownIssues,
+        publishedAt = entity.publishedAt,
     )
 
     override suspend fun getAllCharts(): List<Chart> = newSuspendedTransaction {
@@ -33,26 +49,33 @@ class ChartRepositoryImpl : ChartRepository {
     override suspend fun createChart(chart: CreateChartRequest): Chart = newSuspendedTransaction {
         val newChart = ChartEntity.new(UUID.randomUUID()) {
             this.artist = chart.artist
-            this.name = chart.name
+            this.track = chart.track
             this.coverUrl = chart.coverUrl
-            this.duration = chart.duration
-            this.notesAmount = chart.notesAmount
+            this.difficulty = chart.difficulty
             this.isDeluxe = chart.isDeluxe
             this.isExplicit = chart.isExplicit
             this.isFeatured = chart.isFeatured
-
         }
-        chartEntityToChart(newChart)
+
+        val initialVersion = VersionEntity.new {
+            this.chart = newChart
+            this.chartUrl = chart.chartUrl
+            this.duration = chart.duration
+            this.notesAmount = chart.notesAmount
+            this.effectsAmount = chart.effectsAmount
+            this.bpm = chart.bpm
+        }
+
+        chartEntityToChart(newChart, listOf(initialVersion))
     }
 
     override suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart = newSuspendedTransaction {
         val existingChart = ChartEntity.findById(id) ?: throw NotFoundException("Chart not found")
         existingChart.apply {
             artist = chart.artist ?: artist
-            name = chart.name ?: name
+            track = chart.track ?: track
             coverUrl = chart.coverUrl ?: coverUrl
-            duration = chart.duration ?: duration
-            notesAmount = chart.notesAmount ?: notesAmount
+            difficulty = chart.difficulty ?: difficulty
             isDeluxe = chart.isDeluxe ?: isDeluxe
             isExplicit = chart.isExplicit ?: isExplicit
             isFeatured = chart.isFeatured ?: isFeatured

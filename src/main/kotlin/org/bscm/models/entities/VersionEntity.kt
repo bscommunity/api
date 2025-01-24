@@ -12,6 +12,10 @@ class VersionEntity(id: EntityID<Int>) : IntEntity(id) {
     var chart by ChartEntity referencedOn VersionTable.chartId
 
     var index by VersionTable.index
+    var duration by VersionTable.duration
+    var notesAmount by VersionTable.notesAmount
+    var effectsAmount by VersionTable.effectsAmount
+    var bpm by VersionTable.bpm
     var chartUrl by VersionTable.chartUrl
     var downloadsAmount by VersionTable.downloadsAmount
     var knownIssues by VersionTable.knownIssues // Complex property (JSON)

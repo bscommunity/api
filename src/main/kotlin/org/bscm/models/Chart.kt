@@ -1,6 +1,7 @@
 package org.bscm.models
 
 import kotlinx.serialization.Serializable
+import org.bscm.models.enums.Difficulty
 import org.bscm.serialization.UUIDSerializer
 import java.util.*
 
@@ -9,21 +10,20 @@ data class Chart(
     @Serializable(with = UUIDSerializer::class)
     val id: UUID,
     val artist: String,
-    val name: String,
+    val track: String,
     val coverUrl: String,
-    val duration: Int,
-    val notesAmount: Int,
+    val difficulty: Difficulty,
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
-    val isFeatured: Boolean
+    val isFeatured: Boolean,
+    val versions: List<Version> = emptyList()
 ) {
     companion object {
         fun create(
             artist: String,
-            name: String,
+            track: String,
             coverUrl: String,
-            duration: Int,
-            notesAmount: Int,
+            difficulty: Difficulty?,
             isDeluxe: Boolean,
             isExplicit: Boolean,
             isFeatured: Boolean
@@ -31,10 +31,9 @@ data class Chart(
             return Chart(
                 id = UUID.randomUUID(), // Auto-generate UUID
                 artist = artist,
-                name = name,
+                track = track,
                 coverUrl = coverUrl,
-                duration = duration,
-                notesAmount = notesAmount,
+                difficulty = difficulty ?: Difficulty.NORMAL,
                 isDeluxe = isDeluxe,
                 isExplicit = isExplicit,
                 isFeatured = isFeatured

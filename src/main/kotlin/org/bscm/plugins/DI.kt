@@ -5,8 +5,8 @@ import org.bscm.repository.ChartRepository
 import org.bscm.repository.ChartRepositoryImpl
 import org.bscm.repository.UserRepository
 import org.bscm.repository.UserRepositoryImpl
-import org.bscm.services.AuthService
 import org.bscm.services.JWTService
+import org.bscm.services.OAuthService
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
@@ -24,5 +24,9 @@ val mainModule = module {
     single { JWTService(
         secret = System.getenv("JWT_SECRET")
     ) }
-    single { AuthService(get(), get()) }
+    single { OAuthService(
+        clientId = System.getenv("DISCORD_CLIENT_ID"),
+        clientSecret = System.getenv("DISCORD_CLIENT_SECRET"),
+        redirectUri = System.getenv("DISCORD_REDIRECT_URI")
+    ) }
 }

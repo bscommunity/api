@@ -1,34 +1,75 @@
 package org.bscm.routes
 
 import io.ktor.http.*
-import io.ktor.server.auth.*
-import io.ktor.server.plugins.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.services.AuthService
+import kotlinx.serialization.Serializable
+import org.bscm.models.User
+import org.bscm.models.dto.CreateUserRequest
+import org.bscm.models.dto.UpdateUserRequest
+import org.bscm.repository.UserRepository
+import org.bscm.services.JWTService
+import org.bscm.services.OAuthService
 
-fun Route.authRoutes(authService: AuthService) {
-    authenticate("auth-oauth-discord") {
-        get("/login") {
-            // Redirects to "authorizeUrl" from Security.kt automatically
+fun Route.authRoutes(
+    userRepository: UserRepository,
+    oAuthService: OAuthService,
+    jwtService: JWTService
+) {
+    post("/login") {
+        val code = call.receiveNullable<AuthRequest>()?.code
+
+        if (code == null) {
+            call.respond(HttpStatusCode.BadRequest, "Code is required")
+            return@post
         }
 
-        get("/callback") {
-            val currentPrincipal: OAuthAccessTokenResponse.OAuth2? = call.principal()
+        val accessToken = oAuthService.getAccessToken(code)
+        val discordUser = oAuthService.getUserInfo(accessToken)
 
-            if (currentPrincipal?.accessToken == null) {
-                call.respond(HttpStatusCode.Unauthorized, "Unauthorized")
-                return@get
-            }
-
-            try {
-                val result = authService.handleDiscordCallback(currentPrincipal.accessToken)
-                call.respond(result) // Return user and access token to client
-            } catch (e: BadRequestException) {
-                call.respond(HttpStatusCode.BadRequest, e.message ?: "Bad Request")
-            } catch (e: Exception) {
-                call.respond(HttpStatusCode.InternalServerError, e.message ?: "Internal Server Error")
-            }
+        if (discordUser.email == null) {
+            call.respond(HttpStatusCode.BadRequest, "Discord user must have an email")
+            return@post
         }
+
+        val user = userRepository.getUserByDiscordId(discordUser.id)
+            ?.let { existingUser ->
+                userRepository.updateUser(existingUser.id, UpdateUserRequest(
+                    username = discordUser.username,
+                    email = discordUser.email,
+                    imageUrl = discordUser.avatar?.let {
+                        oAuthService.getAvatarUrl(discordUser.id, it)
+                    }
+                ))
+            }
+            ?: userRepository.createUser(
+                CreateUserRequest(
+                    username = discordUser.username,
+                    email = discordUser.email,
+                    imageUrl = discordUser.avatar?.let {
+                        oAuthService.getAvatarUrl(discordUser.id, it)
+                    },
+                    discordId = discordUser.id
+                )
+            )
+
+        call.respond(
+            AuthResult(
+                token = jwtService.generateToken(user.id),
+                user = user
+            )
+        )
     }
 }
+
+@Serializable
+data class AuthRequest(
+    val code: String
+)
+
+@Serializable
+data class AuthResult(
+    val token: String,
+    val user: User
+)

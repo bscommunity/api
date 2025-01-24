@@ -10,14 +10,16 @@ import org.bscm.repository.UserRepository
 import org.bscm.routes.authRoutes
 import org.bscm.routes.chartRoutes
 import org.bscm.routes.userRoutes
-import org.bscm.services.AuthService
+import org.bscm.services.JWTService
+import org.bscm.services.OAuthService
 import org.koin.ktor.ext.inject
 
 // Disclaimer: Dependency Injection can't be made inside 'routing { }' block
 
 fun Application.configureRouting() {
-    val authService by inject<AuthService>()
+    val oAuthService by inject<OAuthService>()
     val userRepository by inject<UserRepository>()
+    val jwtService by inject<JWTService>()
     val chartRepository by inject<ChartRepository>()
 
     routing {
@@ -28,7 +30,7 @@ fun Application.configureRouting() {
             call.respondText("Hello World!")
         }
 
-        authRoutes(authService)
+        authRoutes(userRepository, oAuthService, jwtService)
         chartRoutes(chartRepository)
         userRoutes(userRepository)
     }

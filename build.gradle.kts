@@ -45,6 +45,7 @@ dependencies {
     implementation("io.ktor:ktor-server-swagger-jvm:$ktor_version")
     implementation("io.ktor:ktor-server-auth:$ktor_version")
     implementation("io.ktor:ktor-server-auth-jwt-jvm:$ktor_version")
+    implementation("io.ktor:ktor-server-cors:$ktor_version")
 
     testImplementation("io.ktor:ktor-server-test-host-jvm:$ktor_version")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")

@@ -14,9 +14,13 @@ data class Version(
     @Serializable(with = UUIDSerializer::class)
     val chartId: UUID,
     val index: Int,
+    val duration: Int,
+    val notesAmount: Int,
+    val effectsAmount: Int,
+    val bpm: Int,
     val chartUrl: String,
-    val downloadsAmount: Int,
-    val knownIssues: List<KnownIssue>,
+    val downloadsAmount: Int = 0,
+    val knownIssues: List<KnownIssue> = emptyList(),
     @Serializable(with = LocalDateSerializer::class)
     val publishedAt: LocalDate,
 )
