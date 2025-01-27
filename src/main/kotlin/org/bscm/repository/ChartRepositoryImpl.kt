@@ -16,6 +16,7 @@ class ChartRepositoryImpl : ChartRepository {
         id = entity.id.value,
         track = entity.track,
         artist = entity.artist,
+        album = entity.album,
         coverUrl = entity.coverUrl,
         isDeluxe = entity.isDeluxe,
         isExplicit = entity.isExplicit,
@@ -39,22 +40,31 @@ class ChartRepositoryImpl : ChartRepository {
     )
 
     override suspend fun getAllCharts(): List<Chart> = newSuspendedTransaction {
-        ChartEntity.all().map(::chartEntityToChart)
+        ChartEntity.all().map { chartEntity ->
+            // Get the latest version for this chart using maxBy on index
+            val latestVersion = chartEntity.versions
+                .toList()
+                .maxByOrNull { it.index }
+
+            chartEntityToChart(chartEntity, latestVersion?.let { listOf(it) } ?: emptyList())
+        }
     }
 
     override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
-        ChartEntity.findById(id)?.let(::chartEntityToChart)
+        ChartEntity.findById(id)?.let { chartEntity ->
+            chartEntityToChart(chartEntity, chartEntity.versions.toList())
+        }
     }
 
     override suspend fun createChart(chart: CreateChartRequest): Chart = newSuspendedTransaction {
         val newChart = ChartEntity.new(UUID.randomUUID()) {
             this.artist = chart.artist
             this.track = chart.track
+            this.album = chart.album
             this.coverUrl = chart.coverUrl
             this.difficulty = chart.difficulty
             this.isDeluxe = chart.isDeluxe
             this.isExplicit = chart.isExplicit
-            this.isFeatured = chart.isFeatured
         }
 
         val initialVersion = VersionEntity.new {

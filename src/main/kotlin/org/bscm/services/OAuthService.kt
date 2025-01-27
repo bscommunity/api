@@ -31,6 +31,12 @@ class OAuthService(
         @SerialName("expires_in") val expiresIn: Int
     )
 
+    @Serializable
+    private data class TokenRequestError(
+        @SerialName("error") val error: String,
+        @SerialName("error_description") val errorDescription: String
+    )
+
     suspend fun getAccessToken(code: String): String {
         val response: HttpResponse = applicationHttpClient.submitForm(
             url = "${discordApiEndpoint}/oauth2/token",
@@ -50,8 +56,8 @@ class OAuthService(
             return tokenResponse.accessToken
         } else {
             // Handle error response
-            val errorBody = response.bodyAsText()
-            throw Exception("Failed to retrieve access token: $errorBody")
+            val errorResponse = response.body<TokenRequestError>()
+            throw Exception("Failed to get access token: ${errorResponse.errorDescription}")
         }
     }
 

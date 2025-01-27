@@ -37,17 +37,13 @@ fun Route.userRoutes(userRepository: UserRepository) {
 
             // Get user by Discord ID
             get("{id}") {
-                val id = call.parameters["id"]
-                if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing Discord ID")
-                    return@get
-                }
+                val id = call.parameters["id"] ?: throw IllegalArgumentException("Invalid or missing Discord ID")
 
                 val user = userRepository.getUserByDiscordId(id)
                 if (user != null) {
                     call.respond(user)
                 } else {
-                    call.respond(HttpStatusCode.NotFound, "User not found")
+                    throw NotFoundException("User not found")
                 }
             }
 
@@ -55,16 +51,14 @@ fun Route.userRoutes(userRepository: UserRepository) {
             put("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@put
+                    throw IllegalArgumentException("Invalid or missing ID")
                 }
                 val user = call.receive<UpdateUserRequest>()
 
                 try {
                     userRepository.updateUser(id, user)
                 } catch (e: NotFoundException) {
-                    call.respond(HttpStatusCode.NotFound, "User not found")
-                    return@put
+                    throw NotFoundException(e.message ?: "Not Found")
                 }
             }
 
@@ -72,14 +66,13 @@ fun Route.userRoutes(userRepository: UserRepository) {
             delete("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@delete
+                    throw IllegalArgumentException("Invalid or missing ID")
                 }
                 val deleted = userRepository.deleteUser(id)
                 if (deleted) {
                     call.respond(HttpStatusCode.OK, "User deleted successfully")
                 } else {
-                    call.respond(HttpStatusCode.NotFound, "User not found")
+                    throw NotFoundException("User not found")
                 }
             }
         }

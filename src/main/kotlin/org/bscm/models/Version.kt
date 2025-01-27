@@ -3,9 +3,9 @@
 package org.bscm.models
 
 import kotlinx.serialization.Serializable
-import org.bscm.serialization.LocalDateSerializer
+import org.bscm.serialization.LocalDateTimeSerializer
 import org.bscm.serialization.UUIDSerializer
-import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.*
 
 @Serializable
@@ -14,13 +14,13 @@ data class Version(
     @Serializable(with = UUIDSerializer::class)
     val chartId: UUID,
     val index: Int,
-    val duration: Int,
+    val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,
     val bpm: Int,
     val chartUrl: String,
     val downloadsAmount: Int = 0,
     val knownIssues: List<KnownIssue> = emptyList(),
-    @Serializable(with = LocalDateSerializer::class)
-    val publishedAt: LocalDate,
+    @Serializable(with = LocalDateTimeSerializer::class)
+    val publishedAt: LocalDateTime,
 )

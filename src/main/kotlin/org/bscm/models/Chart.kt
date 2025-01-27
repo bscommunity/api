@@ -11,6 +11,7 @@ data class Chart(
     val id: UUID,
     val artist: String,
     val track: String,
+    val album: String?,
     val coverUrl: String,
     val difficulty: Difficulty,
     val isDeluxe: Boolean,
@@ -22,6 +23,7 @@ data class Chart(
         fun create(
             artist: String,
             track: String,
+            album: String,
             coverUrl: String,
             difficulty: Difficulty?,
             isDeluxe: Boolean,
@@ -32,8 +34,9 @@ data class Chart(
                 id = UUID.randomUUID(), // Auto-generate UUID
                 artist = artist,
                 track = track,
+                album = album,
                 coverUrl = coverUrl,
-                difficulty = difficulty ?: Difficulty.NORMAL,
+                difficulty = difficulty ?: Difficulty.Normal,
                 isDeluxe = isDeluxe,
                 isExplicit = isExplicit,
                 isFeatured = isFeatured

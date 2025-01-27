@@ -7,6 +7,7 @@ import org.bscm.models.enums.Difficulty
 data class UpdateChartRequest (
     val artist: String? = null,
     val track: String? = null,
+    val album: String? = null,
     val coverUrl: String? = null,
     val difficulty: Difficulty? = null,
     val isDeluxe: Boolean? = null,

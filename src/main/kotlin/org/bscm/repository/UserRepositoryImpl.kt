@@ -7,8 +7,8 @@ import org.bscm.models.dto.UpdateUserRequest
 import org.bscm.models.entities.UserEntity
 import org.bscm.models.tables.UserTable
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import java.time.LocalDate
-import java.util.UUID
+import java.time.LocalDateTime
+import java.util.*
 
 class UserRepositoryImpl : UserRepository {
 
@@ -39,7 +39,7 @@ class UserRepositoryImpl : UserRepository {
             this.email = user.email
             this.discordId = user.discordId
             this.imageUrl = user.imageUrl
-            this.createdAt = LocalDate.now()
+            this.createdAt = LocalDateTime.now()
         }
         userEntityToUser(newUser)
     }

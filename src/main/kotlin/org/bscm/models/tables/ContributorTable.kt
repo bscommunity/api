@@ -3,7 +3,7 @@ package org.bscm.models.tables
 import org.bscm.models.enums.ContributorRole
 import org.jetbrains.exposed.dao.id.CompositeIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.javatime.date
+import org.jetbrains.exposed.sql.javatime.datetime
 
 object ContributorTable : CompositeIdTable("contributor") {
     val userId = reference(
@@ -17,5 +17,5 @@ object ContributorTable : CompositeIdTable("contributor") {
         onDelete = ReferenceOption.CASCADE
     ).entityId()
     val role = enumerationByName("role", 50, ContributorRole::class)
-    val joinedAt = date("joined_at")
+    val joinedAt = datetime("joined_at")
 }

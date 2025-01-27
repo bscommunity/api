@@ -22,21 +22,21 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
         get("{id}") {
             val id = call.parameters["id"]?.let { UUID.fromString(it) }
             if (id == null) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                return@get
+                throw IllegalArgumentException("Invalid or missing ID")
             }
 
             val chart = chartRepository.getChartById(id)
             if (chart != null) {
                 call.respond(chart)
             } else {
-                call.respond(HttpStatusCode.NotFound, "Chart not found")
+                throw NotFoundException("Chart not found")
             }
         }
 
         // Create a new chart
         post {
             val createRequest = call.receive<CreateChartRequest>()
+            println(createRequest)
             val createdChart = chartRepository.createChart(createRequest)
             call.respond(HttpStatusCode.Created, createdChart)
         }
@@ -45,8 +45,7 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
         put("{id}") {
             val id = call.parameters["id"]?.let { UUID.fromString(it) }
             if (id == null) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                return@put
+                throw IllegalArgumentException("Invalid or missing ID")
             }
 
             val updateRequest = call.receive<UpdateChartRequest>()
@@ -55,9 +54,9 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
                 val updatedChart = chartRepository.updateChart(id, updateRequest)
                 call.respond(updatedChart)
             } catch (e: NotFoundException) {
-                call.respond(HttpStatusCode.NotFound, e.message ?: "Not Found")
+                throw NotFoundException(e.message ?: "Not Found")
             } catch (e: Exception) {
-                call.respond(HttpStatusCode.InternalServerError, e.message ?: "Internal Server Error")
+                throw Exception(e.message ?: "Internal Server Error")
             }
         }
 
@@ -65,15 +64,14 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
         delete("{id}") {
             val id = call.parameters["id"]?.let { UUID.fromString(it) }
             if (id == null) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                return@delete
+                throw IllegalArgumentException("Invalid or missing ID")
             }
 
             val deleted = chartRepository.deleteChart(id)
             if (deleted) {
                 call.respond(HttpStatusCode.OK, "Chart deleted successfully")
             } else {
-                call.respond(HttpStatusCode.NotFound, "Chart not found")
+                throw NotFoundException("Chart not found")
             }
         }
     }
