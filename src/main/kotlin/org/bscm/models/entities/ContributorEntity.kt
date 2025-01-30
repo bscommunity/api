@@ -7,8 +7,9 @@ import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.dao.id.EntityID
 
 class ContributorEntity(id: EntityID<CompositeID>) : CompositeEntity(id) {
-    companion object : CompositeEntityClass<CompositeEntity>(ContributorTable)
+    companion object : CompositeEntityClass<ContributorEntity>(ContributorTable)
 
-    var role by ContributorTable.role
+    var user by UserEntity referencedOn ContributorTable.userId
+    var roles by ContributorTable.roles
     var joinedAt by ContributorTable.joinedAt
 }

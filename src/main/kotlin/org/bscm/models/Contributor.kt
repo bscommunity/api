@@ -12,8 +12,8 @@ import java.util.*
 
 @Serializable
 data class Contributor(
-    val userId: UUID,
+    val user: User,
     val chartId: UUID,
-    val role: ContributorRole,
+    val roles: List<ContributorRole>,
     val joinedAt: LocalDateTime
 )

@@ -8,7 +8,7 @@ object ChartTable : UUIDTable("chart") {
     val track = varchar("track", 255)
     val album = varchar("album", 255).nullable()
     val coverUrl = varchar("cover_url", 255)
-    val difficulty = enumerationByName("difficulty", 255, Difficulty::class)
+    val difficulty = enumerationByName("difficulty", 10, Difficulty::class)
     val isDeluxe = bool("is_deluxe").default(false)
     val isExplicit = bool("is_explicit").default(false)
     val isFeatured = bool("is_featured").default(false)

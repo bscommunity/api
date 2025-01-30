@@ -23,6 +23,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
 
     // Initialize tables
     transaction {
-        SchemaUtils.create(UserTable, ChartTable, VersionTable, ContributorTable)
+        // SchemaUtils.drop(UserTable, ChartTable, VersionTable, ContributorTable)
+        SchemaUtils.createMissingTablesAndColumns(UserTable, ChartTable, VersionTable, ContributorTable)
     }
 }

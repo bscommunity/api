@@ -1,6 +1,7 @@
 package org.bscm.models.entities
 
 import org.bscm.models.tables.ChartTable
+import org.bscm.models.tables.ContributorTable
 import org.bscm.models.tables.VersionTable
 import org.jetbrains.exposed.dao.UUIDEntity
 import org.jetbrains.exposed.dao.UUIDEntityClass
@@ -20,4 +21,5 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var isFeatured by ChartTable.isFeatured
 
     val versions by VersionEntity referrersOn VersionTable.chartId
+    val contributors by ContributorEntity referrersOn ContributorTable.chartId
 }

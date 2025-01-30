@@ -17,7 +17,8 @@ data class Chart(
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
     val isFeatured: Boolean,
-    val versions: List<Version> = emptyList()
+    val versions: List<Version> = emptyList(),
+    val contributors: List<Contributor> = emptyList()
 ) {
     companion object {
         fun create(
