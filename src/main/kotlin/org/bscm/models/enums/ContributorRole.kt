@@ -4,5 +4,5 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class ContributorRole {
-    Author, Chart, Audio, Testing, Effects
+    Author, Chart, Audio, Revision, Effects, Sync
 }
