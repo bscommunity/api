@@ -4,11 +4,11 @@ import org.bscm.models.Chart
 import org.bscm.models.KnownIssue
 import org.bscm.models.dto.CreateChartRequest
 import org.bscm.models.dto.UpdateChartRequest
-import java.time.LocalDateTime
+import java.time.LocalDate
 import java.util.*
 
 interface ChartRepository {
-    suspend fun getAllCharts(startDate: LocalDateTime?, endDate: LocalDateTime?): List<Chart>
+    suspend fun getAllCharts(startDate: LocalDate?, endDate: LocalDate?): List<Chart>
     suspend fun getChartById(id: UUID): Chart?
     suspend fun createChart(chart: CreateChartRequest): Chart
     suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart

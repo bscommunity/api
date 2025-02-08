@@ -5,9 +5,9 @@ import kotlinx.serialization.json.Json
 import org.bscm.models.KnownIssue
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.javatime.CurrentDateTime
-import org.jetbrains.exposed.sql.javatime.datetime
+import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.json.jsonb
+import java.time.LocalDate
 
 object VersionTable : IntIdTable("version") {
     val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
@@ -21,5 +21,5 @@ object VersionTable : IntIdTable("version") {
     val knownIssues = jsonb("known_issues", Json {
         ignoreUnknownKeys = true
     }, ListSerializer(KnownIssue.serializer())).default(emptyList())
-    val publishedAt = datetime("published_at").defaultExpression(CurrentDateTime)
+    val publishedAt = date("published_at").clientDefault { LocalDate.now() }
 }

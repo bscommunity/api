@@ -13,7 +13,6 @@ import org.bscm.models.tables.ContributorTable
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.util.*
 
 class ChartRepositoryImpl : ChartRepository {
@@ -72,8 +71,8 @@ class ChartRepositoryImpl : ChartRepository {
     }
 
     override suspend fun getAllCharts(
-        startDate: LocalDateTime?,
-        endDate: LocalDateTime?,
+        startDate: LocalDate?,
+        endDate: LocalDate?,
     ): List<Chart> = newSuspendedTransaction {
         // Retrieve charts whose latest version's createdAt is within the given range
         ChartEntity.all()
@@ -88,7 +87,7 @@ class ChartRepositoryImpl : ChartRepository {
                     (startDate == null || latestVersion.publishedAt >= startDate) &&
                     (endDate == null || latestVersion.publishedAt <= endDate)
                 ) {
-                    chartEntityToChart(chartEntity, listOf(latestVersion))
+                    chartEntityToChart(chartEntity, listOf(latestVersion), chartEntity.contributors.toList())
                 } else {
                     null // Exclude charts if no version matches the range
                 }
@@ -97,7 +96,7 @@ class ChartRepositoryImpl : ChartRepository {
 
     override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
         ChartEntity.findById(id)?.let { chartEntity ->
-            chartEntityToChart(chartEntity, chartEntity.versions.toList())
+            chartEntityToChart(chartEntity, chartEntity.versions.toList(), chartEntity.contributors.toList())
         }
 
         /*
@@ -154,7 +153,7 @@ class ChartRepositoryImpl : ChartRepository {
         // Add the user as an author of the chart
         ContributorEntity.new(contributorId) {
             roles = listOf(ContributorRole.Author)
-            joinedAt = LocalDate.now().atStartOfDay()
+            joinedAt = LocalDate.now()
         }
 
         chartEntityToChart(newChart, listOf(initialVersion))
@@ -201,7 +200,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         ContributorEntity.new(contributorId) {
             roles = listOf(ContributorRole.Author)
-            joinedAt = LocalDate.now().atStartOfDay()
+            joinedAt = LocalDate.now()
         }
 
         true

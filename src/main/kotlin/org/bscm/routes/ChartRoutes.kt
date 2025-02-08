@@ -10,15 +10,15 @@ import org.bscm.models.dto.AddContributorRequest
 import org.bscm.models.dto.CreateChartRequest
 import org.bscm.models.dto.UpdateChartRequest
 import org.bscm.repository.ChartRepository
-import java.time.LocalDateTime
+import java.time.LocalDate
 import java.util.*
 
 fun Route.chartRoutes(chartRepository: ChartRepository) {
     route("/charts") {
         // Get all charts
         get {
-            val startDate = call.request.queryParameters["startDate"]?.let { LocalDateTime.parse(it) }
-            val endDate = call.request.queryParameters["endDate"]?.let { LocalDateTime.parse(it) }
+            val startDate = call.request.queryParameters["startDate"]?.let { LocalDate.parse(it) }
+            val endDate = call.request.queryParameters["endDate"]?.let { LocalDate.parse(it) }
             val charts = chartRepository.getAllCharts(startDate, endDate)
             call.respond(charts)
         }
