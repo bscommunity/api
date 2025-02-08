@@ -3,6 +3,7 @@ package org.bscm.repository
 import io.ktor.server.plugins.*
 import org.bscm.models.*
 import org.bscm.models.dto.CreateChartRequest
+import org.bscm.models.dto.SimplifiedUser
 import org.bscm.models.dto.UpdateChartRequest
 import org.bscm.models.entities.ChartEntity
 import org.bscm.models.entities.ContributorEntity
@@ -63,7 +64,10 @@ class ChartRepositoryImpl : ChartRepository {
         val chartId = compositeId[ContributorTable.chartId].value
 
         return Contributor(
-            user = userEntityToUser(entity.user),
+            user = SimplifiedUser(
+                username = entity.user.username,
+                imageUrl = entity.user.imageUrl,
+            ),
             chartId = chartId,
             roles = entity.roles,
             joinedAt = entity.joinedAt,
@@ -71,25 +75,21 @@ class ChartRepositoryImpl : ChartRepository {
     }
 
     override suspend fun getAllCharts(
-        startDate: LocalDate?,
-        endDate: LocalDate?,
+        fetchContributors: Boolean,
     ): List<Chart> = newSuspendedTransaction {
-        // Retrieve charts whose latest version's createdAt is within the given range
         ChartEntity.all()
-            .mapNotNull { chartEntity ->
+            .map { chartEntity ->
                 // Get the latest version for this chart
                 val latestVersion = chartEntity.versions
                     .toList()
                     .maxByOrNull { it.index }
 
-                // Filter based on the latest version's createdAt timestamp
-                if (latestVersion != null &&
-                    (startDate == null || latestVersion.publishedAt >= startDate) &&
-                    (endDate == null || latestVersion.publishedAt <= endDate)
-                ) {
-                    chartEntityToChart(chartEntity, listOf(latestVersion), chartEntity.contributors.toList())
+                // Return the chart with the latest version
+                // Only include contributors if requested
+                if (fetchContributors) {
+                    chartEntityToChart(chartEntity, listOfNotNull(latestVersion), chartEntity.contributors.toList())
                 } else {
-                    null // Exclude charts if no version matches the range
+                    chartEntityToChart(chartEntity, listOfNotNull(latestVersion))
                 }
             }
     }
@@ -98,29 +98,9 @@ class ChartRepositoryImpl : ChartRepository {
         ChartEntity.findById(id)?.let { chartEntity ->
             chartEntityToChart(chartEntity, chartEntity.versions.toList(), chartEntity.contributors.toList())
         }
-
-        /*
-        * // Select chart data first
-        val chartEntity = ChartEntity.findById(id) ?: return@newSuspendedTransaction null
-
-        // Perform a manual query to select only the needed fields (username, imageUrl) for contributors
-        val contributors = UserTable
-            .join(ContributorTable, JoinType.INNER, additionalConstraint = { ContributorTable.chartId eq id })
-            .select(UserTable.username, UserTable.imageUrl)
-            .map {
-                SimplifiedUser().apply {
-                    username = it[UserTable.username]
-                    imageUrl = it[UserTable.imageUrl]
-                }
-            }
-
-        // Map to Chart DTO, including the contributors
-        chartEntityToChart(chartEntity, chartEntity.versions.toList()).copy(
-            contributors = contributors
-        )*/
     }
 
-    override suspend fun createChart(chart: CreateChartRequest): Chart = newSuspendedTransaction {
+    override suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart = newSuspendedTransaction {
         // Create the chart
         val newChart = ChartEntity.new(UUID.randomUUID()) {
             this.artist = chart.artist
@@ -142,8 +122,7 @@ class ChartRepositoryImpl : ChartRepository {
             this.bpm = chart.bpm
         }
 
-        val user = UserEntity.findById(UUID.fromString(("547a6044-fe49-4ff5-b7cc-dc2b4e6651a5")))
-            ?: throw NotFoundException("User not found")
+        val user = UserEntity.findById(userId) ?: throw NotFoundException("User not found")
 
         val contributorId = CompositeID {
             it[ContributorTable.chartId] = newChart.id

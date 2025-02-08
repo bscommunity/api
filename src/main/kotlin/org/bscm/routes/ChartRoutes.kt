@@ -12,7 +12,6 @@ import org.bscm.models.dto.AddContributorRequest
 import org.bscm.models.dto.CreateChartRequest
 import org.bscm.models.dto.UpdateChartRequest
 import org.bscm.repository.ChartRepository
-import java.time.LocalDate
 import java.util.*
 
 fun Route.chartRoutes(chartRepository: ChartRepository) {
@@ -20,9 +19,10 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
         route("/charts") {
             // Get all charts
             get {
-                val startDate = call.request.queryParameters["startDate"]?.let { LocalDate.parse(it) }
-                val endDate = call.request.queryParameters["endDate"]?.let { LocalDate.parse(it) }
-                val charts = chartRepository.getAllCharts(startDate, endDate)
+                // Check for a "fetchContributors" query parameter
+                val fetchContributors = call.request.queryParameters["fetchContributors"]?.toBoolean() ?: false
+
+                val charts = chartRepository.getAllCharts(fetchContributors)
                 call.respond(charts)
             }
 
@@ -46,13 +46,10 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
                 val createRequest = call.receive<CreateChartRequest>()
                 println(createRequest)
 
-                // Check for a "fetchContributors" query parameter
-                val fetchContributors = call.request.queryParameters["fetchContributors"]?.toBoolean() ?: false
-
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.subject?.let { UUID.fromString(it) } ?: throw Exception("User not authenticated")
 
-                val createdChart = chartRepository.createChart(userId, createRequest, fetchContributors)
+                val createdChart = chartRepository.createChart(userId, createRequest)
                 call.respond(HttpStatusCode.Created, createdChart)
             }
 

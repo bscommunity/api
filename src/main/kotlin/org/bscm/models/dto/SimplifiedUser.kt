@@ -1,6 +1,9 @@
 package org.bscm.models.dto
 
-class SimplifiedUser {
-    var username: String? = null
-    var imageUrl: String? = null
-}
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class SimplifiedUser(
+    val username: String,
+    val imageUrl: String?,
+)
