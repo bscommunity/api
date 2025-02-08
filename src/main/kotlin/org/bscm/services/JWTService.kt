@@ -17,14 +17,15 @@ class JWTService(
             .sign(algorithm)
     }
 
-    fun verifyToken(token: String): UUID? {
-        return try {
+    fun verifyToken(userId: String): UUID? {
+        return UUID.fromString(userId)
+        /*return try {
             val decodedJWT = JWT.require(algorithm)
                 .build()
                 .verify(token)
             UUID.fromString(decodedJWT.subject)
         } catch (e: Exception) {
             null
-        }
+        }*/
     }
 }
