@@ -17,31 +17,7 @@ data class Chart(
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
     val isFeatured: Boolean,
+    val latestVersion: Version? = null,
     val versions: List<Version> = emptyList(),
     val contributors: List<Contributor> = emptyList()
-) {
-    companion object {
-        fun create(
-            artist: String,
-            track: String,
-            album: String,
-            coverUrl: String,
-            difficulty: Difficulty?,
-            isDeluxe: Boolean,
-            isExplicit: Boolean,
-            isFeatured: Boolean
-        ): Chart {
-            return Chart(
-                id = UUID.randomUUID(), // Auto-generate UUID
-                artist = artist,
-                track = track,
-                album = album,
-                coverUrl = coverUrl,
-                difficulty = difficulty ?: Difficulty.Normal,
-                isDeluxe = isDeluxe,
-                isExplicit = isExplicit,
-                isFeatured = isFeatured
-            )
-        }
-    }
-}
+)

@@ -2,6 +2,7 @@ package org.bscm.models.tables
 
 import org.bscm.models.enums.Difficulty
 import org.jetbrains.exposed.dao.id.UUIDTable
+import org.jetbrains.exposed.sql.ReferenceOption
 
 object ChartTable : UUIDTable("chart") {
     val artist = varchar("artist", 255)
@@ -12,4 +13,5 @@ object ChartTable : UUIDTable("chart") {
     val isDeluxe = bool("is_deluxe").default(false)
     val isExplicit = bool("is_explicit").default(false)
     val isFeatured = bool("is_featured").default(false)
+    val latestVersionId = reference("latest_version_id", VersionTable, onDelete = ReferenceOption.SET_NULL).nullable()
 }

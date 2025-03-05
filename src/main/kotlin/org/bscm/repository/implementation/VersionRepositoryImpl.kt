@@ -5,6 +5,7 @@ import org.bscm.models.entities.ChartEntity
 import org.bscm.models.entities.VersionEntity
 import org.bscm.models.tables.VersionTable
 import org.bscm.repository.VersionRepository
+import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.util.*
 
@@ -39,6 +40,11 @@ class VersionRepositoryImpl : VersionRepository {
             this.publishedAt = version.publishedAt
         }
 
+        // Update the latest version of the chart
+        ChartEntity.findByIdAndUpdate(chartEntity.id.value) {
+            it.latestVersion = versionEntity
+        }
+
         versionEntityToVersion(versionEntity)
     }
 
@@ -54,4 +60,14 @@ class VersionRepositoryImpl : VersionRepository {
         VersionEntity.find { VersionTable.chartId eq chartId }.map { versionEntityToVersion(it) }
     }
 
+    override suspend fun getLatestVersionsByChartIds(chartIds: List<UUID>): List<Version> = newSuspendedTransaction {
+        chartIds.mapNotNull { chartId ->
+            VersionEntity
+                .find { VersionTable.chartId eq chartId }
+                .orderBy(VersionTable.publishedAt to SortOrder.DESC)
+                .limit(1)
+                .firstOrNull()
+                ?.let { versionEntityToVersion(it) }
+        }
+    }
 }

@@ -29,6 +29,8 @@ fun Application.configureSecurity(
                     .build()
             )
             validate { credential ->
+                println("Credential: $credential")
+
                 val userId = credential.subject?.let { jwtService.verifyToken(it) }
                 if (userId != null) {
                     JWTPrincipal(credential.payload)

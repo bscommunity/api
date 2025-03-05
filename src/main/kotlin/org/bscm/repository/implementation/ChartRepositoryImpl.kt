@@ -13,6 +13,7 @@ import org.bscm.models.tables.ContributorTable
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.implementation.ContributorRepositoryImpl.Companion.contributorEntityToContributor
 import org.bscm.repository.implementation.VersionRepositoryImpl.Companion.versionEntityToVersion
+import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDate
@@ -34,25 +35,21 @@ class ChartRepositoryImpl : ChartRepository {
         isExplicit = entity.isExplicit,
         difficulty = entity.difficulty,
         isFeatured = entity.isFeatured,
+        latestVersion = entity.latestVersion?.let(::versionEntityToVersion),
         versions = versionEntities?.map(::versionEntityToVersion) ?: emptyList(),
         contributors = contributorEntities?.map(::contributorEntityToContributor) ?: emptyList(),
     )
 
     override suspend fun getCharts(
-        fetchContributors: Boolean,
+        chartIds: List<UUID>?,
+        fetchVersions: Boolean?,
+        fetchContributors: Boolean?,
     ): List<Chart> = newSuspendedTransaction {
         ChartEntity.all()
             .map { chartEntity ->
-                // Get the latest version for this chart (last added)
-                val latestVersion = chartEntity.versions.toList().maxByOrNull { it.publishedAt }
-
-                // Return the chart with the latest version
-                // Only include contributors if requested
-                if (fetchContributors) {
-                    chartEntityToChart(chartEntity, listOfNotNull(latestVersion), chartEntity.contributors.toList())
-                } else {
-                    chartEntityToChart(chartEntity, listOfNotNull(latestVersion))
-                }
+                val versionEntities = if (fetchVersions == true) chartEntity.versions.toList() else null
+                val contributorEntities = if (fetchContributors == true) chartEntity.contributors.toList() else null
+                chartEntityToChart(chartEntity, versionEntities, contributorEntities)
             }
     }
 
@@ -74,6 +71,8 @@ class ChartRepositoryImpl : ChartRepository {
             this.isExplicit = chart.isExplicit
         }
 
+        flushCache()
+
         // Add the initial version with the chart's metadata
         val initialVersion = VersionEntity.new {
             this.chart = newChart
@@ -83,6 +82,13 @@ class ChartRepositoryImpl : ChartRepository {
             this.effectsAmount = chart.effectsAmount
             this.bpm = chart.bpm
         }
+
+        // It works!
+        newChart.latestVersion = initialVersion
+
+        /*ChartEntity.findByIdAndUpdate(newChart.id.value) {
+            it.latestVersion = initialVersion
+        }*/
 
         val user = UserEntity.findById(userId) ?: throw NotFoundException("User not found")
 
@@ -97,7 +103,7 @@ class ChartRepositoryImpl : ChartRepository {
             joinedAt = LocalDate.now()
         }
 
-        chartEntityToChart(newChart, listOf(initialVersion))
+        chartEntityToChart(newChart)
     }
 
     override suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart = newSuspendedTransaction {
