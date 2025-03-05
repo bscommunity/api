@@ -1,4 +1,4 @@
-package org.bscm.models.dto
+package org.bscm.models.dto.chart
 
 import kotlinx.serialization.Serializable
 import org.bscm.models.enums.Difficulty

@@ -11,7 +11,6 @@ class VersionEntity(id: EntityID<Int>) : IntEntity(id) {
     // Reference to the parent Chart
     var chart by ChartEntity referencedOn VersionTable.chartId
 
-    var index by VersionTable.index
     var duration by VersionTable.duration
     var notesAmount by VersionTable.notesAmount
     var effectsAmount by VersionTable.effectsAmount

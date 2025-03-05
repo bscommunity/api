@@ -7,8 +7,8 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.dto.CreateUserRequest
-import org.bscm.models.dto.UpdateUserRequest
+import org.bscm.models.dto.user.CreateUserRequest
+import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.repository.UserRepository
 import java.util.*
 
@@ -24,7 +24,11 @@ fun Route.userRoutes(userRepository: UserRepository) {
         authenticate("auth-jwt") {
             // Get all users
             get {
-                val users = userRepository.getAllUsers()
+                // Get query parameters (search)
+                val search = call.request.queryParameters["search"]
+
+                val users = userRepository.getUsers(search)
+
                 call.respond(users)
             }
 

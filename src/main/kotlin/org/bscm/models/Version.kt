@@ -13,7 +13,6 @@ data class Version(
     val id: Int,
     @Serializable(with = UUIDSerializer::class)
     val chartId: UUID,
-    val index: Int,
     val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,

@@ -4,7 +4,7 @@ package org.bscm.models
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
-import org.bscm.models.dto.SimplifiedUser
+import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.enums.ContributorRole
 import org.bscm.serialization.LocalDateSerializer
 import org.bscm.serialization.UUIDSerializer

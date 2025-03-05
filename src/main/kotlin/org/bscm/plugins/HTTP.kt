@@ -20,7 +20,17 @@ val applicationHttpClient = HttpClient(CIO) {
 fun Application.configureHTTP() {
     install(CORS) {
         allowCredentials = true
+        allowNonSimpleContentTypes = true
+
         anyHost()
+
+        allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Post)
+        allowMethod(HttpMethod.Get)
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Delete)
+
+        allowHeader(HttpHeaders.AccessControlAllowOrigin)
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
     }

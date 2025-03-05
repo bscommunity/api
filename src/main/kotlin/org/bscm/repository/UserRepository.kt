@@ -1,12 +1,12 @@
 package org.bscm.repository
 
 import org.bscm.models.User
-import org.bscm.models.dto.CreateUserRequest
-import org.bscm.models.dto.UpdateUserRequest
-import java.util.UUID
+import org.bscm.models.dto.user.CreateUserRequest
+import org.bscm.models.dto.user.UpdateUserRequest
+import java.util.*
 
 interface UserRepository {
-    suspend fun getAllUsers(): List<User>
+    suspend fun getUsers(query: String?): List<User>
     suspend fun getUserByDiscordId(discordId: String): User?
     suspend fun getUserByUsername(username: String): User?
     suspend fun createUser(user: CreateUserRequest): User

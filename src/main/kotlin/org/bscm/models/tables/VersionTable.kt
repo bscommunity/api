@@ -11,7 +11,6 @@ import java.time.LocalDate
 
 object VersionTable : IntIdTable("version") {
     val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
-    val index = integer("index").autoIncrement()
     val duration = float("duration")
     val notesAmount = integer("notes_amount")
     val effectsAmount = integer("effects_amount")

@@ -5,8 +5,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import org.bscm.models.User
-import org.bscm.models.dto.CreateUserRequest
-import org.bscm.models.dto.UpdateUserRequest
+import org.bscm.models.dto.user.CreateUserRequest
+import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.repository.UserRepository
 import org.bscm.services.JWTService
 import org.bscm.services.OAuthService

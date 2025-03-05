@@ -7,22 +7,29 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.KnownIssue
-import org.bscm.models.dto.AddContributorRequest
-import org.bscm.models.dto.CreateChartRequest
-import org.bscm.models.dto.UpdateChartRequest
+import org.bscm.models.Version
+import org.bscm.models.dto.chart.CreateChartRequest
+import org.bscm.models.dto.chart.UpdateChartRequest
+import org.bscm.models.dto.contributor.CreateContributorRequest
+import org.bscm.models.dto.contributor.UpdateContributorRequest
 import org.bscm.repository.ChartRepository
+import org.bscm.repository.ContributorRepository
+import org.bscm.repository.VersionRepository
 import java.util.*
 
-fun Route.chartRoutes(chartRepository: ChartRepository) {
-    authenticate("auth-jwt") {
+fun Route.chartRoutes(
+    chartRepository: ChartRepository,
+    contributorRepository: ContributorRepository,
+    versionRepository: VersionRepository
+) {
+//    authenticate("auth-jwt") {
         route("/charts") {
             // Get all charts
             get {
                 // Check for a "fetchContributors" query parameter
                 val fetchContributors = call.request.queryParameters["fetchContributors"]?.toBoolean() ?: false
 
-                val charts = chartRepository.getAllCharts(fetchContributors)
+                val charts = chartRepository.getCharts(fetchContributors)
                 call.respond(charts)
             }
 
@@ -81,15 +88,17 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
 
                 val deleted = chartRepository.deleteChart(id)
                 if (deleted) {
-                    call.respond(HttpStatusCode.OK, "Chart deleted successfully")
+                    call.respond(HttpStatusCode.NoContent, true)
                 } else {
                     throw NotFoundException("Chart not found")
                 }
             }
 
+            /* Known Issues ======================================== */
+
             // Add an issue to a chart
             post("{id}/issues") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                /*val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {
                     throw IllegalArgumentException("Invalid or missing ID")
                 }
@@ -100,12 +109,12 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
                     call.respond(HttpStatusCode.Created, "Issue added successfully")
                 } else {
                     throw NotFoundException("Chart not found")
-                }
+                }*/
             }
 
             // Remove an issue from a chart
             delete("{id}/issues/{issueId}") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+               /* val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 val issueId = call.parameters["issueId"]?.let { UUID.fromString(it) }
                 if (id == null || issueId == null) {
                     throw IllegalArgumentException("Invalid or missing ID")
@@ -113,27 +122,43 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
 
                 val removed = chartRepository.removeIssue(id, issueId)
                 if (removed) {
-                    call.respond(HttpStatusCode.OK, "Issue removed successfully")
+                    call.respond(HttpStatusCode.NoContent, "Issue removed successfully")
                 } else {
                     throw NotFoundException("Chart or issue not found")
-                }
+                }*/
             }
 
-            // Add a contributor to a chart
+            /* Contributor ======================================== */
+
+            // Add contributors to a chart
             post("{id}/contributors") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
+
                 if (id == null) {
                     throw IllegalArgumentException("Invalid or missing ID")
                 }
 
-                val request = call.receive<AddContributorRequest>()
-                println(request)
+                val request = call.receive<CreateContributorRequest>()
+                val contributors = contributorRepository.addContributors(id, request.contributors)
 
-                val added = chartRepository.addContributor(id, request.userId)
-                if (added) {
-                    call.respond(HttpStatusCode.Created, "Contributor added successfully")
-                } else {
-                    throw NotFoundException("Chart or user not found")
+                call.respond(contributors)
+            }
+
+            // Update a contributor's roles
+            put("{id}/contributors/{userId}") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
+                if (id == null || userId == null) {
+                    throw IllegalArgumentException("Invalid or missing ID")
+                }
+
+                try {
+                    val updatedRequest = call.receive<UpdateContributorRequest>()
+
+                    val updated = contributorRepository.updateContributorRoles(id, userId, updatedRequest.roles)
+                    call.respond(updated)
+                } catch (e: BadRequestException) {
+                    throw BadRequestException(e.message ?: "Bad Request")
                 }
             }
 
@@ -145,9 +170,9 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
                     throw IllegalArgumentException("Invalid or missing ID")
                 }
 
-                val removed = chartRepository.removeContributor(id, userId)
+                val removed = contributorRepository.removeContributor(id, userId)
                 if (removed) {
-                    call.respond(HttpStatusCode.OK, "Contributor removed successfully")
+                    call.respond(HttpStatusCode.NoContent, "Contributor removed successfully")
                 } else {
                     throw NotFoundException("Chart or contributor not found")
                 }
@@ -160,9 +185,11 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
                     throw IllegalArgumentException("Invalid or missing ID")
                 }
 
-                val contributors = chartRepository.getContributors(id)
+                val contributors = contributorRepository.getContributors(id)
                 call.respond(contributors)
             }
+
+            /* Versions ======================================== */
 
             // Add a version to a chart
             post("{id}/versions") {
@@ -171,29 +198,27 @@ fun Route.chartRoutes(chartRepository: ChartRepository) {
                     throw IllegalArgumentException("Invalid or missing ID")
                 }
 
-                val added = chartRepository.addVersion(id)
-                if (added) {
-                    call.respond(HttpStatusCode.Created, "Version added successfully")
-                } else {
-                    throw NotFoundException("Chart not found")
-                }
+                val version = call.receive<Version>()
+
+                versionRepository.addVersion(version)
+                call.respond(HttpStatusCode.Created, "Version added successfully")
             }
 
             // Remove a version from a chart
             delete("{id}/versions/{versionId}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                val versionId = call.parameters["versionId"]?.let { UUID.fromString(it) }
+                val versionId = call.parameters["versionId"]?.toInt()
                 if (id == null || versionId == null) {
                     throw IllegalArgumentException("Invalid or missing ID")
                 }
 
-                val removed = chartRepository.removeVersion(id, versionId)
+                val removed = versionRepository.removeVersion(versionId)
                 if (removed) {
-                    call.respond(HttpStatusCode.OK, "Version removed successfully")
+                    call.respond(HttpStatusCode.NoContent, "Version removed successfully")
                 } else {
                     throw NotFoundException("Chart or version not found")
                 }
             }
         }
-    }
+    //}
 }

@@ -1,28 +1,36 @@
-package org.bscm.repository
+package org.bscm.repository.implementation
 
 import io.ktor.server.plugins.*
 import org.bscm.models.User
-import org.bscm.models.dto.CreateUserRequest
-import org.bscm.models.dto.UpdateUserRequest
+import org.bscm.models.dto.user.CreateUserRequest
+import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.entities.UserEntity
 import org.bscm.models.tables.UserTable
+import org.bscm.repository.UserRepository
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDate
 import java.util.*
 
 class UserRepositoryImpl : UserRepository {
+    companion object {
+        fun userEntityToUser(entity: UserEntity): User = User(
+            id = entity.id.value,
+            username = entity.username,
+            email = entity.email,
+            imageUrl = entity.imageUrl,
+            discordId = entity.discordId,
+            createdAt = entity.createdAt
+        )
+    }
 
-    private fun userEntityToUser(entity: UserEntity): User = User(
-        id = entity.id.value,
-        username = entity.username,
-        email = entity.email,
-        imageUrl = entity.imageUrl,
-        discordId = entity.discordId,
-        createdAt = entity.createdAt
-    )
-
-    override suspend fun getAllUsers(): List<User> = newSuspendedTransaction {
-        UserEntity.all().map(::userEntityToUser)
+    override suspend fun getUsers(query: String?): List<User> = newSuspendedTransaction {
+        // If query is null, return all users
+        if (query.isNullOrBlank()) {
+            UserEntity.all().map(::userEntityToUser)
+        } else {
+            // Otherwise, return users that match the query
+            UserEntity.find { UserTable.username like "%$query%" }.map(::userEntityToUser)
+        }
     }
 
     override suspend fun getUserByDiscordId(discordId: String): User? = newSuspendedTransaction {

@@ -1,16 +1,18 @@
-package org.bscm.repository
+package org.bscm.repository.implementation
 
 import io.ktor.server.plugins.*
-import org.bscm.models.*
-import org.bscm.models.dto.CreateChartRequest
-import org.bscm.models.dto.SimplifiedUser
-import org.bscm.models.dto.UpdateChartRequest
+import org.bscm.models.Chart
+import org.bscm.models.dto.chart.CreateChartRequest
+import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.entities.ChartEntity
 import org.bscm.models.entities.ContributorEntity
 import org.bscm.models.entities.UserEntity
 import org.bscm.models.entities.VersionEntity
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.tables.ContributorTable
+import org.bscm.repository.ChartRepository
+import org.bscm.repository.implementation.ContributorRepositoryImpl.Companion.contributorEntityToContributor
+import org.bscm.repository.implementation.VersionRepositoryImpl.Companion.versionEntityToVersion
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDate
@@ -36,53 +38,13 @@ class ChartRepositoryImpl : ChartRepository {
         contributors = contributorEntities?.map(::contributorEntityToContributor) ?: emptyList(),
     )
 
-    private fun versionEntityToVersion(entity: VersionEntity): Version = Version(
-        id = entity.id.value,
-        chartId = entity.chart.id.value,
-        index = entity.index,
-        chartUrl = entity.chartUrl,
-        duration = entity.duration,
-        notesAmount = entity.notesAmount,
-        effectsAmount = entity.effectsAmount,
-        bpm = entity.bpm,
-        downloadsAmount = entity.downloadsAmount,
-        knownIssues = entity.knownIssues,
-        publishedAt = entity.publishedAt,
-    )
-
-    private fun userEntityToUser(entity: UserEntity): User = User(
-        id = entity.id.value,
-        username = entity.username,
-        email = entity.email,
-        imageUrl = entity.imageUrl,
-        discordId = entity.discordId,
-        createdAt = entity.createdAt,
-    )
-
-    private fun contributorEntityToContributor(entity: ContributorEntity): Contributor {
-        val compositeId = entity.id.value // This is a CompositeID
-        val chartId = compositeId[ContributorTable.chartId].value
-
-        return Contributor(
-            user = SimplifiedUser(
-                username = entity.user.username,
-                imageUrl = entity.user.imageUrl,
-            ),
-            chartId = chartId,
-            roles = entity.roles,
-            joinedAt = entity.joinedAt,
-        )
-    }
-
-    override suspend fun getAllCharts(
+    override suspend fun getCharts(
         fetchContributors: Boolean,
     ): List<Chart> = newSuspendedTransaction {
         ChartEntity.all()
             .map { chartEntity ->
-                // Get the latest version for this chart
-                val latestVersion = chartEntity.versions
-                    .toList()
-                    .maxByOrNull { it.index }
+                // Get the latest version for this chart (last added)
+                val latestVersion = chartEntity.versions.toList().maxByOrNull { it.publishedAt }
 
                 // Return the chart with the latest version
                 // Only include contributors if requested
@@ -158,50 +120,11 @@ class ChartRepositoryImpl : ChartRepository {
         true
     }
 
-    override suspend fun addIssue(chartId: UUID, issue: KnownIssue): Boolean {
+    /*override suspend fun addIssue(chartId: UUID, issue: KnownIssue): Boolean {
         TODO("Not yet implemented")
     }
 
     override suspend fun removeIssue(chartId: UUID, issueId: UUID): Boolean {
         TODO("Not yet implemented")
-    }
-
-    override suspend fun addContributor(chartId: UUID, userId: UUID): Boolean = newSuspendedTransaction {
-        val chart = ChartEntity.findById(chartId) ?: return@newSuspendedTransaction false
-        println("Chart: $chart")
-        val user = UserEntity.findById(userId) ?: return@newSuspendedTransaction false
-        println("User: $user")
-
-        val contributorId = CompositeID {
-            it[ContributorTable.chartId] = chart.id
-            it[ContributorTable.userId] = user.id
-        }
-
-        ContributorEntity.new(contributorId) {
-            roles = listOf(ContributorRole.Author)
-            joinedAt = LocalDate.now()
-        }
-
-        true
-    }
-
-    override suspend fun removeContributor(chartId: UUID, userId: UUID): Boolean {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun getContributors(chartId: UUID): List<UUID> {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun addVersion(chartId: UUID): Boolean {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun removeVersion(chartId: UUID, versionId: UUID): Boolean {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun getVersions(chartId: UUID): List<UUID> {
-        TODO("Not yet implemented")
-    }
+    }*/
 }

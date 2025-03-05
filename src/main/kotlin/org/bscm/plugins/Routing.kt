@@ -6,7 +6,9 @@ import io.ktor.server.plugins.swagger.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.repository.ChartRepository
+import org.bscm.repository.ContributorRepository
 import org.bscm.repository.UserRepository
+import org.bscm.repository.VersionRepository
 import org.bscm.routes.authRoutes
 import org.bscm.routes.chartRoutes
 import org.bscm.routes.userRoutes
@@ -20,7 +22,10 @@ fun Application.configureRouting() {
     val oAuthService by inject<OAuthService>()
     val userRepository by inject<UserRepository>()
     val jwtService by inject<JWTService>()
+
     val chartRepository by inject<ChartRepository>()
+    val contributorRepository by inject<ContributorRepository>()
+    val versionRepository by inject<VersionRepository>()
 
     routing {
         swaggerUI(path = "docs", swaggerFile = "openapi/documentation.yaml")
@@ -31,7 +36,7 @@ fun Application.configureRouting() {
         }
 
         authRoutes(userRepository, oAuthService, jwtService)
-        chartRoutes(chartRepository)
+        chartRoutes(chartRepository, contributorRepository, versionRepository)
         userRoutes(userRepository)
     }
 }

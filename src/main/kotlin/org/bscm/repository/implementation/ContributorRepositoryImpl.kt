@@ -1,0 +1,93 @@
+package org.bscm.repository.implementation
+
+import org.bscm.models.Contributor
+import org.bscm.models.dto.contributor.SimplifiedContributor
+import org.bscm.models.dto.user.SimplifiedUser
+import org.bscm.models.entities.ChartEntity
+import org.bscm.models.entities.ContributorEntity
+import org.bscm.models.entities.UserEntity
+import org.bscm.models.enums.ContributorRole
+import org.bscm.models.tables.ContributorTable
+import org.bscm.repository.ContributorRepository
+import org.jetbrains.exposed.dao.id.CompositeID
+import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import java.time.LocalDate
+import java.util.*
+
+class ContributorRepositoryImpl : ContributorRepository {
+    companion object {
+        fun contributorEntityToContributor(entity: ContributorEntity): Contributor {
+            val compositeId = entity.id.value // This is a CompositeID
+            val chartId = compositeId[ContributorTable.chartId].value
+
+            return Contributor(
+                user = SimplifiedUser(
+                    id = entity.user.id.value.toString(),
+                    username = entity.user.username,
+                    imageUrl = entity.user.imageUrl,
+                ),
+                chartId = chartId,
+                roles = entity.roles,
+                joinedAt = entity.joinedAt,
+            )
+        }
+    }
+
+    override suspend fun addContributors(chartId: UUID, contributors: List<SimplifiedContributor>): List<Contributor> = newSuspendedTransaction {
+            // Check if the user and chart exist
+            ChartEntity.findById(chartId) ?: throw IllegalArgumentException("Chart not found")
+
+            val contributorEntities = contributors.map { contributor ->
+                UserEntity.findById(contributor.userId) ?: throw IllegalArgumentException("User not found")
+
+                val contributorId = CompositeID {
+                    it[ContributorTable.chartId] = chartId
+                    it[ContributorTable.userId] = contributor.userId
+                }
+
+                val newContributor = ContributorEntity.new(contributorId) {
+                    roles = contributor.roles
+                    joinedAt = LocalDate.now()
+                }
+
+                contributorEntityToContributor(newContributor)
+            }
+
+            contributorEntities
+        }
+
+    override suspend fun removeContributor(chartId: UUID, userId: UUID): Boolean = newSuspendedTransaction {
+        val contributorId = CompositeID {
+            it[ContributorTable.chartId] = chartId
+            it[ContributorTable.userId] = userId
+        }
+
+        val contributor = ContributorEntity.findById(contributorId)
+
+        contributor?.delete() ?: throw IllegalArgumentException("Contributor not found")
+
+        true
+    }
+
+    override suspend fun updateContributorRoles(
+        chartId: UUID,
+        userId: UUID,
+        roles: List<ContributorRole>
+    ): Contributor = newSuspendedTransaction {
+        val contributorId = CompositeID {
+            it[ContributorTable.chartId] = chartId
+            it[ContributorTable.userId] = userId
+        }
+
+        val contributor = ContributorEntity.findByIdAndUpdate(contributorId) {
+            it.roles = roles
+        } ?: throw IllegalArgumentException("Contributor not found")
+
+        contributorEntityToContributor(contributor)
+    }
+
+    override suspend fun getContributors(chartId: UUID): List<UUID> = newSuspendedTransaction {
+        ContributorEntity.find { ContributorTable.chartId eq chartId }
+            .map { it.id.value[ContributorTable.userId].value }
+    }
+}

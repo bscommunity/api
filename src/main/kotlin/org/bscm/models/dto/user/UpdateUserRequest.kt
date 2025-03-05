@@ -1,4 +1,4 @@
-package org.bscm.models.dto
+package org.bscm.models.dto.user
 
 import kotlinx.serialization.Serializable
 

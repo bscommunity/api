@@ -5,16 +5,21 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
+import org.slf4j.LoggerFactory
 
 fun Application.configureStatusPages() {
+    val logger: org.slf4j.Logger = LoggerFactory.getLogger("StatusPages")
+
     install(StatusPages) {
         status(HttpStatusCode.NotFound) { call, status ->
             call.respondText(text = "404: Page Not Found", status = status)
         }
         exception<Throwable> { call, cause ->
+            logger.error("An unexpected error occurred", cause)
             cause.printStackTrace()
 
             when (cause) {
+                is BadRequestException -> call.respond(HttpStatusCode.BadRequest, mapOf("message" to cause.message))
                 is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, mapOf("message" to cause.message))
                 is NotFoundException -> call.respond(HttpStatusCode.NotFound, mapOf("message" to cause.message))
                 is NoSuchElementException -> call.respond(HttpStatusCode.NotFound, mapOf("message" to "Resource not found"))
