@@ -30,7 +30,7 @@ class ChartRepositoryImpl : ChartRepository {
         track = entity.track,
         artist = entity.artist,
         album = entity.album,
-        trackUrl = entity.trackUrl,
+        trackUrls = entity.trackUrls,
         trackPreviewUrl = entity.trackPreviewUrl,
         coverUrl = entity.coverUrl,
         isDeluxe = entity.isDeluxe,
@@ -67,7 +67,7 @@ class ChartRepositoryImpl : ChartRepository {
             this.artist = chart.artist
             this.track = chart.track
             this.album = chart.album
-            this.trackUrl = chart.trackUrl
+            this.trackUrls = chart.trackUrls
             this.trackPreviewUrl = chart.trackPreviewUrl
             this.coverUrl = chart.coverUrl
             this.difficulty = chart.difficulty

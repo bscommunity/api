@@ -13,7 +13,7 @@ data class Chart(
     val track: String,
     val album: String?,
     val coverUrl: String,
-    val trackUrl: String? = null,
+    val trackUrls: List<StreamingLink> = emptyList(),
     val trackPreviewUrl: String? = null,
     val difficulty: Difficulty,
     val isDeluxe: Boolean,

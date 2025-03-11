@@ -1,6 +1,7 @@
 package org.bscm.models.dto.chart
 
 import kotlinx.serialization.Serializable
+import org.bscm.models.StreamingLink
 import org.bscm.models.enums.Difficulty
 
 @Serializable
@@ -8,7 +9,7 @@ data class CreateChartRequest (
     val artist: String,
     val track: String,
     val album: String?,
-    val trackUrl: String,
+    val trackUrls: List<StreamingLink>,
     val trackPreviewUrl: String,
     val coverUrl: String,
     val difficulty: Difficulty,
