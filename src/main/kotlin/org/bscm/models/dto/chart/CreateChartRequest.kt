@@ -8,6 +8,8 @@ data class CreateChartRequest (
     val artist: String,
     val track: String,
     val album: String?,
+    val trackUrl: String,
+    val trackPreviewUrl: String,
     val coverUrl: String,
     val difficulty: Difficulty,
     val isDeluxe: Boolean,
@@ -15,6 +17,7 @@ data class CreateChartRequest (
 
     // First version properties
     val chartUrl: String,
+    val chartPreviewUrl: String,
     val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,

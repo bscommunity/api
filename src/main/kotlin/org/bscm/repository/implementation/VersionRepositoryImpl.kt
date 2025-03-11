@@ -6,6 +6,7 @@ import org.bscm.models.entities.VersionEntity
 import org.bscm.models.tables.VersionTable
 import org.bscm.repository.VersionRepository
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.util.*
 
@@ -14,7 +15,9 @@ class VersionRepositoryImpl : VersionRepository {
         fun versionEntityToVersion(entity: VersionEntity): Version = Version(
             id = entity.id.value,
             chartId = entity.chart.id.value,
+            index = entity.index,
             chartUrl = entity.chartUrl,
+            chartPreviewUrl = entity.chartPreviewUrl,
             duration = entity.duration,
             notesAmount = entity.notesAmount,
             effectsAmount = entity.effectsAmount,
@@ -30,6 +33,7 @@ class VersionRepositoryImpl : VersionRepository {
 
         val versionEntity = VersionEntity.new {
             this.chart = chartEntity
+            this.index = (chartEntity.versions.count() + 1).toInt()
             this.chartUrl = version.chartUrl
             this.duration = version.duration
             this.notesAmount = version.notesAmount
@@ -41,16 +45,24 @@ class VersionRepositoryImpl : VersionRepository {
         }
 
         // Update the latest version of the chart
-        ChartEntity.findByIdAndUpdate(chartEntity.id.value) {
-            it.latestVersion = versionEntity
-        }
+        chartEntity.latestVersion = versionEntity
 
         versionEntityToVersion(versionEntity)
     }
 
-    override suspend fun removeVersion(versionId: Int): Boolean = newSuspendedTransaction {
-        val versionEntity = VersionEntity.findById(versionId)
-            ?: throw IllegalArgumentException("Version not found")
+    override suspend fun removeVersion(index: Int, chartId: UUID): Boolean = newSuspendedTransaction {
+        val versionEntity = VersionEntity.find { VersionTable.chartId eq chartId and (VersionTable.index eq index) }
+
+        if (versionEntity.empty()) {
+            throw IllegalArgumentException("Version not found")
+        }
+
+        versionEntity.forEach { it.delete() }
+        true
+    }
+
+    override suspend fun removeVersion(versionId: UUID): Boolean = newSuspendedTransaction {
+        val versionEntity = VersionEntity.findById(versionId) ?: throw IllegalArgumentException("Version not found")
 
         versionEntity.delete()
         true

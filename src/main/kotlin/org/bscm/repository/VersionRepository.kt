@@ -5,7 +5,8 @@ import java.util.*
 
 interface VersionRepository {
     suspend fun addVersion(version: Version): Version
-    suspend fun removeVersion(versionId: Int): Boolean
+    suspend fun removeVersion(index: Int, chartId: UUID): Boolean
+    suspend fun removeVersion(versionId: UUID): Boolean
     suspend fun getVersions(chartId: UUID): List<Version>
     suspend fun getLatestVersionsByChartIds(chartIds: List<UUID>): List<Version>
 }

@@ -223,14 +223,14 @@ fun Route.chartRoutes(
         }
 
         // Remove a version from a chart
-        delete("{id}/versions/{versionId}") {
+        delete("{id}/versions/{index}") {
             val id = call.parameters["id"]?.let { UUID.fromString(it) }
-            val versionId = call.parameters["versionId"]?.toInt()
-            if (id == null || versionId == null) {
+            val index = call.parameters["index"]?.toInt()
+            if (id == null || index == null) {
                 throw IllegalArgumentException("Invalid or missing ID")
             }
 
-            val removed = versionRepository.removeVersion(versionId)
+            val removed = versionRepository.removeVersion(index, id)
             if (removed) {
                 call.respond(HttpStatusCode.NoContent, "Version removed successfully")
             } else {

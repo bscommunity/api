@@ -30,6 +30,8 @@ class ChartRepositoryImpl : ChartRepository {
         track = entity.track,
         artist = entity.artist,
         album = entity.album,
+        trackUrl = entity.trackUrl,
+        trackPreviewUrl = entity.trackPreviewUrl,
         coverUrl = entity.coverUrl,
         isDeluxe = entity.isDeluxe,
         isExplicit = entity.isExplicit,
@@ -61,14 +63,17 @@ class ChartRepositoryImpl : ChartRepository {
 
     override suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart = newSuspendedTransaction {
         // Create the chart
-        val newChart = ChartEntity.new(UUID.randomUUID()) {
+        val newChart = ChartEntity.new {
             this.artist = chart.artist
             this.track = chart.track
             this.album = chart.album
+            this.trackUrl = chart.trackUrl
+            this.trackPreviewUrl = chart.trackPreviewUrl
             this.coverUrl = chart.coverUrl
             this.difficulty = chart.difficulty
             this.isDeluxe = chart.isDeluxe
             this.isExplicit = chart.isExplicit
+            this.latestVersion = null
         }
 
         flushCache()
@@ -76,19 +81,18 @@ class ChartRepositoryImpl : ChartRepository {
         // Add the initial version with the chart's metadata
         val initialVersion = VersionEntity.new {
             this.chart = newChart
+            this.index = 0
             this.chartUrl = chart.chartUrl
+            this.chartPreviewUrl = chart.chartPreviewUrl
             this.duration = chart.duration
             this.notesAmount = chart.notesAmount
             this.effectsAmount = chart.effectsAmount
             this.bpm = chart.bpm
         }
 
-        // It works!
-        newChart.latestVersion = initialVersion
-
-        /*ChartEntity.findByIdAndUpdate(newChart.id.value) {
+        ChartEntity.findByIdAndUpdate(newChart.id.value) {
             it.latestVersion = initialVersion
-        }*/
+        }
 
         val user = UserEntity.findById(userId) ?: throw NotFoundException("User not found")
 

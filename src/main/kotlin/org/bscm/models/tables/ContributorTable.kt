@@ -10,11 +10,8 @@ import org.jetbrains.exposed.sql.json.jsonb
 
 object ContributorTable : CompositeIdTable("contributor") {
     val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)
-    val chartId = reference(
-        "chart_id",
-        ChartTable,
-        onDelete = ReferenceOption.CASCADE
-    )
+    val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
+
     val roles = jsonb(
         "roles",
         Json { ignoreUnknownKeys = true },

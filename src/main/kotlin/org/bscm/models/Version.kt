@@ -10,7 +10,9 @@ import java.util.*
 
 @Serializable
 data class Version(
-    val id: Int,
+    @Serializable(with = UUIDSerializer::class)
+    val id : UUID,
+    val index: Int,
     @Serializable(with = UUIDSerializer::class)
     val chartId: UUID,
     val duration: Float,
@@ -18,6 +20,7 @@ data class Version(
     val effectsAmount: Int,
     val bpm: Int,
     val chartUrl: String,
+    val chartPreviewUrl: String? = null,
     val downloadsAmount: Int = 0,
     val knownIssues: List<KnownIssue> = emptyList(),
     @Serializable(with = LocalDateSerializer::class)

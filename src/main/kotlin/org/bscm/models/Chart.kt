@@ -13,6 +13,8 @@ data class Chart(
     val track: String,
     val album: String?,
     val coverUrl: String,
+    val trackUrl: String? = null,
+    val trackPreviewUrl: String? = null,
     val difficulty: Difficulty,
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
