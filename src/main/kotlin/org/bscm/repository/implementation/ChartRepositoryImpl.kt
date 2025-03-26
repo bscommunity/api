@@ -17,6 +17,8 @@ import org.bscm.repository.implementation.ContributorRepositoryImpl.Companion.co
 import org.bscm.repository.implementation.VersionRepositoryImpl.Companion.versionEntityToVersion
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
+import org.jetbrains.exposed.dao.with
+import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -49,6 +51,8 @@ class ChartRepositoryImpl : ChartRepository {
     override suspend fun getCharts(
         chartIds: List<UUID>?,
         query: String?,
+        limit: Int?,
+        offset: Int?,
         fetchVersions: Boolean,
         fetchContributors: Boolean,
     ): List<Chart> = newSuspendedTransaction {
@@ -70,19 +74,28 @@ class ChartRepositoryImpl : ChartRepository {
 
         // The key fix: Load charts with eager loading of latestVersion
         // This will generate a JOIN query instead of separate queries
-        val charts = chartQuery
-            .with(ChartEntity::latestVersion)
+        val paginatedCharts = chartQuery
+            .orderBy(ChartTable.id to SortOrder.ASC)  // Consistent ordering
+            .let {
+                // Apply offset if specified (skip first N results)
+                offset?.let { offset -> it.drop(offset) } ?: it
+            }
+            .let {
+                // Apply limit if specified (take only N results)
+                limit?.let { limit -> it.take(limit) } ?: it
+            }
+            .with(ChartEntity::latestVersion)  // Eager load latest versions
             .toList()
 
         // Early return for empty results
-        if (charts.isEmpty()) {
+        if (paginatedCharts.isEmpty()) {
             val endTime = System.currentTimeMillis()
             println("Chart query completed in ${endTime - startTime}ms with 0 results")
             return@newSuspendedTransaction emptyList()
         }
 
         // Get all chart IDs for related data fetching
-        val chartIdValues = charts.map { it.id.value }
+        val chartIdValues = paginatedCharts.map { it.id.value }
 
         // Batch load all versions if needed
         val versionsMap = if (fetchVersions) {
@@ -103,25 +116,11 @@ class ChartRepositoryImpl : ChartRepository {
         }
 
         // Map charts to domain models
-        val result = charts.map { entity ->
-            val chartId = entity.id.value
-
-            Chart(
-                id = entity.id.value,
-                track = entity.track,
-                artist = entity.artist,
-                album = entity.album,
-                trackUrls = entity.trackUrls,
-                trackPreviewUrl = entity.trackPreviewUrl,
-                coverUrl = entity.coverUrl,
-                isDeluxe = entity.isDeluxe,
-                isExplicit = entity.isExplicit,
-                difficulty = entity.difficulty,
-                isFeatured = entity.isFeatured,
-                // Since we've eagerly loaded latestVersion, this won't trigger a new query
-                latestVersion = entity.latestVersion?.let(::versionEntityToVersion),
-                versions = versionsMap[chartId]?.map(::versionEntityToVersion) ?: emptyList(),
-                contributors = contributorsMap[chartId]?.map(::contributorEntityToContributor) ?: emptyList(),
+        val result = paginatedCharts.map { entity ->
+            chartEntityToChart(
+                entity,
+                versionEntities = versionsMap[entity.id.value],
+                contributorEntities = contributorsMap[entity.id.value]
             )
         }
 
