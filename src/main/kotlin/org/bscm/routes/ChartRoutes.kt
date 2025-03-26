@@ -7,19 +7,22 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.Version
+import org.bscm.models.KnownIssue
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
+import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.ContributorRepository
+import org.bscm.repository.KnownIssueRepository
 import org.bscm.repository.VersionRepository
 import java.util.*
 
 fun Route.chartRoutes(
     chartRepository: ChartRepository,
     contributorRepository: ContributorRepository,
+    knownIssueRepository: KnownIssueRepository,
     versionRepository: VersionRepository
 ) {
     route("/charts") {
@@ -28,15 +31,24 @@ fun Route.chartRoutes(
             // Check for a "fetchVersions" and "fetchContributors" query parameters
             val fetchVersions = call.request.queryParameters["fetchVersions"]?.toBoolean() ?: false
             val fetchContributors = call.request.queryParameters["fetchContributors"]?.toBoolean() ?: false
-            val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) } ?: emptyList()
 
-            if (ids.isNotEmpty()) {
-                val charts = chartRepository.getCharts(ids, fetchVersions, fetchContributors)
-                call.respond(charts)
-            } else {
-                val charts = chartRepository.getCharts(null, fetchVersions, fetchContributors)
-                call.respond(charts)
-            }
+            val query = call.request.queryParameters["query"]
+            val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
+
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+            val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+
+            val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
+
+            val charts = chartRepository.getCharts(
+                ids,
+                sanitizedQuery,
+                limit,
+                offset,
+                fetchVersions,
+                fetchContributors
+            )
+            call.respond(charts)
         }
 
         // Get chart by ID
@@ -110,34 +122,31 @@ fun Route.chartRoutes(
 
         // Add an issue to a chart
         post("{id}/issues") {
-            /*val id = call.parameters["id"]?.let { UUID.fromString(it) }
+            val id = call.parameters["id"]?.let { UUID.fromString(it) }
             if (id == null) {
                 throw IllegalArgumentException("Invalid or missing ID")
             }
 
-            val issue = call.receive<KnownIssue>()
-            val added = chartRepository.addIssue(id, issue)
-            if (added) {
-                call.respond(HttpStatusCode.Created, "Issue added successfully")
-            } else {
-                throw NotFoundException("Chart not found")
-            }*/
+            val receivedIssue = call.receive<KnownIssue>()
+
+            val createdIssue = knownIssueRepository.addIssue(id, receivedIssue)
+            call.respond(HttpStatusCode.Created, createdIssue)
         }
 
         // Remove an issue from a chart
         delete("{id}/issues/{issueId}") {
-           /* val id = call.parameters["id"]?.let { UUID.fromString(it) }
+            val id = call.parameters["id"]?.let { UUID.fromString(it) }
             val issueId = call.parameters["issueId"]?.let { UUID.fromString(it) }
             if (id == null || issueId == null) {
                 throw IllegalArgumentException("Invalid or missing ID")
             }
 
-            val removed = chartRepository.removeIssue(id, issueId)
+            val removed = knownIssueRepository.removeIssue(id, issueId)
             if (removed) {
-                call.respond(HttpStatusCode.NoContent, "Issue removed successfully")
+                call.respond(HttpStatusCode.NoContent, true)
             } else {
                 throw NotFoundException("Chart or issue not found")
-            }*/
+            }
         }
 
         /* Contributor ======================================== */
@@ -216,21 +225,41 @@ fun Route.chartRoutes(
                 throw IllegalArgumentException("Invalid or missing ID")
             }
 
-            val version = call.receive<Version>()
+            val receivedVersion = call.receive<CreateVersionRequest>()
 
-            versionRepository.addVersion(version)
-            call.respond(HttpStatusCode.Created, "Version added successfully")
+            val createdVersion = versionRepository.addVersion(receivedVersion)
+            call.respond(HttpStatusCode.Created, createdVersion)
         }
 
         // Remove a version from a chart
         delete("{id}/versions/{index}") {
             val id = call.parameters["id"]?.let { UUID.fromString(it) }
             val index = call.parameters["index"]?.toInt()
+
             if (id == null || index == null) {
                 throw IllegalArgumentException("Invalid or missing ID")
             }
 
+            if (index == 0) {
+                throw IllegalArgumentException("Cannot remove the first version")
+            }
+
             val removed = versionRepository.removeVersion(index, id)
+            if (removed) {
+                call.respond(HttpStatusCode.NoContent, "Version removed successfully")
+            } else {
+                throw NotFoundException("Chart or version not found")
+            }
+        }
+
+        // Remove a version from a chart (with id)
+        delete("versions/{versionId}") {
+            val versionId = call.parameters["versionId"]?.let { UUID.fromString(it) }
+            if (versionId == null) {
+                throw IllegalArgumentException("Invalid or missing ID")
+            }
+
+            val removed = versionRepository.removeVersion(versionId)
             if (removed) {
                 call.respond(HttpStatusCode.NoContent, "Version removed successfully")
             } else {

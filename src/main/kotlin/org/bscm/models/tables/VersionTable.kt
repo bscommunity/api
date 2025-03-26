@@ -6,6 +6,7 @@ import org.bscm.models.KnownIssue
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.date
+import org.jetbrains.exposed.sql.json.json
 import org.jetbrains.exposed.sql.json.jsonb
 import java.time.LocalDate
 
@@ -18,7 +19,7 @@ object VersionTable : UUIDTable("version") {
     val effectsAmount = integer("effects_amount")
     val bpm = integer("bpm")
     val chartUrl = varchar("chart_url", 255)
-    val chartPreviewUrl = varchar("chart_preview_url", 255).nullable()
+    val chartPreviewUrls = json<List<String>>("chart_preview_urls", Json.Default)
     val downloadsAmount = integer("downloads_amount").default(0)
     val knownIssues = jsonb(
         "known_issues",

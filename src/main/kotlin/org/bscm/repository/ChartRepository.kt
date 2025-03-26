@@ -8,8 +8,11 @@ import java.util.*
 interface ChartRepository {
     suspend fun getCharts(
         chartIds: List<UUID>?,
-        fetchVersions: Boolean?,
-        fetchContributors: Boolean?
+        query: String?,
+        limit: Int? = null,
+        offset: Int? = null,
+        fetchVersions: Boolean = false,
+        fetchContributors: Boolean = false
     ): List<Chart>
     suspend fun getChartById(id: UUID): Chart?
     suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart

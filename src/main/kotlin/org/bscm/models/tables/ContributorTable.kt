@@ -22,6 +22,8 @@ object ContributorTable : CompositeIdTable("contributor") {
     init {
         addIdColumn(userId)
         addIdColumn(chartId)
+
+        index(false, userId, chartId)
     }
 
     override val primaryKey = PrimaryKey(userId, chartId)

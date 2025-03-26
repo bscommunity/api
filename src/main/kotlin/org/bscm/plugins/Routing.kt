@@ -5,10 +5,7 @@ import io.ktor.server.http.content.*
 import io.ktor.server.plugins.swagger.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.repository.ChartRepository
-import org.bscm.repository.ContributorRepository
-import org.bscm.repository.UserRepository
-import org.bscm.repository.VersionRepository
+import org.bscm.repository.*
 import org.bscm.routes.authRoutes
 import org.bscm.routes.chartRoutes
 import org.bscm.routes.userRoutes
@@ -25,6 +22,7 @@ fun Application.configureRouting() {
 
     val chartRepository by inject<ChartRepository>()
     val contributorRepository by inject<ContributorRepository>()
+    val knownIssueRepository by inject<KnownIssueRepository>()
     val versionRepository by inject<VersionRepository>()
 
     routing {
@@ -36,7 +34,7 @@ fun Application.configureRouting() {
         }
 
         authRoutes(userRepository, oAuthService, jwtService)
-        chartRoutes(chartRepository, contributorRepository, versionRepository)
+        chartRoutes(chartRepository, contributorRepository, knownIssueRepository, versionRepository)
         userRoutes(userRepository)
     }
 }

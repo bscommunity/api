@@ -24,7 +24,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
     // Initialize tables
     transaction {
         // SchemaUtils.drop(UserTable, ChartTable, VersionTable, ContributorTable)
-        SchemaUtils.drop(ChartTable, VersionTable, ContributorTable)
+        // SchemaUtils.drop(ChartTable, VersionTable, ContributorTable)
         SchemaUtils.create(UserTable, ChartTable, VersionTable, ContributorTable)
     }
 }

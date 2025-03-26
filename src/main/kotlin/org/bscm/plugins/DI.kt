@@ -1,14 +1,8 @@
 package org.bscm.plugins
 
 import io.ktor.server.application.*
-import org.bscm.repository.ChartRepository
-import org.bscm.repository.ContributorRepository
-import org.bscm.repository.UserRepository
-import org.bscm.repository.VersionRepository
-import org.bscm.repository.implementation.ChartRepositoryImpl
-import org.bscm.repository.implementation.ContributorRepositoryImpl
-import org.bscm.repository.implementation.UserRepositoryImpl
-import org.bscm.repository.implementation.VersionRepositoryImpl
+import org.bscm.repository.*
+import org.bscm.repository.implementation.*
 import org.bscm.services.JWTService
 import org.bscm.services.OAuthService
 import org.koin.dsl.module
@@ -26,6 +20,7 @@ val mainModule = module {
     single<UserRepository> { UserRepositoryImpl() }
     single<ChartRepository> { ChartRepositoryImpl() }
     single<ContributorRepository> { ContributorRepositoryImpl() }
+    single<KnownIssueRepository> { KnownIssueRepositoryImpl() }
     single<VersionRepository> { VersionRepositoryImpl() }
     single { JWTService(
         secret = System.getenv("JWT_SECRET")

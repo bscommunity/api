@@ -18,4 +18,7 @@ fun Application.module() {
     configureStatusPages()
     configureSecurity(environment.config)
     configureRouting()
+
+    // Seed the database
+    // seedDatabase()
 }

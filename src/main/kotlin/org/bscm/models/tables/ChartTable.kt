@@ -20,4 +20,8 @@ object ChartTable : UUIDTable("chart") {
     val isFeatured = bool("is_featured").default(false)
 
     val latestVersionId = reference("latest_version_id", VersionTable, onDelete = ReferenceOption.SET_NULL).nullable()
+
+    init {
+        index(false, artist, track, album)
+    }
 }

@@ -18,7 +18,7 @@ class VersionEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var effectsAmount by VersionTable.effectsAmount
     var bpm by VersionTable.bpm
     var chartUrl by VersionTable.chartUrl
-    var chartPreviewUrl by VersionTable.chartPreviewUrl
+    var chartPreviewUrls by VersionTable.chartPreviewUrls
     var downloadsAmount by VersionTable.downloadsAmount
     var knownIssues by VersionTable.knownIssues // Complex property (JSON)
     var publishedAt by VersionTable.publishedAt

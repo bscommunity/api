@@ -18,7 +18,7 @@ data class CreateChartRequest (
 
     // First version properties
     val chartUrl: String,
-    val chartPreviewUrl: String,
+    val chartPreviewUrls: List<String>,
     val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,
