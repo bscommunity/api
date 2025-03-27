@@ -14,6 +14,7 @@ interface ChartRepository {
         fetchVersions: Boolean = false,
         fetchContributors: Boolean = false
     ): List<Chart>
+    suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: UUID): Chart?
     suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart
     suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart

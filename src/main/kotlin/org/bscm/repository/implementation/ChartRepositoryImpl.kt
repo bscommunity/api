@@ -136,6 +136,36 @@ class ChartRepositoryImpl : ChartRepository {
         }
     }
 
+    override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {
+        val searchTerm = "%${query.lowercase()}%"
+        ChartEntity.find {
+            (ChartTable.artist.lowerCase() like searchTerm) or
+                    (ChartTable.track.lowerCase() like searchTerm) or
+                    (ChartTable.album.lowerCase() like searchTerm)
+        }
+            .limit(limit)
+            // Deduplicate by artist, track, album, and default to track if no match is found
+            .distinctBy { it ->
+                listOf(it.artist, it.track, it.album).firstOrNull {
+                    it?.lowercase()?.contains(query.lowercase()) ?: false
+                } ?: it.track
+            }
+            // Map to the first matching field
+            .map { it ->
+                /*when {
+                    it.artist.lowercase().contains(query.lowercase()) -> it.artist
+                    it.track.lowercase().contains(query.lowercase()) -> it.track
+                    it.album.lowercase().contains(query.lowercase()) -> it.album
+                    else -> it.track // Default to track if no match is found
+                }*/
+
+                // Simplified version of the above code
+                listOf(it.artist, it.track, it.album).firstOrNull {
+                    it?.lowercase()?.contains(query.lowercase()) ?: false
+                } ?: it.track
+            }
+    }
+
     override suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart = newSuspendedTransaction {
         // Create the chart
         val newChart = ChartEntity.new {

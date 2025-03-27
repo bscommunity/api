@@ -66,6 +66,14 @@ fun Route.chartRoutes(
             }
         }
 
+        get("suggestions") {
+            val query = call.request.queryParameters["query"] ?: ""
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
+
+            val suggestions = chartRepository.getSuggestions(query, limit)
+            call.respond(suggestions)
+        }
+
         authenticate("auth-jwt") {
             // Create a new chart
             post {
