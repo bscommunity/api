@@ -96,39 +96,21 @@ class ChartRepositoryImpl : ChartRepository {
             conditions = conditions and (ChartTable.genre inList genres)
         }
 
-        // Determine the effective sort option
-        val effectiveSortOption = when (sortBy) {
-            ChartSortOption.WEEKLY_RANK, ChartSortOption.MOST_LIKED -> ChartSortOption.LAST_UPDATED
-            else -> sortBy
-        }
+        // Execute the query with all conditions applied
+        val chartQuery = ChartEntity.find { conditions }.with(ChartEntity::versions) // Eager load versions
 
         // Apply sorting based on the effective sort option
-        val queryBuilder = ChartEntity.find { conditions }
-
-        // Eagerly load latest versions to avoid N+1 queries
-        val query = when (effectiveSortOption) {
-            ChartSortOption.LAST_UPDATED -> queryBuilder.with(ChartEntity::latestVersion).orderBy(
-                VersionTable.publishedAt to SortOrder.DESC_NULLS_LAST
-            )
-            ChartSortOption.MOST_DOWNLOADED -> {
-                // This sort requires more complex handling
-                // We'll use a subquery to calculate the total downloads
-                val chartDownloads = VersionTable
-                    .slice(VersionTable.chartId, VersionTable.downloadsAmount.sum().alias("total_downloads"))
-                    .select { VersionTable.chartId inList queryBuilder.map { it.id.value } }
-                    .groupBy(VersionTable.chartId)
-                    .alias("chart_downloads")
-
-                queryBuilder.with(ChartEntity::latestVersion)
-                    .leftJoin(chartDownloads, { ChartTable.id }, { chartDownloads[VersionTable.chartId] })
-                    .orderBy(ExpressionAlias(chartDownloads["total_downloads"] ?: intLiteral(0), false) to SortOrder.DESC_NULLS_LAST)
-            }
-            else -> queryBuilder.with(ChartEntity::latestVersion)
+        val sortedQuery = when (sortBy) {
+            ChartSortOption.LAST_UPDATED -> chartQuery.sortedByDescending { it.latestVersion?.publishedAt }
+            ChartSortOption.MOST_DOWNLOADED -> chartQuery.sortedByDescending { it.versions.sumOf { version -> version.downloadsAmount } }
+            else -> chartQuery
         }
 
-        // Apply pagination and execute query
-        val paginatedCharts = query
-            .limit(limit ?: Int.MAX_VALUE, offset?.toLong() ?: 0)
+        // Apply pagination and eager load latest version
+        val paginatedCharts = sortedQuery
+            .drop(offset ?: 0)
+            .take(limit ?: Int.MAX_VALUE)
+            .with(ChartEntity::latestVersion)  // Eager load latest versions
             .toList()
 
         // Early return for empty results
@@ -138,26 +120,24 @@ class ChartRepositoryImpl : ChartRepository {
             return@newSuspendedTransaction emptyList()
         }
 
-        // Get all chart IDs for related data fetching
-        val chartIdValues = paginatedCharts.map { it.id.value }
+        // Prepare maps for versions and contributors
+        val versionsMap = mutableMapOf<UUID, List<VersionEntity>>()
+        val contributorsMap = mutableMapOf<UUID, List<ContributorEntity>>()
 
-        // Batch load all versions if needed (in a single query)
-        val versionsMap = if (fetchVersions) {
-            VersionEntity.find { VersionTable.chartId inList chartIdValues }
-                .with(VersionEntity::chart)  // Eagerly load chart relationship
-                .toList()
-                .groupBy { it.chart.id.value }
-        } else {
-            emptyMap()
+        if (fetchVersions) {
+            // Batch load all versions for the paginated charts
+            versionsMap.putAll(
+                VersionEntity.find { VersionTable.chartId inList paginatedCharts.map { it.id.value } }
+                    .groupBy { it.chart.id.value }
+            )
         }
 
-        // Batch load all contributors if needed (in a single query)
-        val contributorsMap = if (fetchContributors) {
-            ContributorEntity.find { ContributorTable.chartId inList chartIdValues }
-                .toList()
-                .groupBy { it.id.value[ContributorTable.chartId].value }
-        } else {
-            emptyMap()
+        if (fetchContributors) {
+            // Batch load all contributors for the paginated charts
+            contributorsMap.putAll(
+                ContributorEntity.find { ContributorTable.chartId inList paginatedCharts.map { it.id.value } }
+                    .groupBy { it.id.value[ContributorTable.chartId].value }
+            )
         }
 
         // Map charts to domain models
@@ -174,6 +154,8 @@ class ChartRepositoryImpl : ChartRepository {
 
         result
     }
+
+
 
 
     override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
