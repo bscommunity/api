@@ -9,6 +9,7 @@ import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
+import org.bscm.models.enums.Genre
 import org.bscm.repository.*
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
@@ -117,12 +118,18 @@ private suspend fun generateRandomCharts(
                                 StreamingLink("youtube", "https://www.youtube.com/watch?v=${getRandomId()}")
                             ),
                             trackPreviewUrl = "https://example.com/preview/${getRandomId()}.mp3",
-                            coverUrl = "https://example.com/covers/${getRandomId()}.jpg",
+                            coverUrl = getRandomCoverUrl(),
                             difficulty = difficulties.random(),
                             isDeluxe = Random.nextBoolean(),
                             isExplicit = Random.nextBoolean(),
+                            genre = Genre.entries.toTypedArray().random(),
                             chartUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                            chartPreviewUrls = List(Random.nextInt(1, 4)) { "https://example.com/chartpreviews/${getRandomId()}.jpg" },
+                            chartPreviewUrls = List(
+                                Random.nextInt(
+                                    1,
+                                    4
+                                )
+                            ) { "https://example.com/chartpreviews/${getRandomId()}.jpg" },
                             duration = Random.nextFloat() * 4 + 2, // 2-6 minutes
                             notesAmount = Random.nextInt(100, 1000),
                             effectsAmount = Random.nextInt(10, 100),
@@ -147,7 +154,12 @@ private suspend fun generateRandomCharts(
                                             effectsAmount = Random.nextInt(10, 100),
                                             bpm = Random.nextInt(80, 180),
                                             chartUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                                            chartPreviewUrls = List(Random.nextInt(1, 4)) { "https://example.com/chartpreviews/${getRandomId()}.jpg" }
+                                            chartPreviewUrls = List(
+                                                Random.nextInt(
+                                                    1,
+                                                    4
+                                                )
+                                            ) { "https://example.com/chartpreviews/${getRandomId()}.jpg" }
                                         )
                                     )
                                 }
@@ -175,7 +187,7 @@ private suspend fun generateRandomCharts(
                                         chart.id,
                                         KnownIssue(
                                             id = UUID.randomUUID(),
-                                            description = "Issue ${getRandomIssue()}",
+                                            description = getRandomIssue(),
                                             createdAt = LocalDate.now(),
                                         )
                                     )
@@ -203,20 +215,76 @@ private suspend fun generateRandomCharts(
 private fun getRandomId(): String = UUID.randomUUID().toString().replace("-", "").substring(0, 10)
 
 private fun getRandomArtist(): String {
-    val artists = listOf("Avicii", "Coldplay", "Imagine Dragons", "The Weeknd", "Dua Lipa",
-        "Linkin Park", "BTS", "Billie Eilish", "Taylor Swift", "Ed Sheeran")
+    val artists = listOf(
+        "Avicii", "Coldplay", "Imagine Dragons", "The Weeknd", "Dua Lipa",
+        "Linkin Park", "BTS", "Billie Eilish", "Taylor Swift", "Ed Sheeran",
+        "Queen", "The Beatles", "Michael Jackson", "Madonna", "Prince",
+        "David Bowie", "Elton John", "Rihanna", "Katy Perry", "Justin Bieber",
+        "Drake", "Beyoncé", "Bruno Mars", "Adele", "Sia",
+        "Maroon 5", "Ariana Grande", "Post Malone", "Harry Styles", "Lorde",
+        "Kendrick Lamar", "Eminem", "Kanye West", "Taylor Swift", "Oasis",
+        "Blur", "Red Hot Chili Peppers", "Nirvana", "Metallica", "Guns N' Roses"
+    )
     return artists.random()
 }
 
 private fun getRandomTrack(): String {
-    val tracks = listOf("Levels", "Viva La Vida", "Believer", "Blinding Lights", "Don't Start Now",
-        "In The End", "Dynamite", "Bad Guy", "Shake It Off", "Shape of You")
+    val tracks = listOf(
+        "Levels", "Viva La Vida", "Believer", "Blinding Lights", "Don't Start Now",
+        "In The End", "Dynamite", "Bad Guy", "Shake It Off", "Shape of You",
+        "Bohemian Rhapsody", "Hey Jude", "Billie Jean", "Like a Prayer", "Purple Rain",
+        "Space Oddity", "Rocket Man", "Umbrella", "Firework", "Baby",
+        "God's Plan", "Single Ladies", "Uptown Funk", "Rolling in the Deep", "Chandelier",
+        "Sugar", "Thank U, Next", "Rockstar", "Watermelon Sugar", "Royals",
+        "Humble", "Lose Yourself", "Stronger", "Blank Space", "Wonderwall",
+        "Song 2", "Californication", "Smells Like Teen Spirit", "Enter Sandman", "Sweet Child o' Mine"
+    )
     return tracks.random()
 }
 
 private fun getRandomAlbum(): String {
-    val albums = listOf("True", "Viva la Vida", "Evolve", "After Hours", "Future Nostalgia",
-        "Hybrid Theory", "Map of the Soul", "When We All Fall Asleep", "1989", "÷")
+    val albums = listOf(
+        "True",
+        "Viva la Vida",
+        "Evolve",
+        "After Hours",
+        "Future Nostalgia",
+        "Hybrid Theory",
+        "Map of the Soul",
+        "When We All Fall Asleep",
+        "1989",
+        "÷",
+        "A Night at the Opera",
+        "Abbey Road",
+        "Thriller",
+        "Like a Virgin",
+        "Purple Rain",
+        "The Rise and Fall of Ziggy Stardust",
+        "Goodbye Yellow Brick Road",
+        "Good Girl Gone Bad",
+        "Teenage Dream",
+        "My World 2.0",
+        "Views",
+        "Lemonade",
+        "24K Magic",
+        "21",
+        "1000 Forms of Fear",
+        "V",
+        "Sweetener",
+        "Beerbongs & Bentleys",
+        "Fine Line",
+        "Pure Heroine",
+        "DAMN",
+        "The Eminem Show",
+        "My Beautiful Dark Twisted Fantasy",
+        "Red",
+        "Definitely Maybe",
+        "Blur",
+        "Californication",
+        "Nevermind",
+        "Metallica",
+        "Appetite for Destruction"
+    )
     return albums.random()
 }
 
@@ -231,4 +299,29 @@ private fun getRandomIssue(): String {
         "Performance issues on older devices"
     )
     return issues.random()
+}
+
+private fun getRandomCoverUrl(): String {
+    val covers = listOf(
+        "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/92/9f/69/929f69f1-9977-3a44-d674-11f70c852d1b/24UMGIM36186.rgb.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/33/fd/32/33fd32b1-0e43-9b4a-8ed6-19643f23544e/21UMGIM26092.rgb.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/1f/c9/3b/1fc93bbf-42f1-4385-0a3a-34d60f4e0451/artwork.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/96/8b/08/968b08e4-cb2b-54c2-32bb-dba77ad1c2ca/634904912161.png/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/f1/8f/b9/f18fb977-e326-dbc9-1416-69bb3a754d0c/5056167126287_Cover.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/13/cd/b4/13cdb427-8b1b-6ed1-aa0d-654bdf3fd644/00602567140092.rgb.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/15/e6/e8/15e6e8a4-4190-6a8b-86c3-ab4a51b88288/190295851286.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music69/v4/41/b5/ea/41b5ea6c-25f5-bebf-c5a0-fc42435fb301/qeZK4.png/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/f2/0d/8b/f20d8bff-a927-ae98-6784-20a1f51cb23e/16UMGIM27642.rgb.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/09/01/16/090116af-770e-23da-21a9-6bd30782eda5/00843930013562.rgb.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/96/24/d4/9624d446-3b95-af38-4b8c-d3087e6f962c/886444933049.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/a0/1a/10/a01a1080-7b1d-e475-a03c-394e5cbba66c/12UMGIM53876.rgb.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/81/a4/dc/81a4dc50-8d7e-6ae5-71d3-f83393348248/15UMGIM59807.rgb.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/e3/d4/de/e3d4def5-886e-da47-e1cf-568566510b53/15UMGIM62454.rgb.jpg/600x600bb.jpg",
+        "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/c1/54/2d/c1542d45-c6c2-12ca-7308-6eacd762c562/190295807870.jpg/600x600bb.jpg",
+        "https://example.com/error.png",
+        "https://example.com/error.png",
+        "https://example.com/error.png"
+    )
+
+    return covers.random()
 }

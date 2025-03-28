@@ -13,6 +13,9 @@ import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
 import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.enums.ChartSortOption
+import org.bscm.models.enums.Difficulty
+import org.bscm.models.enums.Genre
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.ContributorRepository
 import org.bscm.repository.KnownIssueRepository
@@ -35,6 +38,11 @@ fun Route.chartRoutes(
             val query = call.request.queryParameters["query"]
             val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
 
+            val difficulties = call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
+            val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
+
+            val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
+                ?: ChartSortOption.LAST_UPDATED
             val limit = call.request.queryParameters["limit"]?.toIntOrNull()
             val offset = call.request.queryParameters["offset"]?.toIntOrNull()
 
@@ -43,6 +51,9 @@ fun Route.chartRoutes(
             val charts = chartRepository.getCharts(
                 ids,
                 sanitizedQuery,
+                sortBy,
+                difficulties,
+                genres,
                 limit,
                 offset,
                 fetchVersions,

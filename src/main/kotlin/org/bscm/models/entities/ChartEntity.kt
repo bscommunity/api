@@ -19,6 +19,7 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var coverUrl by ChartTable.coverUrl
     var isDeluxe by ChartTable.isDeluxe
     var difficulty by ChartTable.difficulty
+    var genre by ChartTable.genre
     var isExplicit by ChartTable.isExplicit
     var isFeatured by ChartTable.isFeatured
 

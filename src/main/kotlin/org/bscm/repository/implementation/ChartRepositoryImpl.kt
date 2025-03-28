@@ -8,7 +8,10 @@ import org.bscm.models.entities.ChartEntity
 import org.bscm.models.entities.ContributorEntity
 import org.bscm.models.entities.UserEntity
 import org.bscm.models.entities.VersionEntity
+import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.ContributorRole
+import org.bscm.models.enums.Difficulty
+import org.bscm.models.enums.Genre
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContributorTable
 import org.bscm.models.tables.VersionTable
@@ -18,7 +21,10 @@ import org.bscm.repository.implementation.VersionRepositoryImpl.Companion.versio
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.dao.with
-import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.Op
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -43,6 +49,7 @@ class ChartRepositoryImpl : ChartRepository {
         isExplicit = entity.isExplicit,
         difficulty = entity.difficulty,
         isFeatured = entity.isFeatured,
+        genre = entity.genre,
         latestVersion = entity.latestVersion?.let(::versionEntityToVersion),
         versions = versionEntities?.map(::versionEntityToVersion) ?: emptyList(),
         contributors = contributorEntities?.map(::contributorEntityToContributor) ?: emptyList(),
@@ -51,6 +58,9 @@ class ChartRepositoryImpl : ChartRepository {
     override suspend fun getCharts(
         chartIds: List<UUID>?,
         query: String?,
+        sortBy: ChartSortOption,
+        difficulties: List<Difficulty>?,
+        genres: List<Genre>?,
         limit: Int?,
         offset: Int?,
         fetchVersions: Boolean,
@@ -58,33 +68,67 @@ class ChartRepositoryImpl : ChartRepository {
     ): List<Chart> = newSuspendedTransaction {
         val startTime = System.currentTimeMillis()
 
-        // First, use Exposed's eager loading capabilities to load charts WITH latest versions in one query
-        val chartQuery = when {
-            !chartIds.isNullOrEmpty() -> ChartEntity.find { ChartTable.id inList chartIds }
-            !query.isNullOrBlank() -> {
-                val searchTerm = "%${query.lowercase()}%"
-                ChartEntity.find {
+        // Build the initial condition as always true
+        var conditions: Op<Boolean> = Op.TRUE
+
+        // Add chartIds filter if provided
+        if (!chartIds.isNullOrEmpty()) {
+            conditions = conditions and (ChartTable.id inList chartIds)
+        }
+
+        // Add search query filter if provided
+        if (!query.isNullOrBlank()) {
+            val searchTerm = "%${query.lowercase()}%"
+            conditions = conditions and (
                     (ChartTable.artist.lowerCase() like searchTerm) or
                             (ChartTable.track.lowerCase() like searchTerm) or
                             (ChartTable.album.lowerCase() like searchTerm)
-                }
-            }
-            else -> ChartEntity.all()
+                    )
         }
 
-        // The key fix: Load charts with eager loading of latestVersion
-        // This will generate a JOIN query instead of separate queries
-        val paginatedCharts = chartQuery
-            .orderBy(ChartTable.id to SortOrder.ASC)  // Consistent ordering
-            .let {
-                // Apply offset if specified (skip first N results)
-                offset?.let { offset -> it.drop(offset) } ?: it
+        // Add difficulty filter if specified
+        if (!difficulties.isNullOrEmpty()) {
+            conditions = conditions and (ChartTable.difficulty inList difficulties)
+        }
+
+        // Add genres filter if specified
+        if (!genres.isNullOrEmpty()) {
+            conditions = conditions and (ChartTable.genre inList genres)
+        }
+
+        // Determine the effective sort option
+        val effectiveSortOption = when (sortBy) {
+            ChartSortOption.WEEKLY_RANK, ChartSortOption.MOST_LIKED -> ChartSortOption.LAST_UPDATED
+            else -> sortBy
+        }
+
+        // Apply sorting based on the effective sort option
+        val queryBuilder = ChartEntity.find { conditions }
+
+        // Eagerly load latest versions to avoid N+1 queries
+        val query = when (effectiveSortOption) {
+            ChartSortOption.LAST_UPDATED -> queryBuilder.with(ChartEntity::latestVersion).orderBy(
+                VersionTable.publishedAt to SortOrder.DESC_NULLS_LAST
+            )
+            ChartSortOption.MOST_DOWNLOADED -> {
+                // This sort requires more complex handling
+                // We'll use a subquery to calculate the total downloads
+                val chartDownloads = VersionTable
+                    .slice(VersionTable.chartId, VersionTable.downloadsAmount.sum().alias("total_downloads"))
+                    .select { VersionTable.chartId inList queryBuilder.map { it.id.value } }
+                    .groupBy(VersionTable.chartId)
+                    .alias("chart_downloads")
+
+                queryBuilder.with(ChartEntity::latestVersion)
+                    .leftJoin(chartDownloads, { ChartTable.id }, { chartDownloads[VersionTable.chartId] })
+                    .orderBy(ExpressionAlias(chartDownloads["total_downloads"] ?: intLiteral(0), false) to SortOrder.DESC_NULLS_LAST)
             }
-            .let {
-                // Apply limit if specified (take only N results)
-                limit?.let { limit -> it.take(limit) } ?: it
-            }
-            .with(ChartEntity::latestVersion)  // Eager load latest versions
+            else -> queryBuilder.with(ChartEntity::latestVersion)
+        }
+
+        // Apply pagination and execute query
+        val paginatedCharts = query
+            .limit(limit ?: Int.MAX_VALUE, offset?.toLong() ?: 0)
             .toList()
 
         // Early return for empty results
@@ -97,16 +141,17 @@ class ChartRepositoryImpl : ChartRepository {
         // Get all chart IDs for related data fetching
         val chartIdValues = paginatedCharts.map { it.id.value }
 
-        // Batch load all versions if needed
+        // Batch load all versions if needed (in a single query)
         val versionsMap = if (fetchVersions) {
             VersionEntity.find { VersionTable.chartId inList chartIdValues }
+                .with(VersionEntity::chart)  // Eagerly load chart relationship
                 .toList()
                 .groupBy { it.chart.id.value }
         } else {
             emptyMap()
         }
 
-        // Batch load all contributors if needed
+        // Batch load all contributors if needed (in a single query)
         val contributorsMap = if (fetchContributors) {
             ContributorEntity.find { ContributorTable.chartId inList chartIdValues }
                 .toList()
@@ -130,6 +175,7 @@ class ChartRepositoryImpl : ChartRepository {
         result
     }
 
+
     override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
         ChartEntity.findById(id)?.let { chartEntity ->
             chartEntityToChart(chartEntity, chartEntity.versions.toList(), chartEntity.contributors.toList())
@@ -137,33 +183,35 @@ class ChartRepositoryImpl : ChartRepository {
     }
 
     override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {
-        val searchTerm = "%${query.lowercase()}%"
-        ChartEntity.find {
-            (ChartTable.artist.lowerCase() like searchTerm) or
-                    (ChartTable.track.lowerCase() like searchTerm) or
-                    (ChartTable.album.lowerCase() like searchTerm)
-        }
-            .limit(limit)
-            // Deduplicate by artist, track, album, and default to track if no match is found
-            .distinctBy { it ->
-                listOf(it.artist, it.track, it.album).firstOrNull {
-                    it?.lowercase()?.contains(query.lowercase()) ?: false
-                } ?: it.track
-            }
-            // Map to the first matching field
-            .map { it ->
-                /*when {
-                    it.artist.lowercase().contains(query.lowercase()) -> it.artist
-                    it.track.lowercase().contains(query.lowercase()) -> it.track
-                    it.album.lowercase().contains(query.lowercase()) -> it.album
-                    else -> it.track // Default to track if no match is found
-                }*/
+        val startTime = System.currentTimeMillis()
 
-                // Simplified version of the above code
-                listOf(it.artist, it.track, it.album).firstOrNull {
-                    it?.lowercase()?.contains(query.lowercase()) ?: false
-                } ?: it.track
+        val searchTerm = "%${query.lowercase()}%"
+
+        val result = ChartTable
+            .select(
+                listOf(
+                    ChartTable.artist,
+                    ChartTable.track,
+                    ChartTable.album
+                )
+            )
+            .where {
+                (ChartTable.artist.lowerCase() like searchTerm) or
+                        (ChartTable.track.lowerCase() like searchTerm) or
+                        (ChartTable.album.lowerCase() like searchTerm)
             }
+            .limit(limit)
+            .map { it ->
+                listOf(it[ChartTable.artist], it[ChartTable.track], it[ChartTable.album]).firstOrNull {
+                    it?.lowercase()?.contains(query.lowercase()) ?: false
+                } ?: it[ChartTable.track]
+            }
+            .distinct()
+
+        val endTime = System.currentTimeMillis()
+        println("Chart query completed in ${endTime - startTime}ms with ${result.size} results")
+
+        result
     }
 
     override suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart = newSuspendedTransaction {
@@ -178,6 +226,7 @@ class ChartRepositoryImpl : ChartRepository {
             this.difficulty = chart.difficulty
             this.isDeluxe = chart.isDeluxe
             this.isExplicit = chart.isExplicit
+            this.genre = chart.genre
             this.latestVersion = null
         }
 
@@ -208,7 +257,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         // Add the user as an author of the chart
         ContributorEntity.new(contributorId) {
-            roles = listOf(ContributorRole.Author)
+            roles = listOf(ContributorRole.AUTHOR)
             joinedAt = LocalDate.now()
         }
 
@@ -227,6 +276,7 @@ class ChartRepositoryImpl : ChartRepository {
             isDeluxe = chart.isDeluxe ?: isDeluxe
             isExplicit = chart.isExplicit ?: isExplicit
             isFeatured = chart.isFeatured ?: isFeatured
+            genre = chart.genre ?: genre
         }
         chartEntityToChart(existingChart)
     }
