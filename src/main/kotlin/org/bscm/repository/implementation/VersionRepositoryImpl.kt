@@ -6,6 +6,7 @@ import org.bscm.models.entities.ChartEntity
 import org.bscm.models.entities.VersionEntity
 import org.bscm.models.tables.VersionTable
 import org.bscm.repository.VersionRepository
+import org.jetbrains.exposed.dao.with
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -95,13 +96,15 @@ class VersionRepositoryImpl : VersionRepository {
     }
 
     override suspend fun getLatestVersionsByChartIds(chartIds: List<UUID>): List<Version> = newSuspendedTransaction {
-        chartIds.mapNotNull { chartId ->
-            VersionEntity
-                .find { VersionTable.chartId eq chartId }
-                .orderBy(VersionTable.index to SortOrder.DESC)
-                .limit(1)
-                .firstOrNull()
-                ?.let { versionEntityToVersion(it) }
-        }
+        if (chartIds.isEmpty()) return@newSuspendedTransaction emptyList()
+
+        val versions = VersionEntity.find {
+            VersionTable.chartId inList chartIds
+        }.orderBy(VersionTable.chartId to SortOrder.ASC, VersionTable.index to SortOrder.DESC)
+            .with(VersionEntity::chart)
+            .toList()
+            .distinctBy { it.chart.id.value }
+
+        versions.map { versionEntityToVersion(it) }
     }
 }

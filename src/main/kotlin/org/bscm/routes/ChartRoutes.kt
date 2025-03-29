@@ -232,7 +232,9 @@ fun Route.chartRoutes(
         /* Versions ======================================== */
 
         get("latest-versions") {
-            val chartIds = call.request.queryParameters.getAll("chartIds")?.map { UUID.fromString(it) } ?: emptyList()
+            val chartIds = call.request.queryParameters["chartIds"]
+                ?.split(",")
+                ?.map { UUID.fromString(it) } ?: emptyList()
             val versions = versionRepository.getLatestVersionsByChartIds(chartIds)
             call.respond(versions)
         }

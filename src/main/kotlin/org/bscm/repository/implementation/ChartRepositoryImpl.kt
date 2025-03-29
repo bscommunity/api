@@ -14,6 +14,7 @@ import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContributorTable
+import org.bscm.models.tables.UserTable
 import org.bscm.models.tables.VersionTable
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.implementation.ContributorRepositoryImpl.Companion.contributorEntityToContributor
@@ -110,7 +111,6 @@ class ChartRepositoryImpl : ChartRepository {
         val paginatedCharts = sortedQuery
             .drop(offset ?: 0)
             .take(limit ?: Int.MAX_VALUE)
-            .with(ChartEntity::latestVersion)  // Eager load latest versions
             .toList()
 
         // Early return for empty results
@@ -120,32 +120,46 @@ class ChartRepositoryImpl : ChartRepository {
             return@newSuspendedTransaction emptyList()
         }
 
+        val chartIdsFromQuery = paginatedCharts.map { it.id.value }
+
         // Prepare maps for versions and contributors
         val versionsMap = mutableMapOf<UUID, List<VersionEntity>>()
         val contributorsMap = mutableMapOf<UUID, List<ContributorEntity>>()
+        val userIdsSet = mutableSetOf<UUID>()
 
         if (fetchVersions) {
             // Batch load all versions for the paginated charts
-            versionsMap.putAll(
-                VersionEntity.find { VersionTable.chartId inList paginatedCharts.map { it.id.value } }
-                    .groupBy { it.chart.id.value }
-            )
+            val versions = VersionEntity.find { VersionTable.chartId inList chartIdsFromQuery }.toList()
+            versionsMap.putAll(versions.groupBy { it.chart.id.value })
         }
 
         if (fetchContributors) {
             // Batch load all contributors for the paginated charts
-            contributorsMap.putAll(
-                ContributorEntity.find { ContributorTable.chartId inList paginatedCharts.map { it.id.value } }
-                    .groupBy { it.id.value[ContributorTable.chartId].value }
-            )
+            val contributors = ContributorEntity.find { ContributorTable.chartId inList chartIdsFromQuery }.toList()
+            contributorsMap.putAll(contributors.groupBy { it.id.value[ContributorTable.chartId].value })
+
+            // Collect user IDs from contributors
+            userIdsSet.addAll(contributors.map { it.id.value[ContributorTable.userId].value })
         }
 
-        // Map charts to domain models
+        // Batch load all users in one query
+        val usersMap = if (userIdsSet.isNotEmpty()) {
+            // UserEntity.findByIds(userIdsSet.toList()).associateBy { it.id.value }
+            UserEntity.find { UserTable.id inList userIdsSet.toList() }
+                .associateBy { it.id.value }
+        } else {
+            emptyMap()
+        }
+
+        // Map charts to domain models, com informações pré-carregadas
         val result = paginatedCharts.map { entity ->
+            val chartId = entity.id.value
+            val contributorsForChart = contributorsMap[chartId] ?: emptyList()
+
             chartEntityToChart(
-                entity,
-                versionEntities = versionsMap[entity.id.value],
-                contributorEntities = contributorsMap[entity.id.value]
+                entity = entity,
+                versionEntities = if (fetchVersions) versionsMap[chartId] ?: emptyList() else null,
+                contributorEntities = if (fetchContributors) contributorsForChart else null
             )
         }
 
@@ -154,9 +168,6 @@ class ChartRepositoryImpl : ChartRepository {
 
         result
     }
-
-
-
 
     override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
         ChartEntity.findById(id)?.let { chartEntity ->
