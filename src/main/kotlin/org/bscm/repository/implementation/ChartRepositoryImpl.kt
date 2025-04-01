@@ -57,6 +57,7 @@ class ChartRepositoryImpl : ChartRepository {
     )
 
     override suspend fun getCharts(
+        userId: UUID?,
         chartIds: List<UUID>?,
         query: String?,
         sortBy: ChartSortOption,
@@ -67,8 +68,6 @@ class ChartRepositoryImpl : ChartRepository {
         fetchVersions: Boolean,
         fetchContributors: Boolean,
     ): List<Chart> = newSuspendedTransaction {
-        val startTime = System.currentTimeMillis()
-
         // Build the initial condition as always true
         var conditions: Op<Boolean> = Op.TRUE
 
@@ -76,6 +75,9 @@ class ChartRepositoryImpl : ChartRepository {
         if (!chartIds.isNullOrEmpty()) {
             conditions = conditions and (ChartTable.id inList chartIds)
         }
+
+        // Add userId filter if provided
+        // ...
 
         // Add search query filter if provided
         if (!query.isNullOrBlank()) {
@@ -115,8 +117,6 @@ class ChartRepositoryImpl : ChartRepository {
 
         // Early return for empty results
         if (paginatedCharts.isEmpty()) {
-            val endTime = System.currentTimeMillis()
-            println("Chart query completed in ${endTime - startTime}ms with 0 results")
             return@newSuspendedTransaction emptyList()
         }
 
@@ -151,7 +151,7 @@ class ChartRepositoryImpl : ChartRepository {
             emptyMap()
         }
 
-        // Map charts to domain models, com informações pré-carregadas
+        // Map charts to domain models, with versions and contributors if requested
         val result = paginatedCharts.map { entity ->
             val chartId = entity.id.value
             val contributorsForChart = contributorsMap[chartId] ?: emptyList()
@@ -163,8 +163,15 @@ class ChartRepositoryImpl : ChartRepository {
             )
         }
 
-        val endTime = System.currentTimeMillis()
-        println("Chart query completed in ${endTime - startTime}ms with ${result.size} results")
+        // Only return charts where user with userId is a contributor with AUTHOR role (if userId is provided)
+        if (userId != null) {
+            return@newSuspendedTransaction result.filter { chart ->
+                // Verificar se o usuário é um autor do gráfico nos dados já carregados
+                chart.contributors.any { contributor ->
+                    UUID.fromString(contributor.user.id) == userId && ContributorRole.AUTHOR in contributor.roles
+                }
+            }
+        }
 
         result
     }

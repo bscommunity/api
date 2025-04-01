@@ -4,9 +4,17 @@
             <pattern>%d{YYYY-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
-    <root level="trace">
+
+    <!-- Change root level to INFO or higher to suppress TRACE logs -->
+    <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
+
+    <!-- Specific logger levels to reduce verbosity -->
     <logger name="org.eclipse.jetty" level="INFO"/>
     <logger name="io.netty" level="INFO"/>
+
+    <!-- Suppress TRACE logs from Ktor components -->
+    <logger name="io.ktor.server.plugins.contentnegotiation.ContentNegotiation" level="WARN"/>
+    <logger name="io.ktor.server.plugins.statuspages.StatusPages" level="WARN"/>
 </configuration>

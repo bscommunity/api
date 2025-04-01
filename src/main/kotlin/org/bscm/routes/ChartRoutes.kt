@@ -29,37 +29,53 @@ fun Route.chartRoutes(
     versionRepository: VersionRepository
 ) {
     route("/charts") {
-        // Get all charts
-        get {
-            // Check for a "fetchVersions" and "fetchContributors" query parameters
-            val fetchVersions = call.request.queryParameters["fetchVersions"]?.toBoolean() ?: false
-            val fetchContributors = call.request.queryParameters["fetchContributors"]?.toBoolean() ?: false
+        authenticate("auth-jwt", optional = true) {
+            // Get all charts
+            get {
+                // Check for a "fetchVersions" and "fetchContributors" query parameters
+                val fetchVersions = call.request.queryParameters["fetchVersions"]?.toBoolean() ?: false
+                val fetchContributors = call.request.queryParameters["fetchContributors"]?.toBoolean() ?: false
 
-            val query = call.request.queryParameters["query"]
-            val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
+                val query = call.request.queryParameters["query"]
+                val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
 
-            val difficulties = call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
-            val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
+                val difficulties = call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
+                val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
 
-            val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
-                ?: ChartSortOption.LAST_UPDATED
-            val limit = call.request.queryParameters["limit"]?.toIntOrNull()
-            val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+                val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
+                    ?: ChartSortOption.LAST_UPDATED
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull()
 
-            val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
+                val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
 
-            val charts = chartRepository.getCharts(
-                ids,
-                sanitizedQuery,
-                sortBy,
-                difficulties,
-                genres,
-                limit,
-                offset,
-                fetchVersions,
-                fetchContributors
-            )
-            call.respond(charts)
+                val fetchUserOnly = call.request.queryParameters["userOnly"]?.toBoolean() ?: false
+                val principal = call.principal<JWTPrincipal>()
+                val userId = if (fetchUserOnly) {
+                    principal?.subject?.let { UUID.fromString(it) }
+                } else null
+
+                val startTime = System.currentTimeMillis()
+
+                val charts = chartRepository.getCharts(
+                    userId,
+                    ids,
+                    sanitizedQuery,
+                    sortBy,
+                    difficulties,
+                    genres,
+                    limit,
+                    offset,
+                    fetchVersions,
+                    fetchContributors
+                )
+
+                val endTime = System.currentTimeMillis()
+
+                println("Chart query completed in ${endTime - startTime}ms with ${charts.size} results")
+
+                call.respond(charts)
+            }
         }
 
         // Get chart by ID

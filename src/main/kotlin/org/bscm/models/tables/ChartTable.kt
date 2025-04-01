@@ -21,5 +21,7 @@ object ChartTable : UUIDTable("chart") {
     val isExplicit = bool("is_explicit").default(false)
     val isFeatured = bool("is_featured").default(false)
 
-    val latestVersionId = reference("latest_version_id", VersionTable, onDelete = ReferenceOption.SET_NULL).nullable()
+    val latestVersionId = reference("latest_version_id", VersionTable, onDelete = ReferenceOption.SET_NULL)
+        .nullable()
+        .index()
 }

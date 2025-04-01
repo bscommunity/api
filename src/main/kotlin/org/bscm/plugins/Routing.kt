@@ -1,5 +1,6 @@
 package org.bscm.plugins
 
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.http.content.*
 import io.ktor.server.plugins.swagger.*
@@ -31,6 +32,10 @@ fun Application.configureRouting() {
 
         get("/") {
             call.respondText("Hello World!")
+        }
+
+        get("/health") {
+            call.respond(HttpStatusCode.OK)
         }
 
         authRoutes(userRepository, oAuthService, jwtService)

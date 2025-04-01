@@ -10,6 +10,7 @@ import java.util.*
 
 interface ChartRepository {
     suspend fun getCharts(
+        userId: UUID?,
         chartIds: List<UUID>?,
         query: String?,
         sortBy: ChartSortOption = ChartSortOption.LAST_UPDATED,
