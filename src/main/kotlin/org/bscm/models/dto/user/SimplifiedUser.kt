@@ -6,5 +6,5 @@ import kotlinx.serialization.Serializable
 data class SimplifiedUser(
     val id: String,
     val username: String,
-    val imageUrl: String?,
+    val imageUrl: String? = null,
 )

@@ -9,12 +9,12 @@ import org.bscm.models.enums.Genre
 data class CreateChartRequest (
     val artist: String,
     val track: String,
-    val album: String?,
+    val album: String? = null,
     val trackUrls: List<StreamingLink>,
     val trackPreviewUrl: String,
     val coverUrl: String,
     val difficulty: Difficulty,
-    val genre: Genre?,
+    val genre: Genre? = null,
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
 

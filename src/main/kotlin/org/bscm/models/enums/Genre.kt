@@ -4,9 +4,11 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class Genre {
-    POP,
     HIP_HOP,
+    POP,
+    RNB,
     ROCK,
-    ELECTRONIC,
+    DANCE,
     ALTERNATIVE,
+    CLASSICAL
 }
