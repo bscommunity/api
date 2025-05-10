@@ -57,6 +57,12 @@ class ChartRepositoryImpl : ChartRepository {
         contributors = contributorEntities?.map(::contributorEntityToContributor) ?: emptyList(),
     )
 
+    override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
+        ChartEntity.findById(id)?.let { chartEntity ->
+            chartEntityToChart(chartEntity, chartEntity.versions.toList(), chartEntity.contributors.toList())
+        }
+    }
+
     override suspend fun getCharts(
         userId: UUID?,
         chartIds: List<UUID>?,
@@ -82,13 +88,21 @@ class ChartRepositoryImpl : ChartRepository {
 
         // Add search query filter if provided
         if (!query.isNullOrBlank()) {
-            val searchTerm = "%${query.lowercase()}%"
-            println("Search term: $searchTerm")
-            conditions = conditions and (
-                    (ChartTable.artist.lowerCase() like searchTerm) or
-                            (ChartTable.track.lowerCase() like searchTerm) or
-                            (ChartTable.album.lowerCase() like searchTerm)
-                    )
+            val combinedMatches = QueryUtils.getSearchMatches(query, 50)
+
+            // Cria a condição para encontrar os charts que contenham os valores retornados na query
+            val chartMatchCondition = combinedMatches.map { match ->
+                (ChartTable.artist.lowerCase() like "%${match.lowercase()}%") or
+                        (ChartTable.track.lowerCase() like "%${match.lowercase()}%") or
+                        (ChartTable.album.lowerCase() like "%${match.lowercase()}%")
+            }.reduceOrNull { acc, cond -> acc or cond }
+
+            if (chartMatchCondition != null) {
+                conditions = conditions and chartMatchCondition
+            } else {
+                // Nenhum match relevante, então forçamos condição falsa para retornar nada
+                return@newSuspendedTransaction emptyList()
+            }
         }
 
         // Add difficulty filter if specified
@@ -178,48 +192,14 @@ class ChartRepositoryImpl : ChartRepository {
         result
     }
 
-    override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
-        ChartEntity.findById(id)?.let { chartEntity ->
-            chartEntityToChart(chartEntity, chartEntity.versions.toList(), chartEntity.contributors.toList())
-        }
-    }
-
     override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {
-        val startTime = System.currentTimeMillis()
-
-        // If query is empty, return empty list early
         if (query.isBlank()) return@newSuspendedTransaction emptyList()
 
-        // Normalize the query: remove extra spaces, convert to lowercase
-        val normalizedQuery = query.trim().lowercase()
-
-        // Create a version without vowels for matching songs like "i didnt chang my numbr"
-        val queryWithoutVowels = normalizedQuery.replace(Regex("[aeiou]"), "")
-
-        // Create different search patterns for flexible matching
-        val exactSearchTerm = "%$normalizedQuery%"
-        val noVowelsSearchPattern = "%${queryWithoutVowels.map { "$it%?" }.joinToString("")}%"
-
-        // First try exact matches
-        var result = QueryUtils.findMatches(normalizedQuery, exactSearchTerm, limit)
-
-        // If we don't have enough results, try more flexible matching
-        if (result.size < limit) {
-            // Get additional results using the no-vowels approach
-            val additionalResults = QueryUtils.findMatchesWithoutVowels(
-                normalizedQuery,
-                queryWithoutVowels,
-                noVowelsSearchPattern,
-                limit - result.size
-            )
-
-            // Combine results (exact matches first, then fuzzy matches)
-            result = (result + additionalResults).distinct().take(limit)
-        }
-
+        val startTime = System.currentTimeMillis()
+        val result = QueryUtils.getSearchMatches(query, limit)
         val endTime = System.currentTimeMillis()
-        println("Chart query completed in ${endTime - startTime}ms with ${result.size} results")
 
+        println("Chart query completed in ${endTime - startTime}ms with ${result.size} results")
         result
     }
 

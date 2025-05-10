@@ -7,10 +7,39 @@ import java.util.*
 
 class QueryUtils() {
     companion object {
+        fun getNormalizedQuery(query: String): String {
+            return query.trim().lowercase()
+                .replace(Regex("[^a-z0-9 ]"), "") // remove punctuation
+                .replace(Regex("\\s+"), " ") // normalize spaces
+        }
+
+        fun getSearchMatches(query: String, limit: Int): List<String> {
+            if (query.isBlank()) return emptyList()
+
+            val normalizedQuery = getNormalizedQuery(query)
+            val queryWithoutVowels = normalizedQuery.replace(Regex("[aeiou]"), "")
+            val exactSearchTerm = "%$normalizedQuery%"
+            val noVowelsSearchPattern = "%${queryWithoutVowels.map { "$it%?" }.joinToString("")}%"
+
+            val matchedStrings = findMatches(normalizedQuery, exactSearchTerm, limit)
+
+            return if (matchedStrings.size < limit) {
+                val fuzzyMatches = findMatchesWithoutVowels(
+                    normalizedQuery,
+                    queryWithoutVowels,
+                    noVowelsSearchPattern,
+                    limit - matchedStrings.size
+                )
+                (matchedStrings + fuzzyMatches).distinct().take(limit)
+            } else {
+                matchedStrings
+            }
+        }
+
         /**
          * Find exact matches in the database
          */
-        suspend fun findMatches(
+        fun findMatches(
             normalizedQuery: String,
             searchTerm: String,
             limit: Int
@@ -41,7 +70,7 @@ class QueryUtils() {
         /**
          * Find matches using a vowel-insensitive approach
          */
-        suspend fun findMatchesWithoutVowels(
+        fun findMatchesWithoutVowels(
             normalizedQuery: String,
             queryWithoutVowels: String,
             noVowelsSearchPattern: String,
@@ -102,7 +131,7 @@ class QueryUtils() {
         /**
          * Calculate similarity between two strings (0-1 where 1 is identical)
          */
-        private fun calculateSimilarity(s1: String, s2: String): Double {
+        fun calculateSimilarity(s1: String, s2: String): Double {
             if (s1.isEmpty() || s2.isEmpty()) return 0.0
             if (s1 == s2) return 1.0
 
