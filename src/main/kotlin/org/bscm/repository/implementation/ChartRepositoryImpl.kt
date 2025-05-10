@@ -19,6 +19,7 @@ import org.bscm.models.tables.VersionTable
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.implementation.ContributorRepositoryImpl.Companion.contributorEntityToContributor
 import org.bscm.repository.implementation.VersionRepositoryImpl.Companion.versionEntityToVersion
+import org.bscm.services.QueryUtils
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.dao.with
@@ -82,6 +83,7 @@ class ChartRepositoryImpl : ChartRepository {
         // Add search query filter if provided
         if (!query.isNullOrBlank()) {
             val searchTerm = "%${query.lowercase()}%"
+            println("Search term: $searchTerm")
             conditions = conditions and (
                     (ChartTable.artist.lowerCase() like searchTerm) or
                             (ChartTable.track.lowerCase() like searchTerm) or
@@ -185,28 +187,35 @@ class ChartRepositoryImpl : ChartRepository {
     override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {
         val startTime = System.currentTimeMillis()
 
-        val searchTerm = "%${query.lowercase()}%"
+        // If query is empty, return empty list early
+        if (query.isBlank()) return@newSuspendedTransaction emptyList()
 
-        val result = ChartTable
-            .select(
-                listOf(
-                    ChartTable.artist,
-                    ChartTable.track,
-                    ChartTable.album
-                )
+        // Normalize the query: remove extra spaces, convert to lowercase
+        val normalizedQuery = query.trim().lowercase()
+
+        // Create a version without vowels for matching songs like "i didnt chang my numbr"
+        val queryWithoutVowels = normalizedQuery.replace(Regex("[aeiou]"), "")
+
+        // Create different search patterns for flexible matching
+        val exactSearchTerm = "%$normalizedQuery%"
+        val noVowelsSearchPattern = "%${queryWithoutVowels.map { "$it%?" }.joinToString("")}%"
+
+        // First try exact matches
+        var result = QueryUtils.findMatches(normalizedQuery, exactSearchTerm, limit)
+
+        // If we don't have enough results, try more flexible matching
+        if (result.size < limit) {
+            // Get additional results using the no-vowels approach
+            val additionalResults = QueryUtils.findMatchesWithoutVowels(
+                normalizedQuery,
+                queryWithoutVowels,
+                noVowelsSearchPattern,
+                limit - result.size
             )
-            .where {
-                (ChartTable.artist.lowerCase() like searchTerm) or
-                        (ChartTable.track.lowerCase() like searchTerm) or
-                        (ChartTable.album.lowerCase() like searchTerm)
-            }
-            .limit(limit)
-            .map { it ->
-                listOf(it[ChartTable.artist], it[ChartTable.track], it[ChartTable.album]).firstOrNull {
-                    it?.lowercase()?.contains(query.lowercase()) ?: false
-                } ?: it[ChartTable.track]
-            }
-            .distinct()
+
+            // Combine results (exact matches first, then fuzzy matches)
+            result = (result + additionalResults).distinct().take(limit)
+        }
 
         val endTime = System.currentTimeMillis()
         println("Chart query completed in ${endTime - startTime}ms with ${result.size} results")
