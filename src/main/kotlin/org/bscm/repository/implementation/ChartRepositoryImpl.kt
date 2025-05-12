@@ -51,6 +51,7 @@ class ChartRepositoryImpl : ChartRepository {
         isExplicit = entity.isExplicit,
         difficulty = entity.difficulty,
         isFeatured = entity.isFeatured,
+        isPublic = entity.isPublic,
         genre = entity.genre,
         latestVersion = entity.latestVersion?.let(::versionEntityToVersion),
         versions = versionEntities?.map(::versionEntityToVersion) ?: emptyList(),
@@ -83,8 +84,10 @@ class ChartRepositoryImpl : ChartRepository {
             conditions = conditions and (ChartTable.id inList chartIds)
         }
 
-        // Add userId filter if provided
-        // ...
+        // Filter only public if userId is null
+        if (userId == null) {
+            conditions = conditions and ChartTable.isPublic
+        }
 
         // Add search query filter if provided
         if (!query.isNullOrBlank()) {
@@ -159,7 +162,7 @@ class ChartRepositoryImpl : ChartRepository {
         }
 
         // Batch load all users in one query
-        val usersMap = if (userIdsSet.isNotEmpty()) {
+        if (userIdsSet.isNotEmpty()) {
             // UserEntity.findByIds(userIdsSet.toList()).associateBy { it.id.value }
             UserEntity.find { UserTable.id inList userIdsSet.toList() }
                 .associateBy { it.id.value }
@@ -182,7 +185,7 @@ class ChartRepositoryImpl : ChartRepository {
         // Only return charts where user with userId is a contributor with AUTHOR role (if userId is provided)
         if (userId != null) {
             return@newSuspendedTransaction result.filter { chart ->
-                // Verificar se o usuário é um autor do gráfico nos dados já carregados
+                // Verify if the user is an author of the chart in the already loaded data
                 chart.contributors.any { contributor ->
                     UUID.fromString(contributor.user.id) == userId && ContributorRole.AUTHOR in contributor.roles
                 }
@@ -265,6 +268,7 @@ class ChartRepositoryImpl : ChartRepository {
             isDeluxe = chart.isDeluxe ?: isDeluxe
             isExplicit = chart.isExplicit ?: isExplicit
             isFeatured = chart.isFeatured ?: isFeatured
+            isPublic = chart.isPublic ?: isPublic
             genre = chart.genre ?: genre
         }
         chartEntityToChart(existingChart)

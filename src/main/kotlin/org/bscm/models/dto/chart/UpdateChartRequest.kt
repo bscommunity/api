@@ -15,4 +15,5 @@ data class UpdateChartRequest (
     val isDeluxe: Boolean? = null,
     val isExplicit: Boolean? = null,
     val isFeatured: Boolean? = null,
+    val isPublic: Boolean? = null,
 )

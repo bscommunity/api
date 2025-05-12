@@ -22,6 +22,7 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var genre by ChartTable.genre
     var isExplicit by ChartTable.isExplicit
     var isFeatured by ChartTable.isFeatured
+    var isPublic by ChartTable.isPublic
 
     var latestVersion by VersionEntity optionalReferencedOn ChartTable.latestVersionId
     val versions by VersionEntity referrersOn VersionTable.chartId

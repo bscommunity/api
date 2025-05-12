@@ -49,11 +49,11 @@ fun Route.chartRoutes(
 
                 val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
 
-                val fetchUserOnly = call.request.queryParameters["userOnly"]?.toBoolean() ?: false
+                // TODO: Currently, logged users can only see their own charts
                 val principal = call.principal<JWTPrincipal>()
-                val userId = if (fetchUserOnly) {
-                    principal?.subject?.let { UUID.fromString(it) }
-                } else null
+                val userId = principal?.subject?.let { UUID.fromString(it) }
+
+                println("User ID: $userId")
 
                 val startTime = System.currentTimeMillis()
 

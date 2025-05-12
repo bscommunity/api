@@ -21,6 +21,7 @@ data class Chart(
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
     val isFeatured: Boolean,
+    val isPublic: Boolean,
     val latestVersion: Version? = null,
     val versions: List<Version> = emptyList(),
     val contributors: List<Contributor> = emptyList()

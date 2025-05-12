@@ -15,16 +15,18 @@ fun Application.configureDatabases(config: ApplicationConfig) {
     val user = config.property("storage.user").getString()
     val password = config.property("storage.password").getString()
 
+    // Execute migrations
+    migrateDatabase(url, user, password)
+
+    // Connect to database
     Database.connect(
         url,
         user = user,
         password = password
     )
 
-    // Initialize tables
+    // Initialize tables (if not already created)
     transaction {
-        // SchemaUtils.drop(UserTable, ChartTable, VersionTable, ContributorTable)
-        // SchemaUtils.drop(ChartTable, VersionTable, ContributorTable)
         SchemaUtils.create(UserTable, ChartTable, VersionTable, ContributorTable)
     }
 }

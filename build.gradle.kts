@@ -56,6 +56,10 @@ dependencies {
     implementation(libs.exposed.java.time)
     implementation(libs.postgresql)
 
+    // Database Migration
+    implementation(libs.flyway.core)
+    runtimeOnly(libs.flyway.database.postgresql)
+
     // Utils
     implementation(libs.logback)
     implementation(libs.ktor.server.config.yaml)

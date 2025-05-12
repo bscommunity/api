@@ -3,9 +3,10 @@ kotlin = "2.1.0"
 ktor = "3.0.3"
 koin = "4.1.0-Beta5"
 exposed = "0.60.0"
-postgres = "42.7.4"
+postgres = "42.7.5"
 h2 = "2.3.232"
 logback = "1.5.13"
+flyway = "11.8.1"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -48,3 +49,6 @@ postgresql = { module = "org.postgresql:postgresql", version.ref = "postgres" }
 
 logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 ktor-server-config-yaml = { module = "io.ktor:ktor-server-config-yaml", version.ref = "ktor" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+
