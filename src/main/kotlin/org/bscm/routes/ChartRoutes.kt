@@ -4,6 +4,7 @@ import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.*
+import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -30,277 +31,282 @@ fun Route.chartRoutes(
 ) {
     route("/charts") {
         authenticate("auth-jwt", optional = true) {
-            // Get all charts
-            get {
-                // Check for a "fetchVersions" and "fetchContributors" query parameters
-                val fetchVersions = call.request.queryParameters["fetchVersions"]?.toBoolean() ?: false
-                val fetchContributors = call.request.queryParameters["fetchContributors"]?.toBoolean() ?: false
+            rateLimit(RateLimitName("public")) {
+                // Get all charts
+                get {
+                    // Check for a "fetchVersions" and "fetchContributors" query parameters
+                    val fetchVersions = call.request.queryParameters["fetchVersions"]?.toBoolean() ?: false
+                    val fetchContributors = call.request.queryParameters["fetchContributors"]?.toBoolean() ?: false
 
-                val query = call.request.queryParameters["query"]
-                val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
+                    val query = call.request.queryParameters["query"]
+                    val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
 
-                val difficulties = call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
-                val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
+                    val difficulties =
+                        call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
+                    val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
 
-                val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
-                    ?: ChartSortOption.LAST_UPDATED
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
-                val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+                    val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
+                        ?: ChartSortOption.LAST_UPDATED
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                    val offset = call.request.queryParameters["offset"]?.toIntOrNull()
 
-                val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
+                    val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
 
-                // TODO: Currently, logged users can only see their own charts
-                val principal = call.principal<JWTPrincipal>()
-                val userId = principal?.subject?.let { UUID.fromString(it) }
+                    // TODO: Currently, logged users can only see their own charts
+                    val principal = call.principal<JWTPrincipal>()
+                    val userId = principal?.subject?.let { UUID.fromString(it) }
 
-                println("User ID: $userId")
+                    println("User ID: $userId")
 
-                val startTime = System.currentTimeMillis()
+                    val startTime = System.currentTimeMillis()
 
-                val charts = chartRepository.getCharts(
-                    userId,
-                    ids,
-                    sanitizedQuery,
-                    sortBy,
-                    difficulties,
-                    genres,
-                    limit,
-                    offset,
-                    fetchVersions,
-                    fetchContributors
-                )
+                    val charts = chartRepository.getCharts(
+                        userId,
+                        ids,
+                        sanitizedQuery,
+                        sortBy,
+                        difficulties,
+                        genres,
+                        limit,
+                        offset,
+                        fetchVersions,
+                        fetchContributors
+                    )
 
-                val endTime = System.currentTimeMillis()
+                    val endTime = System.currentTimeMillis()
 
-                println("Chart query completed in ${endTime - startTime}ms with ${charts.size} results")
+                    println("Chart query completed in ${endTime - startTime}ms with ${charts.size} results")
 
-                call.respond(charts)
+                    call.respond(charts)
+                }
+
+                // Get chart by ID
+                get("{id}") {
+                    val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    if (id == null) {
+                        throw IllegalArgumentException("Invalid or missing ID")
+                    }
+
+                    val chart = chartRepository.getChartById(id)
+                    if (chart != null) {
+                        call.respond(chart)
+                    } else {
+                        throw NotFoundException("Chart not found")
+                    }
+                }
+
+                get("suggestions") {
+                    val query = call.request.queryParameters["query"] ?: ""
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
+
+                    val suggestions = chartRepository.getSuggestions(query, limit)
+                    call.respond(suggestions)
+                }
             }
-        }
-
-        // Get chart by ID
-        get("{id}") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
-            if (id == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
-            }
-
-            val chart = chartRepository.getChartById(id)
-            if (chart != null) {
-                call.respond(chart)
-            } else {
-                throw NotFoundException("Chart not found")
-            }
-        }
-
-        get("suggestions") {
-            val query = call.request.queryParameters["query"] ?: ""
-            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
-
-            val suggestions = chartRepository.getSuggestions(query, limit)
-            call.respond(suggestions)
         }
 
         authenticate("auth-jwt") {
-            // Create a new chart
-            post {
-                val createRequest = call.receive<CreateChartRequest>()
-                println(createRequest)
+            rateLimit(RateLimitName("protected")) {
+                // Create a new chart
+                post {
+                    val createRequest = call.receive<CreateChartRequest>()
+                    println(createRequest)
 
-                val principal = call.principal<JWTPrincipal>()
+                    val principal = call.principal<JWTPrincipal>()
 
-                println("Principal: $principal")
+                    println("Principal: $principal")
 
-                val userId =
-                    principal?.subject?.let { UUID.fromString(it) } ?: throw Exception("User not authenticated")
+                    val userId =
+                        principal?.subject?.let { UUID.fromString(it) } ?: throw Exception("User not authenticated")
 
-                val createdChart = chartRepository.createChart(userId, createRequest)
-                call.respond(HttpStatusCode.Created, createdChart)
+                    val createdChart = chartRepository.createChart(userId, createRequest)
+                    call.respond(HttpStatusCode.Created, createdChart)
+                }
+
+                // Update an existing chart
+                put("{id}") {
+                    val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    if (id == null) {
+                        throw IllegalArgumentException("Invalid or missing ID")
+                    }
+
+                    val updateRequest = call.receive<UpdateChartRequest>()
+
+                    try {
+                        val updatedChart = chartRepository.updateChart(id, updateRequest)
+                        call.respond(updatedChart)
+                    } catch (e: NotFoundException) {
+                        throw NotFoundException(e.message ?: "Not Found")
+                    } catch (e: Exception) {
+                        throw Exception(e.message ?: "Internal Server Error")
+                    }
+                }
+
+                // Delete a chart
+                delete("{id}") {
+                    val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    if (id == null) {
+                        throw IllegalArgumentException("Invalid or missing ID")
+                    }
+
+                    val deleted = chartRepository.deleteChart(id)
+                    if (deleted) {
+                        call.respond(HttpStatusCode.NoContent, true)
+                    } else {
+                        throw NotFoundException("Chart not found")
+                    }
+                }
             }
 
-            // Update an existing chart
-            put("{id}") {
+            /* Known Issues ======================================== */
+
+            // Add an issue to a chart
+            post("{id}/issues") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {
                     throw IllegalArgumentException("Invalid or missing ID")
                 }
 
-                val updateRequest = call.receive<UpdateChartRequest>()
+                val receivedIssue = call.receive<KnownIssue>()
 
-                try {
-                    val updatedChart = chartRepository.updateChart(id, updateRequest)
-                    call.respond(updatedChart)
-                } catch (e: NotFoundException) {
-                    throw NotFoundException(e.message ?: "Not Found")
-                } catch (e: Exception) {
-                    throw Exception(e.message ?: "Internal Server Error")
-                }
+                val createdIssue = knownIssueRepository.addIssue(id, receivedIssue)
+                call.respond(HttpStatusCode.Created, createdIssue)
             }
 
-            // Delete a chart
-            delete("{id}") {
+            // Remove an issue from a chart
+            delete("{id}/issues/{issueId}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                if (id == null) {
+                val issueId = call.parameters["issueId"]?.let { UUID.fromString(it) }
+                if (id == null || issueId == null) {
                     throw IllegalArgumentException("Invalid or missing ID")
                 }
 
-                val deleted = chartRepository.deleteChart(id)
-                if (deleted) {
+                val removed = knownIssueRepository.removeIssue(id, issueId)
+                if (removed) {
                     call.respond(HttpStatusCode.NoContent, true)
                 } else {
-                    throw NotFoundException("Chart not found")
+                    throw NotFoundException("Chart or issue not found")
                 }
             }
-        }
 
-        /* Known Issues ======================================== */
+            /* Contributor ======================================== */
 
-        // Add an issue to a chart
-        post("{id}/issues") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
-            if (id == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
+            // Add contributors to a chart
+            post("{id}/contributors") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+
+                if (id == null) {
+                    throw IllegalArgumentException("Invalid or missing ID")
+                }
+
+                val request = call.receive<CreateContributorRequest>()
+                val contributors = contributorRepository.addContributors(id, request.contributors)
+
+                call.respond(contributors)
             }
 
-            val receivedIssue = call.receive<KnownIssue>()
+            // Update a contributor's roles
+            put("{id}/contributors/{userId}") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
+                if (id == null || userId == null) {
+                    throw IllegalArgumentException("Invalid or missing ID")
+                }
 
-            val createdIssue = knownIssueRepository.addIssue(id, receivedIssue)
-            call.respond(HttpStatusCode.Created, createdIssue)
-        }
+                try {
+                    val updatedRequest = call.receive<UpdateContributorRequest>()
 
-        // Remove an issue from a chart
-        delete("{id}/issues/{issueId}") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
-            val issueId = call.parameters["issueId"]?.let { UUID.fromString(it) }
-            if (id == null || issueId == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
+                    val updated = contributorRepository.updateContributorRoles(id, userId, updatedRequest.roles)
+                    call.respond(updated)
+                } catch (e: BadRequestException) {
+                    throw BadRequestException(e.message ?: "Bad Request")
+                }
             }
 
-            val removed = knownIssueRepository.removeIssue(id, issueId)
-            if (removed) {
-                call.respond(HttpStatusCode.NoContent, true)
-            } else {
-                throw NotFoundException("Chart or issue not found")
-            }
-        }
+            // Remove a contributor from a chart
+            delete("{id}/contributors/{userId}") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
+                if (id == null || userId == null) {
+                    throw IllegalArgumentException("Invalid or missing ID")
+                }
 
-        /* Contributor ======================================== */
-
-        // Add contributors to a chart
-        post("{id}/contributors") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
-
-            if (id == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
+                val removed = contributorRepository.removeContributor(id, userId)
+                if (removed) {
+                    call.respond(HttpStatusCode.NoContent, "Contributor removed successfully")
+                } else {
+                    throw NotFoundException("Chart or contributor not found")
+                }
             }
 
-            val request = call.receive<CreateContributorRequest>()
-            val contributors = contributorRepository.addContributors(id, request.contributors)
+            // Get all contributors for a chart
+            get("{id}/contributors") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                if (id == null) {
+                    throw IllegalArgumentException("Invalid or missing ID")
+                }
 
-            call.respond(contributors)
-        }
-
-        // Update a contributor's roles
-        put("{id}/contributors/{userId}") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
-            val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
-            if (id == null || userId == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
+                val contributors = contributorRepository.getContributors(id)
+                call.respond(contributors)
             }
 
-            try {
-                val updatedRequest = call.receive<UpdateContributorRequest>()
+            /* Versions ======================================== */
 
-                val updated = contributorRepository.updateContributorRoles(id, userId, updatedRequest.roles)
-                call.respond(updated)
-            } catch (e: BadRequestException) {
-                throw BadRequestException(e.message ?: "Bad Request")
-            }
-        }
-
-        // Remove a contributor from a chart
-        delete("{id}/contributors/{userId}") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
-            val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
-            if (id == null || userId == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
+            get("latest-versions") {
+                val chartIds = call.request.queryParameters["chartIds"]
+                    ?.split(",")
+                    ?.map { UUID.fromString(it) } ?: emptyList()
+                val versions = versionRepository.getLatestVersionsByChartIds(chartIds)
+                call.respond(versions)
             }
 
-            val removed = contributorRepository.removeContributor(id, userId)
-            if (removed) {
-                call.respond(HttpStatusCode.NoContent, "Contributor removed successfully")
-            } else {
-                throw NotFoundException("Chart or contributor not found")
-            }
-        }
+            // Add a version to a chart
+            post("{id}/versions") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                if (id == null) {
+                    throw IllegalArgumentException("Invalid or missing ID")
+                }
 
-        // Get all contributors for a chart
-        get("{id}/contributors") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
-            if (id == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
+                val receivedVersion = call.receive<CreateVersionRequest>()
+
+                val createdVersion = versionRepository.addVersion(receivedVersion)
+                call.respond(HttpStatusCode.Created, createdVersion)
             }
 
-            val contributors = contributorRepository.getContributors(id)
-            call.respond(contributors)
-        }
+            // Remove a version from a chart
+            delete("{id}/versions/{index}") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                val index = call.parameters["index"]?.toInt()
 
-        /* Versions ======================================== */
+                if (id == null || index == null) {
+                    throw IllegalArgumentException("Invalid or missing ID")
+                }
 
-        get("latest-versions") {
-            val chartIds = call.request.queryParameters["chartIds"]
-                ?.split(",")
-                ?.map { UUID.fromString(it) } ?: emptyList()
-            val versions = versionRepository.getLatestVersionsByChartIds(chartIds)
-            call.respond(versions)
-        }
+                if (index == 0) {
+                    throw IllegalArgumentException("Cannot remove the first version")
+                }
 
-        // Add a version to a chart
-        post("{id}/versions") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
-            if (id == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
+                val removed = versionRepository.removeVersion(index, id)
+                if (removed) {
+                    call.respond(HttpStatusCode.NoContent, "Version removed successfully")
+                } else {
+                    throw NotFoundException("Chart or version not found")
+                }
             }
 
-            val receivedVersion = call.receive<CreateVersionRequest>()
+            // Remove a version from a chart (with id)
+            delete("versions/{versionId}") {
+                val versionId = call.parameters["versionId"]?.let { UUID.fromString(it) }
+                if (versionId == null) {
+                    throw IllegalArgumentException("Invalid or missing ID")
+                }
 
-            val createdVersion = versionRepository.addVersion(receivedVersion)
-            call.respond(HttpStatusCode.Created, createdVersion)
-        }
-
-        // Remove a version from a chart
-        delete("{id}/versions/{index}") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
-            val index = call.parameters["index"]?.toInt()
-
-            if (id == null || index == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
-            }
-
-            if (index == 0) {
-                throw IllegalArgumentException("Cannot remove the first version")
-            }
-
-            val removed = versionRepository.removeVersion(index, id)
-            if (removed) {
-                call.respond(HttpStatusCode.NoContent, "Version removed successfully")
-            } else {
-                throw NotFoundException("Chart or version not found")
-            }
-        }
-
-        // Remove a version from a chart (with id)
-        delete("versions/{versionId}") {
-            val versionId = call.parameters["versionId"]?.let { UUID.fromString(it) }
-            if (versionId == null) {
-                throw IllegalArgumentException("Invalid or missing ID")
-            }
-
-            val removed = versionRepository.removeVersion(versionId)
-            if (removed) {
-                call.respond(HttpStatusCode.NoContent, "Version removed successfully")
-            } else {
-                throw NotFoundException("Chart or version not found")
+                val removed = versionRepository.removeVersion(versionId)
+                if (removed) {
+                    call.respond(HttpStatusCode.NoContent, "Version removed successfully")
+                } else {
+                    throw NotFoundException("Chart or version not found")
+                }
             }
         }
     }

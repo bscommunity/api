@@ -14,6 +14,10 @@ fun Application.configureStatusPages() {
         status(HttpStatusCode.NotFound) { call, status ->
             call.respondText(text = "404: Page Not Found", status = status)
         }
+        status(HttpStatusCode.TooManyRequests) { call, status ->
+            val retryAfter = call.response.headers["Retry-After"]
+            call.respondText(text = "429: Too many requests. Wait for $retryAfter seconds.", status = status)
+        }
         exception<Throwable> { call, cause ->
             logger.error("An unexpected error occurred", cause)
             cause.printStackTrace()

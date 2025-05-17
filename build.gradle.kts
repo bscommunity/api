@@ -16,6 +16,10 @@ application {
 
 repositories {
     mavenCentral()
+    maven {
+        url = uri("https://packages.confluent.io/maven")
+        name = "confluence"
+    }
 }
 
 dependencies {
@@ -38,6 +42,8 @@ dependencies {
     implementation(libs.ktor.server.auth)
     implementation(libs.ktor.server.auth.jwt.jvm)
     implementation(libs.ktor.server.cors)
+    implementation(libs.ktor.server.rate.limit)
+    implementation("io.github.flaxoos:ktor-server-rate-limiting:2.2.1")
 
     testImplementation(libs.ktor.server.test.host.jvm)
     testImplementation(libs.kotlin.test.junit)

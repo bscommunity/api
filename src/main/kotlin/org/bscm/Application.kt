@@ -17,7 +17,8 @@ fun Application.module() {
     configureHTTP()
     configureStatusPages()
     configureSecurity(environment.config)
-    configureRouting()
+    configureRateLimit()
+    configureRouting() // Routing should be the last plugin to be configured
 
     // Seed the database
     // seedDatabase()

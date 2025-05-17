@@ -24,6 +24,7 @@ import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.dao.with
 import org.jetbrains.exposed.sql.Op
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.and
@@ -86,7 +87,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         // Filter only public if userId is null
         if (userId == null) {
-            conditions = conditions and ChartTable.isPublic
+            conditions = conditions and ChartTable.isPublic eq Op.TRUE
         }
 
         // Add search query filter if provided
