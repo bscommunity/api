@@ -16,13 +16,14 @@ fun Application.configureStatusPages() {
         }
         status(HttpStatusCode.TooManyRequests) { call, status ->
             val retryAfter = call.response.headers["Retry-After"]
-            call.respondText(text = "429: Too many requests. Wait for $retryAfter seconds.", status = status)
+            call.respondText(text = "Whoa there! You're going way too fast \uD83D\uDEA6. Try again in $retryAfter seconds.", status = status)
         }
         exception<Throwable> { call, cause ->
             logger.error("An unexpected error occurred", cause)
             cause.printStackTrace()
 
             when (cause) {
+                is NotImplementedError -> call.respond(HttpStatusCode.NotImplemented)
                 is BadRequestException -> call.respond(HttpStatusCode.BadRequest, mapOf("message" to cause.message))
                 is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, mapOf("message" to cause.message))
                 is NotFoundException -> call.respond(HttpStatusCode.NotFound, mapOf("message" to cause.message))

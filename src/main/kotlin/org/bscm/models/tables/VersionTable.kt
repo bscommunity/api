@@ -30,5 +30,6 @@ object VersionTable : UUIDTable("version") {
 
     init {
         uniqueIndex(chartId, index)
+        index("idx_version_downloads_amount", false, downloadsAmount)
     }
 }

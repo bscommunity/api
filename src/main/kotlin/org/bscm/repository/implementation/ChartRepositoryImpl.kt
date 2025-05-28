@@ -33,6 +33,7 @@ import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDate
 import java.util.*
+import kotlin.math.min
 
 class ChartRepositoryImpl : ChartRepository {
 
@@ -200,7 +201,7 @@ class ChartRepositoryImpl : ChartRepository {
         if (query.isBlank()) return@newSuspendedTransaction emptyList()
 
         val startTime = System.currentTimeMillis()
-        val result = QueryUtils.getSearchMatches(query, limit)
+        val result = QueryUtils.getSearchMatches(query, min(limit, 10))
         val endTime = System.currentTimeMillis()
 
         println("Chart query completed in ${endTime - startTime}ms with ${result.size} results")

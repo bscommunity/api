@@ -31,7 +31,7 @@ fun Route.chartRoutes(
 ) {
     route("/charts") {
         authenticate("auth-jwt", optional = true) {
-            rateLimit(RateLimitName("public")) {
+            // rateLimit(RateLimitName("public")) {
                 // Get all charts
                 get {
                     // Check for a "fetchVersions" and "fetchContributors" query parameters
@@ -55,8 +55,6 @@ fun Route.chartRoutes(
                     // TODO: Currently, logged users can only see their own charts
                     val principal = call.principal<JWTPrincipal>()
                     val userId = principal?.subject?.let { UUID.fromString(it) }
-
-                    println("User ID: $userId")
 
                     val startTime = System.currentTimeMillis()
 
@@ -102,7 +100,7 @@ fun Route.chartRoutes(
                     val suggestions = chartRepository.getSuggestions(query, limit)
                     call.respond(suggestions)
                 }
-            }
+            // }
         }
 
         authenticate("auth-jwt") {

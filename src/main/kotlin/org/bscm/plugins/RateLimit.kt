@@ -6,11 +6,8 @@ import kotlin.time.Duration.Companion.seconds
 
 fun Application.configureRateLimit() {
     install(RateLimit) {
-        register {
-            rateLimiter(limit = 3, refillPeriod = 10.seconds)
-        }
-        register(RateLimitName("public")) {
-            rateLimiter(limit = 10, refillPeriod = 60.seconds)
+        global {
+            rateLimiter(limit = 5, refillPeriod = 22.5.seconds)
         }
         register(RateLimitName("protected")) {
             rateLimiter(limit = 30, refillPeriod = 60.seconds)
