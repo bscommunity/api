@@ -1,9 +1,9 @@
 package org.bscm.repository.implementation
 
 import org.bscm.models.Version
+import org.bscm.models.dao.ChartEntity
+import org.bscm.models.dao.VersionEntity
 import org.bscm.models.dto.version.CreateVersionRequest
-import org.bscm.models.entities.ChartEntity
-import org.bscm.models.entities.VersionEntity
 import org.bscm.models.tables.VersionTable
 import org.bscm.repository.VersionRepository
 import org.jetbrains.exposed.dao.with

@@ -1,4 +1,4 @@
-package org.bscm.models.entities
+package org.bscm.models.dao
 
 import org.bscm.models.tables.VersionTable
 import org.jetbrains.exposed.dao.UUIDEntity

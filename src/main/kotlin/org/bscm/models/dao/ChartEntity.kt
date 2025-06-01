@@ -1,4 +1,4 @@
-package org.bscm.models.entities
+package org.bscm.models.dao
 
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContributorTable

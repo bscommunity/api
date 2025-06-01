@@ -14,9 +14,11 @@ import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
 import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.enums.AnalyticsOption
 import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
+import org.bscm.plugins.HMACPrincipal
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.ContributorRepository
 import org.bscm.repository.KnownIssueRepository
@@ -30,79 +32,95 @@ fun Route.chartRoutes(
     versionRepository: VersionRepository
 ) {
     route("/charts") {
-        authenticate("auth-jwt", optional = true) {
-            // rateLimit(RateLimitName("public")) {
-                // Get all charts
-                get {
-                    // Check for a "fetchVersions" and "fetchContributors" query parameters
-                    val fetchVersions = call.request.queryParameters["fetchVersions"]?.toBoolean() ?: false
-                    val fetchContributors = call.request.queryParameters["fetchContributors"]?.toBoolean() ?: false
+        // Routes that accept both JWT or HMAC authentication
+        authenticate("auth-jwt", "auth-hmac", optional = true) {
+            post("analytics/{id}") {
+                val hmacPrincipal = call.principal<HMACPrincipal>()
 
-                    val query = call.request.queryParameters["query"]
-                    val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
-
-                    val difficulties =
-                        call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
-                    val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
-
-                    val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
-                        ?: ChartSortOption.LAST_UPDATED
-                    val limit = call.request.queryParameters["limit"]?.toIntOrNull()
-                    val offset = call.request.queryParameters["offset"]?.toIntOrNull()
-
-                    val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
-
-                    // TODO: Currently, logged users can only see their own charts
-                    val principal = call.principal<JWTPrincipal>()
-                    val userId = principal?.subject?.let { UUID.fromString(it) }
-
-                    val startTime = System.currentTimeMillis()
-
-                    val charts = chartRepository.getCharts(
-                        userId,
-                        ids,
-                        sanitizedQuery,
-                        sortBy,
-                        difficulties,
-                        genres,
-                        limit,
-                        offset,
-                        fetchVersions,
-                        fetchContributors
-                    )
-
-                    val endTime = System.currentTimeMillis()
-
-                    println("Chart query completed in ${endTime - startTime}ms with ${charts.size} results")
-
-                    call.respond(charts)
+                if (hmacPrincipal == null) {
+                    call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
+                    return@post
                 }
 
-                // Get chart by ID
-                get("{id}") {
-                    val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                    if (id == null) {
-                        throw IllegalArgumentException("Invalid or missing ID")
+                val idParam = call.parameters["id"].let { UUID.fromString(it) }
+                val typeParam = call.queryParameters["type"]
+                val type = typeParam?.let { AnalyticsOption.valueOf(it) }
+                    ?: throw BadRequestException("Invalid or missing type parameter")
+
+                val stats = chartRepository.postAnalytics(idParam, type)
+
+                call.respond(stats)
+            }
+
+            // Get all charts - now handles both auth types
+            get {
+                val query = call.request.queryParameters["query"]
+                val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
+
+                val difficulties =
+                    call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
+                val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
+
+                val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
+                    ?: ChartSortOption.LAST_UPDATED
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+
+                val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
+
+                // Determine which type of authentication is being used
+                val jwtPrincipal = call.principal<JWTPrincipal>()
+                val hmacPrincipal = call.principal<HMACPrincipal>()
+
+                val charts = chartRepository.getCharts(
+                    null,
+                    ids,
+                    sanitizedQuery,
+                    sortBy,
+                    difficulties,
+                    genres,
+                    limit,
+                    offset,
+                )
+
+                call.respond(charts)
+            }
+
+            // Get chart by ID
+            get("{id}") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                if (id == null) {
+                    throw IllegalArgumentException("Invalid or missing ID")
+                }
+
+                // Check authentication type and call appropriate method
+                val hmacPrincipal = call.principal<HMACPrincipal>()
+
+                val chart = when {
+                    hmacPrincipal != null -> chartRepository.getChartById(id)
+                    else -> {
+                        call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
+                        return@get
                     }
-
-                    val chart = chartRepository.getChartById(id)
-                    if (chart != null) {
-                        call.respond(chart)
-                    } else {
-                        throw NotFoundException("Chart not found")
-                    }
                 }
 
-                get("suggestions") {
-                    val query = call.request.queryParameters["query"] ?: ""
-                    val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
-
-                    val suggestions = chartRepository.getSuggestions(query, limit)
-                    call.respond(suggestions)
+                if (chart != null) {
+                    call.respond(chart)
+                } else {
+                    throw NotFoundException("Chart not found")
                 }
-            // }
+            }
+
+            get("suggestions") {
+                val query = call.request.queryParameters["query"] ?: ""
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
+
+                val suggestions = chartRepository.getSuggestions(query, limit)
+                call.respond(suggestions)
+            }
         }
 
+        // Routes that require JWT authentication only (dashboard operations)
         authenticate("auth-jwt") {
             rateLimit(RateLimitName("protected")) {
                 // Create a new chart

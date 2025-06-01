@@ -3,6 +3,7 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import org.bscm.repository.*
 import org.bscm.repository.implementation.*
+import org.bscm.services.HMACService
 import org.bscm.services.JWTService
 import org.bscm.services.OAuthService
 import org.koin.dsl.module
@@ -24,6 +25,9 @@ val mainModule = module {
     single<VersionRepository> { VersionRepositoryImpl() }
     single { JWTService(
         secret = System.getenv("JWT_SECRET")
+    ) }
+    single { HMACService(
+        secret = System.getenv("HMAC_SECRET")
     ) }
     single { OAuthService(
         clientId = System.getenv("DISCORD_CLIENT_ID"),

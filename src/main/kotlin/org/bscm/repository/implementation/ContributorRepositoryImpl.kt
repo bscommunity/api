@@ -1,11 +1,11 @@
 package org.bscm.repository.implementation
 
 import org.bscm.models.Contributor
+import org.bscm.models.dao.ChartEntity
+import org.bscm.models.dao.ContributorEntity
+import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.SimplifiedUser
-import org.bscm.models.entities.ChartEntity
-import org.bscm.models.entities.ContributorEntity
-import org.bscm.models.entities.UserEntity
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.tables.ContributorTable
 import org.bscm.repository.ContributorRepository

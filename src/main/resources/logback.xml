@@ -5,8 +5,8 @@
         </encoder>
     </appender>
 
-    <!-- Change root level to INFO or higher to suppress TRACE logs -->
-    <root level="INFO">
+    <!-- Change root level to INFO to suppress (default: trace) -->
+    <root level="trace">
         <appender-ref ref="STDOUT"/>
     </root>
 

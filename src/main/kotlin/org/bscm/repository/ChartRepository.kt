@@ -1,8 +1,10 @@
 package org.bscm.repository
 
+import org.bscm.models.AppChart
 import org.bscm.models.Chart
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
+import org.bscm.models.enums.AnalyticsOption
 import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
@@ -19,11 +21,23 @@ interface ChartRepository {
         limit: Int? = null,
         offset: Int? = null,
         fetchVersions: Boolean = false,
-        fetchContributors: Boolean = false
     ): List<Chart>
+    suspend fun getAppCharts(
+        chartIds: List<UUID>?,
+        query: String?,
+        sortBy: ChartSortOption,
+        difficulties: List<Difficulty>?,
+        genres: List<Genre>?,
+        limit: Int?,
+        offset: Int?,
+    ): List<AppChart>
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: UUID): Chart?
     suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart
     suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart
     suspend fun deleteChart(id: UUID): Boolean
+    suspend fun postAnalytics(
+        chartId: UUID,
+        action: AnalyticsOption
+    ): Boolean
 }

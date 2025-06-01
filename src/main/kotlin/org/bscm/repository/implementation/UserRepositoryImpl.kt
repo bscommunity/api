@@ -2,9 +2,9 @@ package org.bscm.repository.implementation
 
 import io.ktor.server.plugins.*
 import org.bscm.models.User
+import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
-import org.bscm.models.entities.UserEntity
 import org.bscm.models.tables.UserTable
 import org.bscm.repository.UserRepository
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction

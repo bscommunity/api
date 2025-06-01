@@ -13,3 +13,5 @@ storage:
 jwt:
   secret: $JWT_SECRET
   realm: "bs-community"
+hmac:
+  secret: $HMAC_SECRET

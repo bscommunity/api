@@ -2,7 +2,7 @@ package org.bscm.repository.implementation
 
 import io.ktor.server.plugins.*
 import org.bscm.models.KnownIssue
-import org.bscm.models.entities.ChartEntity
+import org.bscm.models.dao.ChartEntity
 import org.bscm.repository.KnownIssueRepository
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.util.*

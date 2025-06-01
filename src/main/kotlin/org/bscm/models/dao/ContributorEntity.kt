@@ -1,4 +1,4 @@
-package org.bscm.models.entities
+package org.bscm.models.dao
 
 import org.bscm.models.tables.ContributorTable
 import org.jetbrains.exposed.dao.CompositeEntity

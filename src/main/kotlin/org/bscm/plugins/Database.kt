@@ -8,6 +8,8 @@ import org.bscm.models.tables.UserTable
 import org.bscm.models.tables.VersionTable
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.StdOutSqlLogger
+import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.transaction
 
 fun Application.configureDatabases(config: ApplicationConfig) {
@@ -16,7 +18,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
     val password = config.property("storage.password").getString()
 
     // Execute migrations
-    migrateDatabase(url, user, password)
+    // migrateDatabase(url, user, password)
 
     // Connect to database
     Database.connect(
@@ -27,6 +29,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
 
     // Initialize tables (if not already created)
     transaction {
+        addLogger(StdOutSqlLogger)
         SchemaUtils.create(UserTable, ChartTable, VersionTable, ContributorTable)
     }
 }

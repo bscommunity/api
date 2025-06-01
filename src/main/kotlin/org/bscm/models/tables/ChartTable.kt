@@ -13,9 +13,9 @@ object ChartTable : UUIDTable("chart") {
     val track = varchar("track", 200).index("idx_chart_track")
     val album = varchar("album", 200).nullable().index("idx_chart_album")
 
+    val coverUrl = varchar("cover_url", 255)
     val trackUrls = json<List<StreamingLink>>("track_urls", Json.Default)
     val trackPreviewUrl = varchar("track_preview_url", 255).nullable()
-    val coverUrl = varchar("cover_url", 255)
 
     val difficulty = enumerationByName("difficulty", 10, Difficulty::class)
         .index("idx_chart_difficulty")
