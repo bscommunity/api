@@ -47,35 +47,48 @@ class ChartRepositoryImpl : ChartRepository {
         isFeatured = entity.isFeatured,
         isPublic = entity.isPublic,
         genre = entity.genre,
-        versions = versionEntities ?: entity.versions.map(::versionEntityToVersion),
-        contributors = contributorEntities ?: entity.contributors.map(::contributorEntityToContributor),
+        versions = versionEntities ?: emptyList(),
+        contributors = contributorEntities ?: emptyList(),
     )
 
     private fun daoToAppChart(
         entity: ChartEntity,
+        versionEntities: List<Version>? = null,
         contributorEntities: List<Contributor>? = null,
-    ): AppChart = AppChart(
-        id = entity.id.value,
-        track = entity.track,
-        artist = entity.artist,
-        album = entity.album,
-        trackUrls = entity.trackUrls,
-        trackPreviewUrl = entity.trackPreviewUrl,
-        coverUrl = entity.coverUrl,
-        isDeluxe = entity.isDeluxe,
-        isExplicit = entity.isExplicit,
-        difficulty = entity.difficulty,
-        isFeatured = entity.isFeatured,
-        genre = entity.genre,
-        latestVersion = entity.latestVersion?.let(::versionEntityToVersion),
-        downloadsSum = entity.versions.sumOf { it.downloadsAmount }, // Android app expects this field
-        latestPublishedAt = entity.latestVersion?.publishedAt, // Android app expects this field
-        contributors = contributorEntities ?: entity.contributors.map(::contributorEntityToContributor),
-    )
+    ): AppChart {
+        val latestVersion = versionEntities?.maxByOrNull { it.publishedAt }
+
+        return AppChart(
+            id = entity.id.value,
+            track = entity.track,
+            artist = entity.artist,
+            album = entity.album,
+            trackUrls = entity.trackUrls,
+            trackPreviewUrl = entity.trackPreviewUrl,
+            coverUrl = entity.coverUrl,
+            isDeluxe = entity.isDeluxe,
+            isExplicit = entity.isExplicit,
+            difficulty = entity.difficulty,
+            isFeatured = entity.isFeatured,
+            genre = entity.genre,
+            latestVersion = latestVersion,
+            downloadsSum = versionEntities?.sumOf { it.downloadsAmount } ?: 0, // Android app expects this field
+            latestPublishedAt = latestVersion?.publishedAt, // Android app expects this field
+            contributors = contributorEntities ?: emptyList(),
+        )
+    }
 
     override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
         ChartEntity.findById(id)?.let { chartEntity ->
-            daoToChart(chartEntity)
+            daoToChart(
+                chartEntity,
+                chartEntity.versions.map { versionEntity ->
+                    versionEntityToVersion(versionEntity)
+                },
+                chartEntity.contributors.map { contributorEntity ->
+                    contributorEntityToContributor(contributorEntity)
+                }
+            )
         }
     }
 
@@ -90,7 +103,7 @@ class ChartRepositoryImpl : ChartRepository {
         offset: Int?,
         fetchVersions: Boolean,
         fetchContributors: Boolean = true,
-    ): List<Triple<ChartEntity, List<VersionEntity>, List<ContributorEntity>>>? {
+    ): List<Triple<ChartEntity, List<VersionEntity>?, List<ContributorEntity>?>>? {
         val startTime = System.currentTimeMillis()
 
         val query = ChartTable.selectAll()
@@ -156,7 +169,7 @@ class ChartRepositoryImpl : ChartRepository {
         val result = query.toList()
         val endTime = System.currentTimeMillis()
 
-        println("Fetched ${result.size} charts in ${endTime - startTime}ms with conditions: $query, sortBy: $sortBy, limit: $limit, offset: $offset")
+        println("Fetched ${result.size} charts in ${endTime - startTime}ms with conditions sortBy: $sortBy, limit: $limit, offset: $offset")
 
         val startTimeFetch = System.currentTimeMillis()
 
@@ -171,7 +184,7 @@ class ChartRepositoryImpl : ChartRepository {
             // Batch load all versions for the paginated charts
             val versions = VersionTable.selectAll().andWhere { VersionTable.chartId inList chartIdsFromQuery }
                 .map { VersionEntity.wrapRow(it) }
-            versionsMap.putAll(versions.groupBy { it.chart.id.value })
+            versionsMap.putAll(versions.groupBy { it.chartId.value })
         }
 
         if (fetchContributors) {
@@ -200,8 +213,8 @@ class ChartRepositoryImpl : ChartRepository {
 
             Triple(
                 chartEntity,
-                versionsMap[chartId] ?: emptyList(),
-                contributorsMap[chartId] ?: emptyList()
+                versionsMap[chartId],
+                contributorsMap[chartId]
             )
         }
 
@@ -242,8 +255,8 @@ class ChartRepositoryImpl : ChartRepository {
         val charts = result.map { (chartEntity, versionEntities, contributorEntities) ->
             daoToChart(
                 chartEntity,
-                versionEntities.map { versionEntityToVersion(it) },
-                contributorEntities.map { contributorEntityToContributor(it) }
+                versionEntities?.map { versionEntityToVersion(it) },
+                contributorEntities?.map { contributorEntityToContributor(it) }
             )
         }
 
@@ -259,7 +272,31 @@ class ChartRepositoryImpl : ChartRepository {
         limit: Int?,
         offset: Int?,
     ): List<AppChart> = newSuspendedTransaction {
-        emptyList()
+        val result = fetchChartEntities(
+            null,
+            chartIds,
+            query,
+            sortBy,
+            difficulties,
+            genres,
+            limit,
+            offset,
+            true
+        )
+
+        if (result == null) {
+            return@newSuspendedTransaction emptyList()
+        }
+
+        val charts = result.map { (chartEntity, versionEntities, contributorEntities) ->
+            daoToAppChart(
+                chartEntity,
+                versionEntities?.map { versionEntityToVersion(it) },
+                contributorEntities?.map { contributorEntityToContributor(it) }
+            )
+        }
+
+        charts
     }
 
     override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {

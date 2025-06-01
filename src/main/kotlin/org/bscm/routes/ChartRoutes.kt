@@ -70,18 +70,44 @@ fun Route.chartRoutes(
 
                 // Determine which type of authentication is being used
                 val jwtPrincipal = call.principal<JWTPrincipal>()
-                val hmacPrincipal = call.principal<HMACPrincipal>()
+                println("JWT Principal: $jwtPrincipal")
 
-                val charts = chartRepository.getCharts(
-                    null,
-                    ids,
-                    sanitizedQuery,
-                    sortBy,
-                    difficulties,
-                    genres,
-                    limit,
-                    offset,
-                )
+                val hmacPrincipal = call.principal<HMACPrincipal>()
+                println("HMAC Principal: $hmacPrincipal")
+
+                val charts = when {
+                    // JWT authentication (dashboard user)
+                    jwtPrincipal != null -> {
+                        val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
+                        chartRepository.getCharts(
+                            userId,
+                            ids,
+                            sanitizedQuery,
+                            sortBy,
+                            difficulties,
+                            genres,
+                            limit,
+                            offset,
+                        )
+                    }
+                    // HMAC authentication (mobile app)
+                    hmacPrincipal != null -> {
+                        chartRepository.getAppCharts(
+                            ids,
+                            sanitizedQuery,
+                            sortBy,
+                            difficulties,
+                            genres,
+                            limit,
+                            offset,
+                        )
+                    }
+                    // No authentication (public access)
+                    else -> {
+                        call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
+                        return@get
+                    }
+                }
 
                 call.respond(charts)
             }
@@ -90,7 +116,11 @@ fun Route.chartRoutes(
             get("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        "Invalid or missing ID"
+                    )
+                    return@get
                 }
 
                 // Check authentication type and call appropriate method
@@ -107,7 +137,8 @@ fun Route.chartRoutes(
                 if (chart != null) {
                     call.respond(chart)
                 } else {
-                    throw NotFoundException("Chart not found")
+                    call.respond(HttpStatusCode.NotFound, "Chart not found")
+                    return@get
                 }
             }
 
@@ -143,7 +174,8 @@ fun Route.chartRoutes(
                 put("{id}") {
                     val id = call.parameters["id"]?.let { UUID.fromString(it) }
                     if (id == null) {
-                        throw IllegalArgumentException("Invalid or missing ID")
+                        call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                        return@put
                     }
 
                     val updateRequest = call.receive<UpdateChartRequest>()
@@ -152,9 +184,9 @@ fun Route.chartRoutes(
                         val updatedChart = chartRepository.updateChart(id, updateRequest)
                         call.respond(updatedChart)
                     } catch (e: NotFoundException) {
-                        throw NotFoundException(e.message ?: "Not Found")
+                        call.respond(HttpStatusCode.NotFound, e.message ?: "Not Found")
                     } catch (e: Exception) {
-                        throw Exception(e.message ?: "Internal Server Error")
+                        call.respond(HttpStatusCode.InternalServerError, e.message ?: "Internal Server Error")
                     }
                 }
 
@@ -162,14 +194,15 @@ fun Route.chartRoutes(
                 delete("{id}") {
                     val id = call.parameters["id"]?.let { UUID.fromString(it) }
                     if (id == null) {
-                        throw IllegalArgumentException("Invalid or missing ID")
+                        call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                        return@delete
                     }
 
                     val deleted = chartRepository.deleteChart(id)
                     if (deleted) {
                         call.respond(HttpStatusCode.NoContent, true)
                     } else {
-                        throw NotFoundException("Chart not found")
+                        call.respond(HttpStatusCode.NotFound, "Chart not found")
                     }
                 }
             }
@@ -180,7 +213,8 @@ fun Route.chartRoutes(
             post("{id}/issues") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                    return@post
                 }
 
                 val receivedIssue = call.receive<KnownIssue>()
@@ -194,7 +228,8 @@ fun Route.chartRoutes(
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 val issueId = call.parameters["issueId"]?.let { UUID.fromString(it) }
                 if (id == null || issueId == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                    return@delete
                 }
 
                 val removed = knownIssueRepository.removeIssue(id, issueId)
@@ -212,7 +247,8 @@ fun Route.chartRoutes(
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
 
                 if (id == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                    return@post
                 }
 
                 val request = call.receive<CreateContributorRequest>()
@@ -226,7 +262,8 @@ fun Route.chartRoutes(
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
                 if (id == null || userId == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                    return@put
                 }
 
                 try {
@@ -235,7 +272,7 @@ fun Route.chartRoutes(
                     val updated = contributorRepository.updateContributorRoles(id, userId, updatedRequest.roles)
                     call.respond(updated)
                 } catch (e: BadRequestException) {
-                    throw BadRequestException(e.message ?: "Bad Request")
+                    call.respond(HttpStatusCode.BadRequest, e.message ?: "Bad Request")
                 }
             }
 
@@ -244,7 +281,8 @@ fun Route.chartRoutes(
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
                 if (id == null || userId == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                    return@delete
                 }
 
                 val removed = contributorRepository.removeContributor(id, userId)
@@ -259,7 +297,8 @@ fun Route.chartRoutes(
             get("{id}/contributors") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                    return@get
                 }
 
                 val contributors = contributorRepository.getContributors(id)
@@ -280,7 +319,8 @@ fun Route.chartRoutes(
             post("{id}/versions") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                    return@post
                 }
 
                 val receivedVersion = call.receive<CreateVersionRequest>()
@@ -295,11 +335,13 @@ fun Route.chartRoutes(
                 val index = call.parameters["index"]?.toInt()
 
                 if (id == null || index == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                    return@delete
                 }
 
                 if (index == 0) {
-                    throw IllegalArgumentException("Cannot remove the first version")
+                    call.respond(HttpStatusCode.BadRequest, "Cannot remove the first version")
+                    return@delete
                 }
 
                 val removed = versionRepository.removeVersion(index, id)
@@ -314,7 +356,8 @@ fun Route.chartRoutes(
             delete("versions/{versionId}") {
                 val versionId = call.parameters["versionId"]?.let { UUID.fromString(it) }
                 if (versionId == null) {
-                    throw IllegalArgumentException("Invalid or missing ID")
+                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+                    return@delete
                 }
 
                 val removed = versionRepository.removeVersion(versionId)

@@ -11,6 +11,7 @@ class VersionEntity(id: EntityID<UUID>) : UUIDEntity(id) {
 
     // Reference to the parent Chart
     var chart by ChartEntity referencedOn VersionTable.chartId
+    var chartId by VersionTable.chartId // Necessary to prevent loading the entire ChartEntity when batching queries
 
     var index by VersionTable.index
     var duration by VersionTable.duration

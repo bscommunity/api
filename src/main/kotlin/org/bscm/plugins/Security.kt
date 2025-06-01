@@ -68,7 +68,7 @@ class HMACAuthenticationProvider internal constructor(
         }
 
         val timeDifference = abs(currentTime - requestTime)
-        if (timeDifference > 3000_000 /*300_000*/) { // 5 minutes in milliseconds
+        if (timeDifference > 300_000) { // 5 minutes in milliseconds
             context.challenge("HMACChallenge", AuthenticationFailedCause.InvalidCredentials) { challenge, call ->
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Request timestamp too old"))
                 challenge.complete()
@@ -81,7 +81,7 @@ class HMACAuthenticationProvider internal constructor(
         val principal = call.authenticationFunction(credential)
 
         if (principal != null) {
-            context.principal(principal as Any)
+            context.principal(principal)
         } else {
             context.challenge("HMACChallenge", AuthenticationFailedCause.InvalidCredentials) { challenge, call ->
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid HMAC signature"))
@@ -139,8 +139,7 @@ fun Application.configureSecurity(
             this.hmacSecret = hmacSecret
 
             validate { credential ->
-                true
-                /*// Recreate the payload that should have been signed
+                // Recreate the payload that should have been signed
                 val payload = "${credential.timestamp}:"
 
                 // Calculate expected signature
@@ -152,7 +151,7 @@ fun Application.configureSecurity(
                     HMACPrincipal("mobile-app", credential.timestamp)
                 } else {
                     null
-                }*/
+                }
             }
         }
     }

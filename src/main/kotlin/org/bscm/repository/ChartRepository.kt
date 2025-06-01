@@ -20,7 +20,7 @@ interface ChartRepository {
         genres: List<Genre>? = null,
         limit: Int? = null,
         offset: Int? = null,
-        fetchVersions: Boolean = false,
+        fetchVersions: Boolean = true,
     ): List<Chart>
     suspend fun getAppCharts(
         chartIds: List<UUID>?,

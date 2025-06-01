@@ -14,7 +14,7 @@ data class Version(
     val id : UUID,
     val index: Int,
     @Serializable(with = UUIDSerializer::class)
-    val chartId: UUID,
+    val chartId: UUID, // Uncomment if needed
     val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,
