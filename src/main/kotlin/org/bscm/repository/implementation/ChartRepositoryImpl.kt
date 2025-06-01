@@ -47,8 +47,8 @@ class ChartRepositoryImpl : ChartRepository {
         isFeatured = entity.isFeatured,
         isPublic = entity.isPublic,
         genre = entity.genre,
-        versions = versionEntities ?: entity.versions.map { versionEntityToVersion(it) },
-        contributors = contributorEntities ?: entity.contributors.map { contributorEntityToContributor(it) },
+        versions = versionEntities ?: entity.versions.map(::versionEntityToVersion),
+        contributors = contributorEntities ?: entity.contributors.map(::contributorEntityToContributor),
     )
 
     private fun daoToAppChart(
@@ -79,7 +79,7 @@ class ChartRepositoryImpl : ChartRepository {
         }
     }
 
-    private suspend fun fetchChartEntities(
+    private fun fetchChartEntities(
         userId: UUID?,
         chartIds: List<UUID>?,
         search: String?,
@@ -90,7 +90,7 @@ class ChartRepositoryImpl : ChartRepository {
         offset: Int?,
         fetchVersions: Boolean,
         fetchContributors: Boolean = true,
-    ): List<Chart> {
+    ): List<Triple<ChartEntity, List<VersionEntity>, List<ContributorEntity>>>? {
         val startTime = System.currentTimeMillis()
 
         val query = ChartTable.selectAll()
@@ -119,7 +119,7 @@ class ChartRepositoryImpl : ChartRepository {
             if (chartMatchCondition != null) {
                 query.andWhere { chartMatchCondition }
             } else {
-                return emptyList() // No matches found, return empty list
+                return null // No matches found
             }
         }
 
@@ -134,11 +134,11 @@ class ChartRepositoryImpl : ChartRepository {
         }
 
         // Pagination
-        if (limit != null) {
+        limit?.let {
             query.limit(limit)
         }
 
-        if (offset != null) {
+        offset?.let {
             query.offset(offset.toLong())
         }
 
@@ -158,7 +158,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         println("Fetched ${result.size} charts in ${endTime - startTime}ms with conditions: $query, sortBy: $sortBy, limit: $limit, offset: $offset")
 
-        val secondStartTime = System.currentTimeMillis()
+        val startTimeFetch = System.currentTimeMillis()
 
         val chartIdsFromQuery = result.map { it[ChartTable.id] }.toSet()
 
@@ -169,13 +169,16 @@ class ChartRepositoryImpl : ChartRepository {
 
         if (fetchVersions) {
             // Batch load all versions for the paginated charts
-            val versions = VersionEntity.find { VersionTable.chartId inList chartIdsFromQuery }.toList()
+            val versions = VersionTable.selectAll().andWhere { VersionTable.chartId inList chartIdsFromQuery }
+                .map { VersionEntity.wrapRow(it) }
             versionsMap.putAll(versions.groupBy { it.chart.id.value })
         }
 
         if (fetchContributors) {
             // Batch load all contributors for the paginated charts
-            val contributors = ContributorEntity.find { ContributorTable.chartId inList chartIdsFromQuery }.toList()
+            val contributors =
+                ContributorTable.selectAll().andWhere { ContributorTable.chartId inList chartIdsFromQuery }
+                    .map { ContributorEntity.wrapRow(it) }
             contributorsMap.putAll(contributors.groupBy { it.id.value[ContributorTable.chartId].value })
 
             // Collect user IDs from contributors
@@ -184,32 +187,27 @@ class ChartRepositoryImpl : ChartRepository {
 
         // Batch load all users in one query
         if (userIdsSet.isNotEmpty()) {
-            // UserEntity.findByIds(userIdsSet.toList()).associateBy { it.id.value }
-            UserEntity.find { UserTable.id inList userIdsSet.toList() }
-                .associateBy { it.id.value }
+            UserTable.selectAll().andWhere { UserTable.id inList userIdsSet.toList() }
+                .map { UserEntity.wrapRow(it) }
         } else {
-            emptyMap()
+            emptySet()
         }
 
         // Map charts to domain models, with versions and contributors if requested
         val charts = result.map { entity ->
-            val chartId = entity[ChartTable.id]
+            val chartId = entity[ChartTable.id].value
             val chartEntity = ChartEntity.wrapRow(entity)
 
-            daoToChart(
+            Triple(
                 chartEntity,
-                versionEntities = if (fetchVersions) versionsMap.map { (id, versions) ->
-                    if (id == chartId) versions.map { versionEntityToVersion(it) } else emptyList()
-                }.flatten() else emptyList(),
-                contributorEntities = if (fetchContributors) contributorsMap.map { (id, contributors) ->
-                    if (id == chartId) contributors.map { contributorEntityToContributor(it) } else emptyList()
-                }.flatten() else emptyList()
+                versionsMap[chartId] ?: emptyList(),
+                contributorsMap[chartId] ?: emptyList()
             )
         }
 
-        val secondEndTime = System.currentTimeMillis()
+        val endTimeFetch = System.currentTimeMillis()
 
-        println("Transformed ${result.size} chart entities in ${secondEndTime - secondStartTime}ms")
+        println("Fetched and converted charts in ${endTimeFetch - startTimeFetch}ms, count: ${charts.size}")
 
         return charts
     }
@@ -225,26 +223,31 @@ class ChartRepositoryImpl : ChartRepository {
         offset: Int?,
         fetchVersions: Boolean,
     ): List<Chart> = newSuspendedTransaction {
-        val paginatedCharts = fetchChartEntities(
-            userId = userId,
-            chartIds = chartIds,
-            search = query,
-            sortBy = sortBy,
-            difficulties = difficulties,
-            genres = genres,
-            limit = limit,
-            offset = offset,
-            fetchVersions = fetchVersions
+        val result = fetchChartEntities(
+            userId,
+            chartIds,
+            query,
+            sortBy,
+            difficulties,
+            genres,
+            limit,
+            offset,
+            fetchVersions
         )
 
-        return@newSuspendedTransaction emptyList()
+        if (result == null) {
+            return@newSuspendedTransaction emptyList()
+        }
 
-        /*val transformStart = System.currentTimeMillis()
-        val result = paginatedCharts.map { daoToChart(it) }
-        val transformEnd = System.currentTimeMillis()
+        val charts = result.map { (chartEntity, versionEntities, contributorEntities) ->
+            daoToChart(
+                chartEntity,
+                versionEntities.map { versionEntityToVersion(it) },
+                contributorEntities.map { contributorEntityToContributor(it) }
+            )
+        }
 
-        println("Transformation took ${transformEnd - transformStart}ms")
-        return@newSuspendedTransaction result*/
+        charts
     }
 
     override suspend fun getAppCharts(
