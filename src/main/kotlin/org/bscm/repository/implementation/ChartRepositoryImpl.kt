@@ -163,7 +163,8 @@ class ChartRepositoryImpl : ChartRepository {
 
             else -> query.adjustColumnSet {
                 innerJoin(VersionTable, { ChartTable.latestVersionId }, { VersionTable.id })
-            }.orderBy(VersionTable.downloadsAmount.sum() to SortOrder.DESC)
+            }.groupBy(ChartTable.id)
+                .orderBy(VersionTable.downloadsAmount.sum() to SortOrder.DESC)
         }
 
         val result = query.toList()
