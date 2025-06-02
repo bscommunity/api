@@ -30,12 +30,8 @@ object ChartTable : UUIDTable("chart") {
         .nullable()
 
     init {
-        index(true, artist)
-        index(true, track)
-        index(false, difficulty)
-        index(false, genre)
-        index(false, isPublic)
-        index(false, isFeatured)
-        index(false, latestVersionId)
+        index("idx_chart_search", false, artist, track, album)
+        index("idx_chart_filters", false, difficulty, genre, isPublic)
+        index("idx_chart_public_difficulty", false, isPublic, difficulty)
     }
 }

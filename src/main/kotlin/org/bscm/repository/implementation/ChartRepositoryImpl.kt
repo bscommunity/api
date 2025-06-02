@@ -103,127 +103,156 @@ class ChartRepositoryImpl : ChartRepository {
         offset: Int?,
         fetchVersions: Boolean,
         fetchContributors: Boolean = true,
-    ): List<Triple<ChartEntity, List<VersionEntity>?, List<ContributorEntity>?>>? {
+    ): List<Triple<ChartEntity, List<VersionEntity>?,  List<Pair<ContributorEntity, UserEntity>>?>>? {
         val startTime = System.currentTimeMillis()
 
-        val query = ChartTable.selectAll()
+        var query = ChartTable.selectAll()
 
-        // Add chartIds filter if provided
-        chartIds?.let {
-            query.andWhere { ChartTable.id inList it }
-        }
-
-        // Filter to only query public charts if userId is null
-        if (userId == null) {
-            query.andWhere { ChartTable.isPublic eq true }
-        }
-
-        // Add search query filter if provided
-        if (!search.isNullOrBlank()) {
-            val combinedMatches = QueryUtils.getSearchMatches(search, 50)
-
-            // Create a condition that matches any of the search terms against artist, track, or album
-            val chartMatchCondition = combinedMatches.map { match ->
-                (ChartTable.artist.lowerCase() like "%${match.lowercase()}%") or
-                        (ChartTable.track.lowerCase() like "%${match.lowercase()}%") or
-                        (ChartTable.album.lowerCase() like "%${match.lowercase()}%")
-            }.reduceOrNull { acc, cond -> acc or cond }
-
-            if (chartMatchCondition != null) {
-                query.andWhere { chartMatchCondition }
-            } else {
-                return null // No matches found
+        if (fetchContributors) {
+            query = query.adjustColumnSet {
+                leftJoin(ContributorTable, { ChartTable.id }, { ContributorTable.chartId })
+                    .leftJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
             }
         }
 
-        // Add difficulty filter if specified
-        difficulties?.let {
+        applyAllFilters(query, userId, chartIds, search, difficulties, genres)
+        applyOrdering(query, sortBy, fetchVersions)
+
+        // Apply pagination
+        limit?.let { query.limit(it) }
+        offset?.let { query.offset(it.toLong()) }
+
+        // Include versions and contributors if requested
+        if (fetchContributors || fetchVersions) {
+            query.adjustSelect {
+                select(
+                    ChartTable.columns +
+                            (if (fetchVersions) VersionTable.columns else emptyList()) +
+                            (if (fetchContributors) {
+                                println("Fetching contributors")
+                                ContributorTable.columns + UserTable.columns
+                            } else emptyList())
+                )
+            }
+        }
+
+        // Execute the query and fetch results
+        val results = query.toList()
+
+        // println(results.first().fieldIndex.keys.forEach { println("Column: $it") })
+        // println("Contributor 0: ${contributorEntityToContributor(ContributorEntity.wrapRow(results[0]))}")
+
+        // Process results in memory to avoid N+1 issues
+        val processedResults = processResultsInMemory(results, fetchVersions, fetchContributors)
+
+        val endTime = System.currentTimeMillis()
+        println("Charts fetch completed in ${endTime - startTime}ms with ${processedResults.size} charts")
+
+        return processedResults
+    }
+
+    private fun applyAllFilters(
+        query: Query,
+        userId: UUID?,
+        chartIds: List<UUID>?,
+        search: String?,
+        difficulties: List<Difficulty>?,
+        genres: List<Genre>?
+    ) {
+        // Only return public charts if userId is null
+        if (userId == null) {
+            query.andWhere {
+                ChartTable.isPublic eq true
+            }
+        }
+
+        // Filter by userId if provided
+        chartIds?.takeIf { it.isNotEmpty() }?.let { ids ->
+            query.andWhere { ChartTable.id inList ids }
+        }
+
+        // Search functionality
+        if (!search.isNullOrBlank()) {
+            val searchTerms = search.split(" ").map { it.trim().lowercase() }
+            val conditions = searchTerms.map { term ->
+                (ChartTable.artist.lowerCase() like "%$term%") or
+                        (ChartTable.track.lowerCase() like "%$term%") or
+                        (ChartTable.album.lowerCase() like "%$term%")
+            }
+            query.andWhere { conditions.reduce { acc, cond -> acc or cond } }
+        }
+
+        // Filter by difficulties and genres
+        difficulties?.takeIf { it.isNotEmpty() }?.let {
             query.andWhere { ChartTable.difficulty inList it }
         }
 
-        // Add genre filter if specified
-        genres?.let {
+        genres?.takeIf { it.isNotEmpty() }?.let {
             query.andWhere { ChartTable.genre inList it }
         }
+    }
 
-        // Pagination
-        limit?.let {
-            query.limit(limit)
-        }
-
-        offset?.let {
-            query.offset(offset.toLong())
-        }
-
-        // Sorting
+    private fun applyOrdering(query: Query, sortBy: ChartSortOption, fetchVersions: Boolean) {
         when (sortBy) {
-            ChartSortOption.LAST_UPDATED -> query.adjustColumnSet {
-                innerJoin(VersionTable, { ChartTable.latestVersionId }, { VersionTable.id })
-            }.orderBy(VersionTable.publishedAt to SortOrder.DESC)
+            ChartSortOption.LAST_UPDATED -> {
+                query
+                    .adjustColumnSet {
+                        // If fetchVersions is true, we do a left join to get all versions
+                        if (fetchVersions)
+                            leftJoin(
+                                VersionTable,
+                                { ChartTable.id },
+                                { VersionTable.chartId }
+                            )
+                        // If fetchVersions is false, we do an inner join to get only the latest version
+                        else innerJoin(
+                            VersionTable,
+                            { ChartTable.latestVersionId },
+                            { VersionTable.id }
+                        )
+                    }
+                    .orderBy(VersionTable.publishedAt to SortOrder.DESC)
+            }
 
-            else -> query.adjustColumnSet {
-                innerJoin(VersionTable, { ChartTable.latestVersionId }, { VersionTable.id })
-            }.groupBy(ChartTable.id)
-                .orderBy(VersionTable.downloadsAmount.sum() to SortOrder.DESC)
+            else -> {
+                query.adjustColumnSet {
+                    leftJoin(VersionTable, { ChartTable.id }, { VersionTable.chartId })
+                }.groupBy(ChartTable.id)
+                    .orderBy(VersionTable.downloadsAmount.sum() to SortOrder.DESC)
+            }
         }
+    }
 
-        val result = query.toList()
-        val endTime = System.currentTimeMillis()
+    private fun processResultsInMemory(
+        results: List<ResultRow>,
+        fetchVersions: Boolean,
+        fetchContributors: Boolean
+    ): List<Triple<ChartEntity, List<VersionEntity>?, List<Pair<ContributorEntity, UserEntity>>?>> {
+        // Group the rows by Chart ID
+        val groupedByChartId = results.groupBy { it[ChartTable.id].value }
 
-        println("Fetched ${result.size} charts in ${endTime - startTime}ms with conditions sortBy: $sortBy, limit: $limit, offset: $offset")
+        return groupedByChartId.map { (chartId, rows) ->
+            val chartEntity = ChartEntity.wrapRow(rows.first())
 
-        val startTimeFetch = System.currentTimeMillis()
+            val versions = if (fetchVersions) {
+                rows.mapNotNull { row ->
+                    row.getOrNull(VersionTable.id)?.let {
+                        VersionEntity.wrapRow(row)
+                    }
+                }.distinctBy { it.id }
+            } else null
 
-        val chartIdsFromQuery = result.map { it[ChartTable.id] }.toSet()
+            val contributors = if (fetchContributors) {
+                rows.map { row ->
+                    val contributor = ContributorEntity.wrapRow(row)
+                    val user = UserEntity.wrapRow(row)
 
-        // Prepare maps for versions and contributors
-        val versionsMap = mutableMapOf<UUID, List<VersionEntity>>()
-        val contributorsMap = mutableMapOf<UUID, List<ContributorEntity>>()
-        val userIdsSet = mutableSetOf<UUID>()
+                    contributor to user
+                }.distinctBy { it.first.id.value }
+            } else null
 
-        if (fetchVersions) {
-            // Batch load all versions for the paginated charts
-            val versions = VersionTable.selectAll().andWhere { VersionTable.chartId inList chartIdsFromQuery }
-                .map { VersionEntity.wrapRow(it) }
-            versionsMap.putAll(versions.groupBy { it.chartId.value })
+            Triple(chartEntity, versions, contributors)
         }
-
-        if (fetchContributors) {
-            // Batch load all contributors for the paginated charts
-            val contributors =
-                ContributorTable.selectAll().andWhere { ContributorTable.chartId inList chartIdsFromQuery }
-                    .map { ContributorEntity.wrapRow(it) }
-            contributorsMap.putAll(contributors.groupBy { it.id.value[ContributorTable.chartId].value })
-
-            // Collect user IDs from contributors
-            userIdsSet.addAll(contributors.map { it.id.value[ContributorTable.userId].value })
-        }
-
-        // Batch load all users in one query
-        if (userIdsSet.isNotEmpty()) {
-            UserTable.selectAll().andWhere { UserTable.id inList userIdsSet.toList() }
-                .map { UserEntity.wrapRow(it) }
-        } else {
-            emptySet()
-        }
-
-        // Map charts to domain models, with versions and contributors if requested
-        val charts = result.map { entity ->
-            val chartId = entity[ChartTable.id].value
-            val chartEntity = ChartEntity.wrapRow(entity)
-
-            Triple(
-                chartEntity,
-                versionsMap[chartId],
-                contributorsMap[chartId]
-            )
-        }
-
-        val endTimeFetch = System.currentTimeMillis()
-
-        println("Fetched and converted charts in ${endTimeFetch - startTimeFetch}ms, count: ${charts.size}")
-
-        return charts
     }
 
     override suspend fun getCharts(
@@ -257,7 +286,7 @@ class ChartRepositoryImpl : ChartRepository {
             daoToChart(
                 chartEntity,
                 versionEntities?.map { versionEntityToVersion(it) },
-                contributorEntities?.map { contributorEntityToContributor(it) }
+                contributorEntities?.map { contributorEntityToContributor(it.component1(), it.component2()) },
             )
         }
 
@@ -293,7 +322,7 @@ class ChartRepositoryImpl : ChartRepository {
             daoToAppChart(
                 chartEntity,
                 versionEntities?.map { versionEntityToVersion(it) },
-                contributorEntities?.map { contributorEntityToContributor(it) }
+                contributorEntities?.map { contributorEntityToContributor(it.component1(), it.component2()) },
             )
         }
 

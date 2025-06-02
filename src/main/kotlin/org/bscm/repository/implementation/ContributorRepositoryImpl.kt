@@ -31,6 +31,22 @@ class ContributorRepositoryImpl : ContributorRepository {
                 joinedAt = entity.joinedAt,
             )
         }
+
+        fun contributorEntityToContributor(entity: ContributorEntity, user: UserEntity): Contributor {
+            val compositeId = entity.id.value // This is a CompositeID
+            val chartId = compositeId[ContributorTable.chartId].value
+
+            return Contributor(
+                user = SimplifiedUser(
+                    id = user.id.value.toString(),
+                    username = user.username,
+                    imageUrl = user.imageUrl,
+                ),
+                chartId = chartId,
+                roles = entity.roles,
+                joinedAt = entity.joinedAt,
+            )
+        }
     }
 
     override suspend fun addContributors(chartId: UUID, contributors: List<SimplifiedContributor>): List<Contributor> = newSuspendedTransaction {
