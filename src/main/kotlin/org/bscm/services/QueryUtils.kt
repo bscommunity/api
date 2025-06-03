@@ -3,12 +3,9 @@ package org.bscm.services
 import org.bscm.models.tables.ChartTable
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.or
 import java.text.Normalizer
 import java.util.*
-
-// import kotlin.math.minOf // For minOf in levenshteinDistance, if not automatically available
 
 class QueryUtils() {
     companion object {
@@ -44,8 +41,8 @@ class QueryUtils() {
 
             return if (matchedStrings.size < limit) {
                 val fuzzyMatches = findMatchesWithoutVowels(
-                    normalizedQuery,
-                    queryWithoutVowels,
+                    normalizedQuery, // Pass the original normalized query for candidate selection
+                    queryWithoutVowels, // Pass the vowel-less query for Levenshtein
                     limit - matchedStrings.size
                 )
                 // Combine, remove duplicates (case-insensitive), and limit results
@@ -56,7 +53,7 @@ class QueryUtils() {
         }
 
         /**
-         * Finds matches in the database where fields (after normalization including apostrophe removal)
+         * Finds matches in the database where normalized fields
          * contain all terms from the normalized query.
          */
         fun findMatches(
@@ -71,20 +68,25 @@ class QueryUtils() {
             return ChartTable
                 .select(
                     listOf(
-                        ChartTable.artist,
+                        ChartTable.artist, // Select original fields for display
                         ChartTable.track,
-                        ChartTable.album
+                        ChartTable.album,
+                        // Also select normalized fields if needed for post-query logic, though not strictly necessary here
+                        // ChartTable.normalizedArtist,
+                        // ChartTable.normalizedTrack,
+                        // ChartTable.normalizedAlbum
                     )
                 )
                 .where {
-                    // For each term, it must be present in at least one field (artist, track, or album).
-                    // The database field is lowercased and has apostrophes removed for comparison.
+                    // For each term, it must be present in at least one normalized field.
                     val allTermConditions = terms.map { term ->
-                        val pattern = "%$term%" // term is already normalized by getNormalizedQuery
+                        val pattern = "%$term%" // term is already normalized
 
-                        val artistCondition = ChartTable.artist.lowerCase() like pattern
-                        val trackCondition = ChartTable.track.lowerCase() like pattern
-                        val albumCondition = ChartTable.album.lowerCase().like(pattern) // Handle nullable album
+                        // Use the pre-normalized fields from the table
+                        val artistCondition = ChartTable.normalizedArtist like pattern
+                        val trackCondition = ChartTable.normalizedTrack like pattern
+                        // Handle nullable normalizedAlbum
+                        val albumCondition = ChartTable.normalizedAlbum?.like(pattern) ?: Op.FALSE
 
                         artistCondition or trackCondition or albumCondition
                     }
@@ -97,18 +99,19 @@ class QueryUtils() {
                     val track = row[ChartTable.track]
                     val album = row[ChartTable.album]
 
-                    // Attempt to return the field that contains the full normalizedQuery.
-                    // The 'contains' check here uses the original lowercase field value,
-                    // as the WHERE clause already ensured the match considering normalization.
-                    val queryLc = normalizedQuery // normalizedQuery is already lowercase.
-
+                    // The 'normalizedQuery' is already lowercase and fully normalized.
+                    // We check which original field, when normalized, contains the normalizedQuery.
                     when {
-                        track.lowercase().replace("'", "").contains(queryLc) -> track
-                        artist.lowercase().replace("'", "").contains(queryLc) -> artist
-                        album?.lowercase()?.replace("'", "")?.contains(queryLc) == true -> album
-                        // Fallback: if the full query (after apostrophe removal) isn't contained as a substring,
+                        getNormalizedQuery(track).contains(normalizedQuery) -> track
+                        getNormalizedQuery(artist).contains(normalizedQuery) -> artist
+                        album?.let { getNormalizedQuery(it).contains(normalizedQuery) } == true -> album
+                        // Fallback: if the full normalizedQuery isn't contained as a substring in any single normalized field,
                         // but terms matched due to the WHERE clause, prioritize track.
-                        else -> track
+                        // This can happen if terms are spread across fields, though the current query structure (OR within terms, AND across terms)
+                        // implies each term must be in *some* field, and all terms must be satisfied.
+                        // A more robust fallback might be needed if the goal is to return the field that matched *most* terms,
+                        // but the current logic prioritizes the field containing the whole query.
+                        else -> track // Default to track if no single field's normalized version contains the full normalized query.
                     }
                 }
                 .distinctBy { it.lowercase() } // Ensure unique results (case-insensitive)
@@ -117,73 +120,65 @@ class QueryUtils() {
 
         /**
          * Finds matches using a vowel-insensitive approach and Levenshtein distance.
-         * Candidates are pre-filtered based on the original normalized query terms.
+         * Candidates are pre-filtered based on the original normalized query terms using normalized DB fields.
          */
         fun findMatchesWithoutVowels(
-            normalizedQuery: String,    // The original query, normalized (e.g., "i didnt")
-            queryWithoutVowels: String, // Vowel-less version of normalizedQuery (e.g., "ddnt")
+            originalNormalizedQuery: String, // The query normalized by getNormalizedQuery (e.g., "i didnt know cafes")
+            queryWithoutVowels: String,      // Vowel-less version of originalNormalizedQuery (e.g., "ddnt knw cfs")
             limit: Int
         ): List<String> {
             if (limit <= 0) return emptyList()
-            // If queryWithoutVowels is blank (e.g. query was only vowels/punctuation),
-            // this specific fuzzy match method might not be effective.
-            if (queryWithoutVowels.isBlank() && normalizedQuery.isBlank()) return emptyList()
+            if (queryWithoutVowels.isBlank() && originalNormalizedQuery.isBlank()) return emptyList()
 
-            // Use terms from the original normalized query to fetch initial candidates more broadly.
-            val termsForCandidateSelection = normalizedQuery.split(" ").filter { it.isNotBlank() }
+            // Use terms from the original normalized query to fetch initial candidates.
+            val termsForCandidateSelection = originalNormalizedQuery.split(" ").filter { it.isNotBlank() }
 
             val candidates = ChartTable
                 .select(
                     listOf(
                         ChartTable.id,
-                        ChartTable.artist,
-                        ChartTable.track,
-                        ChartTable.album
+                        ChartTable.artist,         // Original for display
+                        ChartTable.track,          // Original for display
+                        ChartTable.album,          // Original for display
+                        ChartTable.normalizedArtist, // Normalized for vowel removal & comparison logic
+                        ChartTable.normalizedTrack,
+                        ChartTable.normalizedAlbum
                     )
                 )
                 .where {
                     if (termsForCandidateSelection.isEmpty()) {
-                        // If no terms (original query was only spaces/symbols not normalizable),
-                        // do not filter here, or return emptyList earlier.
-                        // Opting not to filter here; Op.TRUE means it will fetch up to the limit without pre-filtering.
-                        // This could be wide; consider returning emptyList() earlier if this case is problematic.
-                        Op.TRUE
+                        Op.TRUE // Fetch all if no terms (e.g. query was only symbols)
                     } else {
-                        // At least ONE of the original normalized terms must be present (OR logic).
-                        // Here, we use simple lowerCase() like pattern. The more aggressive normalization
-                        // (like apostrophe removal) is primarily for findMatches.
+                        // At least ONE of the original normalized terms must be present in a normalized field.
                         val termOrConditions = termsForCandidateSelection.map { term ->
                             val pattern = "%$term%" // term is already normalized
-                            (ChartTable.artist.lowerCase() like pattern) or
-                                    (ChartTable.track.lowerCase() like pattern) or
-                                    (ChartTable.album.lowerCase() like pattern) // Handle nullable album
+                            (ChartTable.normalizedArtist like pattern) or
+                                    (ChartTable.normalizedTrack like pattern) or
+                                    (ChartTable.normalizedAlbum?.like(pattern) ?: Op.FALSE)
                         }
                         termOrConditions.reduce { acc, expr -> acc or expr }
                     }
                 }
-                // Increase limit to get a larger pool for in-memory filtering.
-                // The ideal multiplier (*5, *10) may depend on the increase of our dataset size and performance.
-                .limit(limit * 10)
+                .limit(limit * 10) // Fetch a larger pool for in-memory filtering
                 .map { row ->
-                    val id = row[ChartTable.id]
-                    val artist = row[ChartTable.artist]
-                    val track = row[ChartTable.track]
-                    val album = row[ChartTable.album] ?: "" // Ensure album is not null for SearchCandidate
-
-                    SearchCandidate(id.value, artist, track, album)
+                    SearchCandidate(
+                        id = row[ChartTable.id].value,
+                        artist = row[ChartTable.artist],
+                        track = row[ChartTable.track],
+                        album = row[ChartTable.album] ?: "",
+                        // Store the fetched normalized fields directly
+                        normalizedArtist = row[ChartTable.normalizedArtist],
+                        normalizedTrack = row[ChartTable.normalizedTrack],
+                        normalizedAlbum = row[ChartTable.normalizedAlbum] ?: ""
+                    )
                 }
 
             // Calculate similarity scores and filter results
             return candidates.mapNotNull { candidate ->
-                // Normalize candidate fields (including accent removal via getNormalizedQuery)
-                // then remove vowels for Levenshtein comparison.
-                val artistNormalizedFull = getNormalizedQuery(candidate.artist)
-                val trackNormalizedFull = getNormalizedQuery(candidate.track)
-                val albumNormalizedFull = getNormalizedQuery(candidate.album)
-
-                val artistNoVowels = artistNormalizedFull.replace(Regex("[aeiou]"), "").replace(Regex("\\s+"), " ").trim()
-                val trackNoVowels = trackNormalizedFull.replace(Regex("[aeiou]"), "").replace(Regex("\\s+"), " ").trim()
-                val albumNoVowels = albumNormalizedFull.replace(Regex("[aeiou]"), "").replace(Regex("\\s+"), " ").trim()
+                // Use the pre-fetched normalized fields for vowel removal
+                val artistNoVowels = candidate.normalizedArtist.replace(Regex("[aeiou]"), "").replace(Regex("\\s+"), " ").trim()
+                val trackNoVowels = candidate.normalizedTrack.replace(Regex("[aeiou]"), "").replace(Regex("\\s+"), " ").trim()
+                val albumNoVowels = candidate.normalizedAlbum.replace(Regex("[aeiou]"), "").replace(Regex("\\s+"), " ").trim()
 
                 // Calculate Levenshtein distance for vowel-less versions
                 // using queryWithoutVowels which is already processed.
@@ -196,21 +191,26 @@ class QueryUtils() {
                 if (bestScore < 0.5) { // Similarity threshold
                     null
                 } else {
-                    // Choose the most relevant field with the highest score.
-                    // In case of a tie, preference is track, then artist, then album.
+                    // Choose the original field corresponding to the highest score.
                     when {
                         trackScore == bestScore -> Pair(candidate.track, bestScore)
                         artistScore == bestScore -> Pair(candidate.artist, bestScore)
-                        albumScore == bestScore -> Pair(candidate.album, bestScore)
-                        else -> null // Should not happen with maxOf if at least one score is >= 0.5
+                        albumScore == bestScore && candidate.album.isNotBlank() -> Pair(candidate.album, bestScore) // Ensure album isn't blank
+                        // If album score is best but album is blank, try track or artist if their scores are also the bestScore
+                        albumScore == bestScore && candidate.album.isBlank() -> {
+                            if (trackScore == bestScore) Pair(candidate.track, bestScore)
+                            else if (artistScore == bestScore) Pair(candidate.artist, bestScore)
+                            else null // Should not happen if bestScore >= 0.5
+                        }
+                        else -> null
                     }
                 }
             }
-                .filterNot { it.first.isBlank() && it.second < 0.5 } // Avoid blank results unless they have a decent score (unlikely)
-                .sortedByDescending { it.second } // Sort by similarity score (highest first)
-                .map { it.first } // Take only the text string
-                .distinctBy { it.lowercase() } // Remove duplicates based on lowercase text
-                .take(limit) // Limit to the required number
+                .filterNot { it.first.isBlank() && it.second < 0.5 }
+                .sortedByDescending { it.second }
+                .map { it.first }
+                .distinctBy { it.lowercase() }
+                .take(limit)
         }
 
         /**
@@ -218,18 +218,16 @@ class QueryUtils() {
          * s1 is typically the query (vowel-less), s2 is the DB field (vowel-less).
          */
         fun calculateSimilarity(s1: String, s2: String): Double {
-            if (s1.isEmpty() && s2.isEmpty()) return 1.0 // Both empty are identical
-            if (s1.isEmpty() || s2.isEmpty()) return 0.0 // One empty, one not: totally dissimilar
+            if (s1.isEmpty() && s2.isEmpty()) return 1.0
+            if (s1.isEmpty() || s2.isEmpty()) return 0.0
             if (s1 == s2) return 1.0
 
-            // If one string (vowel-less) contains the other, it's a good match.
-            // s1 is the query, s2 is the database field.
             if (s2.contains(s1)) return 0.9
-            if (s1.contains(s2)) return 0.8 // Less likely if s1 (query) is shorter than s2 (field)
+            if (s1.contains(s2)) return 0.8
 
             val distance = levenshteinDistance(s1, s2)
             val maxLength = maxOf(s1.length, s2.length)
-            if (maxLength == 0) return 1.0 // Both were effectively empty, already handled, but for safety.
+            if (maxLength == 0) return 1.0
 
             return 1.0 - (distance.toDouble() / maxLength)
         }
@@ -240,7 +238,6 @@ class QueryUtils() {
         private fun levenshteinDistance(s1: String, s2: String): Int {
             val m = s1.length
             val n = s2.length
-
             val dp = Array(m + 1) { IntArray(n + 1) }
 
             for (i in 0..m) dp[i][0] = i
@@ -250,9 +247,9 @@ class QueryUtils() {
                 for (j in 1..n) {
                     val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
                     dp[i][j] = minOf(
-                        dp[i - 1][j] + 1,      // Deletion
-                        dp[i][j - 1] + 1,      // Insertion
-                        dp[i - 1][j - 1] + cost // Substitution
+                        dp[i - 1][j] + 1,
+                        dp[i][j - 1] + 1,
+                        dp[i - 1][j - 1] + cost
                     )
                 }
             }
@@ -260,13 +257,16 @@ class QueryUtils() {
         }
 
         /**
-         * Data class to hold search candidates with their fields.
+         * Data class to hold search candidates with their original and normalized fields.
          */
         private data class SearchCandidate(
             val id: UUID,
             val artist: String,
             val track: String,
-            val album: String
+            val album: String,
+            val normalizedArtist: String, // Added normalized fields
+            val normalizedTrack: String,
+            val normalizedAlbum: String
         )
     }
 }

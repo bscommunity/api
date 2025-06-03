@@ -2,10 +2,7 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
-import org.bscm.models.tables.ChartTable
-import org.bscm.models.tables.ContributorTable
-import org.bscm.models.tables.UserTable
-import org.bscm.models.tables.VersionTable
+import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.StdOutSqlLogger
@@ -30,6 +27,6 @@ fun Application.configureDatabases(config: ApplicationConfig) {
     // Initialize tables (if not already created)
     transaction {
         addLogger(StdOutSqlLogger)
-        SchemaUtils.create(UserTable, ChartTable, VersionTable, ContributorTable)
+        SchemaUtils.create(UserTable, ChartTable, VersionTable, ContributorTable, StreamingLinkTable)
     }
 }

@@ -2,6 +2,7 @@ package org.bscm.models.dao
 
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContributorTable
+import org.bscm.models.tables.StreamingLinkTable
 import org.bscm.models.tables.VersionTable
 import org.jetbrains.exposed.dao.UUIDEntity
 import org.jetbrains.exposed.dao.UUIDEntityClass
@@ -14,7 +15,11 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var artist by ChartTable.artist
     var track by ChartTable.track
     var album by ChartTable.album
-    var trackUrls by ChartTable.trackUrls
+
+    var normalizedArtist by ChartTable.normalizedArtist
+    var normalizedTrack by ChartTable.normalizedTrack
+    var normalizedAlbum by ChartTable.normalizedAlbum
+
     var trackPreviewUrl by ChartTable.trackPreviewUrl
     var coverUrl by ChartTable.coverUrl
     var isDeluxe by ChartTable.isDeluxe
@@ -25,6 +30,7 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var isPublic by ChartTable.isPublic
 
     var latestVersion by VersionEntity optionalReferencedOn ChartTable.latestVersionId
+    val trackUrls by StreamingLinkEntity referrersOn StreamingLinkTable.chartId
     val versions by VersionEntity referrersOn VersionTable.chartId
     val contributors by ContributorEntity referrersOn ContributorTable.chartId
 }

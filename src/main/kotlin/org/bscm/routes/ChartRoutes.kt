@@ -80,7 +80,7 @@ fun Route.chartRoutes(
                     jwtPrincipal != null -> {
                         val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
                         chartRepository.getCharts(
-                            userId,
+                            userId = userId,
                             ids,
                             sanitizedQuery,
                             sortBy,
@@ -92,7 +92,7 @@ fun Route.chartRoutes(
                     }
                     // HMAC authentication (mobile app)
                     hmacPrincipal != null -> {
-                        chartRepository.getAppCharts(
+                        chartRepository.getCharts(
                             ids,
                             sanitizedQuery,
                             sortBy,

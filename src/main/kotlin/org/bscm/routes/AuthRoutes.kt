@@ -5,6 +5,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import org.bscm.models.User
+import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.repository.UserRepository
 import org.bscm.services.JWTService
@@ -36,8 +37,8 @@ fun Route.authRoutes(
                         }
                     ))
                 }
-                ?: throw NotImplementedError("User creation is not implemented yet")
-                /*userRepository.createUser(
+                // ?: throw NotImplementedError("User creation is not implemented yet")
+                ?: userRepository.createUser(
                     CreateUserRequest(
                         username = discordUser.username,
                         email = discordUser.email,
@@ -46,7 +47,7 @@ fun Route.authRoutes(
                         },
                         discordId = discordUser.id
                     )
-                )*/
+                )
 
             call.respond(
                 AuthResult(

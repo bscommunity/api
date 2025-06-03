@@ -3,13 +3,14 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import kotlinx.coroutines.*
 import org.bscm.models.KnownIssue
-import org.bscm.models.StreamingLink
 import org.bscm.models.dto.chart.CreateChartRequest
+import org.bscm.models.dto.chart.CreateStreamingLink
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
+import org.bscm.models.enums.StreamingPlatform
 import org.bscm.repository.*
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
@@ -114,8 +115,14 @@ private suspend fun generateRandomCharts(
                             track = getRandomTrack(),
                             album = if (Random.nextBoolean()) getRandomAlbum() else null,
                             trackUrls = listOf(
-                                StreamingLink("spotify", "https://open.spotify.com/track/${getRandomId()}"),
-                                StreamingLink("youtube", "https://www.youtube.com/watch?v=${getRandomId()}")
+                                CreateStreamingLink(
+                                    platform = StreamingPlatform.SPOTIFY,
+                                    url = "https://open.spotify.com/track/${getRandomId()}",
+                                ),
+                                CreateStreamingLink(
+                                    platform = StreamingPlatform.YOUTUBE_MUSIC,
+                                    url = "https://www.youtube.com/watch?v=${getRandomId()}",
+                                ),
                             ),
                             trackPreviewUrl = "https://example.com/preview/${getRandomId()}.mp3",
                             coverUrl = getRandomCoverUrl(),

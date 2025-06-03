@@ -1,20 +1,20 @@
 package org.bscm.models.tables
 
-import kotlinx.serialization.json.Json
-import org.bscm.models.StreamingLink
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.json.json
 
 object ChartTable : UUIDTable("chart") {
     val artist = varchar("artist", 200)
     val track = varchar("track", 200)
     val album = varchar("album", 200).nullable()
 
+    val normalizedArtist = varchar("normalized_artist", 200)
+    val normalizedTrack = varchar("normalized_track", 200)
+    val normalizedAlbum = varchar("normalized_album", 200).nullable()
+
     val coverUrl = varchar("cover_url", 255)
-    val trackUrls = json<List<StreamingLink>>("track_urls", Json.Default)
     val trackPreviewUrl = varchar("track_preview_url", 255).nullable()
 
     val difficulty = enumerationByName("difficulty", 10, Difficulty::class)
@@ -30,7 +30,7 @@ object ChartTable : UUIDTable("chart") {
         .nullable()
 
     init {
-        index("idx_chart_search", false, artist, track, album)
+        index("idx_chart_search", false, normalizedArtist, normalizedTrack, normalizedAlbum)
         index("idx_chart_filters", false, difficulty, genre, isPublic)
         index("idx_chart_public_difficulty", false, isPublic, difficulty)
     }

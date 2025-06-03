@@ -14,7 +14,7 @@ interface ChartRepository {
     suspend fun getCharts(
         userId: UUID?,
         chartIds: List<UUID>?,
-        query: String?,
+        search: String?,
         sortBy: ChartSortOption = ChartSortOption.LAST_UPDATED,
         difficulties: List<Difficulty>? = null,
         genres: List<Genre>? = null,
@@ -22,14 +22,15 @@ interface ChartRepository {
         offset: Int? = null,
         fetchVersions: Boolean = true,
     ): List<Chart>
-    suspend fun getAppCharts(
+    suspend fun getCharts(
         chartIds: List<UUID>?,
-        query: String?,
-        sortBy: ChartSortOption,
-        difficulties: List<Difficulty>?,
-        genres: List<Genre>?,
-        limit: Int?,
-        offset: Int?,
+        search: String?,
+        sortBy: ChartSortOption = ChartSortOption.LAST_UPDATED,
+        difficulties: List<Difficulty>? = null,
+        genres: List<Genre>? = null,
+        limit: Int? = null,
+        offset: Int? = null,
+        fetchStreamingLinks: Boolean = true,
     ): List<AppChart>
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: UUID): Chart?
