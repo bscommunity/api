@@ -10,9 +10,9 @@ object ChartTable : UUIDTable("chart") {
     val track = varchar("track", 200)
     val album = varchar("album", 200).nullable()
 
-    val normalizedArtist = varchar("normalized_artist", 200)
-    val normalizedTrack = varchar("normalized_track", 200)
-    val normalizedAlbum = varchar("normalized_album", 200).nullable()
+    val normalizedArtist = varchar("normalized_artist", 200).nullable().index()
+    val normalizedTrack = varchar("normalized_track", 200).nullable().index()
+    val normalizedAlbum = varchar("normalized_album", 200).nullable().index()
 
     val coverUrl = varchar("cover_url", 255)
     val trackPreviewUrl = varchar("track_preview_url", 255).nullable()

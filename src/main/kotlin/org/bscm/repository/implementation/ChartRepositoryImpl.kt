@@ -377,10 +377,12 @@ class ChartRepositoryImpl : ChartRepository {
         if (query.isBlank()) return@newSuspendedTransaction emptyList()
 
         val startTime = System.currentTimeMillis()
+
         val result = QueryUtils.getSearchMatches(query, min(limit, 10))
+
         val endTime = System.currentTimeMillis()
 
-        println("Chart query completed in ${endTime - startTime}ms with ${result.size} results")
+        println("Suggestions returned in ${endTime - startTime}ms with ${result.size} results")
         result
     }
 
@@ -390,9 +392,6 @@ class ChartRepositoryImpl : ChartRepository {
             this.artist = chart.artist
             this.track = chart.track
             this.album = chart.album
-            this.normalizedArtist = QueryUtils.getNormalizedQuery(chart.artist)
-            this.normalizedTrack = QueryUtils.getNormalizedQuery(chart.track)
-            this.normalizedAlbum = chart.album?.let { QueryUtils.getNormalizedQuery(it) }
             this.trackPreviewUrl = chart.trackPreviewUrl
             this.coverUrl = chart.coverUrl
             this.difficulty = chart.difficulty
@@ -437,14 +436,14 @@ class ChartRepositoryImpl : ChartRepository {
         }
 
         // Add the user as an author of the chart
-        ContributorEntity.new(contributorId) {
+        val contributor = ContributorEntity.new(contributorId) {
             roles = listOf(ContributorRole.AUTHOR)
             joinedAt = LocalDate.now()
         }
 
         // Since the new chart will be cached on the creator device,
         // we need to return all the data to avoid inconsistencies
-        daoToChart(newChart)
+        daoToChart(newChart, listOf(versionEntityToVersion(initialVersion)), listOf(contributorEntityToContributor(contributor)))
     }
 
     override suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart = newSuspendedTransaction {
@@ -452,8 +451,6 @@ class ChartRepositoryImpl : ChartRepository {
         existingChart.apply {
             artist = chart.artist ?: artist
             track = chart.track ?: track
-            normalizedArtist = chart.artist?.let { QueryUtils.getNormalizedQuery(it) } ?: normalizedArtist
-            normalizedTrack = chart.track?.let { QueryUtils.getNormalizedQuery(it) } ?: normalizedTrack
             coverUrl = chart.coverUrl ?: coverUrl
             difficulty = chart.difficulty ?: difficulty
             isDeluxe = chart.isDeluxe ?: isDeluxe
