@@ -231,7 +231,11 @@ class ChartRepositoryImpl : ChartRepository {
             else -> {
                 query.adjustColumnSet {
                     leftJoin(VersionTable, { ChartTable.id }, { VersionTable.chartId })
-                }.groupBy(ChartTable.id)
+                }
+                    .groupBy(
+                        ChartTable.id, VersionTable.id, ContributorTable.userId, ContributorTable.chartId,
+                        UserTable.id, StreamingLinkTable.id
+                    )
                     .orderBy(VersionTable.downloadsAmount.sum() to SortOrder.DESC)
             }
         }
@@ -314,7 +318,12 @@ class ChartRepositoryImpl : ChartRepository {
             daoToChart(
                 entity = chartResult.chart,
                 versions = chartResult.versions?.map { versionEntityToVersion(it) },
-                contributors = chartResult.contributors?.map { contributorEntityToContributor(it.component1(), it.component2()) },
+                contributors = chartResult.contributors?.map {
+                    contributorEntityToContributor(
+                        it.component1(),
+                        it.component2()
+                    )
+                },
             )
         }
 
@@ -352,7 +361,12 @@ class ChartRepositoryImpl : ChartRepository {
                 entity = chartResult.chart,
                 streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
                 versions = chartResult.versions?.map { versionEntityToVersion(it) },
-                contributors = chartResult.contributors?.map { contributorEntityToContributor(it.component1(), it.component2()) },
+                contributors = chartResult.contributors?.map {
+                    contributorEntityToContributor(
+                        it.component1(),
+                        it.component2()
+                    )
+                },
             )
         }
 
