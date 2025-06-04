@@ -404,12 +404,10 @@ class ChartRepositoryImpl : ChartRepository {
         flushCache()
 
         // Add the track URLs
-        chart.trackUrls.forEach { streamingLink ->
-            StreamingLinkEntity.new {
-                this.chart = newChart
-                this.platform = streamingLink.platform
-                this.url = streamingLink.url
-            }
+        StreamingLinkTable.batchInsert(chart.trackUrls) { streamingLink ->
+            this[StreamingLinkTable.chartId] = newChart.id
+            this[StreamingLinkTable.platform] = streamingLink.platform
+            this[StreamingLinkTable.url] = streamingLink.url
         }
 
         // Add the initial version with the chart's metadata
