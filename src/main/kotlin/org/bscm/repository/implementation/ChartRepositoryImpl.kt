@@ -14,6 +14,7 @@ import org.bscm.services.QueryUtils
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDate
@@ -46,8 +47,6 @@ class ChartRepositoryImpl : ChartRepository {
         id = entity.id.value,
         track = entity.track,
         artist = entity.artist,
-        album = entity.album,
-        trackPreviewUrl = entity.trackPreviewUrl,
         coverUrl = entity.coverUrl,
         isDeluxe = entity.isDeluxe,
         isExplicit = entity.isExplicit,
@@ -441,23 +440,36 @@ class ChartRepositoryImpl : ChartRepository {
 
         // Since the new chart will be cached on the creator device,
         // we need to return all the data to avoid inconsistencies
-        daoToChart(newChart, listOf(versionEntityToVersion(initialVersion)), listOf(contributorEntityToContributor(contributor)))
+        daoToChart(
+            newChart,
+            listOf(versionEntityToVersion(initialVersion)),
+            listOf(contributorEntityToContributor(contributor))
+        )
     }
 
     override suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart = newSuspendedTransaction {
-        val existingChart = ChartEntity.findById(id) ?: throw NotFoundException("Chart not found")
-        existingChart.apply {
-            artist = chart.artist ?: artist
-            track = chart.track ?: track
-            coverUrl = chart.coverUrl ?: coverUrl
-            difficulty = chart.difficulty ?: difficulty
-            isDeluxe = chart.isDeluxe ?: isDeluxe
-            isExplicit = chart.isExplicit ?: isExplicit
-            isFeatured = chart.isFeatured ?: isFeatured
-            isPublic = chart.isPublic ?: isPublic
-            genre = chart.genre ?: genre
+        val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
+            it.artist = chart.artist ?: it.artist
+            it.track = chart.track ?: it.track
+            it.coverUrl = chart.coverUrl ?: it.coverUrl
+            it.difficulty = chart.difficulty ?: it.difficulty
+            it.isDeluxe = chart.isDeluxe ?: it.isDeluxe
+            it.isExplicit = chart.isExplicit ?: it.isExplicit
+            it.isFeatured = chart.isFeatured ?: it.isFeatured
+            it.isPublic = chart.isPublic ?: it.isPublic
+            it.genre = chart.genre ?: it.genre
         }
-        daoToChart(existingChart)
+
+        if (existingChart == null) {
+            throw NotFoundException("Chart with ID $id not found")
+        }
+
+        // TODO: It's not performant quite performant, but it works with the dashboard for now
+        daoToChart(
+            entity = existingChart,
+            contributors = existingChart.contributors.map { contributorEntityToContributor(it) },
+            versions = existingChart.versions.map { versionEntityToVersion(it) }
+        )
     }
 
     override suspend fun deleteChart(id: UUID): Boolean = newSuspendedTransaction {

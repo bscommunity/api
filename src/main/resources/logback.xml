@@ -6,7 +6,7 @@
     </appender>
 
     <!-- Change root level to INFO to suppress (default: trace) -->
-    <root level="trace">
+    <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
 
