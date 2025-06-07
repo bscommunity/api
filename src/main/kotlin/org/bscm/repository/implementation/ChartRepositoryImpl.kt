@@ -115,42 +115,51 @@ class ChartRepositoryImpl : ChartRepository {
     ): List<ChartResult>? {
         val startTime = System.currentTimeMillis()
 
-        var query = ChartTable.selectAll()
+        val baseQuery = ChartTable.select(ChartTable.id)
+
+        applyAllFilters(baseQuery, userId, chartIds, search, difficulties, genres)
+        applyOrdering(baseQuery, sortBy, fetchVersions)
+
+        // Appy pagination
+        limit?.takeIf { it > 0 }?.let { baseQuery.limit(it) }
+        offset?.takeIf { it >= 0 }?.let { baseQuery.offset(it.toLong()) }
+
+        val paginatedIds = baseQuery.map { it[ChartTable.id].value }
+        if (paginatedIds.isEmpty()) return emptyList()
+
+        var fullQuery = ChartTable.selectAll().where { ChartTable.id inList paginatedIds }
 
         if (fetchContributors) {
-            query = query.adjustColumnSet {
+            fullQuery = fullQuery.adjustColumnSet {
                 leftJoin(ContributorTable, { ChartTable.id }, { ContributorTable.chartId })
                     .leftJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
             }
         }
 
         if (fetchStreamingLinks) {
-            query = query.adjustColumnSet {
+            fullQuery = fullQuery.adjustColumnSet {
                 leftJoin(StreamingLinkTable, { ChartTable.id }, { StreamingLinkTable.chartId })
             }
         }
 
-        applyAllFilters(query, userId, chartIds, search, difficulties, genres)
-        applyOrdering(query, sortBy, fetchVersions)
-
-        // Apply pagination
-        limit?.let { query.limit(it) }
-        offset?.let { query.offset(it.toLong()) }
-
-        // Include subqueries for versions, contributors, and streaming links if requested
-        if (fetchContributors || fetchVersions || fetchStreamingLinks) {
-            query.adjustSelect {
-                select(
-                    ChartTable.columns +
-                            (if (fetchVersions) VersionTable.columns else emptyList()) +
-                            (if (fetchContributors) ContributorTable.columns + UserTable.columns else emptyList()) +
-                            (if (fetchStreamingLinks) StreamingLinkTable.columns else emptyList())
-                )
+        if (fetchVersions) {
+            fullQuery = fullQuery.adjustColumnSet {
+                leftJoin(VersionTable, { ChartTable.id }, { VersionTable.chartId })
             }
         }
 
+        // Include subqueries for versions, contributors, and streaming links if requested
+        fullQuery.adjustSelect {
+            select(
+                ChartTable.columns +
+                        (if (fetchVersions) VersionTable.columns else emptyList()) +
+                        (if (fetchContributors) ContributorTable.columns + UserTable.columns else emptyList()) +
+                        (if (fetchStreamingLinks) StreamingLinkTable.columns else emptyList())
+            )
+        }
+
         // Execute the query and fetch results
-        val results = query.toList()
+        val results = fullQuery.toList()
 
         // println(results.first().fieldIndex.keys.forEach { println("Column: $it") })
         // println("Contributor 0: ${contributorEntityToContributor(ContributorEntity.wrapRow(results[0]))}")
