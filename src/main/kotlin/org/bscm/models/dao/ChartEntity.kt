@@ -1,8 +1,8 @@
 package org.bscm.models.dao
 
+import org.bscm.models.tables.ChartStreamingLinkTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContributorTable
-import org.bscm.models.tables.StreamingLinkTable
 import org.bscm.models.tables.VersionTable
 import org.jetbrains.exposed.dao.UUIDEntity
 import org.jetbrains.exposed.dao.UUIDEntityClass
@@ -30,7 +30,10 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var isPublic by ChartTable.isPublic
 
     var latestVersion by VersionEntity optionalReferencedOn ChartTable.latestVersionId
-    val trackUrls by StreamingLinkEntity referrersOn StreamingLinkTable.chartId
+
+    // Updated: Many-to-many relationship through junction table
+    val trackUrls by StreamingLinkEntity.via(ChartStreamingLinkTable.chartId, ChartStreamingLinkTable.streamingLinkId)
+
     val versions by VersionEntity referrersOn VersionTable.chartId
     val contributors by ContributorEntity referrersOn ContributorTable.chartId
 }

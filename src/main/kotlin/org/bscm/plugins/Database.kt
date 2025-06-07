@@ -27,6 +27,13 @@ fun Application.configureDatabases(config: ApplicationConfig) {
     // Initialize tables (if not already created)
     transaction {
         addLogger(StdOutSqlLogger)
-        SchemaUtils.create(UserTable, ChartTable, VersionTable, ContributorTable, StreamingLinkTable)
+        SchemaUtils.create(
+            UserTable,
+            ChartTable,
+            VersionTable,
+            ContributorTable,
+            StreamingLinkTable,
+            ChartStreamingLinkTable
+        )
     }
 }

@@ -9,8 +9,6 @@ import java.util.*
 class StreamingLinkEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     companion object : UUIDEntityClass<StreamingLinkEntity>(StreamingLinkTable)
 
-    var chart by ChartEntity referencedOn StreamingLinkTable.chartId
-    var chartId by StreamingLinkTable.chartId
     var platform by StreamingLinkTable.platform
     var url by StreamingLinkTable.url
 }

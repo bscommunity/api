@@ -33,8 +33,6 @@ class ChartRepositoryImpl : ChartRepository {
     private fun daoToStreamingLink(
         entity: StreamingLinkEntity
     ): StreamingLink = StreamingLink(
-        id = entity.id.value,
-        chartId = entity.chartId.value,
         platform = entity.platform,
         url = entity.url,
     )
@@ -138,7 +136,9 @@ class ChartRepositoryImpl : ChartRepository {
 
         if (fetchStreamingLinks) {
             fullQuery = fullQuery.adjustColumnSet {
-                leftJoin(StreamingLinkTable, { ChartTable.id }, { StreamingLinkTable.chartId })
+                // Join through the junction table to get streaming links
+                leftJoin(ChartStreamingLinkTable, { ChartTable.id }, { ChartStreamingLinkTable.chartId })
+                    .leftJoin(StreamingLinkTable, { ChartStreamingLinkTable.streamingLinkId }, { StreamingLinkTable.id })
             }
         }
 
@@ -237,13 +237,11 @@ class ChartRepositoryImpl : ChartRepository {
             }
 
             else -> {
-                query.adjustColumnSet {
-                    leftJoin(VersionTable, { ChartTable.id }, { VersionTable.chartId })
-                }
-                    .groupBy(
-                        ChartTable.id, VersionTable.id, ContributorTable.userId, ContributorTable.chartId,
-                        UserTable.id, StreamingLinkTable.id
-                    )
+                query
+                    .adjustColumnSet {
+                        leftJoin(VersionTable, { ChartTable.id }, { VersionTable.chartId })
+                    }
+                    .groupBy(ChartTable.id)
                     .orderBy(VersionTable.downloadsAmount.sum() to SortOrder.DESC)
             }
         }
@@ -263,27 +261,38 @@ class ChartRepositoryImpl : ChartRepository {
 
             val streamingLinks = if (fetchStreamingLinks) {
                 rows.mapNotNull { row ->
-                    row.getOrNull(StreamingLinkTable.id)?.let {
-                        StreamingLinkEntity.wrapRow(row)
+                    // Check if streaming link data exists in this row
+                    row.getOrNull(StreamingLinkTable.id)?.let { streamingLinkId ->
+                        // Also check if URL exists to ensure it's not a NULL join result
+                        row.getOrNull(StreamingLinkTable.url)?.let {
+                            StreamingLinkEntity.wrapRow(row)
+                        }
                     }
-                }.distinctBy { it.id }
+                }.distinctBy { it.id.value } // Use .value for UUID comparison
             } else emptyList()
 
             val versions = if (fetchVersions) {
                 rows.mapNotNull { row ->
-                    row.getOrNull(VersionTable.id)?.let {
-                        VersionEntity.wrapRow(row)
+                    row.getOrNull(VersionTable.id)?.let { versionId ->
+                        // Additional null check for version-specific data
+                        row.getOrNull(VersionTable.index)?.let {
+                            VersionEntity.wrapRow(row)
+                        }
                     }
-                }.distinctBy { it.id }
+                }.distinctBy { it.id.value } // Use .value for UUID comparison
             } else null
 
             val contributors = if (fetchContributors) {
-                rows.map { row ->
-                    val contributor = ContributorEntity.wrapRow(row)
-                    val user = UserEntity.wrapRow(row)
-
-                    contributor to user
-                }.distinctBy { it.first.id.value }
+                rows.mapNotNull { row ->
+                    // Check if contributor data exists
+                    row.getOrNull(ContributorTable.userId)?.let { userId ->
+                        row.getOrNull(UserTable.id)?.let { userTableId ->
+                            val contributor = ContributorEntity.wrapRow(row)
+                            val user = UserEntity.wrapRow(row)
+                            contributor to user
+                        }
+                    }
+                }.distinctBy { it.first.id.value } // Use the composite ID value for distinction
             } else null
 
             ChartResult(
@@ -411,11 +420,31 @@ class ChartRepositoryImpl : ChartRepository {
 
         flushCache()
 
-        // Add the track URLs
-        StreamingLinkTable.batchInsert(chart.trackUrls) { streamingLink ->
-            this[StreamingLinkTable.chartId] = newChart.id
-            this[StreamingLinkTable.platform] = streamingLink.platform
-            this[StreamingLinkTable.url] = streamingLink.url
+        // Handle streaming links with duplicate prevention
+        val streamingLinkIds = chart.trackUrls.map { streamingLinkRequest ->
+            // Try to find existing streaming link first
+            val existingLink = StreamingLinkEntity.find {
+                (StreamingLinkTable.platform eq streamingLinkRequest.platform) and
+                        (StreamingLinkTable.url eq streamingLinkRequest.url)
+            }.firstOrNull()
+
+            if (existingLink != null) {
+                // Use existing streaming link
+                existingLink.id.value
+            } else {
+                // Create new streaming link
+                val newLink = StreamingLinkEntity.new {
+                    this.platform = streamingLinkRequest.platform
+                    this.url = streamingLinkRequest.url
+                }
+                newLink.id.value
+            }
+        }
+
+        // Link the chart to the streaming links through the junction table
+        ChartStreamingLinkTable.batchInsert(streamingLinkIds) { streamingLinkId ->
+            this[ChartStreamingLinkTable.chartId] = newChart.id
+            this[ChartStreamingLinkTable.streamingLinkId] = streamingLinkId
         }
 
         // Add the initial version with the chart's metadata
