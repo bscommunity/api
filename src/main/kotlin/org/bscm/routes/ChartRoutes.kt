@@ -34,120 +34,124 @@ fun Route.chartRoutes(
     route("/charts") {
         // Routes that accept both JWT or HMAC authentication
         authenticate("auth-jwt", "auth-hmac", optional = true) {
-            post("analytics/{id}") {
-                val hmacPrincipal = call.principal<HMACPrincipal>()
+            rateLimit(RateLimitName("public")) {
+                post("analytics/{id}") {
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
 
-                if (hmacPrincipal == null) {
-                    call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
-                    return@post
+                    if (hmacPrincipal == null) {
+                        call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
+                        return@post
+                    }
+
+                    val idParam = call.parameters["id"].let { UUID.fromString(it) }
+                    val typeParam = call.queryParameters["type"]
+                    val type = typeParam?.let { AnalyticsOption.valueOf(it) }
+                        ?: throw BadRequestException("Invalid or missing type parameter")
+
+                    val stats = chartRepository.postAnalytics(idParam, type)
+
+                    call.respond(stats)
                 }
 
-                val idParam = call.parameters["id"].let { UUID.fromString(it) }
-                val typeParam = call.queryParameters["type"]
-                val type = typeParam?.let { AnalyticsOption.valueOf(it) }
-                    ?: throw BadRequestException("Invalid or missing type parameter")
+                get("suggestions") {
+                    val query = call.request.queryParameters["query"] ?: ""
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
 
-                val stats = chartRepository.postAnalytics(idParam, type)
-
-                call.respond(stats)
+                    val suggestions = chartRepository.getSuggestions(query, limit)
+                    call.respond(suggestions)
+                }
             }
 
-            // Get all charts - now handles both auth types
-            get {
-                val query = call.request.queryParameters["query"]
-                val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
+            rateLimit(RateLimitName("protected")) {
+                // Get all charts - now handles both auth types
+                get {
+                    val query = call.request.queryParameters["query"]
+                    val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
 
-                val difficulties =
-                    call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
-                val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
+                    val difficulties =
+                        call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
+                    val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
 
-                val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
-                    ?: ChartSortOption.LAST_UPDATED
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
-                val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+                    val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
+                        ?: ChartSortOption.LAST_UPDATED
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                    val offset = call.request.queryParameters["offset"]?.toIntOrNull()
 
-                val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
+                    val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
 
-                // Determine which type of authentication is being used
-                val jwtPrincipal = call.principal<JWTPrincipal>()
-                println("JWT Principal: $jwtPrincipal")
+                    // Determine which type of authentication is being used
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
+                    println("JWT Principal: $jwtPrincipal")
 
-                val hmacPrincipal = call.principal<HMACPrincipal>()
-                println("HMAC Principal: $hmacPrincipal")
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
+                    println("HMAC Principal: $hmacPrincipal")
 
-                val charts = when {
-                    // JWT authentication (dashboard user)
-                    jwtPrincipal != null -> {
-                        val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
-                        chartRepository.getCharts(
-                            userId = userId,
-                            chartIds = ids,
-                            search = sanitizedQuery,
-                            sortBy,
-                            difficulties,
-                            genres,
-                            limit,
-                            offset,
-                        )
+                    val charts = when {
+                        // JWT authentication (dashboard user)
+                        jwtPrincipal != null -> {
+                            val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
+                            chartRepository.getCharts(
+                                userId = userId,
+                                chartIds = ids,
+                                search = sanitizedQuery,
+                                sortBy,
+                                difficulties,
+                                genres,
+                                limit,
+                                offset,
+                            )
+                        }
+                        // HMAC authentication (mobile app)
+                        hmacPrincipal != null -> {
+                            chartRepository.getCharts(
+                                chartIds = ids,
+                                search = sanitizedQuery,
+                                sortBy,
+                                difficulties,
+                                genres,
+                                limit,
+                                offset,
+                            )
+                        }
+                        // No authentication (public access)
+                        else -> {
+                            call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
+                            return@get
+                        }
                     }
-                    // HMAC authentication (mobile app)
-                    hmacPrincipal != null -> {
-                        chartRepository.getCharts(
-                            chartIds = ids,
-                            search = sanitizedQuery,
-                            sortBy,
-                            difficulties,
-                            genres,
-                            limit,
-                            offset,
+
+                    call.respond(charts)
+                }
+
+                // Get chart by ID
+                get("{id}") {
+                    val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    if (id == null) {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            "Invalid or missing ID"
                         )
+                        return@get
                     }
-                    // No authentication (public access)
-                    else -> {
-                        call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
+
+                    // Check authentication type and call appropriate method
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
+
+                    val chart = when {
+                        hmacPrincipal != null -> chartRepository.getChartById(id)
+                        else -> {
+                            call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
+                            return@get
+                        }
+                    }
+
+                    if (chart != null) {
+                        call.respond(chart)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "Chart not found")
                         return@get
                     }
                 }
-
-                call.respond(charts)
-            }
-
-            // Get chart by ID
-            get("{id}") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                if (id == null) {
-                    call.respond(
-                        HttpStatusCode.BadRequest,
-                        "Invalid or missing ID"
-                    )
-                    return@get
-                }
-
-                // Check authentication type and call appropriate method
-                val hmacPrincipal = call.principal<HMACPrincipal>()
-
-                val chart = when {
-                    hmacPrincipal != null -> chartRepository.getChartById(id)
-                    else -> {
-                        call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
-                        return@get
-                    }
-                }
-
-                if (chart != null) {
-                    call.respond(chart)
-                } else {
-                    call.respond(HttpStatusCode.NotFound, "Chart not found")
-                    return@get
-                }
-            }
-
-            get("suggestions") {
-                val query = call.request.queryParameters["query"] ?: ""
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
-
-                val suggestions = chartRepository.getSuggestions(query, limit)
-                call.respond(suggestions)
             }
         }
 
