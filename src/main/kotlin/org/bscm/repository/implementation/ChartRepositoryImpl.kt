@@ -492,7 +492,7 @@ class ChartRepositoryImpl : ChartRepository {
             this.chart = newChart
             this.index = 0
             this.chartUrl = chart.chartUrl
-            this.chartPreviewUrls = chart.chartPreviewUrls
+            this.chartPreviewUrl = chart.chartPreviewUrl
             this.duration = chart.duration
             this.notesAmount = chart.notesAmount
             this.effectsAmount = chart.effectsAmount

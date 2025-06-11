@@ -131,12 +131,7 @@ private suspend fun generateRandomCharts(
                             isExplicit = Random.nextBoolean(),
                             genre = Genre.entries.toTypedArray().random(),
                             chartUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                            chartPreviewUrls = List(
-                                Random.nextInt(
-                                    1,
-                                    4
-                                )
-                            ) { "https://example.com/chartpreviews/${getRandomId()}.jpg" },
+                            chartPreviewUrl ="https://example.com/chartpreviews/${getRandomId()}.jpg",
                             duration = Random.nextFloat() * 4 + 2, // 2-6 minutes
                             notesAmount = Random.nextInt(100, 1000),
                             effectsAmount = Random.nextInt(10, 100),
@@ -161,12 +156,7 @@ private suspend fun generateRandomCharts(
                                             effectsAmount = Random.nextInt(10, 100),
                                             bpm = Random.nextInt(80, 180),
                                             chartUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                                            chartPreviewUrls = List(
-                                                Random.nextInt(
-                                                    1,
-                                                    4
-                                                )
-                                            ) { "https://example.com/chartpreviews/${getRandomId()}.jpg" }
+                                            chartPreviewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
                                         )
                                     )
                                 }

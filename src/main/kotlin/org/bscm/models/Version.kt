@@ -20,7 +20,7 @@ data class Version(
     val effectsAmount: Int,
     val bpm: Int,
     val chartUrl: String,
-    val chartPreviewUrls: List<String>? = null,
+    val chartPreviewUrl: String? = null,
     val downloadsAmount: Int = 0,
     val knownIssues: List<KnownIssue> = emptyList(),
     @Serializable(with = LocalDateSerializer::class)

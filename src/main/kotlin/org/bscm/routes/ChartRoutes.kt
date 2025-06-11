@@ -161,11 +161,11 @@ fun Route.chartRoutes(
                 // Create a new chart
                 post {
                     val createRequest = call.receive<CreateChartRequest>()
-                    println(createRequest)
+                    // println(createRequest)
 
                     val principal = call.principal<JWTPrincipal>()
 
-                    println("Principal: $principal")
+                    // println("Principal: $principal")
 
                     val userId =
                         principal?.subject?.let { UUID.fromString(it) } ?: throw Exception("User not authenticated")

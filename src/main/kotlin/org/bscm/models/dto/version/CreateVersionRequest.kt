@@ -13,5 +13,5 @@ data class CreateVersionRequest(
     val effectsAmount: Int,
     val bpm: Int,
     val chartUrl: String,
-    val chartPreviewUrls: List<String>? = null
+    val chartPreviewUrl: String? = null
 )

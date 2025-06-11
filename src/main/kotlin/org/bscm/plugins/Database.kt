@@ -3,10 +3,7 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import io.ktor.server.config.*
 import org.bscm.models.tables.*
-import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.StdOutSqlLogger
-import org.jetbrains.exposed.sql.addLogger
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 
 fun Application.configureDatabases(config: ApplicationConfig) {
@@ -27,6 +24,9 @@ fun Application.configureDatabases(config: ApplicationConfig) {
     // Initialize tables (if not already created)
     transaction {
         addLogger(StdOutSqlLogger)
+        val schema = Schema("public")
+        SchemaUtils.dropSchema(schema, cascade = true)
+        SchemaUtils.createSchema(schema)
         SchemaUtils.create(
             UserTable,
             ChartTable,
