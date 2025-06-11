@@ -34,7 +34,7 @@ fun Route.chartRoutes(
     route("/charts") {
         // Routes that accept both JWT or HMAC authentication
         authenticate("auth-jwt", "auth-hmac", optional = true) {
-            rateLimit(RateLimitName("public")) {
+            rateLimit(RateLimitName("unrestricted")) {
                 post("analytics/{id}") {
                     val hmacPrincipal = call.principal<HMACPrincipal>()
 
@@ -81,10 +81,10 @@ fun Route.chartRoutes(
 
                     // Determine which type of authentication is being used
                     val jwtPrincipal = call.principal<JWTPrincipal>()
-                    println("JWT Principal: $jwtPrincipal")
-
                     val hmacPrincipal = call.principal<HMACPrincipal>()
-                    println("HMAC Principal: $hmacPrincipal")
+
+                    // println("JWT Principal: $jwtPrincipal")
+                    // println("HMAC Principal: $hmacPrincipal")
 
                     val charts = when {
                         // JWT authentication (dashboard user)

@@ -110,67 +110,82 @@ class ChartRepositoryImpl : ChartRepository {
         fetchVersions: Boolean,
         fetchContributors: Boolean = true,
         fetchStreamingLinks: Boolean = true
-    ): List<ChartResult>? {
+    ): List<ChartResult> {
         val startTime = System.currentTimeMillis()
 
+        // First, fetch the correctly filtered and sorted IDs with pagination
         val baseQuery = ChartTable.select(ChartTable.id)
-
         applyAllFilters(baseQuery, userId, chartIds, search, difficulties, genres)
         applyOrdering(baseQuery, sortBy, fetchVersions)
 
-        // Appy pagination
         limit?.takeIf { it > 0 }?.let { baseQuery.limit(it) }
         offset?.takeIf { it >= 0 }?.let { baseQuery.offset(it.toLong()) }
 
         val paginatedIds = baseQuery.map { it[ChartTable.id].value }
         if (paginatedIds.isEmpty()) return emptyList()
 
-        var fullQuery = ChartTable.selectAll().where { ChartTable.id inList paginatedIds }
+        // Now, fetch the full data for those specific IDs
+        val fullQuery = ChartTable.selectAll().where { ChartTable.id inList paginatedIds }
+
+        // Decoupled join logic
+        applyJoinsAndSelect(fullQuery, fetchVersions, fetchContributors, fetchStreamingLinks)
+
+        // Execute the query to get all chart data
+        val results = fullQuery.toList()
+
+        // Process results to group related entities (versions, contributors, etc.)
+        val processedResults = processResultsInMemory(results, fetchVersions, fetchContributors, fetchStreamingLinks)
+
+        // The database does not guarantee order with an `IN` clause,
+        // so we re-sort the results in memory based on the correctly ordered `paginatedIds`.
+        val chartMap = processedResults.associateBy { it.chart.id.value }
+        val sortedResults = paginatedIds.mapNotNull { id -> chartMap[id] }
+
+        val endTime = System.currentTimeMillis()
+        println("Charts fetch completed in ${endTime - startTime}ms with ${sortedResults.size} charts")
+
+        return sortedResults
+    }
+
+    /**
+     * Applies all optional joins to the main query and adjusts the selected columns.
+     */
+    private fun applyJoinsAndSelect(
+        query: Query,
+        fetchVersions: Boolean,
+        fetchContributors: Boolean,
+        fetchStreamingLinks: Boolean
+    ) {
+        val columnsToSelect = mutableListOf<Column<*>>(*ChartTable.columns.toTypedArray())
 
         if (fetchContributors) {
-            fullQuery = fullQuery.adjustColumnSet {
+            query.adjustColumnSet {
                 leftJoin(ContributorTable, { ChartTable.id }, { ContributorTable.chartId })
                     .leftJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
             }
+            columnsToSelect.addAll(ContributorTable.columns)
+            columnsToSelect.addAll(UserTable.columns)
         }
 
         if (fetchStreamingLinks) {
-            fullQuery = fullQuery.adjustColumnSet {
-                // Join through the junction table to get streaming links
+            query.adjustColumnSet {
                 leftJoin(ChartStreamingLinkTable, { ChartTable.id }, { ChartStreamingLinkTable.chartId })
-                    .leftJoin(StreamingLinkTable, { ChartStreamingLinkTable.streamingLinkId }, { StreamingLinkTable.id })
+                    .leftJoin(
+                        StreamingLinkTable,
+                        { ChartStreamingLinkTable.streamingLinkId },
+                        { StreamingLinkTable.id })
             }
+            columnsToSelect.addAll(StreamingLinkTable.columns)
         }
 
         if (fetchVersions) {
-            fullQuery = fullQuery.adjustColumnSet {
+            query.adjustColumnSet {
                 leftJoin(VersionTable, { ChartTable.id }, { VersionTable.chartId })
             }
+            columnsToSelect.addAll(VersionTable.columns)
         }
 
-        // Include subqueries for versions, contributors, and streaming links if requested
-        fullQuery.adjustSelect {
-            select(
-                ChartTable.columns +
-                        (if (fetchVersions) VersionTable.columns else emptyList()) +
-                        (if (fetchContributors) ContributorTable.columns + UserTable.columns else emptyList()) +
-                        (if (fetchStreamingLinks) StreamingLinkTable.columns else emptyList())
-            )
-        }
-
-        // Execute the query and fetch results
-        val results = fullQuery.toList()
-
-        // println(results.first().fieldIndex.keys.forEach { println("Column: $it") })
-        // println("Contributor 0: ${contributorEntityToContributor(ContributorEntity.wrapRow(results[0]))}")
-
-        // Process results in memory to avoid N+1 issues
-        val processedResults = processResultsInMemory(results, fetchVersions, fetchContributors, fetchStreamingLinks)
-
-        val endTime = System.currentTimeMillis()
-        println("Charts fetch completed in ${endTime - startTime}ms with ${processedResults.size} charts")
-
-        return processedResults
+        query.adjustSelect { select(columnsToSelect) }
     }
 
     private fun applyAllFilters(
@@ -188,29 +203,61 @@ class ChartRepositoryImpl : ChartRepository {
             }
         }
 
-        // Filter by userId if provided
+        // Filter by a specific list of chartIds if provided
         chartIds?.takeIf { it.isNotEmpty() }?.let { ids ->
             query.andWhere { ChartTable.id inList ids }
         }
 
-        // Search functionality
+        // Search functionality for artist, track, or album
         if (!search.isNullOrBlank()) {
-            val searchTerms = search.split(" ").map { it.trim().lowercase() }
-            val conditions = searchTerms.map { term ->
-                (ChartTable.artist.lowerCase() like "%$term%") or
-                        (ChartTable.track.lowerCase() like "%$term%") or
-                        (ChartTable.album.lowerCase() like "%$term%")
-            }
-            query.andWhere { conditions.reduce { acc, cond -> acc or cond } }
+            applySearch(search, query)
         }
 
-        // Filter by difficulties and genres
+        // Filter by difficulties
         difficulties?.takeIf { it.isNotEmpty() }?.let {
             query.andWhere { ChartTable.difficulty inList it }
         }
 
+        // Filter by genres
         genres?.takeIf { it.isNotEmpty() }?.let {
             query.andWhere { ChartTable.genre inList it }
+        }
+    }
+
+    private fun applySearch(
+        search: String,
+        query: Query
+    ) {
+        val normalizedSearchTerm = QueryUtils.getNormalizedQuery(search)
+        val searchTerms = normalizedSearchTerm.split(" ").filter { it.isNotBlank() } // Split and filter empty terms
+
+        // --- WHERE Clause: Combine search conditions ---
+        val whereConditions = mutableListOf<Op<Boolean>>()
+
+        // 1. Exact phrase match on any normalized field (highest relevance)
+        val exactPhraseMatchCondition = (ChartTable.normalizedArtist like "%$normalizedSearchTerm%") or
+                (ChartTable.normalizedTrack like "%$normalizedSearchTerm%") or
+                (ChartTable.normalizedAlbum like "%$normalizedSearchTerm%")
+        whereConditions.add(exactPhraseMatchCondition)
+
+        // 2. All individual terms present in any normalized field (good relevance)
+        if (searchTerms.isNotEmpty()) {
+            val allTermsPresentCondition = searchTerms.map { term ->
+                (ChartTable.normalizedArtist like "%$term%") or
+                        (ChartTable.normalizedTrack like "%$term%") or
+                        (ChartTable.normalizedAlbum like "%$term%")
+            }.reduce { acc, cond -> acc and cond } // All individual terms must be present somewhere
+            whereConditions.add(allTermsPresentCondition)
+        }
+
+        // Combine all WHERE conditions with OR
+        if (whereConditions.isNotEmpty()) {
+            query.andWhere {
+                whereConditions.reduce { acc, cond -> acc or cond }
+            }
+        } else {
+            // Should not happen if search is not blank, but as a safeguard
+            return // No conditions
         }
     }
 
@@ -219,14 +266,14 @@ class ChartRepositoryImpl : ChartRepository {
             ChartSortOption.LAST_UPDATED -> {
                 query
                     .adjustColumnSet {
-                        // If fetchVersions is true, we do a left join to get all versions
+                        // If fetchVersions is true, we do a left join to get all versions for later processing.
+                        // If false, we do an inner join just to get the latest version's date for sorting.
                         if (fetchVersions)
                             leftJoin(
                                 VersionTable,
                                 { ChartTable.id },
                                 { VersionTable.chartId }
                             )
-                        // If fetchVersions is false, we do an inner join to get only the latest version
                         else innerJoin(
                             VersionTable,
                             { ChartTable.latestVersionId },
@@ -236,9 +283,10 @@ class ChartRepositoryImpl : ChartRepository {
                     .orderBy(VersionTable.publishedAt to SortOrder.DESC)
             }
 
-            else -> {
+            else -> { // Defaults to MOST_DOWNLOADED
                 query
                     .adjustColumnSet {
+                        // This join is necessary to access the downloadsAmount for summation
                         leftJoin(VersionTable, { ChartTable.id }, { VersionTable.chartId })
                     }
                     .groupBy(ChartTable.id)
@@ -327,10 +375,6 @@ class ChartRepositoryImpl : ChartRepository {
             fetchVersions
         )
 
-        if (result == null) {
-            return@newSuspendedTransaction emptyList()
-        }
-
         val charts = result.map { chartResult ->
             daoToChart(
                 entity = chartResult.chart,
@@ -368,10 +412,6 @@ class ChartRepositoryImpl : ChartRepository {
             offset,
             true
         )
-
-        if (result == null) {
-            return@newSuspendedTransaction emptyList()
-        }
 
         val charts = result.map { chartResult ->
             daoToAppChart(
