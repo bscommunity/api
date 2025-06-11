@@ -19,7 +19,7 @@ class VersionRepositoryImpl : VersionRepository {
             chartId = entity.chart.id.value,
             index = entity.index,
             chartUrl = entity.chartUrl,
-            chartPreviewUrls = entity.chartPreviewUrls,
+            chartPreviewUrl = entity.chartPreviewUrl,
             duration = entity.duration,
             notesAmount = entity.notesAmount,
             effectsAmount = entity.effectsAmount,
@@ -37,7 +37,7 @@ class VersionRepositoryImpl : VersionRepository {
             this.chart = chartEntity
             this.index = chartEntity.versions.count().toInt()
             this.chartUrl = version.chartUrl
-            this.chartPreviewUrls = version.chartPreviewUrls ?: emptyList()
+            this.chartPreviewUrl = version.chartPreviewUrl
             this.duration = version.duration
             this.notesAmount = version.notesAmount
             this.effectsAmount = version.effectsAmount

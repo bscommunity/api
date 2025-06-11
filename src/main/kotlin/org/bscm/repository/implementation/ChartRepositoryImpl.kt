@@ -46,9 +46,7 @@ class ChartRepositoryImpl : ChartRepository {
         track = entity.track,
         artist = entity.artist,
         coverUrl = entity.coverUrl,
-        isDeluxe = entity.isDeluxe,
         isExplicit = entity.isExplicit,
-        difficulty = entity.difficulty,
         isFeatured = entity.isFeatured,
         isPublic = entity.isPublic,
         genre = entity.genre,
@@ -72,9 +70,7 @@ class ChartRepositoryImpl : ChartRepository {
             trackUrls = streamingLinks ?: emptyList(),
             trackPreviewUrl = entity.trackPreviewUrl,
             coverUrl = entity.coverUrl,
-            isDeluxe = entity.isDeluxe,
             isExplicit = entity.isExplicit,
-            difficulty = entity.difficulty,
             isFeatured = entity.isFeatured,
             genre = entity.genre,
             latestVersion = latestVersion,
@@ -215,7 +211,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         // Filter by difficulties
         difficulties?.takeIf { it.isNotEmpty() }?.let {
-            query.andWhere { ChartTable.difficulty inList it }
+            query.andWhere { VersionTable.difficulty inList it }
         }
 
         // Filter by genres
@@ -451,8 +447,6 @@ class ChartRepositoryImpl : ChartRepository {
             this.album = chart.album
             this.trackPreviewUrl = chart.trackPreviewUrl
             this.coverUrl = chart.coverUrl
-            this.difficulty = chart.difficulty
-            this.isDeluxe = chart.isDeluxe
             this.isExplicit = chart.isExplicit
             this.genre = chart.genre
             this.latestVersion = null
@@ -492,11 +486,13 @@ class ChartRepositoryImpl : ChartRepository {
             this.chart = newChart
             this.index = 0
             this.chartUrl = chart.chartUrl
-            this.chartPreviewUrls = chart.chartPreviewUrls
+            this.chartPreviewUrl = chart.chartPreviewUrl
             this.duration = chart.duration
             this.notesAmount = chart.notesAmount
             this.effectsAmount = chart.effectsAmount
             this.bpm = chart.bpm
+            this.difficulty = chart.difficulty
+            this.isDeluxe = chart.isDeluxe
         }
 
         ChartEntity.findByIdAndUpdate(newChart.id.value) {
@@ -530,8 +526,6 @@ class ChartRepositoryImpl : ChartRepository {
             it.artist = chart.artist ?: it.artist
             it.track = chart.track ?: it.track
             it.coverUrl = chart.coverUrl ?: it.coverUrl
-            it.difficulty = chart.difficulty ?: it.difficulty
-            it.isDeluxe = chart.isDeluxe ?: it.isDeluxe
             it.isExplicit = chart.isExplicit ?: it.isExplicit
             it.isFeatured = chart.isFeatured ?: it.isFeatured
             it.isPublic = chart.isPublic ?: it.isPublic

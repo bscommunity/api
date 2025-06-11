@@ -1,6 +1,7 @@
 package org.bscm.models.dto.version
 
 import kotlinx.serialization.Serializable
+import org.bscm.models.enums.Difficulty
 import org.bscm.serialization.UUIDSerializer
 import java.util.*
 
@@ -13,5 +14,7 @@ data class CreateVersionRequest(
     val effectsAmount: Int,
     val bpm: Int,
     val chartUrl: String,
-    val chartPreviewUrls: List<String>? = null
+    val chartPreviewUrl: String,
+    val difficulty: Difficulty,
+    val isDeluxe: Boolean,
 )

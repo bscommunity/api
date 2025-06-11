@@ -12,16 +12,16 @@ data class CreateChartRequest (
     val trackUrls: List<CreateStreamingLink>,
     val trackPreviewUrl: String,
     val coverUrl: String,
-    val difficulty: Difficulty,
     val genre: Genre? = null,
-    val isDeluxe: Boolean,
     val isExplicit: Boolean,
 
     // First version properties
     val chartUrl: String,
-    val chartPreviewUrls: List<String>,
+    val chartPreviewUrl: String,
     val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,
     val bpm: Int,
+    val difficulty: Difficulty,
+    val isDeluxe: Boolean,
 )
