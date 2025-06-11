@@ -1,5 +1,6 @@
 package org.bscm.models.dao
 
+import org.bscm.models.tables.ChartStreamingLinkTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContributorTable
 import org.bscm.models.tables.VersionTable
@@ -14,15 +15,16 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var artist by ChartTable.artist
     var track by ChartTable.track
     var album by ChartTable.album
-    var genre by ChartTable.genre
 
-    // var normalizedArtist by ChartTable.normalizedArtist
-    // var normalizedTrack by ChartTable.normalizedTrack
-    // var normalizedAlbum by ChartTable.normalizedAlbum
+    var normalizedArtist by ChartTable.normalizedArtist
+    var normalizedTrack by ChartTable.normalizedTrack
+    var normalizedAlbum by ChartTable.normalizedAlbum
 
     var trackPreviewUrl by ChartTable.trackPreviewUrl
     var coverUrl by ChartTable.coverUrl
-
+    var isDeluxe by ChartTable.isDeluxe
+    var difficulty by ChartTable.difficulty
+    var genre by ChartTable.genre
     var isExplicit by ChartTable.isExplicit
     var isFeatured by ChartTable.isFeatured
     var isPublic by ChartTable.isPublic
@@ -30,7 +32,7 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var latestVersion by VersionEntity optionalReferencedOn ChartTable.latestVersionId
 
     // Updated: Many-to-many relationship through junction table
-    // val trackUrls by StreamingLinkEntity.via(ChartStreamingLinkTable.chartId, ChartStreamingLinkTable.streamingLinkId)
+    val trackUrls by StreamingLinkEntity.via(ChartStreamingLinkTable.chartId, ChartStreamingLinkTable.streamingLinkId)
 
     val versions by VersionEntity referrersOn VersionTable.chartId
     val contributors by ContributorEntity referrersOn ContributorTable.chartId
