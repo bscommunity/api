@@ -134,11 +134,12 @@ fun Route.chartRoutes(
                         return@get
                     }
 
-                    // Check authentication type and call appropriate method
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
                     val hmacPrincipal = call.principal<HMACPrincipal>()
 
                     val chart = when {
-                        hmacPrincipal != null -> chartRepository.getChartById(id)
+                        jwtPrincipal != null -> chartRepository.getChartById(id)
+                        hmacPrincipal != null -> chartRepository.getAppChartById(id)
                         else -> {
                             call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
                             return@get

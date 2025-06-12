@@ -19,7 +19,7 @@ object VersionTable : UUIDTable("version") {
     val bpm = integer("bpm")
 
     val chartUrl = varchar("chart_url", 255)
-    val chartPreviewUrl = varchar("chart_preview_url", 255).nullable()
+    val chartPreviewUrl = varchar("chart_preview_url", 100).nullable()
 
     val downloadsAmount = integer("downloads_amount").default(0)
     val knownIssues = jsonb(

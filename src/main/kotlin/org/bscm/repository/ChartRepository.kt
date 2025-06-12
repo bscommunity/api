@@ -34,6 +34,7 @@ interface ChartRepository {
     ): List<AppChart>
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: UUID): Chart?
+    suspend fun getAppChartById(id: UUID): AppChart?
     suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart
     suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart
     suspend fun deleteChart(id: UUID): Boolean

@@ -85,17 +85,53 @@ class ChartRepositoryImpl : ChartRepository {
     }
 
     override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
-        ChartEntity.findById(id)?.let { chartEntity ->
-            daoToChart(
-                chartEntity,
-                chartEntity.versions.map { versionEntity ->
-                    versionEntityToVersion(versionEntity)
-                },
-                chartEntity.contributors.map { contributorEntity ->
-                    contributorEntityToContributor(contributorEntity)
-                }
-            )
-        }
+        val query = ChartTable.selectAll()
+            .where { ChartTable.id eq id }
+
+        applyJoinsAndSelect(query, fetchVersions = -1, fetchContributors = true, fetchStreamingLinks = false)
+        val processedResults = processResultsInMemory(
+            query.toList(),
+            includeVersions = true,
+            includeContributors = true,
+            includeStreamingLinks = false
+        )
+
+        if (processedResults.isEmpty()) return@newSuspendedTransaction null
+
+        val chartResult = processedResults.first()
+
+        daoToChart(
+            entity = chartResult.chart,
+            versions = chartResult.versions?.map { versionEntityToVersion(it) },
+            contributors = chartResult.contributors?.map {
+                contributorEntityToContributor(it.component1(), it.component2())
+            }
+        )
+    }
+
+    override suspend fun getAppChartById(id: UUID): AppChart? = newSuspendedTransaction {
+        val query = ChartTable.selectAll()
+            .where { ChartTable.id eq id }
+
+        applyJoinsAndSelect(query, fetchVersions = 1, fetchContributors = true, fetchStreamingLinks = true)
+        val processedResults = processResultsInMemory(
+            query.toList(),
+            includeVersions = true,
+            includeContributors = true,
+            includeStreamingLinks = true
+        )
+
+        if (processedResults.isEmpty()) return@newSuspendedTransaction null
+
+        val chartResult = processedResults.first()
+        daoToAppChart(
+            entity = chartResult.chart,
+            streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
+            versions = chartResult.versions?.map { versionEntityToVersion(it) },
+            contributors = chartResult.contributors?.map {
+                contributorEntityToContributor(it.component1(), it.component2())
+            }
+        )
     }
 
     private fun fetchChartEntities(
@@ -107,7 +143,7 @@ class ChartRepositoryImpl : ChartRepository {
         genres: List<Genre>?,
         limit: Int?,
         offset: Int?,
-        fetchVersions: Boolean,
+        fetchVersions: Int = 0,
         fetchContributors: Boolean = true,
         fetchStreamingLinks: Boolean = true
     ): List<ChartResult> {
@@ -116,7 +152,7 @@ class ChartRepositoryImpl : ChartRepository {
         // First, fetch the correctly filtered and sorted IDs with pagination
         val baseQuery = ChartTable.select(ChartTable.id)
         applyAllFilters(baseQuery, userId, chartIds, search, difficulties, genres)
-        applyOrdering(baseQuery, sortBy, fetchVersions)
+        applyOrdering(baseQuery, sortBy)
 
         limit?.takeIf { it > 0 }?.let { baseQuery.limit(it) }
         offset?.takeIf { it >= 0 }?.let { baseQuery.offset(it.toLong()) }
@@ -134,7 +170,12 @@ class ChartRepositoryImpl : ChartRepository {
         val results = fullQuery.toList()
 
         // Process results to group related entities (versions, contributors, etc.)
-        val processedResults = processResultsInMemory(results, fetchVersions, fetchContributors, fetchStreamingLinks)
+        val processedResults = processResultsInMemory(
+            results,
+            includeVersions = fetchVersions != 0,
+            includeContributors = fetchContributors,
+            includeStreamingLinks = fetchStreamingLinks
+        )
 
         // The database does not guarantee order with an `IN` clause,
         // so we re-sort the results in memory based on the correctly ordered `paginatedIds`.
@@ -152,9 +193,9 @@ class ChartRepositoryImpl : ChartRepository {
      */
     private fun applyJoinsAndSelect(
         query: Query,
-        fetchVersions: Boolean,
-        fetchContributors: Boolean,
-        fetchStreamingLinks: Boolean
+        fetchVersions: Int = 0,
+        fetchContributors: Boolean = false,
+        fetchStreamingLinks: Boolean = false,
     ) {
         val columnsToSelect = mutableListOf<Column<*>>(*ChartTable.columns.toTypedArray())
 
@@ -178,9 +219,18 @@ class ChartRepositoryImpl : ChartRepository {
             columnsToSelect.addAll(StreamingLinkTable.columns)
         }
 
-        if (fetchVersions) {
+        if (fetchVersions < 0) {
             query.adjustColumnSet {
                 leftJoin(VersionTable, { ChartTable.id }, { VersionTable.chartId })
+            }
+            columnsToSelect.addAll(VersionTable.columns)
+        } else if (fetchVersions == 1) {
+            query.adjustColumnSet {
+                innerJoin(
+                    VersionTable,
+                    { ChartTable.latestVersionId },
+                    { VersionTable.id }
+                )
             }
             columnsToSelect.addAll(VersionTable.columns)
         }
@@ -261,24 +311,12 @@ class ChartRepositoryImpl : ChartRepository {
         }
     }
 
-    private fun applyOrdering(query: Query, sortBy: ChartSortOption, fetchVersions: Boolean) {
+    private fun applyOrdering(query: Query, sortBy: ChartSortOption) {
         when (sortBy) {
             ChartSortOption.LAST_UPDATED -> {
                 query
                     .adjustColumnSet {
-                        // If fetchVersions is true, we do a left join to get all versions for later processing.
-                        // If false, we do an inner join just to get the latest version's date for sorting.
-                        if (fetchVersions)
-                            leftJoin(
-                                VersionTable,
-                                { ChartTable.id },
-                                { VersionTable.chartId }
-                            )
-                        else innerJoin(
-                            VersionTable,
-                            { ChartTable.latestVersionId },
-                            { VersionTable.id }
-                        )
+                        innerJoin(VersionTable, { ChartTable.latestVersionId }, { VersionTable.id })
                     }
                     .orderBy(VersionTable.publishedAt to SortOrder.DESC)
             }
@@ -297,9 +335,9 @@ class ChartRepositoryImpl : ChartRepository {
 
     private fun processResultsInMemory(
         results: List<ResultRow>,
-        fetchVersions: Boolean,
-        fetchContributors: Boolean,
-        fetchStreamingLinks: Boolean
+        includeVersions: Boolean,
+        includeContributors: Boolean,
+        includeStreamingLinks: Boolean
     ): List<ChartResult> {
         // Group the rows by Chart ID
         val groupedByChartId = results.groupBy { it[ChartTable.id].value }
@@ -307,7 +345,7 @@ class ChartRepositoryImpl : ChartRepository {
         return groupedByChartId.map { (chartId, rows) ->
             val chartEntity = ChartEntity.wrapRow(rows.first())
 
-            val streamingLinks = if (fetchStreamingLinks) {
+            val streamingLinks = if (includeStreamingLinks) {
                 rows.mapNotNull { row ->
                     // Check if streaming link data exists in this row
                     row.getOrNull(StreamingLinkTable.id)?.let { streamingLinkId ->
@@ -319,7 +357,7 @@ class ChartRepositoryImpl : ChartRepository {
                 }.distinctBy { it.id.value } // Use .value for UUID comparison
             } else emptyList()
 
-            val versions = if (fetchVersions) {
+            val versions = if (includeVersions) {
                 rows.mapNotNull { row ->
                     row.getOrNull(VersionTable.id)?.let { versionId ->
                         // Additional null check for version-specific data
@@ -330,7 +368,7 @@ class ChartRepositoryImpl : ChartRepository {
                 }.distinctBy { it.id.value } // Use .value for UUID comparison
             } else null
 
-            val contributors = if (fetchContributors) {
+            val contributors = if (includeContributors) {
                 rows.mapNotNull { row ->
                     // Check if contributor data exists
                     row.getOrNull(ContributorTable.userId)?.let { userId ->
@@ -372,7 +410,7 @@ class ChartRepositoryImpl : ChartRepository {
             genres,
             limit,
             offset,
-            fetchVersions
+            fetchVersions = if (fetchVersions) -1 else 0,
         )
 
         val charts = result.map { chartResult ->
@@ -410,7 +448,7 @@ class ChartRepositoryImpl : ChartRepository {
             genres,
             limit,
             offset,
-            true
+            fetchVersions = 1
         )
 
         val charts = result.map { chartResult ->
@@ -469,10 +507,12 @@ class ChartRepositoryImpl : ChartRepository {
             }.firstOrNull()
 
             if (existingLink != null) {
+                // println("Using existing streaming link: ${existingLink.platform} - ${existingLink.url}")
                 // Use existing streaming link
                 existingLink.id.value
             } else {
                 // Create new streaming link
+                // println("Creating new streaming link: ${streamingLinkRequest.platform} - ${streamingLinkRequest.url}")
                 val newLink = StreamingLinkEntity.new {
                     this.platform = streamingLinkRequest.platform
                     this.url = streamingLinkRequest.url
