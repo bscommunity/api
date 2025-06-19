@@ -58,26 +58,27 @@ private suspend fun generateRandomCharts(
 
     // Try to get existing users first
     for (i in 1..usersToCreate) {
-        try {
-            val user = userRepository.getUserByUsername("user$i")
-            if (user != null) users.add(user)
+        val user = userRepository.getUserByUsername("user$i")
+        if (user != null) {
+            users.add(user)
             logger.info("Found existing user: ${user?.username}")
-        } catch (e: Exception) {
-            // User doesn't exist, create new one
-            try {
-                val newUser = userRepository.createUser(
-                    user = CreateUserRequest(
-                        username = "user$i",
-                        email = "user$i@example.com",
-                        discordId = "${100000000000000000 + i}",
-                        imageUrl = "https://example.com/avatar$i.png"
-                    )
+            continue
+        }
+
+        // User doesn't exist, create new one
+        try {
+            val newUser = userRepository.createUser(
+                user = CreateUserRequest(
+                    username = "user$i",
+                    email = "user$i@example.com",
+                    discordId = "${100000000000000000 + i}",
+                    imageUrl = "https://example.com/avatar$i.png"
                 )
-                users.add(newUser)
-                logger.info("Created new user: ${newUser.username}")
-            } catch (e: Exception) {
-                logger.error("Failed to create user$i: ${e.message}", e)
-            }
+            )
+            users.add(newUser)
+            logger.info("Created new user: ${newUser.username}")
+        } catch (e: Exception) {
+            logger.error("Failed to create user$i: ${e.message}", e)
         }
     }
 
@@ -88,7 +89,6 @@ private suspend fun generateRandomCharts(
     }
 
     val userIds = users.map { it.id }
-
 
     val difficulties = Difficulty.entries.toTypedArray()
     val contributorRoles = ContributorRole.entries.toTypedArray()

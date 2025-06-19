@@ -169,6 +169,7 @@ class ChartRepositoryImpl : ChartRepository {
         // Execute the query to get all chart data
         val results = fullQuery.toList()
 
+
         // Process results to group related entities (versions, contributors, etc.)
         val processedResults = processResultsInMemory(
             results,
@@ -176,6 +177,8 @@ class ChartRepositoryImpl : ChartRepository {
             includeContributors = fetchContributors,
             includeStreamingLinks = fetchStreamingLinks
         )
+
+        println("Fetched ${processedResults.size} with filters: userId=$userId, chartIds=${chartIds?.joinToString()}, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
 
         // The database does not guarantee order with an `IN` clause,
         // so we re-sort the results in memory based on the correctly ordered `paginatedIds`.
