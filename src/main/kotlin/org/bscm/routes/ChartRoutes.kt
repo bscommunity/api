@@ -1,6 +1,7 @@
 package org.bscm.routes
 
 import io.ktor.http.*
+import io.ktor.http.content.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.*
@@ -8,6 +9,7 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.utils.io.*
 import org.bscm.models.KnownIssue
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
@@ -19,17 +21,20 @@ import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.plugins.HMACPrincipal
+import org.bscm.plugins.jsonClient
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.ContributorRepository
 import org.bscm.repository.KnownIssueRepository
 import org.bscm.repository.VersionRepository
+import org.bscm.services.UploadService
 import java.util.*
 
 fun Route.chartRoutes(
     chartRepository: ChartRepository,
     contributorRepository: ContributorRepository,
     knownIssueRepository: KnownIssueRepository,
-    versionRepository: VersionRepository
+    versionRepository: VersionRepository,
+    uploadService: UploadService,
 ) {
     route("/charts") {
         // Routes that accept both JWT or HMAC authentication
@@ -170,17 +175,53 @@ fun Route.chartRoutes(
             rateLimit(RateLimitName("protected")) {
                 // Create a new chart
                 post {
-                    val createRequest = call.receive<CreateChartRequest>()
-                    // println(createRequest)
+                    val multipart = call.receiveMultipart()
+                    var chartJson: String? = null
+                    var bundleFileBytes: ByteArray? = null
+
+                    multipart.forEachPart { part ->
+                        when (part) {
+                            is PartData.FormItem -> {
+                                if (part.name == "chart") {
+                                    chartJson = part.value
+                                }
+                            }
+                            is PartData.FileItem -> {
+                                if (part.name == "bundle") {
+                                    bundleFileBytes = part.provider().toByteArray()
+                                }
+                            }
+                            else -> {}
+                        }
+                        part.dispose()
+                    }
+
+                    if (chartJson == null || bundleFileBytes == null) {
+                        call.respond(HttpStatusCode.BadRequest, "Chart data ou bundle ausente")
+                        return@post
+                    }
+
+                    // Deserialize the chart JSON
+                    val createRequest = try {
+                        jsonClient.decodeFromString<CreateChartRequest>(chartJson)
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, "JSON do chart inválido: ${e.message}")
+                        return@post
+                    }
+
+                    println("Creating chart with request: $createRequest")
 
                     val principal = call.principal<JWTPrincipal>()
+                    val userId = principal?.subject?.let { UUID.fromString(it) }
+                        ?: throw Exception("User not authenticated")
 
-                    // println("Principal: $principal")
+                    // Upload the chart bundle
+                    val bundleId = uploadService.uploadChart(createRequest, bundleFileBytes)
+                    println("Successfully uploaded bundle with $bundleId")
 
-                    val userId =
-                        principal?.subject?.let { UUID.fromString(it) } ?: throw Exception("User not authenticated")
-
+                    // Create the chart in the repository
                     val createdChart = chartRepository.createChart(userId, createRequest)
+
                     call.respond(HttpStatusCode.Created, createdChart)
                 }
 

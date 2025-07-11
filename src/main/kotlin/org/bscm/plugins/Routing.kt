@@ -10,17 +10,22 @@ import org.bscm.repository.*
 import org.bscm.routes.authRoutes
 import org.bscm.routes.chartRoutes
 import org.bscm.routes.userRoutes
+import org.bscm.services.DiscordOAuthService
+import org.bscm.services.GoogleOAuthService
 import org.bscm.services.JWTService
-import org.bscm.services.OAuthService
+import org.bscm.services.UploadService
 import org.koin.ktor.ext.inject
 
 // Disclaimer: Dependency Injection can't be made inside 'routing { }' block
 
 fun Application.configureRouting() {
-    val oAuthService by inject<OAuthService>()
-    val userRepository by inject<UserRepository>()
+    val discordOAuthService : DiscordOAuthService by inject()
+    val googleOAuthService : GoogleOAuthService by inject()
+
+    val uploadService by inject<UploadService>()
     val jwtService by inject<JWTService>()
 
+    val userRepository by inject<UserRepository>()
     val chartRepository by inject<ChartRepository>()
     val contributorRepository by inject<ContributorRepository>()
     val knownIssueRepository by inject<KnownIssueRepository>()
@@ -38,8 +43,8 @@ fun Application.configureRouting() {
             call.respond(HttpStatusCode.OK)
         }
 
-        authRoutes(userRepository, oAuthService, jwtService)
-        chartRoutes(chartRepository, contributorRepository, knownIssueRepository, versionRepository)
+        authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
+        chartRoutes(chartRepository, contributorRepository, knownIssueRepository, versionRepository, uploadService)
         userRoutes(userRepository)
     }
 }

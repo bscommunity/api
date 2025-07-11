@@ -3,9 +3,7 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import org.bscm.repository.*
 import org.bscm.repository.implementation.*
-import org.bscm.services.HMACService
-import org.bscm.services.JWTService
-import org.bscm.services.OAuthService
+import org.bscm.services.*
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
@@ -29,9 +27,17 @@ val mainModule = module {
     single { HMACService(
         secret = System.getenv("HMAC_SECRET")
     ) }
-    single { OAuthService(
+    single { DiscordOAuthService(
         clientId = System.getenv("DISCORD_CLIENT_ID"),
         clientSecret = System.getenv("DISCORD_CLIENT_SECRET"),
         redirectUri = System.getenv("DISCORD_REDIRECT_URI")
+    ) }
+    single { GoogleOAuthService(
+        clientId = System.getenv("GOOGLE_CLIENT_ID"),
+        clientSecret = System.getenv("GOOGLE_CLIENT_SECRET"),
+        redirectUri = System.getenv("GOOGLE_REDIRECT_URI")
+    ) }
+    single { UploadService(
+        webhookUrl = System.getenv("DISCORD_WEBHOOK_URL")
     ) }
 }

@@ -29,12 +29,13 @@ fun Application.configureDatabases(config: ApplicationConfig) {
         addLogger(StdOutSqlLogger)
 
         // DANGER: Uncommenting the following lines will drop existing tables and create new ones.
-        // val schema = Schema("public")
-        // SchemaUtils.dropSchema(schema, cascade = true)
-        // SchemaUtils.createSchema(schema)
+        /*val schema = Schema("public")
+        SchemaUtils.dropSchema(schema, cascade = true)
+        SchemaUtils.createSchema(schema)*/
 
         SchemaUtils.create(
             UserTable,
+            AccountTable,
             ChartTable,
             VersionTable,
             ContributorTable,

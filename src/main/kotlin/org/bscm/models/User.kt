@@ -18,7 +18,8 @@ data class User(
     val imageUrl: String?,
     val discordId: String,
     @Serializable(with = LocalDateSerializer::class)
-    val createdAt: LocalDate
+    val createdAt: LocalDate,
+    val accounts: List<Account>? = null // Optional, can be null if no account is associated
 ) {
     companion object {
         fun create(request: CreateUserRequest): User {

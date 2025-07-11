@@ -112,7 +112,6 @@ fun Application.configureSecurity(
     val hmacSecret = config.property("hmac.secret").getString()
 
     install(Authentication) {
-        // Existing JWT authentication
         jwt("auth-jwt") {
             verifier(
                 JWT
@@ -133,7 +132,6 @@ fun Application.configureSecurity(
             realm = jwtRealm
         }
 
-        // New HMAC authentication for mobile app
         hmac("auth-hmac") {
             this.hmacService = hmacService
             this.hmacSecret = hmacSecret

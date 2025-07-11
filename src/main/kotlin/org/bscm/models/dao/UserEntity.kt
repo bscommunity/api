@@ -1,5 +1,6 @@
 package org.bscm.models.dao
 
+import org.bscm.models.tables.AccountTable
 import org.bscm.models.tables.UserTable
 import org.jetbrains.exposed.dao.UUIDEntity
 import org.jetbrains.exposed.dao.UUIDEntityClass
@@ -15,4 +16,6 @@ class UserEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var imageUrl by UserTable.imageUrl
     var discordId by UserTable.discordId
     var createdAt by UserTable.createdAt
+
+    val accounts by AccountEntity referrersOn AccountTable.userId
 }

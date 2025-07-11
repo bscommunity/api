@@ -9,11 +9,13 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.cors.routing.*
 import kotlinx.serialization.json.Json
 
+val jsonClient = Json {
+    ignoreUnknownKeys = true
+}
+
 val applicationHttpClient = HttpClient(CIO) {
     install(ContentNegotiation) {
-        json(Json {
-            ignoreUnknownKeys = true
-        })
+        json(jsonClient)
     }
 }
 
