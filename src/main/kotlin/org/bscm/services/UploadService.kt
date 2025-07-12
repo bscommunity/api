@@ -4,7 +4,6 @@ import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.plugins.applicationHttpClient
 import org.bscm.plugins.jsonClient
@@ -19,23 +18,18 @@ class UploadService(
         val durationFormatted = String.format("%d:%02d", (chart.duration / 60).toInt(), (chart.duration % 60).toInt())
 
         val fields = listOf(
-            EmbedField("🎚️ Difficulty", chart.difficulty.name),
-            EmbedField("💿 Deluxe", if (chart.isDeluxe) "Yes" else "No"),
-            EmbedField("⚠️ Explicit", if (chart.isExplicit) "Yes" else "No"),
-            EmbedField("🕒 Duration", durationFormatted),
-            EmbedField("🎵 Notes", chart.notesAmount.toString()),
-            EmbedField("✨ Effects", chart.effectsAmount.toString()),
-            EmbedField("🎶 BPM", chart.bpm.toString()),
-            EmbedField(
-                name = "📁 Chart",
-                value = "[▶️ Preview](${chart.chartPreviewUrl}) • [📄 File](${chart.chartUrl})",
-                inline = false
-            )
+            EmbedField("🎚️ Difficulty", chart.difficulty.name, true),
+            EmbedField("💿 Deluxe", if (chart.isDeluxe) "Yes" else "No", true),
+            EmbedField("⚠️ Explicit", if (chart.isExplicit) "Yes" else "No", true),
+            EmbedField("🕒 Duration", durationFormatted, true),
+            EmbedField("🎵 Notes", chart.notesAmount.toString(), true),
+            EmbedField("✨ Effects", chart.effectsAmount.toString(), true),
+            EmbedField("🎶 BPM", chart.bpm.toString(), true),
         )
 
         val embed = WebhookEmbed(
-            title = "🎵 ${chart.track} – ${chart.artist}",
-            description = "_A new chart has just landed!_",
+            title = "${chart.track} – ${chart.artist}",
+            // description = "_A new chart has just landed!_",
             color = 0x1DB954, // green
             thumbnail = Thumbnail(chart.coverUrl),
             fields = fields,
@@ -47,7 +41,9 @@ class UploadService(
             embeds = listOf(embed)
         )
 
-        return Json.encodeToString(WebhookPayload.serializer(), payload)
+        println(jsonClient.encodeToString(WebhookPayload.serializer(), payload))
+
+        return jsonClient.encodeToString(WebhookPayload.serializer(), payload)
     }
 
     suspend fun uploadChart(chart: CreateChartRequest, chartBundle: ByteArray): DiscordMessageResponse {
