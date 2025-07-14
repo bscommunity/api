@@ -23,9 +23,9 @@ data class AppChart (
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
     val isFeatured: Boolean,
-    val latestVersion: Version? = null,
-    val downloadsSum: Int? = null, // Room Database (from the Android app) expects simple fields to query
+    val latestVersion: Version,
+    val downloadsSum: Int = 0, // Room Database (from the Android app) expects simple fields to query
     @Serializable(with = LocalDateSerializer::class)
-    val latestPublishedAt: LocalDate? = null, // Room Database (from the Android app) expects simple fields to query
+    val latestPublishedAt: LocalDate, // Room Database (from the Android app) expects simple fields to query
     val contributors: List<Contributor> = emptyList()
 )

@@ -197,7 +197,7 @@ fun Route.chartRoutes(
                     }
 
                     if (chartJson == null || bundleFileBytes == null) {
-                        call.respond(HttpStatusCode.BadRequest, "Chart data ou bundle ausente")
+                        call.respond(HttpStatusCode.BadRequest, "Chart data or bundle missing")
                         return@post
                     }
 
@@ -205,7 +205,7 @@ fun Route.chartRoutes(
                     val createRequest = try {
                         jsonClient.decodeFromString<CreateChartRequest>(chartJson)
                     } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, "JSON do chart inválido: ${e.message}")
+                        call.respond(HttpStatusCode.BadRequest, "Invalid chart JSON: ${e.message}")
                         return@post
                     }
 
@@ -215,12 +215,14 @@ fun Route.chartRoutes(
                     val userId = principal?.subject?.let { UUID.fromString(it) }
                         ?: throw Exception("User not authenticated")
 
-                    // Upload the chart bundle
-                    val bundleId = uploadService.uploadChart(createRequest, bundleFileBytes)
-                    println("Successfully uploaded bundle with $bundleId")
-
                     // Create the chart in the repository
                     val createdChart = chartRepository.createChart(userId, createRequest)
+
+                    println("Created chart: $createdChart")
+
+                    // Upload the chart bundle
+                    val bundleId = uploadService.uploadChart(createdChart, bundleFileBytes)
+                    println("Successfully uploaded bundle with $bundleId")
 
                     call.respond(HttpStatusCode.Created, createdChart)
                 }

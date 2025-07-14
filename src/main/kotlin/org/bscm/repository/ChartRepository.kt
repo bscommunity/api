@@ -20,7 +20,6 @@ interface ChartRepository {
         genres: List<Genre>? = null,
         limit: Int? = null,
         offset: Int? = null,
-        fetchVersions: Boolean = true,
     ): List<Chart>
     suspend fun getCharts(
         chartIds: List<UUID>?,
@@ -35,9 +34,13 @@ interface ChartRepository {
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: UUID): Chart?
     suspend fun getAppChartById(id: UUID): AppChart?
-    suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart
+    suspend fun createChart(userId: UUID, chart: CreateChartRequest): AppChart
     suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart
     suspend fun deleteChart(id: UUID): Boolean
+    suspend fun updateChartLinks(
+        chartId: UUID,
+        links: Map<String, String>
+    ): Boolean
     suspend fun postAnalytics(
         chartId: UUID,
         action: AnalyticsOption

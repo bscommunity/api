@@ -11,7 +11,6 @@ import kotlinx.serialization.json.Json
 
 val jsonClient = Json {
     ignoreUnknownKeys = true
-    encodeDefaults = true // Used by UploadService to properly build the Discord webhook payload
 }
 
 val applicationHttpClient = HttpClient(CIO) {

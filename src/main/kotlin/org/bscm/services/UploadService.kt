@@ -3,42 +3,177 @@ package org.bscm.services
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.bscm.models.dto.chart.CreateChartRequest
+import org.bscm.models.AppChart
+import org.bscm.models.StreamingLink
+import org.bscm.models.enums.Difficulty
+import org.bscm.models.enums.StreamingPlatform
 import org.bscm.plugins.applicationHttpClient
 import org.bscm.plugins.jsonClient
+import java.util.*
 
 class UploadService(
     private val webhookUrl: String,
 ) {
-    @Serializable
-    data class DiscordMessageResponse(val id: String)
+    private val hardIcon = "<:hard:1393411882282385458>"
+    private val extremeIcon = "<:extreme:1393411884291309608>"
+    private val deluxeIcon = "<:deluxe:1393402180991586365>"
+    private val explicitIcon = "<:explicit:1393411886690586705>"
 
-    private fun buildWebhookPayload(chart: CreateChartRequest): String {
-        val durationFormatted = String.format("%d:%02d", (chart.duration / 60).toInt(), (chart.duration % 60).toInt())
+    private val durationIcon = "<:duration:1393800289940672635>"
+    private val noteIcon = "<:note:1393800294030114919>"
+    private val effectIcon = "<:effect:1393800291719053392>"
+    private val downloadIcon = "<:download:1393800288271335525>"
+    private val lastUpdatedIcon = "<:last_updated:1393800286639886496>"
+
+    @Serializable
+    data class DiscordMessageResponse(
+        val id: String,
+        @SerialName("channel_id") val channelId: String,
+    )
+
+    private fun getButtonForPlatform(platform: StreamingPlatform, url: String): Button {
+        return when (platform) {
+            StreamingPlatform.SPOTIFY -> Button(
+                type = 2,
+                style = 5,
+                label = "Spotify",
+                emoji = Emoji("1393805551602892860", "spotify", false),
+                url = url,
+                // customId = "spotify_button"
+            )
+
+            StreamingPlatform.APPLE_MUSIC -> Button(
+                type = 2,
+                style = 5,
+                label = "Apple Music",
+                emoji = Emoji("1393805548180344923", "itunes", false),
+                url = url,
+                // customId = "apple_music_button"
+            )
+
+            StreamingPlatform.YOUTUBE_MUSIC -> Button(
+                type = 2,
+                style = 5,
+                label = "YouTube Music",
+                emoji = Emoji("1393805555457589301", "unknown", false),
+                url = url,
+                // customId = "youtube_music_button"
+            )
+
+            StreamingPlatform.TIDAL -> Button(
+                type = 2,
+                style = 5,
+                label = "Tidal",
+                emoji = Emoji("1393805553297522841", "tidal", false),
+                url = url,
+                // customId = "tidal_button"
+            )
+
+            StreamingPlatform.DEEZER -> Button(
+                type = 2,
+                style = 5,
+                label = "Deezer",
+                emoji = Emoji("1393805549707071588", "deezer", false),
+                url = url,
+                // customId = "deezer_button"
+            )
+
+            StreamingPlatform.AMAZON_MUSIC -> Button(
+                type = 2,
+                style = 5,
+                label = "Amazon Music",
+                emoji = Emoji("1394147798772879371", "amazon_music", false),
+                url = url,
+                // customId = "amazon_music"
+            )
+
+            StreamingPlatform.SOUNDCLOUD -> Button(
+                type = 2,
+                style = 5,
+                label = "Soundcloud",
+                emoji = Emoji("1394147704598302760", "soundcloud", false),
+                url = url,
+                // customId = "soundcloud_button"
+            )
+
+            else -> Button(
+                type = 2,
+                style = 5,
+                label = platform.name,
+                url = url,
+            )
+        }
+    }
+
+    private fun buildComponents(trackUrls: List<StreamingLink>): List<ActionRow> {
+        if (trackUrls.isEmpty()) return emptyList()
+
+        val buttons = trackUrls.map { streamingLink ->
+            getButtonForPlatform(streamingLink.platform, streamingLink.url)
+        }
+
+        // Organize buttons into rows of up to 3 buttons each
+        return buttons.chunked(3).map { buttonGroup ->
+            ActionRow(type = 1, components = buttonGroup)
+        }
+    }
+
+    private fun buildWebhookPayload(chart: AppChart): String {
+        val latestVersion = chart.latestVersion
+        val durationFormatted =
+            String.format("%dm%ds", (latestVersion.duration / 60).toInt(), (latestVersion.duration % 60).toInt())
+
+        // Build title with icons based on chart properties
+        val titleIcons = buildString {
+            when (chart.difficulty) {
+                Difficulty.HARD -> append(" $hardIcon")
+                Difficulty.EXTREME -> append(" $extremeIcon")
+                else -> {} // No icon for NORMAL and EXPERT
+            }
+            if (chart.isDeluxe) append(" $deluxeIcon")
+            if (chart.isExplicit) append(" $explicitIcon")
+        }
+
+        val title = "${chart.track} – ${chart.artist}$titleIcons"
 
         val fields = listOf(
-            EmbedField("🎚️ Difficulty", chart.difficulty.name, true),
-            EmbedField("💿 Deluxe", if (chart.isDeluxe) "Yes" else "No", true),
-            EmbedField("⚠️ Explicit", if (chart.isExplicit) "Yes" else "No", true),
-            EmbedField("🕒 Duration", durationFormatted, true),
-            EmbedField("🎵 Notes", chart.notesAmount.toString(), true),
-            EmbedField("✨ Effects", chart.effectsAmount.toString(), true),
-            EmbedField("🎶 BPM", chart.bpm.toString(), true),
+            EmbedField(" ", "$durationIcon $durationFormatted", true),
+            EmbedField(" ", "$noteIcon ${latestVersion.notesAmount} notes", true),
+            EmbedField(" ", " ", true),
+            EmbedField(" ", "$effectIcon ${latestVersion.effectsAmount} effects", true),
+            EmbedField(" ", "$downloadIcon +${chart.downloadsSum} downloads", true),
+            EmbedField(" ", " ", true),
+            EmbedField(" ", "$lastUpdatedIcon Updated yesterday", true)
         )
 
+        val author = chart.contributors.first().user
+
         val embed = WebhookEmbed(
-            title = "${chart.track} – ${chart.artist}",
-            // description = "_A new chart has just landed!_",
-            color = 0x1DB954, // green
-            thumbnail = Thumbnail(chart.coverUrl),
+            title = title,
+            // Omitir description completamente
+            url = "https://bscm.netlify.app/chart/${chart.id}",
+            timestamp = Date().toInstant().toString(),
+            color = 3820816,
+            thumbnail = Thumbnail(""),
+            image = Image(chart.coverUrl),
+            author = Author("New chart submitted"),
             fields = fields,
-            footer = Footer("Uploaded via bscm", icon_url = "https://imgur.com/7e4lzGf.png"),
+            footer = Footer(
+                text = "Submitted by @${author.username}",
+                iconUrl = author.imageUrl
+            )
         )
+
+        val components = buildComponents(chart.trackUrls)
 
         val payload = WebhookPayload(
             username = "bscm",
-            embeds = listOf(embed)
+            avatarUrl = "https://i.imgur.com/7e4lzGf.png",
+            embeds = listOf(embed),
+            attachments = emptyList(),
+            components = components
         )
 
         println(jsonClient.encodeToString(WebhookPayload.serializer(), payload))
@@ -46,20 +181,21 @@ class UploadService(
         return jsonClient.encodeToString(WebhookPayload.serializer(), payload)
     }
 
-    suspend fun uploadChart(chart: CreateChartRequest, chartBundle: ByteArray): DiscordMessageResponse {
+    suspend fun uploadChart(chart: AppChart, chartBundle: ByteArray): DiscordMessageResponse {
         val payloadJson = buildWebhookPayload(chart)
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = webhookUrl,
             formData = formData {
                 // The message content
-                append(
-                    "payload_json", payloadJson, Headers.build {
-                        append(HttpHeaders.ContentType, "application/json")
-                    }
-                )
+                append("payload_json", payloadJson, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
                 append("file", chartBundle, Headers.build {
-                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"chart.zip\"")
+                    append(
+                        HttpHeaders.ContentDisposition,
+                        "form-data; name=\"file\"; filename=\"chart_v${chart.latestVersion.index}.zip\""
+                    )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
             }
@@ -69,7 +205,7 @@ class UploadService(
             throw Exception("Failed to send: ${response.status}, ${response.bodyAsText()}")
         }
 
-        println(response.bodyAsText())
+        println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
 
         return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }
@@ -78,8 +214,10 @@ class UploadService(
 @Serializable
 data class WebhookPayload(
     val username: String = "bscm",
-    val avatar_url: String? = null,
-    val embeds: List<WebhookEmbed>
+    @SerialName("avatar_url") val avatarUrl: String? = null,
+    val embeds: List<WebhookEmbed>,
+    val attachments: List<Attachment> = emptyList(),
+    val components: List<ActionRow> = emptyList()
 )
 
 @Serializable
@@ -89,24 +227,65 @@ data class WebhookEmbed(
     val url: String? = null,
     val color: Int,
     val thumbnail: Thumbnail,
+    val image: Image?,
+    val author: Author? = null,
     val fields: List<EmbedField>,
     val footer: Footer? = null,
-    // val timestamp: String
+    val timestamp: String? = null
 )
 
 @Serializable
 data class Thumbnail(val url: String)
 
 @Serializable
+data class Image(val url: String)
+
+@Serializable
+data class Author(val name: String, val url: String? = null)
+
+@Serializable
 data class EmbedField(
     val name: String,
     val value: String,
-    val inline: Boolean = true
+    val inline: Boolean
 )
 
 @Serializable
 data class Footer(
     val text: String,
-    val icon_url: String? = null
+    @SerialName("icon_url") val iconUrl: String? = null
 )
 
+@Serializable
+data class ActionRow(
+    val type: Int,
+    val components: List<Button>
+)
+
+@Serializable
+data class Button(
+    val type: Int,
+    val style: Int,
+    val label: String,
+    val emoji: Emoji? = null,
+    val url: String? = null,
+    // @SerialName("custom_id") val customId: String? = null
+)
+
+@Serializable
+data class Emoji(
+    val id: String,
+    val name: String,
+    val animated: Boolean
+)
+
+@Serializable
+data class Attachment(
+    val id: String,
+    val filename: String,
+    val url: String,
+    @SerialName("proxy_url") val proxyUrl: String,
+    val size: Int,
+    val height: Int,
+    val width: Int
+)
