@@ -8,7 +8,6 @@ import org.bscm.models.tables.VersionTable
 import org.bscm.repository.VersionRepository
 import org.jetbrains.exposed.dao.with
 import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.util.*
 
@@ -16,14 +15,17 @@ class VersionRepositoryImpl : VersionRepository {
     companion object {
         fun versionEntityToVersion(entity: VersionEntity): Version = Version(
             id = entity.id.value,
-            chartId = entity.chart.id.value,
             index = entity.index,
-            chartUrl = entity.chartUrl,
-            chartPreviewUrl = entity.chartPreviewUrl,
+            chartId = entity.chart.id.value,
+            bundleUrl = entity.bundleUrl,
+            previewUrl = entity.previewUrl,
             duration = entity.duration,
             notesAmount = entity.notesAmount,
             effectsAmount = entity.effectsAmount,
             bpm = entity.bpm,
+            isDeluxe = entity.isDeluxe,
+            isExplicit = entity.isExplicit,
+            difficulty = entity.difficulty,
             downloadsAmount = entity.downloadsAmount,
             knownIssues = entity.knownIssues,
             publishedAt = entity.publishedAt,
@@ -33,11 +35,11 @@ class VersionRepositoryImpl : VersionRepository {
     override suspend fun addVersion(version: CreateVersionRequest): Version = newSuspendedTransaction {
         val chartEntity = ChartEntity.findById(version.chartId) ?: throw IllegalArgumentException("Chart not found")
 
-        val versionEntity = VersionEntity.new {
+        val versionEntity = VersionEntity.new(version.id) {
             this.chart = chartEntity
-            this.index = chartEntity.versions.count().toInt()
-            this.chartUrl = version.chartUrl
-            this.chartPreviewUrl = version.chartPreviewUrl
+            this.index = chartEntity.latestVersion?.index?.plus(1) ?: 0 // Increment index if latest version exists
+            this.bundleUrl = version.bundleUrl
+            this.previewUrl = version.previewUrl
             this.duration = version.duration
             this.notesAmount = version.notesAmount
             this.effectsAmount = version.effectsAmount
@@ -54,39 +56,15 @@ class VersionRepositoryImpl : VersionRepository {
         versionEntityToVersion(versionEntity)
     }
 
-    private suspend fun deleteVersion(entity: VersionEntity, index: Int, chartId: UUID) = newSuspendedTransaction {
-        // We delete the version first, so the unique constraint on the index column is not violated
-        entity.delete()
-
-        // Update the indexes of the versions (decrement by 1 all versions with index greater than the removed one)
-        VersionEntity
-            .find { (VersionTable.chartId eq chartId) and (VersionTable.index greater index) }
-            .forEach { it.index-- }
-
-        true
-    }
-
-    override suspend fun removeVersion(index: Int, chartId: UUID): Boolean = newSuspendedTransaction {
-        val chartVersions = VersionEntity.find { VersionTable.chartId eq chartId }
-        val version = chartVersions.last { it.index == index }
-
-        if (version.index == chartVersions.count().toInt() - 1) {
-            throw IllegalArgumentException("Cannot remove the latest version")
-        }
-
-        deleteVersion(version, index, chartId)
-
-        true
-    }
-
-    override suspend fun removeVersion(versionId: UUID): Boolean = newSuspendedTransaction {
+    override suspend fun removeVersion(versionId: ULong): Boolean = newSuspendedTransaction {
         val versionEntity = VersionEntity.findById(versionId) ?: throw IllegalArgumentException("Version not found")
 
-        if (versionEntity.index == versionEntity.chart.versions.count().toInt() - 1) {
+        if (versionEntity.chart.latestVersion?.id?.value == versionId) {
             throw IllegalArgumentException("Cannot remove the latest version")
         }
 
-        deleteVersion(versionEntity, versionEntity.index, versionEntity.chart.id.value)
+        // Remove the version
+        versionEntity.delete()
 
         true
     }
@@ -100,7 +78,7 @@ class VersionRepositoryImpl : VersionRepository {
 
         val versions = VersionEntity.find {
             VersionTable.chartId inList chartIds
-        }.orderBy(VersionTable.chartId to SortOrder.ASC, VersionTable.index to SortOrder.DESC)
+        }.orderBy(VersionTable.chartId to SortOrder.ASC, VersionTable.publishedAt to SortOrder.DESC)
             .with(VersionEntity::chart)
             .toList()
             .distinctBy { it.chart.id.value }

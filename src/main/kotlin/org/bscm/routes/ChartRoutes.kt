@@ -10,12 +10,8 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
-import org.bscm.models.KnownIssue
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
-import org.bscm.models.dto.contributor.CreateContributorRequest
-import org.bscm.models.dto.contributor.UpdateContributorRequest
-import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.AnalyticsOption
 import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.Difficulty
@@ -23,16 +19,14 @@ import org.bscm.models.enums.Genre
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.jsonClient
 import org.bscm.repository.ChartRepository
-import org.bscm.repository.ContributorRepository
-import org.bscm.repository.KnownIssueRepository
+import org.bscm.repository.UserRepository
 import org.bscm.repository.VersionRepository
 import org.bscm.services.UploadService
 import java.util.*
 
 fun Route.chartRoutes(
     chartRepository: ChartRepository,
-    contributorRepository: ContributorRepository,
-    knownIssueRepository: KnownIssueRepository,
+    userRepository: UserRepository,
     versionRepository: VersionRepository,
     uploadService: UploadService,
 ) {
@@ -175,6 +169,13 @@ fun Route.chartRoutes(
             rateLimit(RateLimitName("protected")) {
                 // Create a new chart
                 post {
+                    val principal = call.principal<JWTPrincipal>()
+                    val userId = principal?.subject?.let { UUID.fromString(it) }
+                        ?: throw Exception("User not authenticated")
+
+                    val user = userRepository.getUserById(userId) ?: throw NotFoundException("User not found")
+
+                    // Parse the multipart form data
                     val multipart = call.receiveMultipart()
                     var chartJson: String? = null
                     var bundleFileBytes: ByteArray? = null
@@ -211,18 +212,19 @@ fun Route.chartRoutes(
 
                     println("Creating chart with request: $createRequest")
 
-                    val principal = call.principal<JWTPrincipal>()
-                    val userId = principal?.subject?.let { UUID.fromString(it) }
-                        ?: throw Exception("User not authenticated")
-
-                    // Create the chart in the repository
-                    val createdChart = chartRepository.createChart(userId, createRequest)
-
-                    println("Created chart: $createdChart")
+                    val chartId = UUID.randomUUID()
 
                     // Upload the chart bundle
-                    val bundleId = uploadService.uploadChart(createdChart, bundleFileBytes)
-                    println("Successfully uploaded bundle with $bundleId")
+                    val discordResponse = uploadService.uploadChart(chartId, createRequest, bundleFileBytes, user)
+                    println("Successfully uploaded bundle with ${discordResponse.id}")
+
+                    val createRequestWithUrl = createRequest.copy(
+                        bundleUrl = "${discordResponse.channelId}/${discordResponse.id}/${discordResponse.attachments.firstOrNull()?.id}",
+                    )
+
+                    // Create the chart in the repository
+                    val createdChart = chartRepository.createChart(userId, chartId, createRequestWithUrl)
+                    println("Created chart: $createdChart")
 
                     call.respond(HttpStatusCode.Created, createdChart)
                 }
@@ -261,159 +263,6 @@ fun Route.chartRoutes(
                     } else {
                         call.respond(HttpStatusCode.NotFound, "Chart not found")
                     }
-                }
-            }
-
-            /* Known Issues ======================================== */
-
-            // Add an issue to a chart
-            post("{id}/issues") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@post
-                }
-
-                val receivedIssue = call.receive<KnownIssue>()
-
-                val createdIssue = knownIssueRepository.addIssue(id, receivedIssue)
-                call.respond(HttpStatusCode.Created, createdIssue)
-            }
-
-            // Remove an issue from a chart
-            delete("{id}/issues/{issueId}") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                val issueId = call.parameters["issueId"]?.let { UUID.fromString(it) }
-                if (id == null || issueId == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@delete
-                }
-
-                val removed = knownIssueRepository.removeIssue(id, issueId)
-                if (removed) {
-                    call.respond(HttpStatusCode.NoContent, true)
-                } else {
-                    throw NotFoundException("Chart or issue not found")
-                }
-            }
-
-            /* Contributor ======================================== */
-
-            // Add contributors to a chart
-            post("{id}/contributors") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-
-                if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@post
-                }
-
-                val request = call.receive<CreateContributorRequest>()
-                val contributors = contributorRepository.addContributors(id, request.contributors)
-
-                call.respond(contributors)
-            }
-
-            // Update a contributor's roles
-            put("{id}/contributors/{userId}") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
-                if (id == null || userId == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@put
-                }
-
-                try {
-                    val updatedRequest = call.receive<UpdateContributorRequest>()
-
-                    val updated = contributorRepository.updateContributorRoles(id, userId, updatedRequest.roles)
-                    call.respond(updated)
-                } catch (e: BadRequestException) {
-                    call.respond(HttpStatusCode.BadRequest, e.message ?: "Bad Request")
-                }
-            }
-
-            // Remove a contributor from a chart
-            delete("{id}/contributors/{userId}") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
-                if (id == null || userId == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@delete
-                }
-
-                val removed = contributorRepository.removeContributor(id, userId)
-                if (removed) {
-                    call.respond(HttpStatusCode.NoContent, "Contributor removed successfully")
-                } else {
-                    throw NotFoundException("Chart or contributor not found")
-                }
-            }
-
-            // Get all contributors for a chart
-            get("{id}/contributors") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@get
-                }
-
-                val contributors = contributorRepository.getContributors(id)
-                call.respond(contributors)
-            }
-
-            /* Versions ======================================== */
-
-            // Add a version to a chart
-            post("{id}/versions") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@post
-                }
-
-                val receivedVersion = call.receive<CreateVersionRequest>()
-
-                val createdVersion = versionRepository.addVersion(receivedVersion)
-                call.respond(HttpStatusCode.Created, createdVersion)
-            }
-
-            // Remove a version from a chart
-            delete("{id}/versions/{index}") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                val index = call.parameters["index"]?.toInt()
-
-                if (id == null || index == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@delete
-                }
-
-                if (index == 0) {
-                    call.respond(HttpStatusCode.BadRequest, "Cannot remove the first version")
-                    return@delete
-                }
-
-                val removed = versionRepository.removeVersion(index, id)
-                if (removed) {
-                    call.respond(HttpStatusCode.NoContent, "Version removed successfully")
-                } else {
-                    throw NotFoundException("Chart or version not found")
-                }
-            }
-
-            // Remove a version from a chart (with id)
-            delete("versions/{versionId}") {
-                val versionId = call.parameters["versionId"]?.let { UUID.fromString(it) }
-                if (versionId == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                    return@delete
-                }
-
-                val removed = versionRepository.removeVersion(versionId)
-                if (removed) {
-                    call.respond(HttpStatusCode.NoContent, "Version removed successfully")
-                } else {
-                    throw NotFoundException("Chart or version not found")
                 }
             }
         }

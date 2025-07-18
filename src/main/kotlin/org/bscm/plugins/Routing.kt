@@ -44,7 +44,7 @@ fun Application.configureRouting() {
         }
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
-        chartRoutes(chartRepository, contributorRepository, knownIssueRepository, versionRepository, uploadService)
+        chartRoutes(chartRepository, userRepository, versionRepository, uploadService)
         userRoutes(userRepository)
     }
 }

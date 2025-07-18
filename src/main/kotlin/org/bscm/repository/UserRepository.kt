@@ -8,6 +8,7 @@ import java.util.*
 
 interface UserRepository {
     suspend fun getUsers(query: String?): List<User>
+    suspend fun getUserById(id: UUID): User?
     suspend fun getUserByDiscordId(discordId: String): User?
     suspend fun getUserByUsername(username: String): User?
     suspend fun createUser(user: CreateUserRequest): User

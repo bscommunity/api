@@ -28,7 +28,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
     transaction {
         addLogger(StdOutSqlLogger)
 
-        // DANGER: Uncommenting the following lines will drop existing tables and create new ones.
+        // DANGER: Uncommenting the following lines will drop ALL existing tables and create new ones.
         /*val schema = Schema("public")
         SchemaUtils.dropSchema(schema, cascade = true)
         SchemaUtils.createSchema(schema)*/

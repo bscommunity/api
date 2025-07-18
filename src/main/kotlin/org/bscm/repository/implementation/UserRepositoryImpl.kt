@@ -57,6 +57,12 @@ class UserRepositoryImpl : UserRepository {
         }
     }
 
+    override suspend fun getUserById(id: UUID): User? = newSuspendedTransaction {
+        UserEntity.findById(id).let {
+            it?.let { userEntityToUser(it, true) }
+        } ?: throw NotFoundException("User not found with ID: $id")
+    }
+
     override suspend fun getUserByDiscordId(discordId: String): User? = newSuspendedTransaction {
         UserEntity.find { UserTable.discordId eq discordId }.singleOrNull()?.let(::userEntityToUser)
     }

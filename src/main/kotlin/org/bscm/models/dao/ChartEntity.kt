@@ -15,6 +15,7 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var artist by ChartTable.artist
     var track by ChartTable.track
     var album by ChartTable.album
+    var genre by ChartTable.genre
 
     var normalizedArtist by ChartTable.normalizedArtist
     var normalizedTrack by ChartTable.normalizedTrack
@@ -22,10 +23,6 @@ class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
 
     var trackPreviewUrl by ChartTable.trackPreviewUrl
     var coverUrl by ChartTable.coverUrl
-    var isDeluxe by ChartTable.isDeluxe
-    var difficulty by ChartTable.difficulty
-    var genre by ChartTable.genre
-    var isExplicit by ChartTable.isExplicit
     var isFeatured by ChartTable.isFeatured
     var isPublic by ChartTable.isPublic
 

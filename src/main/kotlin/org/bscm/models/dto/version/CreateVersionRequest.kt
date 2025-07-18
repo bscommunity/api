@@ -6,12 +6,13 @@ import java.util.*
 
 @Serializable
 data class CreateVersionRequest(
+    val id: ULong,
     @Serializable(with = UUIDSerializer::class)
     val chartId: UUID,
     val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,
     val bpm: Int,
-    val chartUrl: String,
-    val chartPreviewUrl: String? = null
+    val bundleUrl: String,
+    val previewUrl: String? = null
 )

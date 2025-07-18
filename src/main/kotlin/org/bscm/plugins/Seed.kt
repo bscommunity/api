@@ -3,10 +3,12 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import kotlinx.coroutines.*
 import org.bscm.models.KnownIssue
+import org.bscm.models.User
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.CreateStreamingLink
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
+import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
@@ -17,6 +19,7 @@ import org.slf4j.LoggerFactory
 import java.time.LocalDate
 import java.util.*
 import kotlin.random.Random
+import kotlin.random.nextULong
 
 private val logger = LoggerFactory.getLogger("SeedScript")
 
@@ -53,7 +56,7 @@ private suspend fun generateRandomCharts(
 ) = coroutineScope {
     // Create users first (sequentially since it's a small number)
     // Create or retrieve users
-    val users = mutableListOf<org.bscm.models.User>()
+    val users = mutableListOf<User>()
     val usersToCreate = 5
 
     // Try to get existing users first
@@ -130,13 +133,14 @@ private suspend fun generateRandomCharts(
                             isDeluxe = Random.nextBoolean(),
                             isExplicit = Random.nextBoolean(),
                             genre = Genre.entries.toTypedArray().random(),
-                            chartUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                            chartPreviewUrl ="https://example.com/chartpreviews/${getRandomId()}.jpg",
+                            bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
+                            previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
                             duration = Random.nextFloat() * 4 + 2, // 2-6 minutes
                             notesAmount = Random.nextInt(100, 1000),
                             effectsAmount = Random.nextInt(10, 100),
                             bpm = Random.nextInt(80, 180),
-                        )
+                        ),
+                        chartId = UUID.randomUUID()
                     )
 
                     logger.info("Created chart with ID: ${chart.id}")
@@ -149,14 +153,15 @@ private suspend fun generateRandomCharts(
                                 val additionalVersionsCount = Random.nextInt(1, 3)
                                 repeat(additionalVersionsCount) {
                                     versionRepository.addVersion(
-                                        org.bscm.models.dto.version.CreateVersionRequest(
+                                        CreateVersionRequest(
+                                            id = Random.nextULong(),
                                             chartId = chart.id,
                                             duration = Random.nextFloat() * 4 + 2,
                                             notesAmount = Random.nextInt(100, 1000),
                                             effectsAmount = Random.nextInt(10, 100),
                                             bpm = Random.nextInt(80, 180),
-                                            chartUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                                            chartPreviewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
+                                            bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
+                                            previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
                                         )
                                     )
                                 }

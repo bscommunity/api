@@ -1,6 +1,5 @@
 package org.bscm.repository
 
-import org.bscm.models.AppChart
 import org.bscm.models.Chart
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
@@ -30,17 +29,13 @@ interface ChartRepository {
         limit: Int? = null,
         offset: Int? = null,
         fetchStreamingLinks: Boolean = true,
-    ): List<AppChart>
+    ): List<Chart>
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: UUID): Chart?
-    suspend fun getAppChartById(id: UUID): AppChart?
-    suspend fun createChart(userId: UUID, chart: CreateChartRequest): AppChart
+    suspend fun getAppChartById(id: UUID): Chart?
+    suspend fun createChart(userId: UUID, chartId: UUID, chart: CreateChartRequest): Chart
     suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart
     suspend fun deleteChart(id: UUID): Boolean
-    suspend fun updateChartLinks(
-        chartId: UUID,
-        links: Map<String, String>
-    ): Boolean
     suspend fun postAnalytics(
         chartId: UUID,
         action: AnalyticsOption

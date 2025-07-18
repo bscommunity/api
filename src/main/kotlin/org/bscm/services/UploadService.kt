@@ -5,8 +5,9 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.bscm.models.AppChart
-import org.bscm.models.StreamingLink
+import org.bscm.models.User
+import org.bscm.models.dto.chart.CreateChartRequest
+import org.bscm.models.dto.chart.CreateStreamingLink
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.plugins.applicationHttpClient
@@ -17,7 +18,7 @@ class UploadService(
     private val webhookUrl: String,
 ) {
     private val hardIcon = "<:hard:1393411882282385458>"
-    private val extremeIcon = "<:extreme:1393411884291309608>"
+    private val extremeIcon = "<:extreme:1393411880067797115>"
     private val deluxeIcon = "<:deluxe:1393402180991586365>"
     private val explicitIcon = "<:explicit:1393411886690586705>"
 
@@ -31,6 +32,7 @@ class UploadService(
     data class DiscordMessageResponse(
         val id: String,
         @SerialName("channel_id") val channelId: String,
+        val attachments: List<Attachment>,
     )
 
     private fun getButtonForPlatform(platform: StreamingPlatform, url: String): Button {
@@ -107,7 +109,7 @@ class UploadService(
         }
     }
 
-    private fun buildComponents(trackUrls: List<StreamingLink>): List<ActionRow> {
+    private fun buildComponents(trackUrls: List<CreateStreamingLink>): List<ActionRow> {
         if (trackUrls.isEmpty()) return emptyList()
 
         val buttons = trackUrls.map { streamingLink ->
@@ -120,10 +122,9 @@ class UploadService(
         }
     }
 
-    private fun buildWebhookPayload(chart: AppChart): String {
-        val latestVersion = chart.latestVersion
+    private fun buildWebhookPayload(chartId: UUID, chart: CreateChartRequest, author: User): String {
         val durationFormatted =
-            String.format("%dm%ds", (latestVersion.duration / 60).toInt(), (latestVersion.duration % 60).toInt())
+            String.format("%dm%ds", (chart.duration / 60).toInt(), (chart.duration % 60).toInt())
 
         // Build title with icons based on chart properties
         val titleIcons = buildString {
@@ -139,21 +140,15 @@ class UploadService(
         val title = "${chart.track} – ${chart.artist}$titleIcons"
 
         val fields = listOf(
-            EmbedField(" ", "$durationIcon $durationFormatted", true),
-            EmbedField(" ", "$noteIcon ${latestVersion.notesAmount} notes", true),
-            EmbedField(" ", " ", true),
-            EmbedField(" ", "$effectIcon ${latestVersion.effectsAmount} effects", true),
-            EmbedField(" ", "$downloadIcon +${chart.downloadsSum} downloads", true),
-            EmbedField(" ", " ", true),
-            EmbedField(" ", "$lastUpdatedIcon Updated yesterday", true)
+            EmbedField("Duration", "$durationIcon $durationFormatted", true),
+            EmbedField("Notes Amount", "$noteIcon ${chart.notesAmount} notes", true),
+            EmbedField("Effects Amount", "$effectIcon ${chart.effectsAmount} effects", false),
         )
-
-        val author = chart.contributors.first().user
 
         val embed = WebhookEmbed(
             title = title,
             // Omitir description completamente
-            url = "https://bscm.netlify.app/chart/${chart.id}",
+            url = "https://bscm.netlify.app/link/chart/${chartId}",
             timestamp = Date().toInstant().toString(),
             color = 3820816,
             thumbnail = Thumbnail(""),
@@ -181,11 +176,11 @@ class UploadService(
         return jsonClient.encodeToString(WebhookPayload.serializer(), payload)
     }
 
-    suspend fun uploadChart(chart: AppChart, chartBundle: ByteArray): DiscordMessageResponse {
-        val payloadJson = buildWebhookPayload(chart)
+    suspend fun uploadChart(chartId: UUID, chart: CreateChartRequest, chartBundle: ByteArray, author: User): DiscordMessageResponse {
+        val payloadJson = buildWebhookPayload(chartId, chart, author)
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
-            url = webhookUrl,
+            url = "${webhookUrl}?with_components=true",
             formData = formData {
                 // The message content
                 append("payload_json", payloadJson, Headers.build {
@@ -194,7 +189,7 @@ class UploadService(
                 append("file", chartBundle, Headers.build {
                     append(
                         HttpHeaders.ContentDisposition,
-                        "form-data; name=\"file\"; filename=\"chart_v${chart.latestVersion.index}.zip\""
+                        "form-data; name=\"file\"; filename=\"chart_v1.zip\""
                     )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
@@ -286,6 +281,6 @@ data class Attachment(
     val url: String,
     @SerialName("proxy_url") val proxyUrl: String,
     val size: Int,
-    val height: Int,
-    val width: Int
+    val height: Int? = null,
+    val width: Int? = null
 )

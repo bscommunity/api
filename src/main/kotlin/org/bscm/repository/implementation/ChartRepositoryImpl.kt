@@ -1,7 +1,10 @@
 package org.bscm.repository.implementation
 
 import io.ktor.server.plugins.*
-import org.bscm.models.*
+import org.bscm.models.Chart
+import org.bscm.models.Contributor
+import org.bscm.models.StreamingLink
+import org.bscm.models.Version
 import org.bscm.models.dao.*
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
@@ -14,7 +17,6 @@ import org.bscm.services.QueryUtils
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDate
@@ -39,32 +41,13 @@ class ChartRepositoryImpl : ChartRepository {
 
     private fun daoToChart(
         entity: ChartEntity,
-        versions: List<Version>? = null,
-        contributors: List<Contributor>? = null
-    ): Chart = Chart(
-        id = entity.id.value,
-        track = entity.track,
-        artist = entity.artist,
-        coverUrl = entity.coverUrl,
-        isDeluxe = entity.isDeluxe,
-        isExplicit = entity.isExplicit,
-        difficulty = entity.difficulty,
-        isFeatured = entity.isFeatured,
-        isPublic = entity.isPublic,
-        genre = entity.genre,
-        versions = versions ?: emptyList(),
-        contributors = contributors ?: emptyList(),
-    )
-
-    private fun daoToAppChart(
-        entity: ChartEntity,
         streamingLinks: List<StreamingLink>?,
         versions: List<Version>,
         contributors: List<Contributor>? = null,
-    ): AppChart {
+    ): Chart {
         val latestVersion = versions.maxBy { it.publishedAt }
 
-        return AppChart(
+        return Chart(
             id = entity.id.value,
             track = entity.track,
             artist = entity.artist,
@@ -72,15 +55,15 @@ class ChartRepositoryImpl : ChartRepository {
             trackUrls = streamingLinks ?: emptyList(),
             trackPreviewUrl = entity.trackPreviewUrl,
             coverUrl = entity.coverUrl,
-            isDeluxe = entity.isDeluxe,
-            isExplicit = entity.isExplicit,
-            difficulty = entity.difficulty,
             isFeatured = entity.isFeatured,
             genre = entity.genre,
-            latestVersion = latestVersion,
-            downloadsSum = versions.sumOf { it.downloadsAmount }, // Android app expects this field
-            latestPublishedAt = latestVersion.publishedAt, // Android app expects this field
+            versions = versions,
             contributors = contributors ?: emptyList(),
+            // Room Database fields (Android app expects these fields)
+            downloadsSum = versions.sumOf { it.downloadsAmount },
+            latestVersionIndex = versions.indexOfFirst { it.id == latestVersion.id },
+            latestVersion = latestVersion,
+            latestPublishedAt = latestVersion.publishedAt,
         )
     }
 
@@ -100,6 +83,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         daoToChart(
             entity = chartResult.chart,
+            streamingLinks = null,
             versions = chartResult.versions.map { versionEntityToVersion(it) },
             contributors = chartResult.contributors.map {
                 contributorEntityToContributor(it.component1(), it.component2())
@@ -107,7 +91,7 @@ class ChartRepositoryImpl : ChartRepository {
         )
     }
 
-    override suspend fun getAppChartById(id: UUID): AppChart? = newSuspendedTransaction {
+    override suspend fun getAppChartById(id: UUID): Chart? = newSuspendedTransaction {
         val query = ChartTable.selectAll()
             .where { ChartTable.id eq id }
 
@@ -121,7 +105,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         val chartResult = processedResults.first()
 
-        daoToAppChart(
+        daoToChart(
             entity = chartResult.chart,
             streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
             versions = chartResult.versions.map { versionEntityToVersion(it) },
@@ -257,9 +241,14 @@ class ChartRepositoryImpl : ChartRepository {
             applySearch(search, query)
         }
 
-        // Filter by difficulties
+        // Filter by difficulties - now using latest version
         difficulties?.takeIf { it.isNotEmpty() }?.let {
-            query.andWhere { ChartTable.difficulty inList it }
+            query.andWhere {
+                ChartTable.latestVersionId inSubQuery (
+                        VersionTable.select(VersionTable.id)
+                            .where { VersionTable.difficulty inList it }
+                        )
+            }
         }
 
         // Filter by genres
@@ -351,10 +340,7 @@ class ChartRepositoryImpl : ChartRepository {
 
             val versions = rows.mapNotNull { row ->
                 row.getOrNull(VersionTable.id)?.let { versionId ->
-                    // Additional null check for version-specific data
-                    row.getOrNull(VersionTable.index)?.let {
-                        VersionEntity.wrapRow(row)
-                    }
+                    VersionEntity.wrapRow(row)
                 }
             }.distinctBy { it.id.value } // Use .value for UUID comparison
 
@@ -403,6 +389,7 @@ class ChartRepositoryImpl : ChartRepository {
         val charts = result.map { chartResult ->
             daoToChart(
                 entity = chartResult.chart,
+                streamingLinks = null, // No streaming links for this variant
                 versions = chartResult.versions.map { versionEntityToVersion(it) },
                 contributors = chartResult.contributors.map {
                     contributorEntityToContributor(
@@ -426,7 +413,7 @@ class ChartRepositoryImpl : ChartRepository {
         limit: Int?,
         offset: Int?,
         fetchStreamingLinks: Boolean,
-    ): List<AppChart> = newSuspendedTransaction {
+    ): List<Chart> = newSuspendedTransaction {
         val result = fetchChartEntities(
             null,
             chartIds,
@@ -441,7 +428,7 @@ class ChartRepositoryImpl : ChartRepository {
         )
 
         val charts = result.map { chartResult ->
-            daoToAppChart(
+            daoToChart(
                 entity = chartResult.chart,
                 streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
                 versions = chartResult.versions.map { versionEntityToVersion(it) },
@@ -470,18 +457,19 @@ class ChartRepositoryImpl : ChartRepository {
         result
     }
 
-    override suspend fun createChart(userId: UUID, chart: CreateChartRequest): AppChart = newSuspendedTransaction {
+    override suspend fun createChart(
+        userId: UUID,
+        chartId: UUID,
+        chart: CreateChartRequest,
+    ): Chart = newSuspendedTransaction {
         // Create the chart
-        val newChart = ChartEntity.new {
+        val newChart = ChartEntity.new(chartId) {
             this.artist = chart.artist
             this.track = chart.track
             this.album = chart.album
+            this.genre = chart.genre
             this.trackPreviewUrl = chart.trackPreviewUrl
             this.coverUrl = chart.coverUrl
-            this.difficulty = chart.difficulty
-            this.isDeluxe = chart.isDeluxe
-            this.isExplicit = chart.isExplicit
-            this.genre = chart.genre
             this.latestVersion = null
         }
 
@@ -506,8 +494,9 @@ class ChartRepositoryImpl : ChartRepository {
                 // Use existing streaming link
                 existingLink.id.value
             } else {
-                // Create new streaming link
                 // println("Creating new streaming link: ${streamingLinkRequest.platform} - ${streamingLinkRequest.url}")
+
+                // Create new streaming link
                 val newLink = StreamingLinkEntity.new {
                     this.platform = streamingLinkRequest.platform
                     this.url = streamingLinkRequest.url
@@ -516,6 +505,7 @@ class ChartRepositoryImpl : ChartRepository {
                 // Add new link to the list
                 streamingLinks.add(newLink)
 
+                // Use new streaming link
                 newLink.id.value
             }
         }
@@ -526,27 +516,30 @@ class ChartRepositoryImpl : ChartRepository {
             this[ChartStreamingLinkTable.streamingLinkId] = streamingLinkId
         }
 
+        // The url follows the format: channelId/messageId/attachmentId
+        val urlItems = chart.bundleUrl.split("/")
+
         // Add the initial version with the chart's metadata
-        val initialVersion = VersionEntity.new {
+        val initialVersion = VersionEntity.new(urlItems[2].toULong()) {
             this.chart = newChart
-            this.index = 0
-            this.chartUrl = chart.chartUrl
-            this.chartPreviewUrl = chart.chartPreviewUrl
+            this.bundleUrl = "${urlItems[0]}/${urlItems[1]}"
+            this.previewUrl = chart.previewUrl
             this.duration = chart.duration
             this.notesAmount = chart.notesAmount
             this.effectsAmount = chart.effectsAmount
             this.bpm = chart.bpm
+            this.difficulty = chart.difficulty
+            this.isDeluxe = chart.isDeluxe
+            this.isExplicit = chart.isExplicit
         }
 
         ChartEntity.findByIdAndUpdate(newChart.id.value) {
             it.latestVersion = initialVersion
         }
 
-        val user = UserEntity.findById(userId) ?: throw NotFoundException("User not found")
-
         val contributorId = CompositeID {
             it[ContributorTable.chartId] = newChart.id
-            it[ContributorTable.userId] = user.id
+            it[ContributorTable.userId] = userId
         }
 
         // Add the user as an author of the chart
@@ -557,7 +550,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         // Since the new chart will be cached on the creator device,
         // we need to return all the data to avoid inconsistencies
-        daoToAppChart(
+        daoToChart(
             newChart,
             streamingLinks = streamingLinks.map { daoToStreamingLink(it) },
             listOf(versionEntityToVersion(initialVersion)),
@@ -565,21 +558,16 @@ class ChartRepositoryImpl : ChartRepository {
         )
     }
 
-    override suspend fun updateChartLinks(chartId: UUID, links: Map<String, String>): Boolean {
-        TODO("Not yet implemented")
-    }
-
     override suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart = newSuspendedTransaction {
-        val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
+        throw NotImplementedError("Update chart functionality is not implemented yet")
+
+        /*val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
             it.artist = chart.artist ?: it.artist
             it.track = chart.track ?: it.track
+            it.genre = chart.genre ?: it.genre
             it.coverUrl = chart.coverUrl ?: it.coverUrl
-            it.difficulty = chart.difficulty ?: it.difficulty
-            it.isDeluxe = chart.isDeluxe ?: it.isDeluxe
-            it.isExplicit = chart.isExplicit ?: it.isExplicit
             it.isFeatured = chart.isFeatured ?: it.isFeatured
             it.isPublic = chart.isPublic ?: it.isPublic
-            it.genre = chart.genre ?: it.genre
         }
 
         if (existingChart == null) {
@@ -589,9 +577,10 @@ class ChartRepositoryImpl : ChartRepository {
         // TODO: It's not performant quite performant, but it works with the dashboard for now
         daoToChart(
             entity = existingChart,
+            streamingLinks = existingChart.trackUrls.map { daoToStreamingLink(it) },
             contributors = existingChart.contributors.map { contributorEntityToContributor(it) },
             versions = existingChart.versions.map { versionEntityToVersion(it) }
-        )
+        )*/
     }
 
     override suspend fun deleteChart(id: UUID): Boolean = newSuspendedTransaction {
@@ -618,5 +607,3 @@ class ChartRepositoryImpl : ChartRepository {
         }
     }
 }
-
-

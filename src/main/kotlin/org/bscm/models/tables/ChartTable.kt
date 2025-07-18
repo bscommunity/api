@@ -1,6 +1,5 @@
 package org.bscm.models.tables
 
-import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.ReferenceOption
@@ -9,6 +8,7 @@ object ChartTable : UUIDTable("chart") {
     val artist = varchar("artist", 200)
     val track = varchar("track", 200)
     val album = varchar("album", 200).nullable()
+    val genre = enumerationByName("genres", 20, Genre::class).nullable()
 
     val normalizedArtist = varchar("normalized_artist", 200).nullable().index()
     val normalizedTrack = varchar("normalized_track", 200).nullable().index()
@@ -17,12 +17,6 @@ object ChartTable : UUIDTable("chart") {
     val coverUrl = varchar("cover_url", 255)
     val trackPreviewUrl = varchar("track_preview_url", 255).nullable()
 
-    val difficulty = enumerationByName("difficulty", 10, Difficulty::class)
-
-    val genre = enumerationByName("genres", 20, Genre::class).nullable()
-
-    val isDeluxe = bool("is_deluxe").default(false)
-    val isExplicit = bool("is_explicit").default(false)
     val isFeatured = bool("is_featured").default(false)
     val isPublic = bool("is_public").default(true)
 
@@ -31,7 +25,5 @@ object ChartTable : UUIDTable("chart") {
 
     init {
         index("idx_chart_search", false, normalizedArtist, normalizedTrack, normalizedAlbum)
-        index("idx_chart_filters", false, difficulty, genre, isPublic)
-        index("idx_chart_public_difficulty", false, isPublic, difficulty)
     }
 }
