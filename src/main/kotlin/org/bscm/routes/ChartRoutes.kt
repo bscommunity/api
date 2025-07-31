@@ -22,6 +22,7 @@ import org.bscm.repository.ChartRepository
 import org.bscm.repository.UserRepository
 import org.bscm.repository.VersionRepository
 import org.bscm.services.UploadService
+import org.bscm.utils.SnowflakeFactory
 import java.util.*
 
 fun Route.chartRoutes(
@@ -42,7 +43,7 @@ fun Route.chartRoutes(
                         return@post
                     }
 
-                    val idParam = call.parameters["id"].let { UUID.fromString(it) }
+                    val idParam = call.parameters["id"]?.toULong() ?: throw BadRequestException("Invalid or missing ID parameter")
                     val typeParam = call.queryParameters["type"]
                     val type = typeParam?.let { AnalyticsOption.valueOf(it) }
                         ?: throw BadRequestException("Invalid or missing type parameter")
@@ -72,11 +73,10 @@ fun Route.chartRoutes(
                     val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
 
                     val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
-                        ?: ChartSortOption.LAST_UPDATED
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
 
-                    val ids = call.request.queryParameters.getAll("ids")?.map { UUID.fromString(it) }
+                    val ids = call.request.queryParameters.getAll("ids")?.map { it.toULong() }
 
                     // Determine which type of authentication is being used
                     val jwtPrincipal = call.principal<JWTPrincipal>()
@@ -124,7 +124,7 @@ fun Route.chartRoutes(
 
                 // Get chart by ID
                 get("{id}") {
-                    val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    val id = call.parameters["id"]?.toULong()
                     if (id == null) {
                         call.respond(
                             HttpStatusCode.BadRequest,
@@ -157,7 +157,7 @@ fun Route.chartRoutes(
                 get("latest-versions") {
                     val chartIds = call.request.queryParameters["chartIds"]
                         ?.split(",")
-                        ?.map { UUID.fromString(it) } ?: emptyList()
+                        ?.map { it.toULong() } ?: emptyList()
                     val versions = versionRepository.getLatestVersionsByChartIds(chartIds)
                     call.respond(versions)
                 }
@@ -212,10 +212,14 @@ fun Route.chartRoutes(
 
                     println("Creating chart with request: $createRequest")
 
-                    val chartId = UUID.randomUUID()
+                    val chartId = SnowflakeFactory.nextId().toULong()
+
+                    val createRequestWithId = createRequest.copy(
+                        id = chartId,
+                    )
 
                     // Upload the chart bundle
-                    val discordResponse = uploadService.uploadChart(chartId, createRequest, bundleFileBytes, user)
+                    val discordResponse = uploadService.uploadChart(createRequestWithId, bundleFileBytes, user)
                     println("Successfully uploaded bundle with ${discordResponse.id}")
 
                     val createRequestWithUrl = createRequest.copy(
@@ -231,7 +235,7 @@ fun Route.chartRoutes(
 
                 // Update an existing chart
                 put("{id}") {
-                    val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    val id = call.parameters["id"]?.toULong()
                     if (id == null) {
                         call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
                         return@put
@@ -251,7 +255,7 @@ fun Route.chartRoutes(
 
                 // Delete a chart
                 delete("{id}") {
-                    val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    val id = call.parameters["id"]?.toULong()
                     if (id == null) {
                         call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
                         return@delete

@@ -7,9 +7,7 @@ import io.ktor.server.plugins.swagger.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.repository.*
-import org.bscm.routes.authRoutes
-import org.bscm.routes.chartRoutes
-import org.bscm.routes.userRoutes
+import org.bscm.routes.*
 import org.bscm.services.DiscordOAuthService
 import org.bscm.services.GoogleOAuthService
 import org.bscm.services.JWTService
@@ -36,7 +34,7 @@ fun Application.configureRouting() {
         staticResources("/static", "static") // eg. `/static/index.html`
 
         get("/") {
-            call.respondText("Hello World!")
+            call.respondText("Hello to the bscm API!")
         }
 
         get("/health") {
@@ -44,7 +42,11 @@ fun Application.configureRouting() {
         }
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
-        chartRoutes(chartRepository, userRepository, versionRepository, uploadService)
         userRoutes(userRepository)
+
+        chartRoutes(chartRepository, userRepository, versionRepository, uploadService)
+        versionRoutes(versionRepository, chartRepository, uploadService)
+        contributorRoutes(contributorRepository)
+        knownIssuesRoutes(knownIssueRepository)
     }
 }

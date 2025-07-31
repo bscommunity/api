@@ -3,14 +3,12 @@ package org.bscm.models
 import kotlinx.serialization.Serializable
 import org.bscm.models.enums.Genre
 import org.bscm.serialization.LocalDateSerializer
-import org.bscm.serialization.UUIDSerializer
 import java.time.LocalDate
-import java.util.*
 
 @Serializable
 data class Chart(
-    @Serializable(with = UUIDSerializer::class)
-    val id: UUID,
+    val id: ULong,
+    val shareUrl: String,
     val artist: String,
     val track: String,
     val album: String?,
@@ -23,7 +21,6 @@ data class Chart(
     val contributors: List<Contributor> = emptyList(),
     // Room Database fields (Room expects simple fields to query)
     val downloadsSum: Int = 0,
-    val latestVersionIndex: Int = -1,
     val latestVersion: Version?,
     @Serializable(with = LocalDateSerializer::class)
     val latestPublishedAt: LocalDate,

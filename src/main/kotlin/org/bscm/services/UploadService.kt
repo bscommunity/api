@@ -3,9 +3,11 @@ package org.bscm.services
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.utils.io.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.bscm.models.User
+import org.bscm.models.Version
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.CreateStreamingLink
 import org.bscm.models.enums.Difficulty
@@ -15,8 +17,12 @@ import org.bscm.plugins.jsonClient
 import java.util.*
 
 class UploadService(
-    private val webhookUrl: String,
+    private val webhookId: String,
+    private val webhookToken: String,
 ) {
+    private val webhookUrl = "https://discord.com/api/webhooks/$webhookId/$webhookToken"
+    private val editWebhookUrl = "https://discord.com/api/v10/webhooks/$webhookId/$webhookToken/messages"
+
     private val hardIcon = "<:hard:1393411882282385458>"
     private val extremeIcon = "<:extreme:1393411880067797115>"
     private val deluxeIcon = "<:deluxe:1393402180991586365>"
@@ -122,7 +128,7 @@ class UploadService(
         }
     }
 
-    private fun buildWebhookPayload(chartId: UUID, chart: CreateChartRequest, author: User): String {
+    private fun buildWebhookPayload(chart: CreateChartRequest, author: User): String {
         val durationFormatted =
             String.format("%dm%ds", (chart.duration / 60).toInt(), (chart.duration % 60).toInt())
 
@@ -148,7 +154,7 @@ class UploadService(
         val embed = WebhookEmbed(
             title = title,
             // Omitir description completamente
-            url = "https://bscm.netlify.app/link/chart/${chartId}",
+            url = "https://bscm.netlify.app/link/chart/${chart.id}",
             timestamp = Date().toInstant().toString(),
             color = 3820816,
             thumbnail = Thumbnail(""),
@@ -176,8 +182,8 @@ class UploadService(
         return jsonClient.encodeToString(WebhookPayload.serializer(), payload)
     }
 
-    suspend fun uploadChart(chartId: UUID, chart: CreateChartRequest, chartBundle: ByteArray, author: User): DiscordMessageResponse {
-        val payloadJson = buildWebhookPayload(chartId, chart, author)
+    suspend fun uploadChart(chart: CreateChartRequest, chartBundle: ByteArray, author: User): DiscordMessageResponse {
+        val payloadJson = buildWebhookPayload(chart, author)
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?with_components=true",
@@ -204,6 +210,50 @@ class UploadService(
 
         return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }
+
+    @OptIn(InternalAPI::class)
+    suspend fun uploadVersion(
+        index: Int,
+        messageId: String,
+        versions: List<Version>,
+        chartBundle: ByteArray,
+    ): DiscordMessageResponse {
+        val payloadJson = jsonClient.encodeToString(SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
+            attachments = versions.map { SimpleAttachment(
+                id = it.id.toString(),
+                filename = "chart_v${index}.zip",
+            ) },
+        ))
+
+        println("Payload JSON: $payloadJson")
+
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = "${editWebhookUrl}/${messageId}?with_components=true",
+            formData = formData {
+                append("payload_json", payloadJson, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+                append("file", chartBundle, Headers.build {
+                    append(
+                        HttpHeaders.ContentDisposition,
+                        "form-data; name=\"file\"; filename=\"chart_v${index}.zip\""
+                    )
+                    append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
+                })
+            }
+        ) {
+            method = HttpMethod.Patch
+        }
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to send: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
+
+        return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
+    }
+
 }
 
 @Serializable
@@ -283,4 +333,16 @@ data class Attachment(
     val size: Int,
     val height: Int? = null,
     val width: Int? = null
+)
+
+@Serializable
+data class SimpleAttachment(
+    val id: String,
+    val filename: String,
+)
+
+@Serializable
+data class SimpleWebhookPayload(
+    @SerialName("payload_json") val payloadJson: String? = null,
+    val attachments: List<SimpleAttachment>,
 )

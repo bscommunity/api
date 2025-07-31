@@ -8,7 +8,7 @@ import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.json.jsonb
 
-object ContributorTable : CompositeIdTable("contributor") {
+object ContributorTable : CompositeIdTable("contributors") {
     val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)
     val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
 

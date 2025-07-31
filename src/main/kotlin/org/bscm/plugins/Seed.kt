@@ -14,12 +14,12 @@ import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.repository.*
+import org.bscm.utils.SnowflakeFactory
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
 import java.time.LocalDate
 import java.util.*
 import kotlin.random.Random
-import kotlin.random.nextULong
 
 private val logger = LoggerFactory.getLogger("SeedScript")
 
@@ -140,7 +140,7 @@ private suspend fun generateRandomCharts(
                             effectsAmount = Random.nextInt(10, 100),
                             bpm = Random.nextInt(80, 180),
                         ),
-                        chartId = UUID.randomUUID()
+                        chartId = SnowflakeFactory.nextId().toULong()
                     )
 
                     logger.info("Created chart with ID: ${chart.id}")
@@ -153,13 +153,16 @@ private suspend fun generateRandomCharts(
                                 val additionalVersionsCount = Random.nextInt(1, 3)
                                 repeat(additionalVersionsCount) {
                                     versionRepository.addVersion(
+                                        chart.id,
+                                        SnowflakeFactory.nextId().toULong(),
                                         CreateVersionRequest(
-                                            id = Random.nextULong(),
-                                            chartId = chart.id,
                                             duration = Random.nextFloat() * 4 + 2,
                                             notesAmount = Random.nextInt(100, 1000),
                                             effectsAmount = Random.nextInt(10, 100),
                                             bpm = Random.nextInt(80, 180),
+                                            difficulty = difficulties.random(),
+                                            isDeluxe = Random.nextBoolean(),
+                                            isExplicit = Random.nextBoolean(),
                                             bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
                                             previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
                                         )

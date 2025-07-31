@@ -5,15 +5,12 @@ package org.bscm.models
 import kotlinx.serialization.Serializable
 import org.bscm.models.enums.Difficulty
 import org.bscm.serialization.LocalDateSerializer
-import org.bscm.serialization.UUIDSerializer
 import java.time.LocalDate
-import java.util.*
 
 @Serializable
 data class Version(
     val id : ULong,
-    @Serializable(with = UUIDSerializer::class)
-    val chartId: UUID,
+    val chartId: ULong,
     val index: Int,
     val duration: Float,
     val notesAmount: Int,

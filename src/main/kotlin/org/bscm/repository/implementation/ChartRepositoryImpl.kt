@@ -13,7 +13,7 @@ import org.bscm.models.tables.*
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.implementation.ContributorRepositoryImpl.Companion.contributorEntityToContributor
 import org.bscm.repository.implementation.VersionRepositoryImpl.Companion.versionEntityToVersion
-import org.bscm.services.QueryUtils
+import org.bscm.utils.QueryUtils
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.*
@@ -61,13 +61,12 @@ class ChartRepositoryImpl : ChartRepository {
             contributors = contributors ?: emptyList(),
             // Room Database fields (Android app expects these fields)
             downloadsSum = versions.sumOf { it.downloadsAmount },
-            latestVersionIndex = versions.indexOfFirst { it.id == latestVersion.id },
             latestVersion = latestVersion,
             latestPublishedAt = latestVersion.publishedAt,
         )
     }
 
-    override suspend fun getChartById(id: UUID): Chart? = newSuspendedTransaction {
+    override suspend fun getChartById(id: ULong): Chart? = newSuspendedTransaction {
         val query = ChartTable.selectAll()
             .where { ChartTable.id eq id }
 
@@ -91,7 +90,7 @@ class ChartRepositoryImpl : ChartRepository {
         )
     }
 
-    override suspend fun getAppChartById(id: UUID): Chart? = newSuspendedTransaction {
+    override suspend fun getAppChartById(id: ULong): Chart? = newSuspendedTransaction {
         val query = ChartTable.selectAll()
             .where { ChartTable.id eq id }
 
@@ -117,9 +116,9 @@ class ChartRepositoryImpl : ChartRepository {
 
     private fun fetchChartEntities(
         userId: UUID?,
-        chartIds: List<UUID>?,
+        chartIds: List<ULong>?,
         search: String?,
-        sortBy: ChartSortOption,
+        sortBy: ChartSortOption?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?,
         limit: Int?,
@@ -132,7 +131,7 @@ class ChartRepositoryImpl : ChartRepository {
         // First, fetch the correctly filtered and sorted IDs with pagination
         val baseQuery = ChartTable.select(ChartTable.id)
         applyAllFilters(baseQuery, userId, chartIds, search, difficulties, genres)
-        applyOrdering(baseQuery, sortBy)
+        applyOrdering(baseQuery, sortBy ?: ChartSortOption.LAST_UPDATED)
 
         limit?.takeIf { it > 0 }?.let { baseQuery.limit(it) }
         offset?.takeIf { it >= 0 }?.let { baseQuery.offset(it.toLong()) }
@@ -219,7 +218,7 @@ class ChartRepositoryImpl : ChartRepository {
     private fun applyAllFilters(
         query: Query,
         userId: UUID?,
-        chartIds: List<UUID>?,
+        chartIds: List<ULong>?,
         search: String?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?
@@ -335,14 +334,14 @@ class ChartRepositoryImpl : ChartRepository {
                             StreamingLinkEntity.wrapRow(row)
                         }
                     }
-                }.distinctBy { it.id.value } // Use .value for UUID comparison
+                }.distinctBy { it.id.value } // Use .value for ULong comparison
             } else emptyList()
 
             val versions = rows.mapNotNull { row ->
                 row.getOrNull(VersionTable.id)?.let { versionId ->
                     VersionEntity.wrapRow(row)
                 }
-            }.distinctBy { it.id.value } // Use .value for UUID comparison
+            }.distinctBy { it.id.value } // Use .value for ULong comparison
 
             val contributors = rows.mapNotNull { row ->
                 // Check if contributor data exists
@@ -366,9 +365,9 @@ class ChartRepositoryImpl : ChartRepository {
 
     override suspend fun getCharts(
         userId: UUID?,
-        chartIds: List<UUID>?,
+        chartIds: List<ULong>?,
         search: String?,
-        sortBy: ChartSortOption,
+        sortBy: ChartSortOption?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?,
         limit: Int?,
@@ -405,9 +404,9 @@ class ChartRepositoryImpl : ChartRepository {
 
     // App Chart variant of getCharts that includes streaming links and only returns the latest version
     override suspend fun getCharts(
-        chartIds: List<UUID>?,
+        chartIds: List<ULong>?,
         search: String?,
-        sortBy: ChartSortOption,
+        sortBy: ChartSortOption?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?,
         limit: Int?,
@@ -459,7 +458,7 @@ class ChartRepositoryImpl : ChartRepository {
 
     override suspend fun createChart(
         userId: UUID,
-        chartId: UUID,
+        chartId: ULong,
         chart: CreateChartRequest,
     ): Chart = newSuspendedTransaction {
         // Create the chart
@@ -558,10 +557,9 @@ class ChartRepositoryImpl : ChartRepository {
         )
     }
 
-    override suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart = newSuspendedTransaction {
-        throw NotImplementedError("Update chart functionality is not implemented yet")
+    override suspend fun updateChart(id: ULong, chart: UpdateChartRequest): Chart = newSuspendedTransaction {
 
-        /*val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
+        val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
             it.artist = chart.artist ?: it.artist
             it.track = chart.track ?: it.track
             it.genre = chart.genre ?: it.genre
@@ -580,16 +578,16 @@ class ChartRepositoryImpl : ChartRepository {
             streamingLinks = existingChart.trackUrls.map { daoToStreamingLink(it) },
             contributors = existingChart.contributors.map { contributorEntityToContributor(it) },
             versions = existingChart.versions.map { versionEntityToVersion(it) }
-        )*/
+        )
     }
 
-    override suspend fun deleteChart(id: UUID): Boolean = newSuspendedTransaction {
+    override suspend fun deleteChart(id: ULong): Boolean = newSuspendedTransaction {
         val chart = ChartEntity.findById(id) ?: return@newSuspendedTransaction false
         chart.delete()
         true
     }
 
-    override suspend fun postAnalytics(chartId: UUID, action: AnalyticsOption): Boolean = newSuspendedTransaction {
+    override suspend fun postAnalytics(chartId: ULong, action: AnalyticsOption): Boolean = newSuspendedTransaction {
         when (action) {
             AnalyticsOption.INSTALL, AnalyticsOption.UPDATE -> {
                 // Handle download analytics

@@ -6,24 +6,14 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.KnownIssue
-import org.bscm.repository.ChartRepository
-import org.bscm.repository.ContributorRepository
 import org.bscm.repository.KnownIssueRepository
-import org.bscm.repository.VersionRepository
-import org.bscm.services.UploadService
 import java.util.*
 
-fun Route.knownIssuesRoutes(
-    chartRepository: ChartRepository,
-    contributorRepository: ContributorRepository,
-    knownIssueRepository: KnownIssueRepository,
-    versionRepository: VersionRepository,
-    uploadService: UploadService,
-) {
+fun Route.knownIssuesRoutes(knownIssueRepository: KnownIssueRepository) {
     route("/charts") {
         // Add an issue to a chart
         post("{id}/issues") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
+            val id = call.parameters["id"]?.toULong()
             if (id == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
                 return@post
@@ -37,7 +27,7 @@ fun Route.knownIssuesRoutes(
 
         // Remove an issue from a chart
         delete("{id}/issues/{issueId}") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
+            val id = call.parameters["id"]?.toULong()
             val issueId = call.parameters["issueId"]?.let { UUID.fromString(it) }
             if (id == null || issueId == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")

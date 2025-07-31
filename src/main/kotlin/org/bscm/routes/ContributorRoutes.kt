@@ -7,24 +7,14 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
-import org.bscm.repository.ChartRepository
 import org.bscm.repository.ContributorRepository
-import org.bscm.repository.KnownIssueRepository
-import org.bscm.repository.VersionRepository
-import org.bscm.services.UploadService
 import java.util.*
 
-fun Route.contributorRoutes(
-    chartRepository: ChartRepository,
-    contributorRepository: ContributorRepository,
-    knownIssueRepository: KnownIssueRepository,
-    versionRepository: VersionRepository,
-    uploadService: UploadService,
-) {
+fun Route.contributorRoutes(contributorRepository: ContributorRepository) {
     route("/charts") {
         // Add contributors to a chart
         post("{id}/contributors") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
+            val id = call.parameters["id"]?.toULong()
 
             if (id == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
@@ -39,7 +29,7 @@ fun Route.contributorRoutes(
 
         // Update a contributor's roles
         put("{id}/contributors/{userId}") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
+            val id = call.parameters["id"]?.toULong()
             val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
             if (id == null || userId == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
@@ -58,7 +48,7 @@ fun Route.contributorRoutes(
 
         // Remove a contributor from a chart
         delete("{id}/contributors/{userId}") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
+            val id = call.parameters["id"]?.toULong()
             val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
             if (id == null || userId == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
@@ -75,7 +65,7 @@ fun Route.contributorRoutes(
 
         // Get all contributors for a chart
         get("{id}/contributors") {
-            val id = call.parameters["id"]?.let { UUID.fromString(it) }
+            val id = call.parameters["id"]?.toULong()
             if (id == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
                 return@get

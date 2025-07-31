@@ -49,7 +49,7 @@ class ContributorRepositoryImpl : ContributorRepository {
         }
     }
 
-    override suspend fun addContributors(chartId: UUID, contributors: List<SimplifiedContributor>): List<Contributor> = newSuspendedTransaction {
+    override suspend fun addContributors(chartId: ULong, contributors: List<SimplifiedContributor>): List<Contributor> = newSuspendedTransaction {
             // Check if the user and chart exist
             ChartEntity.findById(chartId) ?: throw IllegalArgumentException("Chart not found")
 
@@ -72,7 +72,7 @@ class ContributorRepositoryImpl : ContributorRepository {
             contributorEntities
         }
 
-    override suspend fun removeContributor(chartId: UUID, userId: UUID): Boolean = newSuspendedTransaction {
+    override suspend fun removeContributor(chartId: ULong, userId: UUID): Boolean = newSuspendedTransaction {
         val contributorId = CompositeID {
             it[ContributorTable.chartId] = chartId
             it[ContributorTable.userId] = userId
@@ -86,7 +86,7 @@ class ContributorRepositoryImpl : ContributorRepository {
     }
 
     override suspend fun updateContributorRoles(
-        chartId: UUID,
+        chartId: ULong,
         userId: UUID,
         roles: List<ContributorRole>
     ): Contributor = newSuspendedTransaction {
@@ -102,7 +102,7 @@ class ContributorRepositoryImpl : ContributorRepository {
         contributorEntityToContributor(contributor)
     }
 
-    override suspend fun getContributors(chartId: UUID): List<UUID> = newSuspendedTransaction {
+    override suspend fun getContributors(chartId: ULong): List<UUID> = newSuspendedTransaction {
         ContributorEntity.find { ContributorTable.chartId eq chartId }
             .map { it.id.value[ContributorTable.userId].value }
     }

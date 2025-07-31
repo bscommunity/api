@@ -38,6 +38,7 @@ val mainModule = module {
         redirectUri = System.getenv("GOOGLE_REDIRECT_URI")
     ) }
     single { UploadService(
-        webhookUrl = System.getenv("DISCORD_WEBHOOK_URL")
+        webhookId = System.getenv("DISCORD_WEBHOOK_ID"),
+        webhookToken = System.getenv("DISCORD_WEBHOOK_TOKEN"),
     ) }
 }

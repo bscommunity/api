@@ -3,7 +3,7 @@ package org.bscm.models.tables
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.javatime.date
 
-object UserTable : UUIDTable("user") {
+object UserTable : UUIDTable("users") {
     val username = varchar("username", 255).uniqueIndex()
     val email = varchar("email", 255).uniqueIndex()
     val imageUrl = varchar("image_url", 255).nullable()

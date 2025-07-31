@@ -4,13 +4,12 @@ import org.bscm.models.tables.ChartStreamingLinkTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContributorTable
 import org.bscm.models.tables.VersionTable
-import org.jetbrains.exposed.dao.UUIDEntity
-import org.jetbrains.exposed.dao.UUIDEntityClass
+import org.jetbrains.exposed.dao.ULongEntity
+import org.jetbrains.exposed.dao.ULongEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
-import java.util.*
 
-class ChartEntity(id: EntityID<UUID>) : UUIDEntity(id) {
-    companion object : UUIDEntityClass<ChartEntity>(ChartTable)
+class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
+    companion object : ULongEntityClass<ChartEntity>(ChartTable)
 
     var artist by ChartTable.artist
     var track by ChartTable.track

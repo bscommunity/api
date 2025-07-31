@@ -3,7 +3,7 @@ package org.bscm.models.tables
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.javatime.date
 
-object AccountTable : UUIDTable("account") {
+object AccountTable : UUIDTable("accounts") {
     val provider = varchar("provider", 50)
     // val providerAccountId = varchar("provider_account_id", 255).uniqueIndex()
     val refreshToken = varchar("refresh_token", 255).nullable()

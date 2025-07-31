@@ -9,7 +9,6 @@ import org.bscm.repository.VersionRepository
 import org.jetbrains.exposed.dao.with
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import java.util.*
 
 class VersionRepositoryImpl : VersionRepository {
     companion object {
@@ -32,15 +31,21 @@ class VersionRepositoryImpl : VersionRepository {
         )
     }
 
-    override suspend fun addVersion(version: CreateVersionRequest): Version = newSuspendedTransaction {
-        val chartEntity = ChartEntity.findById(version.chartId) ?: throw IllegalArgumentException("Chart not found")
+    override suspend fun getVersionById(id: ULong): Version? = newSuspendedTransaction {
+        val versionEntity = VersionEntity.findById(id) ?: return@newSuspendedTransaction null
+        versionEntityToVersion(versionEntity)
+    }
 
-        val versionEntity = VersionEntity.new(version.id) {
+    override suspend fun addVersion(chartId: ULong, id: ULong, version: CreateVersionRequest): Version = newSuspendedTransaction {
+        val chartEntity = ChartEntity.findById(chartId) ?: throw IllegalArgumentException("Chart not found")
+
+        val versionEntity = VersionEntity.new(id) {
             this.chart = chartEntity
             this.index = chartEntity.latestVersion?.index?.plus(1) ?: 0 // Increment index if latest version exists
             this.bundleUrl = version.bundleUrl
             this.previewUrl = version.previewUrl
             this.duration = version.duration
+            this.difficulty = version.difficulty
             this.notesAmount = version.notesAmount
             this.effectsAmount = version.effectsAmount
             this.bpm = version.bpm
@@ -49,7 +54,7 @@ class VersionRepositoryImpl : VersionRepository {
         }
 
         // Update the latest version of the chart
-        ChartEntity.findByIdAndUpdate(version.chartId) {
+        ChartEntity.findByIdAndUpdate(chartId) {
             it.latestVersion = versionEntity
         }
 
@@ -69,11 +74,11 @@ class VersionRepositoryImpl : VersionRepository {
         true
     }
 
-    override suspend fun getVersions(chartId: UUID): List<Version> = newSuspendedTransaction {
+    override suspend fun getVersions(chartId: ULong): List<Version> = newSuspendedTransaction {
         VersionEntity.find { VersionTable.chartId eq chartId }.map { versionEntityToVersion(it) }
     }
 
-    override suspend fun getLatestVersionsByChartIds(chartIds: List<UUID>): List<Version> = newSuspendedTransaction {
+    override suspend fun getLatestVersionsByChartIds(chartIds: List<ULong>): List<Version> = newSuspendedTransaction {
         if (chartIds.isEmpty()) return@newSuspendedTransaction emptyList()
 
         val versions = VersionEntity.find {

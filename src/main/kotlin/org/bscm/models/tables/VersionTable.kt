@@ -10,7 +10,7 @@ import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.json.jsonb
 import java.time.LocalDate
 
-object VersionTable : ULongIdTable("version") {
+object VersionTable : ULongIdTable("versions") {
     val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
 
     val index = integer("index").default(1)

@@ -12,18 +12,18 @@ import java.util.*
 interface ChartRepository {
     suspend fun getCharts(
         userId: UUID?,
-        chartIds: List<UUID>?,
+        chartIds: List<ULong>?,
         search: String?,
-        sortBy: ChartSortOption = ChartSortOption.LAST_UPDATED,
+        sortBy: ChartSortOption?,
         difficulties: List<Difficulty>? = null,
         genres: List<Genre>? = null,
         limit: Int? = null,
         offset: Int? = null,
     ): List<Chart>
     suspend fun getCharts(
-        chartIds: List<UUID>?,
+        chartIds: List<ULong>?,
         search: String?,
-        sortBy: ChartSortOption = ChartSortOption.LAST_UPDATED,
+        sortBy: ChartSortOption?,
         difficulties: List<Difficulty>? = null,
         genres: List<Genre>? = null,
         limit: Int? = null,
@@ -31,13 +31,10 @@ interface ChartRepository {
         fetchStreamingLinks: Boolean = true,
     ): List<Chart>
     suspend fun getSuggestions(query: String, limit: Int): List<String>
-    suspend fun getChartById(id: UUID): Chart?
-    suspend fun getAppChartById(id: UUID): Chart?
-    suspend fun createChart(userId: UUID, chartId: UUID, chart: CreateChartRequest): Chart
-    suspend fun updateChart(id: UUID, chart: UpdateChartRequest): Chart
-    suspend fun deleteChart(id: UUID): Boolean
-    suspend fun postAnalytics(
-        chartId: UUID,
-        action: AnalyticsOption
-    ): Boolean
+    suspend fun getChartById(id: ULong): Chart?
+    suspend fun getAppChartById(id: ULong): Chart?
+    suspend fun createChart(userId: UUID, chartId: ULong, chart: CreateChartRequest): Chart
+    suspend fun updateChart(id: ULong, chart: UpdateChartRequest): Chart
+    suspend fun deleteChart(id: ULong): Boolean
+    suspend fun postAnalytics(chartId: ULong, action: AnalyticsOption): Boolean
 }

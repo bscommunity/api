@@ -9,12 +9,11 @@ import org.bscm.models.enums.ContributorRole
 import org.bscm.serialization.LocalDateSerializer
 import org.bscm.serialization.UUIDSerializer
 import java.time.LocalDate
-import java.util.*
 
 @Serializable
 data class Contributor(
     val user: SimplifiedUser,
-    val chartId: UUID,
+    val chartId: ULong,
     val roles: List<ContributorRole>,
     val joinedAt: LocalDate
 )
