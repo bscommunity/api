@@ -139,11 +139,18 @@ class ChartRepositoryImpl : ChartRepository {
         applyAllFilters(baseQuery, userId, chartIds, search, difficulties, genres)
         applyOrdering(baseQuery, sortBy ?: ChartSortOption.LAST_UPDATED)
 
+        // println("Base query: ${baseQuery.prepareSQL(QueryBuilder(false))}")
+
         limit?.takeIf { it > 0 }?.let { baseQuery.limit(it) }
         offset?.takeIf { it >= 0 }?.let { baseQuery.offset(it.toLong()) }
 
         val paginatedIds = baseQuery.map { it[ChartTable.id].value }
-        if (paginatedIds.isEmpty()) return emptyList()
+        if (paginatedIds.isEmpty()) {
+            println("No charts found with the provided filters.")
+            return emptyList()
+        }
+
+        println("Paginated IDs: ${paginatedIds.joinToString()}")
 
         // Now, fetch the full data for those specific IDs
         val fullQuery = ChartTable.selectAll().where { ChartTable.id inList paginatedIds }
@@ -391,6 +398,8 @@ class ChartRepositoryImpl : ChartRepository {
             true
         )
 
+        println("Fetched ${result.size} charts with filters: userId=$userId, chartIds=${chartIds?.joinToString()}, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
+
         val charts = result.map { chartResult ->
             println("Processing chart with ID: ${chartResult.chart.id.value}")
             daoToChart(
@@ -472,6 +481,8 @@ class ChartRepositoryImpl : ChartRepository {
             throw BadRequestException("Share ID cannot be empty")
         }
 
+        // exec("SET CONSTRAINTS chart_latest_version_id_fkey DEFERRED")
+
         // Create the chart
         val newChart = ChartEntity.new(chart.id) {
             this.shareId = chart.shareId
@@ -481,10 +492,11 @@ class ChartRepositoryImpl : ChartRepository {
             this.genre = chart.genre
             this.trackPreviewUrl = chart.trackPreviewUrl
             this.coverUrl = chart.coverUrl
-            this.latestVersion = null
         }
 
         flushCache()
+
+        /* HANDLING STREAMING LINKS ================ */
 
         val streamingLinks: MutableList<StreamingLinkEntity> = mutableListOf()
 
@@ -527,6 +539,21 @@ class ChartRepositoryImpl : ChartRepository {
             this[ChartStreamingLinkTable.streamingLinkId] = streamingLinkId
         }
 
+        /* HANDLING CONTRIBUTORS ================ */
+
+        val contributorId = CompositeID {
+            it[ContributorTable.chartId] = newChart.id
+            it[ContributorTable.userId] = userId
+        }
+
+        // Add the user as an author of the chart
+        val contributor = ContributorEntity.new(contributorId) {
+            roles = listOf(ContributorRole.AUTHOR)
+            joinedAt = LocalDate.now()
+        }
+
+        /* HANDLING INITIAL VERSION  ================ */
+
         // Add the initial version with the chart's metadata
         val initialVersion = VersionEntity.new(chart.versionId) {
             this.chart = newChart
@@ -545,16 +572,7 @@ class ChartRepositoryImpl : ChartRepository {
             it.latestVersion = initialVersion
         }
 
-        val contributorId = CompositeID {
-            it[ContributorTable.chartId] = newChart.id
-            it[ContributorTable.userId] = userId
-        }
-
-        // Add the user as an author of the chart
-        val contributor = ContributorEntity.new(contributorId) {
-            roles = listOf(ContributorRole.AUTHOR)
-            joinedAt = LocalDate.now()
-        }
+        // newChart.latestVersion = initialVersion
 
         // Since the new chart will be cached on the creator device,
         // we need to return all the data to avoid inconsistencies

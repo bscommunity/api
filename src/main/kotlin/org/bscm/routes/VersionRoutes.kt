@@ -76,11 +76,8 @@ fun Route.versionRoutes(
 
             println("Creating version with request: $createRequest")
 
-            val latestVersionIndex = chart.versions.maxOfOrNull { it.index } ?: 1
-
             // Upload the chart bundle
             val discordResponse = uploadService.uploadVersion(
-                latestVersionIndex + 1,
                 chart.id,
                 chart.versions,
                 bundleFileBytes
@@ -107,14 +104,32 @@ fun Route.versionRoutes(
 
         // Remove a version from a chart (with id)
         delete("versions/{versionId}") {
-            val versionId = call.parameters["versionId"]?.toULong()
+            val versionId = call.parameters["versionId"]
 
             if (versionId == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
                 return@delete
             }
 
-            val removed = versionRepository.removeVersion(versionId)
+            val versionIdULong = versionId.toULong()
+
+            val version = versionRepository.getVersionById(versionIdULong) ?: throw NotFoundException("Version not found")
+            val chart = chartRepository.getChartById(version.chartId.toULong()) ?: throw NotFoundException("Chart not found")
+
+            // Upload the chart bundle
+            val success = uploadService.deleteVersion(
+                chart.id,
+                chart.versions,
+                versionId
+            )
+
+            if (!success) {
+                call.respond(HttpStatusCode.InternalServerError, "Failed to delete version bundle")
+                return@delete
+            }
+
+            val removed = versionRepository.removeVersion(chart.latestVersion!!, versionIdULong)
+
             if (removed) {
                 call.respond(HttpStatusCode.NoContent, "Version removed successfully")
             } else {

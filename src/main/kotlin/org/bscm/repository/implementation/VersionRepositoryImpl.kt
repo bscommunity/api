@@ -1,5 +1,6 @@
 package org.bscm.repository.implementation
 
+import io.ktor.server.plugins.*
 import org.bscm.models.Chart
 import org.bscm.models.Version
 import org.bscm.models.dao.ChartEntity
@@ -10,6 +11,7 @@ import org.bscm.models.tables.VersionTable
 import org.bscm.repository.VersionRepository
 import org.jetbrains.exposed.dao.with
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.update
@@ -100,12 +102,42 @@ class VersionRepositoryImpl : VersionRepository {
         versionEntityToVersion(insertedRow)
     }
 
-    override suspend fun removeVersion(versionId: ULong): Boolean = newSuspendedTransaction {
-        val versionEntity = VersionEntity.findById(versionId) ?: throw IllegalArgumentException("Version not found")
+    override suspend fun removeVersion(latestVersion: Version, versionId: ULong): Boolean = newSuspendedTransaction {
+        val versionEntity = VersionEntity.findById(versionId) ?: throw NotFoundException("Version not found")
 
-        if (versionEntity.chart.latestVersion?.id?.value == versionId) {
-            throw IllegalArgumentException("Cannot remove the latest version")
+        // Ensure that the version being removed is not the only version of the chart
+        if (latestVersion.index < 2) {
+            throw IllegalArgumentException("You can't remove the only version of a chart")
         }
+
+        // Ensure that the version being removed is the latest version
+        if (latestVersion.id != versionId.toString()) {
+            println("Removing version with ID: $versionId from chart with latest version ID: ${latestVersion.id}")
+            throw IllegalArgumentException("You can only remove the latest version of a chart")
+        }
+
+        /*val latestVersionAfterRemoval = VersionEntity.find {
+            VersionTable.chartId eq versionEntity.chartId
+        }.orderBy(VersionTable.index to SortOrder.DESC).firstOrNull()
+
+        // Update the chart to remove the latest version
+        ChartEntity.findByIdAndUpdate(versionEntity.chartId.value) {
+            it.latestVersion = latestVersionAfterRemoval
+        }*/
+
+        // Before removing the version, we need to ensure that the chart's latest version is updated
+        val chartEntity = versionEntity.chart
+
+        val newLatestVersion = VersionEntity.find {
+            VersionTable.chartId eq chartEntity.id.value and (VersionTable.id neq versionId)
+        }.orderBy(VersionTable.index to SortOrder.DESC).firstOrNull()
+
+        if (newLatestVersion == null) {
+            throw IllegalArgumentException("Cannot remove the last version of a chart")
+        }
+
+        // Update the chart's latest version
+        chartEntity.latestVersion = newLatestVersion
 
         // Remove the version
         versionEntity.delete()

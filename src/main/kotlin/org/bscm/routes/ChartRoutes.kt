@@ -82,9 +82,6 @@ fun Route.chartRoutes(
                     val jwtPrincipal = call.principal<JWTPrincipal>()
                     val hmacPrincipal = call.principal<HMACPrincipal>()
 
-                    // println("JWT Principal: $jwtPrincipal")
-                    // println("HMAC Principal: $hmacPrincipal")
-
                     val charts = when {
                         // JWT authentication (dashboard user)
                         jwtPrincipal != null -> {
@@ -118,6 +115,8 @@ fun Route.chartRoutes(
                             return@get
                         }
                     }
+
+                    println("Returning ${charts.size} charts for query: $sanitizedQuery, difficulties: $difficulties, genres: $genres, sortBy: $sortBy, limit: $limit, offset: $offset")
 
                     call.respond(charts)
                 }

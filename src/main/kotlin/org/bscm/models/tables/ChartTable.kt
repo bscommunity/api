@@ -22,8 +22,7 @@ object ChartTable : ULongIdTable("chart") {
     val isFeatured = bool("is_featured").default(false)
     val isPublic = bool("is_public").default(true)
 
-    val latestVersionId = reference("latest_version_id", VersionTable, onDelete = ReferenceOption.SET_NULL)
-        .nullable()
+    val latestVersionId = reference("latest_version_id", VersionTable, ReferenceOption.CASCADE).nullable()
 
     init {
         index("idx_chart_search", false, normalizedArtist, normalizedTrack, normalizedAlbum)

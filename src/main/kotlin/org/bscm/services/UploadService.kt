@@ -213,11 +213,13 @@ class UploadService(
 
     @OptIn(InternalAPI::class)
     suspend fun uploadVersion(
-        index: Int,
         messageId: String,
         versions: List<Version>,
         chartBundle: ByteArray,
     ): DiscordMessageResponse {
+        val latestVersionIndex = versions.maxOfOrNull { it.index } ?: 1
+        val newIndex = latestVersionIndex + 1
+
         val payloadJson = jsonClient.encodeToString(SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
             attachments = versions.map { SimpleAttachment(
                 id = it.id,
@@ -225,7 +227,7 @@ class UploadService(
             ) },
         ))
 
-        println("Payload JSON: $payloadJson")
+        // println("Current message attachments: $payloadJson")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${editWebhookUrl}/${messageId}?with_components=true",
@@ -236,7 +238,7 @@ class UploadService(
                 append("file", chartBundle, Headers.build {
                     append(
                         HttpHeaders.ContentDisposition,
-                        "form-data; name=\"file\"; filename=\"chart_v${index}.zip\""
+                        "form-data; name=\"file\"; filename=\"chart_v${newIndex}.zip\""
                     )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
@@ -249,11 +251,40 @@ class UploadService(
             throw Exception("Failed to send: ${response.status}, ${response.bodyAsText()}")
         }
 
-        println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
+        // println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
 
         return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }
 
+    suspend fun deleteVersion(messageId: String, versions: List<Version>, versionId: String): Boolean {
+        val remainingVersions = versions.filter { it.id != versionId }
+
+        val payloadJson = jsonClient.encodeToString(SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
+            attachments = remainingVersions.map { SimpleAttachment(
+                id = it.id,
+                filename = "chart_v${it.index}.zip",
+            ) },
+        ))
+
+        println("Current message attachments after deletion: $payloadJson")
+
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = "${editWebhookUrl}/${messageId}?with_components=true",
+            formData = formData {
+                append("payload_json", payloadJson, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+            }
+        ) {
+            method = HttpMethod.Patch
+        }
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to delete: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        return response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.OK
+    }
 }
 
 @Serializable
