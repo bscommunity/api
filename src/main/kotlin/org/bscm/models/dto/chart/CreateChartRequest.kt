@@ -6,7 +6,6 @@ import org.bscm.models.enums.Genre
 
 @Serializable
 data class CreateChartRequest (
-    val id: ULong? = null,
     val artist: String,
     val track: String,
     val album: String? = null,
@@ -15,6 +14,11 @@ data class CreateChartRequest (
     val coverUrl: String,
     val genre: Genre? = null,
     val isExplicit: Boolean,
+
+    // Server-side properties
+    val id: ULong? = null,
+    val versionId: ULong? = null,
+    val shareId: String? = null,
 
     // First version properties
     val duration: Float,

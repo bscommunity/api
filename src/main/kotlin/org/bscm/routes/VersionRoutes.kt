@@ -28,6 +28,8 @@ fun Route.versionRoutes(
                 return@post
             }
 
+            println("Received request to add version to chart with ID: $chartId")
+
             val chart = chartRepository.getChartById(chartId) ?: throw NotFoundException("Chart not found")
 
             if (chart.latestVersion == null) {
@@ -79,25 +81,26 @@ fun Route.versionRoutes(
             // Upload the chart bundle
             val discordResponse = uploadService.uploadVersion(
                 latestVersionIndex + 1,
-                chart.latestVersion.bundleUrl.split("/").last(),
+                chart.id,
                 chart.versions,
                 bundleFileBytes
             )
             println("Successfully uploaded bundle with ${discordResponse.id}")
 
-            val attachmentId = discordResponse.attachments.firstOrNull()?.id?.toULong()
+            val attachment = discordResponse.attachments.lastOrNull()
 
-            if (attachmentId == null) {
-                call.respond(HttpStatusCode.BadRequest, "Attachment ID is missing in Discord response")
+            if (attachment == null) {
+                call.respond(HttpStatusCode.BadRequest, "Failed to upload bundle")
                 return@post
             }
 
             val createRequestWithUrl = createRequest.copy(
-                bundleUrl = "${discordResponse.channelId}/${discordResponse.id}",
+                id = attachment.id.toULong(),
+                bundleUrl = attachment.url
             )
 
             // Create the version in the repository
-            val createdVersion = versionRepository.addVersion(chartId, attachmentId, createRequestWithUrl)
+            val createdVersion = versionRepository.addVersion(chart, createRequestWithUrl)
 
             call.respond(HttpStatusCode.Created, createdVersion)
         }

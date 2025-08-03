@@ -1,14 +1,16 @@
 package org.bscm.models.tables
 
 import org.bscm.models.enums.Genre
-import org.jetbrains.exposed.dao.id.UUIDTable
+import org.jetbrains.exposed.dao.id.ULongIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
 
-object ChartTable : UUIDTable("chart") {
+object ChartTable : ULongIdTable("chart") {
     val artist = varchar("artist", 200)
     val track = varchar("track", 200)
     val album = varchar("album", 200).nullable()
     val genre = enumerationByName("genres", 20, Genre::class).nullable()
+
+    val shareId = varchar("shareId", 11).uniqueIndex()
 
     val normalizedArtist = varchar("normalized_artist", 200).nullable().index()
     val normalizedTrack = varchar("normalized_track", 200).nullable().index()

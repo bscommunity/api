@@ -154,7 +154,7 @@ class UploadService(
         val embed = WebhookEmbed(
             title = title,
             // Omitir description completamente
-            url = "https://bscm.netlify.app/link/chart/${chart.id}",
+            url = "https://bscm.netlify.app/link/chart/${chart.shareId}",
             timestamp = Date().toInstant().toString(),
             color = 3820816,
             thumbnail = Thumbnail(""),
@@ -220,8 +220,8 @@ class UploadService(
     ): DiscordMessageResponse {
         val payloadJson = jsonClient.encodeToString(SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
             attachments = versions.map { SimpleAttachment(
-                id = it.id.toString(),
-                filename = "chart_v${index}.zip",
+                id = it.id,
+                filename = "chart_v${it.index}.zip",
             ) },
         ))
 

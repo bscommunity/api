@@ -9,8 +9,8 @@ import java.time.LocalDate
 
 @Serializable
 data class Version(
-    val id : ULong,
-    val chartId: ULong,
+    val id : String,
+    val chartId: String,
     val index: Int,
     val duration: Float,
     val notesAmount: Int,

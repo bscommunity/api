@@ -17,6 +17,7 @@ import org.bscm.utils.QueryUtils
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDate
@@ -48,7 +49,8 @@ class ChartRepositoryImpl : ChartRepository {
         val latestVersion = versions.maxBy { it.publishedAt }
 
         return Chart(
-            id = entity.id.value,
+            id = entity.id.value.toString(),
+            shareId = entity.shareId,
             track = entity.track,
             artist = entity.artist,
             album = entity.album,
@@ -88,6 +90,10 @@ class ChartRepositoryImpl : ChartRepository {
                 contributorEntityToContributor(it.component1(), it.component2())
             }
         )
+    }
+
+    override suspend fun getChartEntityById(id: ULong): ChartEntity? = newSuspendedTransaction {
+        ChartEntity.findById(id) ?: return@newSuspendedTransaction null
     }
 
     override suspend fun getAppChartById(id: ULong): Chart? = newSuspendedTransaction {
@@ -386,6 +392,7 @@ class ChartRepositoryImpl : ChartRepository {
         )
 
         val charts = result.map { chartResult ->
+            println("Processing chart with ID: ${chartResult.chart.id.value}")
             daoToChart(
                 entity = chartResult.chart,
                 streamingLinks = null, // No streaming links for this variant
@@ -427,6 +434,7 @@ class ChartRepositoryImpl : ChartRepository {
         )
 
         val charts = result.map { chartResult ->
+            println("Processing chart with ID: ${chartResult.chart.id.value}")
             daoToChart(
                 entity = chartResult.chart,
                 streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
@@ -458,11 +466,15 @@ class ChartRepositoryImpl : ChartRepository {
 
     override suspend fun createChart(
         userId: UUID,
-        chartId: ULong,
         chart: CreateChartRequest,
     ): Chart = newSuspendedTransaction {
+        if (chart.shareId.isNullOrBlank()) {
+            throw BadRequestException("Share ID cannot be empty")
+        }
+
         // Create the chart
-        val newChart = ChartEntity.new(chartId) {
+        val newChart = ChartEntity.new(chart.id) {
+            this.shareId = chart.shareId
             this.artist = chart.artist
             this.track = chart.track
             this.album = chart.album
@@ -515,13 +527,10 @@ class ChartRepositoryImpl : ChartRepository {
             this[ChartStreamingLinkTable.streamingLinkId] = streamingLinkId
         }
 
-        // The url follows the format: channelId/messageId/attachmentId
-        val urlItems = chart.bundleUrl.split("/")
-
         // Add the initial version with the chart's metadata
-        val initialVersion = VersionEntity.new(urlItems[2].toULong()) {
+        val initialVersion = VersionEntity.new(chart.versionId) {
             this.chart = newChart
-            this.bundleUrl = "${urlItems[0]}/${urlItems[1]}"
+            this.bundleUrl = chart.bundleUrl
             this.previewUrl = chart.previewUrl
             this.duration = chart.duration
             this.notesAmount = chart.notesAmount

@@ -5,6 +5,7 @@ import org.bscm.models.enums.Difficulty
 
 @Serializable
 data class CreateVersionRequest(
+    val id: ULong? = null,
     val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,

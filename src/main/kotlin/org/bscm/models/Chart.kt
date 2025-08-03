@@ -7,8 +7,8 @@ import java.time.LocalDate
 
 @Serializable
 data class Chart(
-    val id: ULong,
-    val shareUrl: String,
+    val id: String,
+    val shareId: String,
     val artist: String,
     val track: String,
     val album: String?,

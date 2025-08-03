@@ -14,7 +14,6 @@ import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.repository.*
-import org.bscm.utils.SnowflakeFactory
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
 import java.time.LocalDate
@@ -140,7 +139,6 @@ private suspend fun generateRandomCharts(
                             effectsAmount = Random.nextInt(10, 100),
                             bpm = Random.nextInt(80, 180),
                         ),
-                        chartId = SnowflakeFactory.nextId().toULong()
                     )
 
                     logger.info("Created chart with ID: ${chart.id}")
@@ -153,8 +151,7 @@ private suspend fun generateRandomCharts(
                                 val additionalVersionsCount = Random.nextInt(1, 3)
                                 repeat(additionalVersionsCount) {
                                     versionRepository.addVersion(
-                                        chart.id,
-                                        SnowflakeFactory.nextId().toULong(),
+                                        chartId = chart.id.toULong(),
                                         CreateVersionRequest(
                                             duration = Random.nextFloat() * 4 + 2,
                                             notesAmount = Random.nextInt(100, 1000),
@@ -177,7 +174,7 @@ private suspend fun generateRandomCharts(
                             val contributorsCount = Random.nextInt(1, 4)
                             val contributors = userIds.filter { it != ownerId }.shuffled().take(contributorsCount)
                             contributorRepository.addContributors(
-                                chart.id,
+                                chart.id.toULong(),
                                 contributors.map { SimplifiedContributor(it, listOf(contributorRoles.random())) }
                             )
                             logger.info("Added contributors for chart ID: ${chart.id}")
@@ -189,7 +186,7 @@ private suspend fun generateRandomCharts(
                                 val issuesCount = Random.nextInt(1, 3)
                                 repeat(issuesCount) {
                                     knownIssueRepository.addIssue(
-                                        chart.id,
+                                        chart.id.toULong(),
                                         KnownIssue(
                                             id = UUID.randomUUID(),
                                             description = getRandomIssue(),

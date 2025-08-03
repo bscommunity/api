@@ -16,6 +16,8 @@ class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var album by ChartTable.album
     var genre by ChartTable.genre
 
+    var shareId by ChartTable.shareId
+
     var normalizedArtist by ChartTable.normalizedArtist
     var normalizedTrack by ChartTable.normalizedTrack
     var normalizedAlbum by ChartTable.normalizedAlbum

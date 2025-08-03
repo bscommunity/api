@@ -1,21 +1,25 @@
 package org.bscm.repository.implementation
 
+import org.bscm.models.Chart
 import org.bscm.models.Version
 import org.bscm.models.dao.ChartEntity
 import org.bscm.models.dao.VersionEntity
 import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.VersionTable
 import org.bscm.repository.VersionRepository
 import org.jetbrains.exposed.dao.with
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.sql.update
 
 class VersionRepositoryImpl : VersionRepository {
     companion object {
         fun versionEntityToVersion(entity: VersionEntity): Version = Version(
-            id = entity.id.value,
+            id = entity.id.value.toString(),
             index = entity.index,
-            chartId = entity.chart.id.value,
+            chartId = entity.chart.id.value.toString(),
             bundleUrl = entity.bundleUrl,
             previewUrl = entity.previewUrl,
             duration = entity.duration,
@@ -36,10 +40,10 @@ class VersionRepositoryImpl : VersionRepository {
         versionEntityToVersion(versionEntity)
     }
 
-    override suspend fun addVersion(chartId: ULong, id: ULong, version: CreateVersionRequest): Version = newSuspendedTransaction {
+    override suspend fun addVersion(chartId: ULong, version: CreateVersionRequest): Version = newSuspendedTransaction {
         val chartEntity = ChartEntity.findById(chartId) ?: throw IllegalArgumentException("Chart not found")
 
-        val versionEntity = VersionEntity.new(id) {
+        val versionEntity = VersionEntity.new(version.id) {
             this.chart = chartEntity
             this.index = chartEntity.latestVersion?.index?.plus(1) ?: 0 // Increment index if latest version exists
             this.bundleUrl = version.bundleUrl
@@ -59,6 +63,41 @@ class VersionRepositoryImpl : VersionRepository {
         }
 
         versionEntityToVersion(versionEntity)
+    }
+
+    override suspend fun addVersion(chart: Chart, version: CreateVersionRequest): Version = newSuspendedTransaction {
+        val convertedChartId = chart.id.toULong()
+
+        if (version.id == null) {
+            throw IllegalArgumentException("Version ID must be provided")
+        }
+
+        val insertedId = VersionTable.insertAndGetId {
+            it[id] = version.id
+            it[chartId] = convertedChartId
+            it[index] = chart.latestVersion?.index?.plus(1) ?: 0 // Increment index if latest version exists
+            it[bundleUrl] = version.bundleUrl
+            it[previewUrl] = version.previewUrl
+            it[duration] = version.duration
+            it[difficulty] = version.difficulty
+            it[notesAmount] = version.notesAmount
+            it[effectsAmount] = version.effectsAmount
+            it[bpm] = version.bpm
+            it[downloadsAmount] = 0 // Initial downloads amount is 0
+            it[knownIssues] = chart.latestVersion?.knownIssues ?: emptyList()
+        }
+
+        val updatedRowCount = ChartTable.update({ ChartTable.id eq convertedChartId }) {
+            it[latestVersionId] = insertedId
+        }
+
+        if (updatedRowCount == 0) {
+            throw IllegalArgumentException("Failed to update chart with new version")
+        }
+
+        val insertedRow = VersionEntity.findById(insertedId) ?: throw IllegalArgumentException("Inserted version not found")
+
+        versionEntityToVersion(insertedRow)
     }
 
     override suspend fun removeVersion(versionId: ULong): Boolean = newSuspendedTransaction {

@@ -22,7 +22,7 @@ import org.bscm.repository.ChartRepository
 import org.bscm.repository.UserRepository
 import org.bscm.repository.VersionRepository
 import org.bscm.services.UploadService
-import org.bscm.utils.SnowflakeFactory
+import org.bscm.utils.NanoId
 import java.util.*
 
 fun Route.chartRoutes(
@@ -212,22 +212,32 @@ fun Route.chartRoutes(
 
                     println("Creating chart with request: $createRequest")
 
-                    val chartId = SnowflakeFactory.nextId().toULong()
+                    val shareId = NanoId.generateOptimized(10, "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 63, 16)
 
                     val createRequestWithId = createRequest.copy(
-                        id = chartId,
+                        shareId = shareId,
                     )
 
                     // Upload the chart bundle
                     val discordResponse = uploadService.uploadChart(createRequestWithId, bundleFileBytes, user)
                     println("Successfully uploaded bundle with ${discordResponse.id}")
 
+                    val attachment = discordResponse.attachments.firstOrNull()
+
+                    if (attachment == null) {
+                        call.respond(HttpStatusCode.BadRequest, "Failed to upload bundle")
+                        return@post
+                    }
+
                     val createRequestWithUrl = createRequest.copy(
-                        bundleUrl = "${discordResponse.channelId}/${discordResponse.id}/${discordResponse.attachments.firstOrNull()?.id}",
+                        id = discordResponse.id.toULong(),
+                        shareId = shareId,
+                        versionId = attachment.id.toULong(),
+                        bundleUrl = attachment.url
                     )
 
                     // Create the chart in the repository
-                    val createdChart = chartRepository.createChart(userId, chartId, createRequestWithUrl)
+                    val createdChart = chartRepository.createChart(userId, createRequestWithUrl)
                     println("Created chart: $createdChart")
 
                     call.respond(HttpStatusCode.Created, createdChart)
