@@ -6,6 +6,8 @@ import org.bscm.models.enums.Difficulty
 @Serializable
 data class CreateVersionRequest(
     val id: ULong? = null,
+    val track: String, // for comparison purposes
+    val artist: String, // for comparison purposes
     val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,

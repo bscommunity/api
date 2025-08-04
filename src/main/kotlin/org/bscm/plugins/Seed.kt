@@ -3,9 +3,9 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import kotlinx.coroutines.*
 import org.bscm.models.KnownIssue
+import org.bscm.models.StreamingLink
 import org.bscm.models.User
 import org.bscm.models.dto.chart.CreateChartRequest
-import org.bscm.models.dto.chart.CreateStreamingLink
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.version.CreateVersionRequest
@@ -117,11 +117,11 @@ private suspend fun generateRandomCharts(
                             track = getRandomTrack(),
                             album = if (Random.nextBoolean()) getRandomAlbum() else null,
                             trackUrls = listOf(
-                                CreateStreamingLink(
+                                StreamingLink(
                                     platform = StreamingPlatform.SPOTIFY,
                                     url = "https://open.spotify.com/track/${getRandomId()}",
                                 ),
-                                CreateStreamingLink(
+                                StreamingLink(
                                     platform = StreamingPlatform.YOUTUBE_MUSIC,
                                     url = "https://www.youtube.com/watch?v=${getRandomId()}",
                                 ),
@@ -153,6 +153,8 @@ private suspend fun generateRandomCharts(
                                     versionRepository.addVersion(
                                         chartId = chart.id.toULong(),
                                         CreateVersionRequest(
+                                            track = chart.track,
+                                            artist = chart.artist,
                                             duration = Random.nextFloat() * 4 + 2,
                                             notesAmount = Random.nextInt(100, 1000),
                                             effectsAmount = Random.nextInt(10, 100),

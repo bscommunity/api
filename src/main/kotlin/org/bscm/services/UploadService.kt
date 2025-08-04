@@ -6,10 +6,12 @@ import io.ktor.http.*
 import io.ktor.utils.io.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.bscm.models.Chart
+import org.bscm.models.StreamingLink
 import org.bscm.models.User
 import org.bscm.models.Version
 import org.bscm.models.dto.chart.CreateChartRequest
-import org.bscm.models.dto.chart.CreateStreamingLink
+import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.plugins.applicationHttpClient
@@ -115,7 +117,7 @@ class UploadService(
         }
     }
 
-    private fun buildComponents(trackUrls: List<CreateStreamingLink>): List<ActionRow> {
+    private fun buildComponents(trackUrls: List<StreamingLink>): List<ActionRow> {
         if (trackUrls.isEmpty()) return emptyList()
 
         val buttons = trackUrls.map { streamingLink ->
@@ -128,7 +130,11 @@ class UploadService(
         }
     }
 
-    private fun buildWebhookPayload(chart: CreateChartRequest, author: User): String {
+    private fun buildWebhookPayload(
+        chart: CreateChartRequest,
+        author: User,
+        attachments: List<BaseAttachment> = emptyList()
+    ): String {
         val durationFormatted =
             String.format("%dm%ds", (chart.duration / 60).toInt(), (chart.duration % 60).toInt())
 
@@ -173,7 +179,7 @@ class UploadService(
             username = "bscm",
             avatarUrl = "https://i.imgur.com/7e4lzGf.png",
             embeds = listOf(embed),
-            attachments = emptyList(),
+            attachments = attachments,
             components = components
         )
 
@@ -182,7 +188,7 @@ class UploadService(
         return jsonClient.encodeToString(WebhookPayload.serializer(), payload)
     }
 
-    suspend fun uploadChart(chart: CreateChartRequest, chartBundle: ByteArray, author: User): DiscordMessageResponse {
+    suspend fun uploadChart(chart: CreateChartRequest, author: User, chartBundle: ByteArray): DiscordMessageResponse {
         val payloadJson = buildWebhookPayload(chart, author)
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
@@ -214,18 +220,40 @@ class UploadService(
     @OptIn(InternalAPI::class)
     suspend fun uploadVersion(
         messageId: String,
-        versions: List<Version>,
+        chart: Chart,
+        newVersion: CreateVersionRequest,
+        author: User,
         chartBundle: ByteArray,
     ): DiscordMessageResponse {
-        val latestVersionIndex = versions.maxOfOrNull { it.index } ?: 1
+        val latestVersionIndex = chart.versions.maxOfOrNull { it.index } ?: 1
         val newIndex = latestVersionIndex + 1
 
-        val payloadJson = jsonClient.encodeToString(SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
-            attachments = versions.map { SimpleAttachment(
-                id = it.id,
-                filename = "chart_v${it.index}.zip",
-            ) },
-        ))
+        // We need to update the displayed info with the new version data
+        val payloadJson = buildWebhookPayload(
+            CreateChartRequest(
+                track = newVersion.track,
+                artist = newVersion.artist,
+                duration = newVersion.duration,
+                notesAmount = newVersion.notesAmount,
+                effectsAmount = newVersion.effectsAmount,
+                difficulty = newVersion.difficulty,
+                isDeluxe = newVersion.isDeluxe,
+                isExplicit = newVersion.isExplicit,
+                trackPreviewUrl = chart.trackPreviewUrl,
+                bpm = newVersion.bpm,
+                bundleUrl = newVersion.bundleUrl,
+                previewUrl = newVersion.previewUrl,
+                coverUrl = chart.coverUrl,
+                trackUrls = chart.trackUrls,
+                shareId = chart.shareId,
+            ),
+            author,
+            attachments = chart.versions.map {
+                SimpleAttachment(
+                    id = it.id,
+                    filename = "chart_v${it.index}.zip",
+                )
+            })
 
         // println("Current message attachments: $payloadJson")
 
@@ -259,12 +287,16 @@ class UploadService(
     suspend fun deleteVersion(messageId: String, versions: List<Version>, versionId: String): Boolean {
         val remainingVersions = versions.filter { it.id != versionId }
 
-        val payloadJson = jsonClient.encodeToString(SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
-            attachments = remainingVersions.map { SimpleAttachment(
-                id = it.id,
-                filename = "chart_v${it.index}.zip",
-            ) },
-        ))
+        val payloadJson = jsonClient.encodeToString(
+            SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
+                attachments = remainingVersions.map {
+                    SimpleAttachment(
+                        id = it.id,
+                        filename = "chart_v${it.index}.zip",
+                    )
+                },
+            )
+        )
 
         println("Current message attachments after deletion: $payloadJson")
 
@@ -292,7 +324,7 @@ data class WebhookPayload(
     val username: String = "bscm",
     @SerialName("avatar_url") val avatarUrl: String? = null,
     val embeds: List<WebhookEmbed>,
-    val attachments: List<Attachment> = emptyList(),
+    val attachments: List<BaseAttachment> = emptyList(),
     val components: List<ActionRow> = emptyList()
 )
 
@@ -356,6 +388,9 @@ data class Emoji(
 )
 
 @Serializable
+sealed interface BaseAttachment
+
+@Serializable
 data class Attachment(
     val id: String,
     val filename: String,
@@ -364,16 +399,15 @@ data class Attachment(
     val size: Int,
     val height: Int? = null,
     val width: Int? = null
-)
+) : BaseAttachment
 
 @Serializable
 data class SimpleAttachment(
     val id: String,
     val filename: String,
-)
+) : BaseAttachment
 
 @Serializable
 data class SimpleWebhookPayload(
-    @SerialName("payload_json") val payloadJson: String? = null,
     val attachments: List<SimpleAttachment>,
 )

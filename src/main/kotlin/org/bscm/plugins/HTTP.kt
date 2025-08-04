@@ -14,6 +14,7 @@ val jsonClient = Json {
 }
 
 val applicationHttpClient = HttpClient(CIO) {
+    expectSuccess = true
     install(ContentNegotiation) {
         json(jsonClient)
     }

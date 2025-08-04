@@ -45,7 +45,7 @@ fun Application.configureRouting() {
         userRoutes(userRepository)
 
         chartRoutes(chartRepository, userRepository, versionRepository, uploadService)
-        versionRoutes(versionRepository, chartRepository, uploadService)
+        versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
         contributorRoutes(contributorRepository)
         knownIssuesRoutes(knownIssueRepository)
     }

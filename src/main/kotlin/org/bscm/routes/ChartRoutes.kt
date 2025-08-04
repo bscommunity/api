@@ -17,6 +17,7 @@ import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.plugins.HMACPrincipal
+import org.bscm.plugins.UnauthorizedException
 import org.bscm.plugins.jsonClient
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.UserRepository
@@ -158,6 +159,7 @@ fun Route.chartRoutes(
                         ?.split(",")
                         ?.map { it.toULong() } ?: emptyList()
                     val versions = versionRepository.getLatestVersionsByChartIds(chartIds)
+                    println("Returning latest versions for chart IDs: $chartIds")
                     call.respond(versions)
                 }
             }
@@ -170,9 +172,9 @@ fun Route.chartRoutes(
                 post {
                     val principal = call.principal<JWTPrincipal>()
                     val userId = principal?.subject?.let { UUID.fromString(it) }
-                        ?: throw Exception("User not authenticated")
+                        ?: throw UnauthorizedException("User unauthorized")
 
-                    val user = userRepository.getUserById(userId) ?: throw NotFoundException("User not found")
+                    val user = userRepository.getUserById(userId) ?: throw UnauthorizedException("User not found")
 
                     // Parse the multipart form data
                     val multipart = call.receiveMultipart()
@@ -218,7 +220,7 @@ fun Route.chartRoutes(
                     )
 
                     // Upload the chart bundle
-                    val discordResponse = uploadService.uploadChart(createRequestWithId, bundleFileBytes, user)
+                    val discordResponse = uploadService.uploadChart(createRequestWithId, user, bundleFileBytes)
                     println("Successfully uploaded bundle with ${discordResponse.id}")
 
                     val attachment = discordResponse.attachments.firstOrNull()

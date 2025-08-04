@@ -4,35 +4,94 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.statuspages.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
+import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import java.time.Instant
+
+@Serializable
+data class ErrorResponse(
+    val message: String,
+    val code: String,
+    val timestamp: String = Instant.now().toString(),
+    val path: String? = null,
+    val details: Map<String, String>? = null
+)
+
+class UnauthorizedException(message: String) : Exception(message)
 
 fun Application.configureStatusPages() {
     val logger: org.slf4j.Logger = LoggerFactory.getLogger("StatusPages")
 
     install(StatusPages) {
-        status(HttpStatusCode.NotFound) { call, status ->
-            // call.respondText(text = "404: Page Not Found", status = status)
-            call.respond(HttpStatusCode.NotFound, mapOf("message" to "Page not found"))
-        }
         status(HttpStatusCode.TooManyRequests) { call, status ->
-            // val retryAfter = call.response.headers["Retry-After"]
-            // call.respondText(text = "Whoa there! You're going way too fast \uD83D\uDEA6. Try again in $retryAfter seconds.", status = status)
-            call.respond(HttpStatusCode.TooManyRequests, mapOf("message" to "Too many requests. Please slow down."))
+            val errorResponse = ErrorResponse(
+                message = "Too many requests. Please slow down.",
+                code = "RATE_LIMIT_EXCEEDED",
+                path = call.request.path()
+            )
+            call.respond(status, errorResponse)
         }
-        exception<Throwable> { call, cause ->
-            logger.error("An unexpected error occurred", cause)
-            cause.printStackTrace()
 
-            when (cause) {
-                is NotImplementedError -> call.respond(HttpStatusCode.NotImplemented)
-                is BadRequestException -> call.respond(HttpStatusCode.BadRequest, mapOf("message" to cause.message))
-                is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, mapOf("message" to cause.message))
-                is NotFoundException -> call.respond(HttpStatusCode.NotFound, mapOf("message" to cause.message))
-                is NoSuchElementException -> call.respond(HttpStatusCode.NotFound, mapOf("message" to "Resource not found"))
-                is SecurityException -> call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Access denied"))
-                else -> call.respond(HttpStatusCode.InternalServerError, mapOf("message" to cause.message.let { cause.message ?: "Internal server error" }))
+        exception<Throwable> { call, cause ->
+            logger.error("Request failed: ${call.request.httpMethod.value} ${call.request.path()}", cause)
+
+            val (status, errorResponse) = when (cause) {
+                is NotImplementedError -> HttpStatusCode.NotImplemented to ErrorResponse(
+                    message = "Feature not implemented",
+                    code = "NOT_IMPLEMENTED",
+                    path = call.request.path()
+                )
+
+                is BadRequestException -> HttpStatusCode.BadRequest to ErrorResponse(
+                    message = cause.message ?: "Invalid request",
+                    code = "BAD_REQUEST",
+                    path = call.request.path()
+                )
+
+                is IllegalArgumentException -> HttpStatusCode.BadRequest to ErrorResponse(
+                    message = cause.message ?: "Invalid argument provided",
+                    code = "INVALID_ARGUMENT",
+                    path = call.request.path()
+                )
+
+                is NotFoundException -> HttpStatusCode.NotFound to ErrorResponse(
+                    message = cause.message ?: "Resource not found",
+                    code = "NOT_FOUND",
+                    path = call.request.path()
+                )
+
+                is NoSuchElementException -> HttpStatusCode.NotFound to ErrorResponse(
+                    message = "Resource not found",
+                    code = "RESOURCE_NOT_FOUND",
+                    path = call.request.path()
+                )
+
+                is SecurityException -> HttpStatusCode.Forbidden to ErrorResponse(
+                    message = "Access denied",
+                    code = "ACCESS_DENIED",
+                    path = call.request.path()
+                )
+
+                // Handle JWT/Authentication specific exceptions if you use them
+                is UnauthorizedException -> HttpStatusCode.Unauthorized to ErrorResponse(
+                    message = "Authentication required",
+                    code = "UNAUTHORIZED",
+                    path = call.request.path()
+                )
+
+                else -> {
+                    logger.error("Unhandled exception: ${cause::class.simpleName}", cause)
+                    HttpStatusCode.InternalServerError to ErrorResponse(
+                        message = cause.message ?: "Internal server error",
+                        code = "INTERNAL_ERROR",
+                        path = call.request.path()
+                    )
+                }
             }
+
+            call.respond(status, errorResponse)
         }
     }
 }
