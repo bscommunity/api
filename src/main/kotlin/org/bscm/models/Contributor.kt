@@ -13,7 +13,7 @@ import java.time.LocalDate
 @Serializable
 data class Contributor(
     val user: SimplifiedUser,
-    val chartId: ULong,
+    val chartId: String,
     val roles: List<ContributorRole>,
     val joinedAt: LocalDate
 )

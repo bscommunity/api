@@ -26,7 +26,7 @@ class ContributorRepositoryImpl : ContributorRepository {
                     username = entity.user.username,
                     imageUrl = entity.user.imageUrl,
                 ),
-                chartId = chartId,
+                chartId = chartId.toString(),
                 roles = entity.roles,
                 joinedAt = entity.joinedAt,
             )
@@ -42,7 +42,7 @@ class ContributorRepositoryImpl : ContributorRepository {
                     username = user.username,
                     imageUrl = user.imageUrl,
                 ),
-                chartId = chartId,
+                chartId = chartId.toString(),
                 roles = entity.roles,
                 joinedAt = entity.joinedAt,
             )
