@@ -20,6 +20,7 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
 import java.util.*
 import kotlin.math.min
@@ -630,5 +631,45 @@ class ChartRepositoryImpl : ChartRepository {
             AnalyticsOption.DELETE -> throw NotFoundException("Cannot post analytics for deleted charts")
             AnalyticsOption.APP_UPDATE -> throw NotFoundException("Cannot post analytics for app updates")
         }
+    }
+
+    override suspend fun refreshChartsBundles(ids: Map<String, String>): Boolean  = newSuspendedTransaction {
+        // Iterate through all chart IDs in a batch and refresh its bundle URL
+        val sql = buildString {
+            append("UPDATE ${VersionTable.tableName} SET ${VersionTable.bundleUrl.name} = CASE ${VersionTable.id.name} ")
+            ids.forEach { (id, url) ->
+                append("WHEN '$id' THEN '$url' ")
+            }
+            append("END WHERE ${VersionTable.id.name} IN (${ids.keys.joinToString { "'$it'" }});")
+        }
+
+        transaction {
+            exec(sql)
+
+            println("Successfully refreshed bundle URLs for ${ids.size} charts")
+            true
+        }
+
+        /*val batchUpdate = BatchUpdateStatement(VersionTable)
+
+        chartsIds.forEach { entry ->
+            batchUpdate.addBatch(
+            batchUpdate[VersionTable.bundleUrl] = entry.value
+        }
+
+        val result = batchUpdate.execute(TransactionManager.current())
+
+        if (result == null) {
+            println("No charts were updated. Check if the provided chart IDs are valid.")
+            return@newSuspendedTransaction false
+        }
+
+        if (result > 0) {
+            println("Successfully refreshed bundle URLs for ${chartsIds.size} charts")
+            true
+        } else {
+            println("Failed to refresh bundle URLs for charts: $chartsIds")
+            false
+        }*/
     }
 }

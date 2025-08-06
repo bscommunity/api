@@ -1,11 +1,17 @@
 package org.bscm.services
 
+import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
+import kotlinx.coroutines.delay
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.bscm.models.Chart
 import org.bscm.models.StreamingLink
 import org.bscm.models.User
@@ -21,6 +27,8 @@ import java.util.*
 class UploadService(
     private val webhookId: String,
     private val webhookToken: String,
+    private val botToken: String,
+    private val channelId: String,
 ) {
     private val webhookUrl = "https://discord.com/api/webhooks/$webhookId/$webhookToken"
     private val editWebhookUrl = "https://discord.com/api/v10/webhooks/$webhookId/$webhookToken/messages"
@@ -317,6 +325,59 @@ class UploadService(
 
         return response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.OK
     }
+
+    // Refreshes all bundle URLs in the webhook messages (from the charts channel)
+    suspend fun refreshBundleUrls(): Map<String, String> {
+        val maxMessages = 1000
+        val messagesPerRequest = 100
+        val bundleUrls = mutableMapOf<String, String>()
+        var lastMessageId: String? = null
+        var fetched = 0
+        while (fetched < maxMessages) {
+            val url = "https://discord.com/api/v10/channels/$channelId/messages?limit=$messagesPerRequest" +
+                (lastMessageId?.let { "&before=$it" } ?: "")
+            val response: HttpResponse = applicationHttpClient.get(url) {
+                header(HttpHeaders.Authorization, "Bot $botToken")
+            }
+
+            // Rate limit handling
+            val rateLimitRemaining = response.headers["X-RateLimit-Remaining"]?.toIntOrNull() ?: 1
+            val rateLimitResetAfter = response.headers["X-RateLimit-Reset-After"]?.toDoubleOrNull() ?: 0.0
+            if (response.status.value == 429) {
+                val retryAfter = response.headers["Retry-After"]?.toDoubleOrNull() ?: rateLimitResetAfter
+                delay((retryAfter * 1000).toLong())
+                continue
+            } else if (rateLimitRemaining == 0) {
+                delay((rateLimitResetAfter * 1000).toLong())
+            }
+
+            val messagesJson = response.bodyAsText()
+            val messages = jsonClient.decodeFromString(
+                JsonArray.serializer(), messagesJson
+            )
+
+            if (messages.isEmpty()) break
+
+            for (msg in messages) {
+                val obj = msg.jsonObject
+                val attachments = obj["attachments"]?.jsonArray
+                if (attachments != null && attachments.isNotEmpty()) {
+                    val lastAttachment = attachments.last().jsonObject
+                    val url = lastAttachment["url"]?.jsonPrimitive?.content
+                    val id = lastAttachment["id"]?.jsonPrimitive?.content
+                    if (id != null && url != null) {
+                        bundleUrls[id] = url
+                    }
+                }
+            }
+
+            lastMessageId = messages.last().jsonObject["id"]?.jsonPrimitive?.content
+            fetched += messages.size
+
+            if (messages.size < messagesPerRequest) break
+        }
+        return bundleUrls
+    }
 }
 
 @Serializable
@@ -411,3 +472,4 @@ data class SimpleAttachment(
 data class SimpleWebhookPayload(
     val attachments: List<SimpleAttachment>,
 )
+

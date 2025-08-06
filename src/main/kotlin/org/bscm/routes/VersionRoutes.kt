@@ -175,4 +175,27 @@ fun Route.versionRoutes(
             }
         }
     }
+
+    // Refreshes bundle URLs for all charts latest versions
+    route("/refresh") {
+        post {
+            /*val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.subject?.let { UUID.fromString(it) }
+                ?: throw UnauthorizedException("User unauthorized")*/
+
+            val messages = uploadService.refreshBundleUrls()
+
+            if (messages.isEmpty()) {
+                throw Exception("Failed to refresh bundle")
+            }
+
+            val result = chartRepository.refreshChartsBundles(messages)
+
+            if (result) {
+                call.respond(HttpStatusCode.OK, "Successfully refreshed ${messages.size} bundle URLs")
+            } else {
+                throw Exception("Failed to refresh bundle URLs")
+            }
+        }
+    }
 }

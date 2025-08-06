@@ -40,5 +40,7 @@ val mainModule = module {
     single { UploadService(
         webhookId = System.getenv("DISCORD_WEBHOOK_ID"),
         webhookToken = System.getenv("DISCORD_WEBHOOK_TOKEN"),
+        botToken = System.getenv("DISCORD_BOT_TOKEN"),
+        channelId = System.getenv("DISCORD_CHANNEL_ID"),
     ) }
 }

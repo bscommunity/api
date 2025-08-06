@@ -39,4 +39,5 @@ interface ChartRepository {
     suspend fun updateChart(id: ULong, chart: UpdateChartRequest): Chart
     suspend fun deleteChart(id: ULong): Boolean
     suspend fun postAnalytics(chartId: ULong, action: AnalyticsOption): Boolean
+    suspend fun refreshChartsBundles(ids: Map<String, String>): Boolean
 }
