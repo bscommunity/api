@@ -155,6 +155,7 @@ fun Route.versionRoutes(
                     // Upload the chart bundle
                     val success = uploadService.deleteVersion(
                         chart.id,
+                        chart.track,
                         chart.versions,
                         versionId
                     )

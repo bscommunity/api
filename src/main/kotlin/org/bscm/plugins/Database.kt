@@ -2,9 +2,7 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
-import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.StdOutSqlLogger
 import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -33,7 +31,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
         SchemaUtils.dropSchema(schema, cascade = true)
         SchemaUtils.createSchema(schema)*/
 
-        SchemaUtils.create(
+        /*SchemaUtils.create(
             UserTable,
             AccountTable,
             ChartTable,
@@ -41,6 +39,6 @@ fun Application.configureDatabases(config: ApplicationConfig) {
             ContributorTable,
             StreamingLinkTable,
             ChartStreamingLinkTable
-        )
+        )*/
     }
 }

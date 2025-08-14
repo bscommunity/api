@@ -1,5 +1,7 @@
 package org.bscm.plugins
 
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.http.content.*
@@ -39,6 +41,11 @@ fun Application.configureRouting() {
 
         get("/health") {
             call.respond(HttpStatusCode.OK)
+        }
+
+        get("/status") {
+            applicationHttpClient.get(System.getenv("STATUS_URL"))
+                .let { call.respondText(it.bodyAsText(), ContentType.Application.Json) }
         }
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)

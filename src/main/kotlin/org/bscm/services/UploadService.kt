@@ -22,6 +22,7 @@ import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.plugins.applicationHttpClient
 import org.bscm.plugins.jsonClient
+import org.bscm.utils.QueryUtils
 import java.util.*
 
 class UploadService(
@@ -198,6 +199,7 @@ class UploadService(
 
     suspend fun uploadChart(chart: CreateChartRequest, author: User, chartBundle: ByteArray): DiscordMessageResponse {
         val payloadJson = buildWebhookPayload(chart, author)
+        val normalizedTrack = QueryUtils.getNormalizedQuery(chart.track, "_")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?with_components=true",
@@ -209,7 +211,7 @@ class UploadService(
                 append("file", chartBundle, Headers.build {
                     append(
                         HttpHeaders.ContentDisposition,
-                        "form-data; name=\"file\"; filename=\"chart_v1.zip\""
+                        "form-data; name=\"file\"; filename=\"${normalizedTrack}_v1.zip\""
                     )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
@@ -236,6 +238,8 @@ class UploadService(
         val latestVersionIndex = chart.versions.maxOfOrNull { it.index } ?: 1
         val newIndex = latestVersionIndex + 1
 
+        val normalizedTrack = QueryUtils.getNormalizedQuery(newVersion.track, "_")
+
         // We need to update the displayed info with the new version data
         val payloadJson = buildWebhookPayload(
             CreateChartRequest(
@@ -259,7 +263,7 @@ class UploadService(
             attachments = chart.versions.map {
                 SimpleAttachment(
                     id = it.id,
-                    filename = "chart_v${it.index}.zip",
+                    filename = "${normalizedTrack}_v${it.index}.zip",
                 )
             })
 
@@ -292,15 +296,16 @@ class UploadService(
         return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }
 
-    suspend fun deleteVersion(messageId: String, versions: List<Version>, versionId: String): Boolean {
+    suspend fun deleteVersion(messageId: String, track: String, versions: List<Version>, versionId: String): Boolean {
         val remainingVersions = versions.filter { it.id != versionId }
+        val normalizedTrack = QueryUtils.getNormalizedQuery(track, "_")
 
         val payloadJson = jsonClient.encodeToString(
             SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
                 attachments = remainingVersions.map {
                     SimpleAttachment(
                         id = it.id,
-                        filename = "chart_v${it.index}.zip",
+                        filename = "${normalizedTrack}_v${it.index}.zip",
                     )
                 },
             )
@@ -321,6 +326,16 @@ class UploadService(
 
         if (!response.status.isSuccess()) {
             throw Exception("Failed to delete: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        return response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.OK
+    }
+
+    suspend fun deleteMessage(messageId: String): Boolean {
+        val response: HttpResponse = applicationHttpClient.delete("$editWebhookUrl/$messageId")
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to delete message: ${response.status}, ${response.bodyAsText()}")
         }
 
         return response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.OK

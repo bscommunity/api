@@ -11,7 +11,7 @@ object QueryUtils {
      * Multiple spaces are condensed to a single space.
      * Example: "I Didn't KNOW cafés?!" -> "i didnt know cafes"
      */
-    fun getNormalizedQuery(query: String): String {
+    fun getNormalizedQuery(query: String, collapseChart: String = " "): String {
         // 1. Trim whitespace
         val trimmedQuery = query.trim()
         // 2. Normalize to NFD form to separate diacritics
@@ -23,7 +23,7 @@ object QueryUtils {
         // 5. Remove non-alphanumeric characters (except space)
         processedQuery = processedQuery.replace(Regex("[^a-z0-9 ]"), "")
         // 6. Collapse multiple spaces into one and final trim
-        return processedQuery.replace(Regex("\\s+"), " ").trim()
+        return processedQuery.replace(Regex("\\s+"), collapseChart).trim()
     }
 
     /**

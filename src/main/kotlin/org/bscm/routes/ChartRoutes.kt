@@ -272,6 +272,19 @@ fun Route.chartRoutes(
                         return@delete
                     }
 
+                    // Check if the user is authorized to delete the chart
+                    val principal = call.principal<JWTPrincipal>()
+                    val userId = principal?.subject?.let { UUID.fromString(it) }
+                        ?: throw UnauthorizedException("User unauthorized")
+
+                    // Fetch the user to ensure they exist
+                    userRepository.getUserById(userId) ?: throw UnauthorizedException("User not found")
+
+                    // Try to delete the message from Discord
+                    val success = uploadService.deleteMessage(id.toString())
+
+                    if (!success) throw Exception("Failed to delete chart with id: $id")
+
                     val deleted = chartRepository.deleteChart(id)
                     if (deleted) {
                         call.respond(HttpStatusCode.NoContent, true)
