@@ -22,7 +22,6 @@ import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.plugins.applicationHttpClient
 import org.bscm.plugins.jsonClient
-import org.bscm.utils.QueryUtils
 import java.util.*
 
 class UploadService(
@@ -51,6 +50,16 @@ class UploadService(
         @SerialName("channel_id") val channelId: String,
         val attachments: List<Attachment>,
     )
+
+    private fun getNormalizedTrackName(track: String): String {
+        var normalized = track.trim() // Trim leading/trailing whitespace
+        normalized = normalized.lowercase(Locale.getDefault()) // Convert to lowercase
+        normalized = normalized.replace(Regex("\\s*\\([^)]*\\)"), "")
+        normalized = normalized.replace(Regex("\\s*\\[.*?]"), "")
+        normalized = normalized.replace(Regex("\\s*[Ff]eat\\..*"), "")
+        normalized = normalized.replace(Regex("[^a-zA-Z0-9 ]"), "")
+        return normalized.trim().replace(" ", "_")
+    }
 
     private fun getButtonForPlatform(platform: StreamingPlatform, url: String): Button {
         return when (platform) {
@@ -199,7 +208,7 @@ class UploadService(
 
     suspend fun uploadChart(chart: CreateChartRequest, author: User, chartBundle: ByteArray): DiscordMessageResponse {
         val payloadJson = buildWebhookPayload(chart, author)
-        val normalizedTrack = QueryUtils.getNormalizedQuery(chart.track, "_")
+        val normalizedTrack = getNormalizedTrackName(chart.track)
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?with_components=true",
@@ -238,7 +247,7 @@ class UploadService(
         val latestVersionIndex = chart.versions.maxOfOrNull { it.index } ?: 1
         val newIndex = latestVersionIndex + 1
 
-        val normalizedTrack = QueryUtils.getNormalizedQuery(newVersion.track, "_")
+        val normalizedTrack = getNormalizedTrackName(chart.track)
 
         // We need to update the displayed info with the new version data
         val payloadJson = buildWebhookPayload(
@@ -298,7 +307,7 @@ class UploadService(
 
     suspend fun deleteVersion(messageId: String, track: String, versions: List<Version>, versionId: String): Boolean {
         val remainingVersions = versions.filter { it.id != versionId }
-        val normalizedTrack = QueryUtils.getNormalizedQuery(track, "_")
+        val normalizedTrack = getNormalizedTrackName(track)
 
         val payloadJson = jsonClient.encodeToString(
             SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
