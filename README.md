@@ -1,50 +1,73 @@
-# api
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="/.github/cover.png">
+  <source media="(prefers-color-scheme: light)" srcset="/.github/cover_light.png">
+    <img alt="bscm API" src="/.github/cover_light.png">
+</picture>
 
-This project was created using the [Ktor Project Generator](https://start.ktor.io).
+# 🗄️ About
 
-Here are some useful links to get you started:
+This is the official API backend for the bscm project: a lightweight, community-driven hub for everything Beatstar, built by players, for players.
 
-- [Ktor Documentation](https://ktor.io/docs/home.html)
-- [Ktor GitHub page](https://github.com/ktorio/ktor)
-- The [Ktor Slack chat](https://app.slack.com/client/T09229ZC6/C0A974TJ9). You'll need
-  to [request an invite](https://surveys.jetbrains.com/s3/kotlin-slack-sign-up) to join.
+This repository contains the source code for the backend server, powering the dashboard and other services. It’s built with [Ktor](https://ktor.io/) and [Exposed](https://github.com/JetBrains/Exposed), designed to be fast, secure, and scalable, with a focus on supporting creators and the community.
 
-## Features
+> [!WARNING]
+> This is a work in progress! We’re actively developing features and improving the experience. Check back often for updates.
 
-Here's a list of features included in this project:
+## 🚀 Features
 
-| Name                                                                   | Description                                                                        |
-|------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| [Routing](https://start.ktor.io/p/routing)                             | Provides a structured routing DSL                                                  |
-| [Static Content](https://start.ktor.io/p/static-content)               | Serves static files from defined locations                                         |
-| [Content Negotiation](https://start.ktor.io/p/content-negotiation)     | Provides automatic content conversion according to Content-Type and Accept headers |
-| [Status Pages](https://start.ktor.io/p/status-pages)                   | Provides exception handling for routes                                             |
-| [kotlinx.serialization](https://start.ktor.io/p/kotlinx-serialization) | Handles JSON serialization using kotlinx.serialization library                     |
-| [Exposed](https://start.ktor.io/p/exposed)                             | Adds Exposed database to your application                                          |
-| [Postgres](https://start.ktor.io/p/postgres)                           | Adds Postgres database to your application                                         |
-| [Authentication](https://start.ktor.io/p/auth)                         | Provides extension point for handling the Authorization header                     |
-| [Authentication JWT](https://start.ktor.io/p/auth-jwt)                 | Handles JSON Web Token (JWT) bearer authentication scheme                          |
-| [Authentication OAuth](https://start.ktor.io/p/auth-oauth)             | Handles OAuth Bearer authentication scheme                                         |
-| [Swagger](https://start.ktor.io/p/swagger)                             | Serves Swagger UI for your project                                                 |
+- **RESTful API for Beatstar content**  
+  Endpoints for charts, contributors, accounts, users, and more.
+- **Authentication & Authorization**  
+  Supports JWT and OAuth (Discord, Google).
+- **Database integration**  
+  Uses PostgreSQL with Exposed ORM.
+- **Rate limiting, security, and serialization**  
+  Built-in middleware for robust, safe APIs.
+- **Swagger documentation**  
+  Interactive API docs for easy exploration.
 
-## Building & Running
+> ![TIP]
+> See the [wiki](https://github.com/bscommunity/api/wiki) for more details on endpoints, architecture, and future plans.
 
-To build or run the project, use one of the following tasks:
+## 📦 Project Structure
 
-| Task                          | Description                                                          |
-|-------------------------------|----------------------------------------------------------------------|
-| `./gradlew test`              | Run the tests                                                        |
-| `./gradlew build`             | Build everything                                                     |
-| `buildFatJar`                 | Build an executable JAR of the server with all dependencies included |
-| `buildImage`                  | Build the docker image to use with the fat JAR                       |
-| `publishImageToLocalRegistry` | Publish the docker image locally                                     |
-| `run`                         | Run the server                                                       |
-| `runDocker`                   | Run using the local docker image                                     |
+- `src/main/kotlin/org/bscm/` — Main source code (Kotlin)
+  - `models/` — Data models
+  - `dao/` — Database entities
+  - `dto/` — Data transfer objects
+  - `enums/` — Enum types
+  - `tables/` — Database table definitions
+  - `plugins/` — Ktor plugins (routing, security, etc)
+  - `repository/` — Data access logic
+  - `routes/` — API route definitions
+  - `serialization/` — Custom serializers
+  - `services/` — Business logic and integrations
+  - `utils/` — Utility classes
+- `resources/` — Config files and assets
+- `build.gradle.kts` — Build configuration
 
-If the server starts successfully, you'll see the following output:
+## 🛠️ Running Locally
 
-```
-2024-12-04 14:32:45.584 [main] INFO  Application - Application started in 0.303 seconds.
-2024-12-04 14:32:45.682 [main] INFO  Application - Responding at http://0.0.0.0:8080
-```
+1. Install dependencies:
+    ```bash
+    ./gradlew build
+    ```
+2. Run the server:
+    ```bash
+    ./gradlew run
+    ```
+3. The API will be available at [http://localhost:8080](http://localhost:8080).
 
+> Requires [Java 17+](https://adoptium.net/) and [Gradle](https://gradle.org/) installed.
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+- Found a bug? Open an [issue](https://github.com/bscommunity/api/issues)
+- Have a feature idea? Suggest or submit a PR
+- Into API design? Help us improve our endpoints and documentation!
+
+## 📄 License
+
+This project follows the bscm organization license. See the main repository for details.
