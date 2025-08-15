@@ -26,8 +26,8 @@ This repository contains the source code for the backend server, powering the da
 - **Swagger documentation**  
   Interactive API docs for easy exploration.
 
-> ![TIP]
-> See the [wiki](https://github.com/bscommunity/api/wiki) for more details on endpoints, architecture, and future plans.
+> [!TIP]
+> Check the [wiki](https://github.com/bscommunity/api/wiki) for more details on endpoints, architecture, and future plans.
 
 ## 📦 Project Structure
 
