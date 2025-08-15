@@ -6,7 +6,7 @@
 
 ## 🗄️ About
 
-This repository contains the source code for the backend server, powering the dashboard and other services. It’s built with [Ktor](https://ktor.io/) and [Exposed](https://github.com/JetBrains/Exposed), designed to be fast, secure, and scalable, with a focus on supporting creators and the community.
+This repository contains the source code for bscm's backend server, powering the dashboard and other services. It’s built with [Ktor](https://ktor.io/) and [Exposed](https://github.com/JetBrains/Exposed), designed to be fast, secure, and scalable, with a focus on supporting creators and the community.
 
 > [!WARNING]
 > This is a work in progress! We’re actively developing features and improving the experience. Check back often for updates.
@@ -57,7 +57,7 @@ This repository contains the source code for the backend server, powering the da
 
 ### How to configure sensitive variables
 
-- All sensitive variables are now configured via [application.yaml](./src/main/resources/application.yaml).
+- All sensitive variables are now configured via [application.yaml](./src/main/resources/application.yaml)
 - For local development, set the values directly in the `application.yaml` file using the following format:
   ```yaml
   jwt:
@@ -66,9 +66,9 @@ This repository contains the source code for the backend server, powering the da
     jdbcURL: ...
   # ... other configurations
   ```
-- In production, use environment variables or your platform's secret manager to populate the values in `application.yaml` (e.g., Docker secrets, GitHub Actions secrets, etc).
+- In production, use environment variables or your platform's secret manager to populate the values in `application.yaml` (e.g., Docker secrets, GitHub Actions secrets, etc)
 
-> See the `application.yaml` file for all required fields
+> See the [`application.yaml`](./src/main/resources/application.yaml) file for all required fields
 
 ## 🤝 Contributing
 
