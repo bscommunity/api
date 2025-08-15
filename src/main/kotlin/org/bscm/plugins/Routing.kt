@@ -44,7 +44,8 @@ fun Application.configureRouting() {
         }
 
         get("/status") {
-            applicationHttpClient.get(System.getenv("STATUS_URL"))
+            val statusUrl = application.environment.config.property("status.url").getString()
+            applicationHttpClient.get(statusUrl)
                 .let { call.respondText(it.bodyAsText(), ContentType.Application.Json) }
         }
 

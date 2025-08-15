@@ -4,9 +4,7 @@
     <img alt="bscm API" src="/.github/cover_light.png">
 </picture>
 
-# 🗄️ About
-
-This is the official API backend for the bscm project: a lightweight, community-driven hub for everything Beatstar, built by players, for players.
+## 🗄️ About
 
 This repository contains the source code for the backend server, powering the dashboard and other services. It’s built with [Ktor](https://ktor.io/) and [Exposed](https://github.com/JetBrains/Exposed), designed to be fast, secure, and scalable, with a focus on supporting creators and the community.
 
@@ -25,9 +23,6 @@ This repository contains the source code for the backend server, powering the da
   Built-in middleware for robust, safe APIs.
 - **Swagger documentation**  
   Interactive API docs for easy exploration.
-
-> [!TIP]
-> Check the [wiki](https://github.com/bscommunity/api/wiki) for more details on endpoints, architecture, and future plans.
 
 ## 📦 Project Structure
 
@@ -59,6 +54,21 @@ This repository contains the source code for the backend server, powering the da
 3. The API will be available at [http://localhost:8080](http://localhost:8080).
 
 > Requires [Java 17+](https://adoptium.net/) and [Gradle](https://gradle.org/) installed.
+
+### How to configure sensitive variables
+
+- All sensitive variables are now configured via [application.yaml](./src/main/resources/application.yaml).
+- For local development, set the values directly in the `application.yaml` file using the following format:
+  ```yaml
+  jwt:
+    secret: your_jwt_secret
+  storage:
+    jdbcURL: ...
+  # ... other configurations
+  ```
+- In production, use environment variables or your platform's secret manager to populate the values in `application.yaml` (e.g., Docker secrets, GitHub Actions secrets, etc).
+
+> See the `application.yaml` file for all required fields
 
 ## 🤝 Contributing
 

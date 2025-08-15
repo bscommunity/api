@@ -1,6 +1,7 @@
 package org.bscm.plugins
 
 import io.ktor.server.application.*
+import io.ktor.server.config.*
 import org.bscm.repository.*
 import org.bscm.repository.implementation.*
 import org.bscm.services.*
@@ -9,38 +10,39 @@ import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
 
 fun Application.configureDI() {
+    val config = environment.config
     install(Koin) {
         slf4jLogger()
-        modules(mainModule)
+        modules(mainModule(config))
     }
 }
 
-val mainModule = module {
+fun mainModule(config: ApplicationConfig) = module {
     single<UserRepository> { UserRepositoryImpl() }
     single<ChartRepository> { ChartRepositoryImpl() }
     single<ContributorRepository> { ContributorRepositoryImpl() }
     single<KnownIssueRepository> { KnownIssueRepositoryImpl() }
     single<VersionRepository> { VersionRepositoryImpl() }
     single { JWTService(
-        secret = System.getenv("JWT_SECRET")
+        secret = config.property("jwt.secret").getString()
     ) }
     single { HMACService(
-        secret = System.getenv("HMAC_SECRET")
+        secret = config.property("hmac.secret").getString()
     ) }
     single { DiscordOAuthService(
-        clientId = System.getenv("DISCORD_CLIENT_ID"),
-        clientSecret = System.getenv("DISCORD_CLIENT_SECRET"),
-        redirectUri = System.getenv("DISCORD_REDIRECT_URI")
+        clientId = config.property("discord.clientId").getString(),
+        clientSecret = config.property("discord.clientSecret").getString(),
+        redirectUri = config.property("discord.redirectUri").getString()
     ) }
     single { GoogleOAuthService(
-        clientId = System.getenv("GOOGLE_CLIENT_ID"),
-        clientSecret = System.getenv("GOOGLE_CLIENT_SECRET"),
-        redirectUri = System.getenv("GOOGLE_REDIRECT_URI")
+        clientId = config.property("google.clientId").getString(),
+        clientSecret = config.property("google.clientSecret").getString(),
+        redirectUri = config.property("google.redirectUri").getString()
     ) }
     single { UploadService(
-        webhookId = System.getenv("DISCORD_WEBHOOK_ID"),
-        webhookToken = System.getenv("DISCORD_WEBHOOK_TOKEN"),
-        botToken = System.getenv("DISCORD_BOT_TOKEN"),
-        channelId = System.getenv("DISCORD_CHANNEL_ID"),
+        webhookId = config.property("discord.webhookId").getString(),
+        webhookToken = config.property("discord.webhookToken").getString(),
+        botToken = config.property("discord.botToken").getString(),
+        channelId = config.property("discord.channelId").getString(),
     ) }
 }
