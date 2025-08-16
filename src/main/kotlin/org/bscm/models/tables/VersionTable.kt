@@ -34,6 +34,6 @@ object VersionTable : ULongIdTable("versions") {
     val publishedAt = date("published_at").clientDefault { LocalDate.now() }
 
     init {
-        index("idx_version_downloads_amount", false, downloadsAmount)
+        index(false, downloadsAmount)
     }
 }

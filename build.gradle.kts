@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.exposed.jdbc)
     implementation(libs.exposed.json)
     implementation(libs.exposed.java.time)
+    implementation(libs.exposed.migration)
     implementation(libs.postgresql)
 
     // Database Migration

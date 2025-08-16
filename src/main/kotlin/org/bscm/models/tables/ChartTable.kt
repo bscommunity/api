@@ -25,6 +25,6 @@ object ChartTable : ULongIdTable("charts") {
     val latestVersionId = reference("latest_version_id", VersionTable, ReferenceOption.CASCADE).nullable()
 
     init {
-        index("idx_chart_search", false, normalizedArtist, normalizedTrack, normalizedAlbum)
+        index(false, normalizedArtist, normalizedTrack, normalizedAlbum)
     }
 }
