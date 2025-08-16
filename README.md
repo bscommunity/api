@@ -6,10 +6,12 @@
 
 ## 🗄️ About
 
-This repository contains the source code for bscm's backend server, powering the dashboard and other services. It’s built with [Ktor](https://ktor.io/) and [Exposed](https://github.com/JetBrains/Exposed), designed to be fast, secure, and scalable, with a focus on supporting creators and the community.
+This repository contains the source code for bscm's backend server, powering the dashboard and other services. 
+
+It’s built with [Ktor](https://ktor.io/) and [Exposed](https://github.com/JetBrains/Exposed), designed to be fast, secure, and scalable, with a focus on supporting creators and the community.
 
 > [!WARNING]
-> This is a work in progress! We’re actively developing features and improving the experience. Check back often for updates.
+> This is a **_work in progress_**! We’re actively developing features and improving the experience. Check back often for updates.
 
 ## 🚀 Features
 

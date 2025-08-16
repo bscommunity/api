@@ -4,7 +4,7 @@ import org.bscm.models.enums.Genre
 import org.jetbrains.exposed.dao.id.ULongIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
 
-object ChartTable : ULongIdTable("chart") {
+object ChartTable : ULongIdTable("charts") {
     val artist = varchar("artist", 200)
     val track = varchar("track", 200)
     val album = varchar("album", 200).nullable()
