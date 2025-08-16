@@ -64,7 +64,7 @@ object QueryUtils {
                                 THEN artist
                                 ELSE album
                             END AS best_match_text
-                        FROM chart
+                        FROM charts
                         WHERE is_public = true AND (
                             -- Condition 1: Trigram fuzzy match (uses pg_trgm.similarity_threshold, default 0.3)
                             (normalized_track % ? OR      -- param 10: dbQuery (for %)
