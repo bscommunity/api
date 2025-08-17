@@ -152,26 +152,19 @@ fun Route.versionRoutes(
                         chartRepository.getChartById(version.chartId.toULong())
                             ?: throw NotFoundException("Chart not found")
 
-                    // Upload the chart bundle
-                    val success = uploadService.deleteVersion(
+                    versionRepository.removeVersion(chart.latestVersion!!, versionIdULong)
+
+                    println("Removing version with ID: $versionIdULong from chart with ID: ${chart.id}")
+
+                    // Delete the version bundle from Discord
+                    uploadService.deleteVersion(
                         chart.id,
                         chart.track,
                         chart.versions,
                         versionId
                     )
 
-                    if (!success) {
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to delete version bundle")
-                        return@delete
-                    }
-
-                    val removed = versionRepository.removeVersion(chart.latestVersion!!, versionIdULong)
-
-                    if (removed) {
-                        call.respond(HttpStatusCode.NoContent, "Version removed successfully")
-                    } else {
-                        throw NotFoundException("Chart or version not found")
-                    }
+                    call.respond(HttpStatusCode.NoContent, "Version removed successfully")
                 }
             }
         }
@@ -180,9 +173,11 @@ fun Route.versionRoutes(
     // Refreshes bundle URLs for all charts latest versions
     route("/refresh") {
         post {
-            /*val principal = call.principal<JWTPrincipal>()
-            val userId = principal?.subject?.let { UUID.fromString(it) }
-                ?: throw UnauthorizedException("User unauthorized")*/
+            val verify = call.request.queryParameters["verify"]
+
+            if (verify != application.environment.config.property("jwt.secret").getString()) {
+                throw UnauthorizedException("Invalid verification token")
+            }
 
             val messages = uploadService.refreshBundleUrls()
 

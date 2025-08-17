@@ -52,13 +52,15 @@ class UploadService(
     )
 
     private fun getNormalizedTrackName(track: String): String {
-        var normalized = track.trim() // Trim leading/trailing whitespace
-        normalized = normalized.lowercase(Locale.getDefault()) // Convert to lowercase
-        normalized = normalized.replace(Regex("\\s*\\([^)]*\\)"), "")
-        normalized = normalized.replace(Regex("\\s*\\[.*?]"), "")
-        normalized = normalized.replace(Regex("\\s*[Ff]eat\\..*"), "")
-        normalized = normalized.replace(Regex("[^a-zA-Z0-9 ]"), "")
-        return normalized.trim().replace(" ", "_")
+        val normalized = track.trim()
+            .lowercase(Locale.getDefault())
+            .replace(Regex("\\s*\\([^)]*\\)"), "")   // remove (...)
+            .replace(Regex("\\s*\\[.*?]"), "")       // remove [...]
+            .replace(Regex("\\s*[Ff]eat\\..*"), "")  // remove feat...
+            .replace(Regex("[^a-zA-Z0-9 ]"), " ")    // replace non-alfa numeric with space
+            .replace(Regex("\\s+"), "_")             // collapse whitespace → underscore
+            .trim('_')                               // trim leading/trailing underscores
+        return normalized
     }
 
     private fun getButtonForPlatform(platform: StreamingPlatform, url: String): Button {

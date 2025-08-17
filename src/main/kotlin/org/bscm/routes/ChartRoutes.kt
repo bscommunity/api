@@ -117,7 +117,7 @@ fun Route.chartRoutes(
                         }
                     }
 
-                    println("Returning ${charts.size} charts for query: $sanitizedQuery, difficulties: $difficulties, genres: $genres, sortBy: $sortBy, limit: $limit, offset: $offset")
+                    // println("Returning ${charts.size} charts for query: $sanitizedQuery, difficulties: $difficulties, genres: $genres, sortBy: $sortBy, limit: $limit, offset: $offset")
 
                     call.respond(charts)
                 }
@@ -239,7 +239,7 @@ fun Route.chartRoutes(
 
                     // Create the chart in the repository
                     val createdChart = chartRepository.createChart(userId, createRequestWithUrl)
-                    println("Created chart: $createdChart")
+                    // println("Created chart: $createdChart")
 
                     call.respond(HttpStatusCode.Created, createdChart)
                 }

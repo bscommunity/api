@@ -147,7 +147,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         val paginatedIds = baseQuery.map { it[ChartTable.id].value }
         if (paginatedIds.isEmpty()) {
-            println("No charts found with the provided filters.")
+            // println("No charts found with the provided filters.")
             return emptyList()
         }
 
@@ -168,7 +168,7 @@ class ChartRepositoryImpl : ChartRepository {
             includeStreamingLinks = fetchStreamingLinks
         )
 
-        println("Fetched ${processedResults.size} with filters: userId=$userId, chartIds=${chartIds?.joinToString()}, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
+        // println("Fetched ${processedResults.size} with filters: userId=$userId, chartIds=${chartIds?.joinToString()}, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
 
         // The database does not guarantee order with an `IN` clause,
         // so we re-sort the results in memory based on the correctly ordered `paginatedIds`.
