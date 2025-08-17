@@ -289,7 +289,7 @@ class UploadService(
                 append("file", chartBundle, Headers.build {
                     append(
                         HttpHeaders.ContentDisposition,
-                        "form-data; name=\"file\"; filename=\"chart_v${newIndex}.zip\""
+                        "form-data; name=\"file\"; filename=\"${normalizedTrack}_v${newIndex}.zip\""
                     )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
