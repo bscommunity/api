@@ -16,6 +16,7 @@ data class Chart(
     val coverUrl: String,
     val trackUrls: List<StreamingLink> = emptyList(),
     val trackPreviewUrl: String? = null,
+    val isPublic: Boolean,
     val isFeatured: Boolean,
     val versions: List<Version> = emptyList(),
     val contributors: List<Contributor> = emptyList(),

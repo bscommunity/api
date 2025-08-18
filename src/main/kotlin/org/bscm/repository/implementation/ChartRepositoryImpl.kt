@@ -58,6 +58,7 @@ class ChartRepositoryImpl : ChartRepository {
             trackUrls = streamingLinks ?: emptyList(),
             trackPreviewUrl = entity.trackPreviewUrl,
             coverUrl = entity.coverUrl,
+            isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
             genre = entity.genre,
             versions = versions,
