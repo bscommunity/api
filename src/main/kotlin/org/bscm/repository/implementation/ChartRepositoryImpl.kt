@@ -245,6 +245,16 @@ class ChartRepositoryImpl : ChartRepository {
             }
         }
 
+        // If user is provided, filter by their charts
+        userId?.let {
+            query.andWhere {
+                ChartTable.id inSubQuery (
+                    ContributorTable.select(ContributorTable.chartId)
+                        .where { ContributorTable.userId eq it }
+                )
+            }
+        }
+
         // Filter by a specific list of chartIds if provided
         chartIds?.takeIf { it.isNotEmpty() }?.let { ids ->
             query.andWhere { ChartTable.id inList ids }
