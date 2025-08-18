@@ -403,7 +403,7 @@ class ChartRepositoryImpl : ChartRepository {
         println("Fetched ${result.size} charts with filters: userId=$userId, chartIds=${chartIds?.joinToString()}, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
 
         val charts = result.map { chartResult ->
-            println("Processing chart with ID: ${chartResult.chart.id.value}")
+            // println("Processing chart with ID: ${chartResult.chart.id.value}")
             daoToChart(
                 entity = chartResult.chart,
                 streamingLinks = null, // No streaming links for this variant
@@ -445,7 +445,7 @@ class ChartRepositoryImpl : ChartRepository {
         )
 
         val charts = result.map { chartResult ->
-            println("Processing chart with ID: ${chartResult.chart.id.value}")
+            // println("Processing chart with ID: ${chartResult.chart.id.value}")
             daoToChart(
                 entity = chartResult.chart,
                 streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
