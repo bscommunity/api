@@ -1,12 +1,11 @@
-// @file:UseSerializers(UUIDSerializer::class, LocalDateSerializer::class)
+// @file:UseSerializers(UUIDSerializer::class, LocalDateTimeSerializer::class)
 
 package org.bscm.models
 
 import kotlinx.serialization.Serializable
-import org.bscm.models.dto.user.CreateUserRequest
-import org.bscm.serialization.LocalDateSerializer
+import org.bscm.serialization.LocalDateTimeSerializer
 import org.bscm.serialization.UUIDSerializer
-import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.*
 
 @Serializable
@@ -17,20 +16,7 @@ data class User(
     val email: String,
     val imageUrl: String?,
     val discordId: String,
-    @Serializable(with = LocalDateSerializer::class)
-    val createdAt: LocalDate,
+    @Serializable(with = LocalDateTimeSerializer::class)
+    val createdAt: LocalDateTime,
     val accounts: List<Account>? = null // Optional, can be null if no account is associated
-) {
-    companion object {
-        fun create(request: CreateUserRequest): User {
-            return User(
-                id = UUID.randomUUID(), // Auto-generate UUID
-                username = request.username,
-                email = request.email,
-                imageUrl = request.imageUrl,
-                discordId = request.discordId,
-                createdAt = LocalDate.now() // Auto-generate current date
-            )
-        }
-    }
-}
+)

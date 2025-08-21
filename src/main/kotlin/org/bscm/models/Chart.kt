@@ -2,8 +2,8 @@ package org.bscm.models
 
 import kotlinx.serialization.Serializable
 import org.bscm.models.enums.Genre
-import org.bscm.serialization.LocalDateSerializer
-import java.time.LocalDate
+import org.bscm.serialization.LocalDateTimeSerializer
+import java.time.LocalDateTime
 
 @Serializable
 data class Chart(
@@ -23,6 +23,6 @@ data class Chart(
     // Room Database fields (Room expects simple fields to query)
     val downloadsSum: Int = 0,
     val latestVersion: Version?,
-    @Serializable(with = LocalDateSerializer::class)
-    val latestPublishedAt: LocalDate,
+    @Serializable(with = LocalDateTimeSerializer::class)
+    val latestPublishedAt: LocalDateTime,
 )

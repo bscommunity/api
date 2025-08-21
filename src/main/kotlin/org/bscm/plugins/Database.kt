@@ -2,9 +2,7 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
-import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.StdOutSqlLogger
 import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -15,7 +13,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
     val password = config.property("storage.password").getString()
 
     // Execute migrations
-    // migrateDatabase(url, user, password)
+    migrateDatabase(url, user, password)
 
     // Connect to database
     Database.connect(
@@ -44,7 +42,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
         )*/
 
         // DEPRECATED: Temporary solution until these Feature Requests are implemented: https://www.jetbrains.com/help/exposed/migrations.html#feature-requests
-        SchemaUtils.create(
+        /*SchemaUtils.create(
             UserTable,
             AccountTable,
             ChartTable,
@@ -52,6 +50,6 @@ fun Application.configureDatabases(config: ApplicationConfig) {
             ContributorTable,
             StreamingLinkTable,
             ChartStreamingLinkTable
-        )
+        )*/
     }
 }

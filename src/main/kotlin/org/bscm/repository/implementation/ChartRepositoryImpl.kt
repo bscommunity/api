@@ -21,7 +21,6 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.time.LocalDate
 import java.util.*
 import kotlin.math.min
 
@@ -561,7 +560,6 @@ class ChartRepositoryImpl : ChartRepository {
         // Add the user as an author of the chart
         val contributor = ContributorEntity.new(contributorId) {
             roles = listOf(ContributorRole.AUTHOR)
-            joinedAt = LocalDate.now()
         }
 
         /* HANDLING INITIAL VERSION  ================ */

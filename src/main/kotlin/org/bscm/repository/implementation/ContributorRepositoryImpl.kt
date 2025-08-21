@@ -11,7 +11,6 @@ import org.bscm.models.tables.ContributorTable
 import org.bscm.repository.ContributorRepository
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import java.time.LocalDate
 import java.util.*
 
 class ContributorRepositoryImpl : ContributorRepository {
@@ -63,7 +62,6 @@ class ContributorRepositoryImpl : ContributorRepository {
 
                 val newContributor = ContributorEntity.new(contributorId) {
                     roles = contributor.roles
-                    joinedAt = LocalDate.now()
                 }
 
                 contributorEntityToContributor(newContributor)

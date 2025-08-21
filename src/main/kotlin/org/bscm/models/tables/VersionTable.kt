@@ -6,9 +6,9 @@ import org.bscm.models.KnownIssue
 import org.bscm.models.enums.Difficulty
 import org.jetbrains.exposed.dao.id.ULongIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.javatime.date
+import org.jetbrains.exposed.sql.javatime.CurrentDateTime
+import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.json.jsonb
-import java.time.LocalDate
 
 object VersionTable : ULongIdTable("versions") {
     val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
@@ -31,7 +31,7 @@ object VersionTable : ULongIdTable("versions") {
         Json { ignoreUnknownKeys = true },
         ListSerializer(KnownIssue.serializer())
     ).default(emptyList())
-    val publishedAt = date("published_at").clientDefault { LocalDate.now() }
+    val publishedAt = datetime("published_at").defaultExpression(CurrentDateTime)
 
     init {
         index(false, downloadsAmount)

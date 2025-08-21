@@ -1,11 +1,11 @@
-// @file:UseSerializers(UUIDSerializer::class, LocalDateSerializer::class)
+// @file:UseSerializers(UUIDSerializer::class, LocalDateTimeSerializer::class)
 
 package org.bscm.models
 
 import kotlinx.serialization.Serializable
 import org.bscm.models.enums.Difficulty
-import org.bscm.serialization.LocalDateSerializer
-import java.time.LocalDate
+import org.bscm.serialization.LocalDateTimeSerializer
+import java.time.LocalDateTime
 
 @Serializable
 data class Version(
@@ -23,6 +23,6 @@ data class Version(
     val previewUrl: String? = null,
     val downloadsAmount: Int = 0,
     val knownIssues: List<KnownIssue> = emptyList(),
-    @Serializable(with = LocalDateSerializer::class)
-    val publishedAt: LocalDate,
+    @Serializable(with = LocalDateTimeSerializer::class)
+    val publishedAt: LocalDateTime,
 )

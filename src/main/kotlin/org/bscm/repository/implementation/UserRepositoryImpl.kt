@@ -15,7 +15,6 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.upsert
-import java.time.LocalDate
 import java.util.*
 
 class UserRepositoryImpl : UserRepository {
@@ -77,7 +76,6 @@ class UserRepositoryImpl : UserRepository {
             this.email = user.email
             this.discordId = user.discordId
             this.imageUrl = user.imageUrl
-            this.createdAt = LocalDate.now()
         }
         userEntityToUser(newUser)
     }

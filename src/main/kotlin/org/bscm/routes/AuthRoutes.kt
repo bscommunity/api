@@ -17,7 +17,7 @@ import org.bscm.repository.UserRepository
 import org.bscm.services.DiscordOAuthService
 import org.bscm.services.GoogleOAuthService
 import org.bscm.services.JWTService
-import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.*
 
 fun Route.authRoutes(
@@ -113,7 +113,9 @@ fun Route.authRoutes(
                             // providerAccountId = googleUser.id,
                             refreshToken = googleTokenResponse.refreshToken,
                             accessToken = googleTokenResponse.accessToken,
-                            expiresAt = LocalDate.now().plusDays(googleTokenResponse.expiresIn.toLong()),
+                            expiresAt = googleTokenResponse.expiresIn.let {
+                                LocalDateTime.now().plusDays(it.toLong())
+                            },
                             tokenType = googleTokenResponse.tokenType,
                             scope = googleTokenResponse.scope,
                         )

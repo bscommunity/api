@@ -5,7 +5,8 @@ import kotlinx.serialization.json.Json
 import org.bscm.models.enums.ContributorRole
 import org.jetbrains.exposed.dao.id.CompositeIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.javatime.date
+import org.jetbrains.exposed.sql.javatime.CurrentDateTime
+import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.json.jsonb
 
 object ContributorTable : CompositeIdTable("contributors") {
@@ -17,7 +18,7 @@ object ContributorTable : CompositeIdTable("contributors") {
         Json { ignoreUnknownKeys = true },
         ListSerializer(ContributorRole.serializer())
     ).default(emptyList())
-    val joinedAt = date("joined_at")
+    val joinedAt = datetime("joined_at").defaultExpression(CurrentDateTime)
 
     init {
         addIdColumn(userId)

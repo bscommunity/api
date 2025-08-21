@@ -1,8 +1,8 @@
 package org.bscm.models.dto.account
 
 import kotlinx.serialization.Serializable
-import org.bscm.serialization.LocalDateSerializer
-import java.time.LocalDate
+import org.bscm.serialization.LocalDateTimeSerializer
+import java.time.LocalDateTime
 
 @Serializable
 data class CreateAccountRequest(
@@ -10,8 +10,8 @@ data class CreateAccountRequest(
     // val providerAccountId: String,
     val refreshToken: String? = null,
     val accessToken: String? = null,
-    @Serializable(with = LocalDateSerializer::class)
-    val expiresAt: LocalDate? = null,
+    @Serializable(with = LocalDateTimeSerializer::class)
+    val expiresAt: LocalDateTime? = null,
     val tokenType: String? = null,
     val scope: String? = null,
 )
