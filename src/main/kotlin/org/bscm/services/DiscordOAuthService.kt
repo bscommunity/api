@@ -8,6 +8,7 @@ import io.ktor.http.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.bscm.plugins.applicationHttpClient
+import org.bscm.routes.AuthRequest
 
 class DiscordOAuthService(
     private val clientId: String,
@@ -37,15 +38,16 @@ class DiscordOAuthService(
         @SerialName("error_description") val errorDescription: String
     )
 
-    suspend fun getAccessToken(code: String): String {
+    suspend fun getAccessToken(authRequest: AuthRequest): String {
         val response: HttpResponse = applicationHttpClient.submitForm(
             url = "${discordApiEndpoint}/oauth2/token",
             formParameters = Parameters.build {
                 append("grant_type", "authorization_code")
-                append("code", code)
-                append("redirect_uri", redirectUri)
+                append("code", authRequest.code)
+                append("redirect_uri", authRequest.redirectUri ?: redirectUri)
                 append("client_id", clientId)
                 append("client_secret", clientSecret)
+                authRequest.codeVerifier?.let { append("code_verifier", it) }
             }
         )
         if (response.status.isSuccess()) {

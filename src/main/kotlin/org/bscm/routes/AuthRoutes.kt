@@ -27,29 +27,32 @@ fun Route.authRoutes(
     jwtService: JWTService
 ) {
     route("/auth") {
-        post("/login") {
-            val code = call.receiveAndValidateAuthCode() ?: return@post
+        post("/discord") {
+            val authRequest = call.receiveOrNull<AuthRequest>()
+                ?: return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
+
+            println("authRequest: $authRequest")
 
             try {
-                val accessToken = discordOAuthService.getAccessToken(code)
+                val accessToken = discordOAuthService.getAccessToken(authRequest)
                 val discordUser = discordOAuthService.getUserInfo(accessToken)
 
                 if (discordUser.email == null) {
-                    throw IllegalArgumentException("Discord user must have an email")
+                    call.respondError(HttpStatusCode.BadRequest, "Discord user must have an email")
+                    return@post
                 }
 
                 val user = userRepository.getUserByDiscordId(discordUser.id)
                     ?.let { existingUser ->
                         userRepository.updateUser(
                             existingUser.id, UpdateUserRequest(
-                            username = discordUser.username,
-                            email = discordUser.email,
-                            imageUrl = discordUser.avatar?.let {
-                                discordOAuthService.getAvatarUrl(discordUser.id, it)
-                            }
-                        ))
+                                username = discordUser.username,
+                                email = discordUser.email,
+                                imageUrl = discordUser.avatar?.let {
+                                    discordOAuthService.getAvatarUrl(discordUser.id, it)
+                                }
+                            ))
                     }
-                // ?: throw NotImplementedError("User creation is not implemented yet")
                     ?: userRepository.createUser(
                         CreateUserRequest(
                             username = discordUser.username,
@@ -61,48 +64,49 @@ fun Route.authRoutes(
                         )
                     )
 
-                call.respond(
-                    AuthResult(
-                        token = jwtService.generateToken(user.id),
-                        user = user
-                    )
-                )
+                println("User authenticated via Discord: ${user.id}")
+
+                call.respond(user.toAuthResult(jwtService))
             } catch (e: Exception) {
-                println(e.message)
-                throw IllegalArgumentException(e.message ?: "Failed to authenticate")
+                println("Error during Discord authentication: ${e.message}")
+                call.respondError(HttpStatusCode.InternalServerError, "Authentication failed: ${e.message}")
             }
         }
 
+        post("/refresh") {
+            val refreshRequest = call.receiveOrNull<RefreshTokenRequest>()
+                ?: return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
+
+            val userId = jwtService.verifyRefreshToken(refreshRequest.refreshToken)
+                ?: return@post call.respondError(HttpStatusCode.Unauthorized, "Invalid refresh token")
+
+            val user = userRepository.getUserById(userId)
+                ?: return@post call.respondError(HttpStatusCode.NotFound, "User not found")
+
+            call.respond(user.toAuthResult(jwtService))
+        }
+
+        authenticate("auth-jwt") {
+            get("/me") {
+                val userId = call.getUserIdFromJWT() ?: return@get
+                val user = userRepository.getUserById(userId)
+                    ?: return@get call.respondError(HttpStatusCode.NotFound, "User not found")
+
+                call.respond(user)
+            }
+        }
+
+        // Google OAuth linking and unlinking
         authenticate("auth-jwt", optional = true) {
             post("/google/link") {
                 val code = call.receiveAndValidateAuthCode() ?: return@post
-
-                val jwtPrincipal = call.principal<JWTPrincipal>()
-
-                if (jwtPrincipal == null) {
-                    call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
-                    return@post
-                }
-
-                val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
-
-                if (userId == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid user ID")
-                    return@post
-                }
+                val userId = call.getUserIdFromJWT() ?: return@post
 
                 try {
                     val googleTokenResponse = googleOAuthService.getAccessToken(code)
-                    println("Google token response: $googleTokenResponse")
-                    // val googleUser = googleOAuthService.getUserInfo(googleTokenResponse.accessToken)
-
-                    /*if (!googleUser.verifiedEmail) {
-                        call.respond(HttpStatusCode.BadRequest, "Google user must have a verified email")
-                        return@post
-                    }*/
 
                     if (googleTokenResponse.scope.isNullOrBlank()) {
-                        call.respond(HttpStatusCode.BadRequest, "Google user must have a valid scope")
+                        call.respondError(HttpStatusCode.BadRequest, "Google user must have a valid scope")
                         return@post
                     }
 
@@ -110,91 +114,92 @@ fun Route.authRoutes(
                         userId,
                         CreateAccountRequest(
                             provider = "google",
-                            // providerAccountId = googleUser.id,
                             refreshToken = googleTokenResponse.refreshToken,
                             accessToken = googleTokenResponse.accessToken,
-                            expiresAt = googleTokenResponse.expiresIn.let {
-                                LocalDateTime.now().plusDays(it.toLong())
-                            },
+                            expiresAt = LocalDateTime.now().plusDays(googleTokenResponse.expiresIn.toLong()),
                             tokenType = googleTokenResponse.tokenType,
                             scope = googleTokenResponse.scope,
                         )
                     )
 
-                    call.respond(
-                        HttpStatusCode.OK,
-                        OAuthResult(
-                            scope = googleTokenResponse.scope
-                        )
-                    )
+                    call.respond(OAuthResult(scope = googleTokenResponse.scope))
                 } catch (e: Exception) {
-                    println(e.message)
-                    throw IllegalArgumentException(e.message ?: "Failed to authenticate with Google")
+                    call.respondError(HttpStatusCode.InternalServerError, "Failed to authenticate with Google: ${e.message}")
                 }
             }
 
-            post("google/unlink") {
-                val jwtPrincipal = call.principal<JWTPrincipal>()
-
-                if (jwtPrincipal == null) {
-                    call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
-                    return@post
-                }
-
-                val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
-
-                if (userId == null) {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid user ID")
-                    return@post
-                }
+            post("/google/unlink") {
+                val userId = call.getUserIdFromJWT() ?: return@post
 
                 try {
                     userRepository.deleteAccount(userId)
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Google account unlinked successfully"))
+                    call.respond(mapOf("message" to "Google account unlinked successfully"))
                 } catch (e: NotFoundException) {
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Google account not linked"))
+                    call.respond(mapOf("message" to "Google account not linked"))
                 } catch (e: Exception) {
-                    println(e.message)
-                    throw IllegalArgumentException(e.message ?: "Failed to unlink Google account")
+                    call.respondError(HttpStatusCode.InternalServerError, "Failed to unlink Google account")
                 }
             }
         }
     }
 }
 
+// Extension functions for cleaner code
 private suspend fun ApplicationCall.receiveAndValidateAuthCode(): String? {
-    val authRequest = try {
-        receive<AuthRequest>()
-    } catch (e: Exception) {
-        respond(
-            HttpStatusCode.BadRequest,
-            mapOf("error" to "Invalid request body. Expected JSON with 'code' field.")
-        )
-        return null
-    }
-    val code = authRequest.code
-    if (code.isBlank()) {
-        respond(
-            HttpStatusCode.BadRequest,
-            mapOf("error" to "Code cannot be empty")
-        )
-        return null
-    }
-    return code
+    val authRequest = receiveOrNull<AuthRequest>()
+        ?: return null.also { respondError(HttpStatusCode.BadRequest, "Invalid request body") }
+
+    return authRequest.code.takeIf { it.isNotBlank() }
+        ?: null.also { respondError(HttpStatusCode.BadRequest, "Code cannot be empty") }
 }
 
+private suspend inline fun <reified T : Any> ApplicationCall.receiveOrNull(): T? {
+    return try {
+        receive<T>()
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private suspend fun ApplicationCall.getUserIdFromJWT(): UUID? {
+    val jwtPrincipal = principal<JWTPrincipal>()
+        ?: return null.also { respondError(HttpStatusCode.Unauthorized, "Unauthorized access") }
+
+    return jwtPrincipal.subject?.let { UUID.fromString(it) }
+        ?: null.also { respondError(HttpStatusCode.BadRequest, "Invalid user ID") }
+}
+
+private suspend fun ApplicationCall.respondError(status: HttpStatusCode, message: String) {
+    respond(status, mapOf("error" to message))
+}
+
+// Extension functions for data transformation
+private fun User.toAuthResult(jwtService: JWTService) = AuthResponse(
+    accessToken = jwtService.generateAccessToken(id),
+    refreshToken = jwtService.generateRefreshToken(id),
+    expiresIn = jwtService.getAccessTokenExpiresIn(),
+    user = this
+)
+
+// Simplified data classes
 @Serializable
 data class AuthRequest(
-    val code: String
+    val code: String,
+    val redirectUri: String?,
+    val codeVerifier: String?
 )
 
 @Serializable
-data class AuthResult(
-    val token: String,
+data class RefreshTokenRequest(val refreshToken: String)
+
+@Serializable
+data class AuthResponse(
+    val accessToken: String,
+    val refreshToken: String,
+    val expiresIn: Long,
+    val tokenType: String = "Bearer",
     val user: User
 )
 
 @Serializable
-data class OAuthResult(
-    val scope: String,
-)
+data class OAuthResult(val scope: String)

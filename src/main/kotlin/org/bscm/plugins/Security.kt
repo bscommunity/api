@@ -119,7 +119,7 @@ fun Application.configureSecurity(
                     .build()
             )
             validate { credential ->
-                val userId = credential.subject?.let { jwtService.verifyToken(it) }
+                val userId = credential.subject?.let { jwtService.verifyAccessToken(it) }
                 if (userId != null) {
                     JWTPrincipal(credential.payload)
                 } else {
