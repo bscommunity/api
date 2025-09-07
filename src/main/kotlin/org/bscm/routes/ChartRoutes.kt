@@ -122,9 +122,9 @@ fun Route.chartRoutes(
                     call.respond(charts)
                 }
 
-                // Get chart by ID
+                // Get chart by ShareID
                 get("{id}") {
-                    val id = call.parameters["id"]?.toULong()
+                    val id = call.parameters["id"]
                     if (id == null) {
                         call.respond(
                             HttpStatusCode.BadRequest,
@@ -137,7 +137,9 @@ fun Route.chartRoutes(
                     val hmacPrincipal = call.principal<HMACPrincipal>()
 
                     val chart = when {
-                        jwtPrincipal != null -> chartRepository.getChartById(id)
+                        jwtPrincipal != null -> {
+                            chartRepository.getChartById(id.toULong()) ?: throw BadRequestException("Invalid or missing ID")
+                        }
                         hmacPrincipal != null -> chartRepository.getAppChartById(id)
                         else -> {
                             call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")

@@ -93,13 +93,9 @@ class ChartRepositoryImpl : ChartRepository {
         )
     }
 
-    override suspend fun getChartEntityById(id: ULong): ChartEntity? = newSuspendedTransaction {
-        ChartEntity.findById(id) ?: return@newSuspendedTransaction null
-    }
-
-    override suspend fun getAppChartById(id: ULong): Chart? = newSuspendedTransaction {
+    override suspend fun getAppChartById(shareId: String): Chart? = newSuspendedTransaction {
         val query = ChartTable.selectAll()
-            .where { ChartTable.id eq id }
+            .where { ChartTable.shareId eq shareId }
 
         applyJoinsAndSelect(query, fetchAllVersions = false, fetchStreamingLinks = true)
         val processedResults = processResultsInMemory(

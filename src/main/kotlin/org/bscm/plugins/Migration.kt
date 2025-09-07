@@ -41,7 +41,7 @@ fun generateExposedMigrationScript(
 fun migrateDatabase(jdbcUrl: String, user: String, password: String) {
     /*// Generate the migration script
     val scriptDirectory = Path.of("src/main/resources/db/migration")
-    val scriptName = "V1__initial_migration.sql"
+    val scriptName = "V1__datetime_conversion.sql"
 
     generateExposedMigrationScript(
         jdbcUrl = jdbcUrl,
@@ -62,6 +62,7 @@ fun migrateDatabase(jdbcUrl: String, user: String, password: String) {
         .dataSource(jdbcUrl, user, password)
         .locations("classpath:db/migration")
         .baselineOnMigrate(true) // Initialize the migration history table if it doesn't exist
+        .validateMigrationNaming(true)
         .load()
 
     // Executa as migrações

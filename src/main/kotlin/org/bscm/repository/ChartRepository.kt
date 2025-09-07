@@ -1,7 +1,6 @@
 package org.bscm.repository
 
 import org.bscm.models.Chart
-import org.bscm.models.dao.ChartEntity
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.enums.AnalyticsOption
@@ -33,8 +32,7 @@ interface ChartRepository {
     ): List<Chart>
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: ULong): Chart?
-    suspend fun getChartEntityById(id: ULong): ChartEntity?
-    suspend fun getAppChartById(id: ULong): Chart?
+    suspend fun getAppChartById(shareId: String): Chart?
     suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart
     suspend fun updateChart(id: ULong, chart: UpdateChartRequest): Chart
     suspend fun deleteChart(id: ULong): Boolean
