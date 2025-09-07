@@ -41,7 +41,7 @@ fun generateExposedMigrationScript(
 fun migrateDatabase(jdbcUrl: String, user: String, password: String) {
     /*// Generate the migration script
     val scriptDirectory = Path.of("src/main/resources/db/migration")
-    val scriptName = "V1__datetime_conversion.sql"
+    val scriptName = "V2__datetime.sql"
 
     generateExposedMigrationScript(
         jdbcUrl = jdbcUrl,
@@ -60,8 +60,6 @@ fun migrateDatabase(jdbcUrl: String, user: String, password: String) {
 
     val flyway = Flyway.configure()
         .dataSource(jdbcUrl, user, password)
-        .locations("classpath:db/migration")
-        .baselineOnMigrate(true) // Initialize the migration history table if it doesn't exist
         .validateMigrationNaming(true)
         .load()
 

@@ -9,6 +9,7 @@ import org.jetbrains.exposed.sql.transactions.transaction
 
 fun Application.configureDatabases(config: ApplicationConfig) {
     val url = "jdbc:" + config.property("storage.jdbcURL").getString()
+    val driver = "org.postgresql.Driver"
     val user = config.property("storage.user").getString()
     val password = config.property("storage.password").getString()
 
@@ -17,39 +18,14 @@ fun Application.configureDatabases(config: ApplicationConfig) {
 
     // Connect to database
     Database.connect(
-        url,
+        url = url,
+        driver = driver,
         user = user,
         password = password
     )
 
-    // Initialize tables (if not already created)
+    // Log SQL to console
     transaction {
         addLogger(StdOutSqlLogger)
-
-        // DANGER: Uncommenting the following lines will drop ALL existing tables and create new ones.
-        /*val schema = Schema("public")
-        SchemaUtils.dropSchema(schema, cascade = true)
-        SchemaUtils.createSchema(schema)*/
-
-        /*SchemaUtils.create(
-            UserTable,
-            AccountTable,
-            ChartTable,
-            VersionTable,
-            ContributorTable,
-            StreamingLinkTable,
-            ChartStreamingLinkTable
-        )*/
-
-        // DEPRECATED: Temporary solution until these Feature Requests are implemented: https://www.jetbrains.com/help/exposed/migrations.html#feature-requests
-        /*SchemaUtils.create(
-            UserTable,
-            AccountTable,
-            ChartTable,
-            VersionTable,
-            ContributorTable,
-            StreamingLinkTable,
-            ChartStreamingLinkTable
-        )*/
     }
 }
