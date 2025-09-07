@@ -14,7 +14,8 @@ fun Application.configureDatabases(config: ApplicationConfig) {
     val password = config.property("storage.password").getString()
 
     // Execute migrations
-    migrateDatabase(url, user, password)
+    // Disabled for now as it causes issues in the server environment
+    // migrateDatabase(url, user, password)
 
     // Connect to database
     Database.connect(
