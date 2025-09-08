@@ -70,4 +70,7 @@ dependencies {
     implementation(libs.logback)
     implementation(libs.kotlinx.datetime)
     implementation(libs.ktor.server.config.yaml)
+
+    // BouncyCastle
+    implementation(libs.bouncycastle)
 }

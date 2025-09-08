@@ -8,25 +8,35 @@ import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.transaction
 
 fun Application.configureDatabases(config: ApplicationConfig) {
-    val url = "jdbc:" + config.property("storage.jdbcURL").getString()
+    // Allow running without database properties (e.g., unit tests focused on routing)
+    val jdbcProp = config.propertyOrNull("storage.jdbcURL") ?: run {
+        log.warn("Skipping database initialization: storage.jdbcURL not provided")
+        return
+    }
+    val userProp = config.propertyOrNull("storage.user") ?: run {
+        log.warn("Skipping database initialization: storage.user not provided")
+        return
+    }
+    val passwordProp = config.propertyOrNull("storage.password") ?: run {
+        log.warn("Skipping database initialization: storage.password not provided")
+        return
+    }
+
+    val url = "jdbc:" + jdbcProp.getString()
     val driver = "org.postgresql.Driver"
-    val user = config.property("storage.user").getString()
-    val password = config.property("storage.password").getString()
+    val user = userProp.getString()
+    val password = passwordProp.getString()
 
-    // Execute migrations
-    // Disabled for now as it causes issues in the server environment
-    // migrateDatabase(url, user, password)
-
-    // Connect to database
-    Database.connect(
-        url = url,
-        driver = driver,
-        user = user,
-        password = password
-    )
-
-    // Log SQL to console
-    transaction {
-        addLogger(StdOutSqlLogger)
+    try {
+        Database.connect(
+            url = url,
+            driver = driver,
+            user = user,
+            password = password
+        )
+        transaction { addLogger(StdOutSqlLogger) }
+        log.info("Database initialized")
+    } catch (e: Exception) {
+        log.error("Failed to initialize database", e)
     }
 }

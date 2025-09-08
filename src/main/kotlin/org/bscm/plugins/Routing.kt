@@ -19,8 +19,8 @@ import org.koin.ktor.ext.inject
 // Disclaimer: Dependency Injection can't be made inside 'routing { }' block
 
 fun Application.configureRouting() {
-    val discordOAuthService : DiscordOAuthService by inject()
-    val googleOAuthService : GoogleOAuthService by inject()
+    val discordOAuthService: DiscordOAuthService by inject()
+    val googleOAuthService: GoogleOAuthService by inject()
 
     val uploadService by inject<UploadService>()
     val jwtService by inject<JWTService>()
@@ -44,7 +44,13 @@ fun Application.configureRouting() {
         }
 
         get("/status") {
-            val statusUrl = application.environment.config.property("status.url").getString()
+            val statusUrl = application.environment.config.propertyOrNull("status.url")?.getString()
+
+            if (statusUrl.isNullOrBlank()) {
+                call.respond(HttpStatusCode.NotImplemented, "status.url is not configured")
+                return@get
+            }
+
             applicationHttpClient.get(statusUrl)
                 .let { call.respondText(it.bodyAsText(), ContentType.Application.Json) }
         }
@@ -56,5 +62,6 @@ fun Application.configureRouting() {
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
         contributorRoutes(contributorRepository)
         knownIssuesRoutes(knownIssueRepository)
+        interactionsRoutes(application.environment.config.propertyOrNull("discord.publicKey")?.getString())
     }
 }
