@@ -13,7 +13,6 @@ import org.bscm.services.JWTService
 import org.koin.ktor.ext.inject
 import kotlin.math.abs
 
-val redirects = mutableMapOf<String, String>()
 
 // Custom principal for HMAC authentication
 data class HMACPrincipal(val appId: String, val timestamp: String)
