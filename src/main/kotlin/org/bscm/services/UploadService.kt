@@ -45,26 +45,6 @@ class UploadService(
     private val lastUpdatedIcon = "<:last_updated:1393800286639886496>"
 
     @Serializable
-    sealed interface BaseAttachment
-
-    @Serializable
-    data class Attachment(
-        val id: String,
-        val filename: String,
-        val url: String,
-        @SerialName("proxy_url") val proxyUrl: String,
-        val size: Int,
-        val height: Int? = null,
-        val width: Int? = null
-    ) : BaseAttachment
-
-    @Serializable
-    data class SimpleAttachment(
-        val id: String,
-        val filename: String,
-    ) : BaseAttachment
-
-    @Serializable
     data class DiscordMessageResponse(
         val id: String,
         @SerialName("channel_id") val channelId: String,
@@ -171,12 +151,11 @@ class UploadService(
         val durationFormatted =
             String.format("%dm%ds", (chart.duration / 60).toInt(), (chart.duration % 60).toInt())
 
-        // Build title with icons based on chart properties
         val titleIcons = buildString {
             when (chart.difficulty) {
                 Difficulty.HARD -> append(" $hardIcon")
                 Difficulty.EXTREME -> append(" $extremeIcon")
-                else -> {} // No icon for NORMAL and EXPERT
+                else -> {}
             }
             if (chart.isDeluxe) append(" $deluxeIcon")
             if (chart.isExplicit) append(" $explicitIcon")
@@ -190,33 +169,24 @@ class UploadService(
             EmbedField("Effects Amount", "$effectIcon ${chart.effectsAmount} effects", false),
         )
 
-        val embed = WebhookEmbed(
-            title = title,
-            // Omitir description completamente
-            url = "https://bscm.netlify.app/link/chart/${chart.shareId}",
-            timestamp = Date().toInstant().toString(),
-            color = 3820816,
-            thumbnail = Thumbnail(""),
-            image = Image(chart.coverUrl),
-            author = Author("New chart submitted"),
-            fields = fields,
-            footer = Footer(
-                text = "Submitted by @${author.username}",
-                iconUrl = author.imageUrl
-            )
-        )
-
         val components = buildComponents(chart.trackUrls)
 
-        val payload = WebhookPayload(
-            username = "bscm",
-            avatarUrl = "https://i.imgur.com/7e4lzGf.png",
-            embeds = listOf(embed),
-            attachments = attachments,
-            components = components
-        )
-
-        println(jsonClient.encodeToString(WebhookPayload.serializer(), payload))
+        val payload = message {
+            username("bscm")
+            avatar("https://i.imgur.com/7e4lzGf.png")
+            attachments(attachments)
+            embed {
+                this.title = title
+                url = "https://bscm.netlify.app/link/chart/${chart.shareId}"
+                timestamp(java.util.Date().toInstant().toString())
+                color = 3820816
+                image(chart.coverUrl)
+                author("New chart submitted")
+                fields.forEach { field(it.name, it.value, it.inline) }
+                footer("Submitted by @${author.username}", author.imageUrl)
+            }
+            components.forEach { component(it) }
+        }
 
         return jsonClient.encodeToString(WebhookPayload.serializer(), payload)
     }
@@ -418,75 +388,3 @@ class UploadService(
         return bundleUrls
     }
 }
-
-@Serializable
-private data class WebhookPayload(
-    val username: String = "bscm",
-    @SerialName("avatar_url") val avatarUrl: String? = null,
-    val embeds: List<WebhookEmbed>,
-    val attachments: List<UploadService.BaseAttachment> = emptyList(),
-    val components: List<ActionRow> = emptyList()
-)
-
-@Serializable
-private data class SimpleWebhookPayload(
-    val attachments: List<UploadService.SimpleAttachment>,
-)
-
-@Serializable
-private data class WebhookEmbed(
-    val title: String,
-    val description: String? = null,
-    val url: String? = null,
-    val color: Int,
-    val thumbnail: Thumbnail,
-    val image: Image?,
-    val author: Author? = null,
-    val fields: List<EmbedField>,
-    val footer: Footer? = null,
-    val timestamp: String? = null
-)
-
-@Serializable
-private data class Thumbnail(val url: String)
-
-@Serializable
-private data class Image(val url: String)
-
-@Serializable
-private data class Author(val name: String, val url: String? = null)
-
-@Serializable
-private data class EmbedField(
-    val name: String,
-    val value: String,
-    val inline: Boolean
-)
-
-@Serializable
-private data class Footer(
-    val text: String,
-    @SerialName("icon_url") val iconUrl: String? = null
-)
-
-@Serializable
-private data class ActionRow(
-    val type: Int,
-    val components: List<Button>
-)
-
-@Serializable
-private data class Button(
-    val type: Int,
-    val style: Int,
-    val label: String,
-    val emoji: Emoji? = null,
-    val url: String? = null,
-)
-
-@Serializable
-private data class Emoji(
-    val id: String,
-    val name: String,
-    val animated: Boolean
-)

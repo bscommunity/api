@@ -1,9 +1,10 @@
 package org.bscm.interactions.commands
 
 import io.ktor.server.application.*
-import io.ktor.server.response.*
 import kotlinx.serialization.json.*
 import org.bscm.interactions.I18n
+import org.bscm.interactions.ephemeralMessage
+import org.bscm.interactions.respondJson
 
 object PublishCommand {
     suspend fun handle(call: ApplicationCall, data: JsonObject, locale: String?) {
@@ -46,21 +47,6 @@ object PublishCommand {
             append(I18n.t(locale, "processing_not_implemented"))
         }
 
-        call.respondJson(interactionCallbackMessage(content))
+        call.respondJson(ephemeralMessage(content))
     }
 }
-
-private suspend fun ApplicationCall.respondJson(obj: JsonObject) {
-    respond(io.ktor.http.HttpStatusCode.OK, obj)
-}
-
-private fun ephemeralMessage(content: String): JsonObject = buildJsonObject {
-    put("type", 4)
-    put("data", buildJsonObject {
-        put("flags", 64)
-        put("content", content)
-    })
-}
-
-private fun interactionCallbackMessage(content: String): JsonObject = ephemeralMessage(content)
-
