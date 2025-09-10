@@ -1,8 +1,7 @@
 package org.bscm.services
 
-// Esta classe foi separada em DiscordOAuthService e GoogleOAuthService.
-// O código original foi migrado para os novos arquivos.
-// Esta classe pode ser removida ou mantida como deprecated, se necessário.
+// This class has been split into DiscordOAuthService and GoogleOAuthService.
+// The original code has been migrated to the new files.
 
 import io.ktor.client.call.*
 import io.ktor.client.request.*

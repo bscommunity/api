@@ -2,7 +2,7 @@ package org.bscm
 
 import io.ktor.server.application.*
 import org.bscm.plugins.*
-import org.bscm.utils.registerDiscordCommands
+import org.bscm.utils.CommandUtils.registerDiscordCommands
 
 fun main(args: Array<String>) {
     io.ktor.server.netty.EngineMain.main(args)

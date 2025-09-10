@@ -23,7 +23,7 @@ import org.bscm.repository.ChartRepository
 import org.bscm.repository.UserRepository
 import org.bscm.repository.VersionRepository
 import org.bscm.services.UploadService
-import org.bscm.utils.NanoId
+import org.bscm.utils.NanoIdUtils
 import java.util.*
 
 fun Route.chartRoutes(
@@ -215,7 +215,7 @@ fun Route.chartRoutes(
 
                     println("Creating chart with request: $createRequest")
 
-                    val shareId = NanoId.generateOptimized(10, "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 63, 16)
+                    val shareId = NanoIdUtils.generateOptimized(10, "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 63, 16)
 
                     val createRequestWithId = createRequest.copy(
                         shareId = shareId,

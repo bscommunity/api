@@ -7,7 +7,7 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.json.*
 import org.bscm.interactions.CommandHandler
 import org.bscm.interactions.I18n
-import org.bscm.utils.verifyEd25519
+import org.bscm.utils.Ed25519Utils.verifyEd25519
 
 fun Route.interactionsRoutes(publicKey: String?) {
     post("/interactions") {

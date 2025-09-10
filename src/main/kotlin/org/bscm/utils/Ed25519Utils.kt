@@ -8,15 +8,18 @@ private fun String.hexToBytes(): ByteArray {
     return chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 }
 
-fun verifyEd25519(publicKeyHex: String, signatureHex: String, message: ByteArray): Boolean {
-    return try {
-        val pubKey = Ed25519PublicKeyParameters(publicKeyHex.lowercase().hexToBytes(), 0)
-        val verifier = Ed25519Signer()
-        verifier.init(false, pubKey)
-        verifier.update(message, 0, message.size)
-        verifier.verifySignature(signatureHex.lowercase().hexToBytes())
-    } catch (e: Exception) {
-        false
+object Ed25519Utils {
+    fun verifyEd25519(publicKeyHex: String, signatureHex: String, message: ByteArray): Boolean {
+        return try {
+            val pubKey = Ed25519PublicKeyParameters(publicKeyHex.lowercase().hexToBytes(), 0)
+            val verifier = Ed25519Signer()
+            verifier.init(false, pubKey)
+            verifier.update(message, 0, message.size)
+            verifier.verifySignature(signatureHex.lowercase().hexToBytes())
+        } catch (e: Exception) {
+            false
+        }
     }
 }
+
 

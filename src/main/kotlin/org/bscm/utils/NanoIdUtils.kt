@@ -17,7 +17,7 @@ import kotlin.math.ceil
  * val id = NanoId.generate()
  * ```
  */
-object NanoId {
+object NanoIdUtils {
 
     /**
      * Generates a random string based on specified or default parameters.

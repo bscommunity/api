@@ -45,6 +45,26 @@ class UploadService(
     private val lastUpdatedIcon = "<:last_updated:1393800286639886496>"
 
     @Serializable
+    sealed interface BaseAttachment
+
+    @Serializable
+    data class Attachment(
+        val id: String,
+        val filename: String,
+        val url: String,
+        @SerialName("proxy_url") val proxyUrl: String,
+        val size: Int,
+        val height: Int? = null,
+        val width: Int? = null
+    ) : BaseAttachment
+
+    @Serializable
+    data class SimpleAttachment(
+        val id: String,
+        val filename: String,
+    ) : BaseAttachment
+
+    @Serializable
     data class DiscordMessageResponse(
         val id: String,
         @SerialName("channel_id") val channelId: String,
@@ -71,7 +91,6 @@ class UploadService(
                 label = "Spotify",
                 emoji = Emoji("1393805551602892860", "spotify", false),
                 url = url,
-                // customId = "spotify_button"
             )
 
             StreamingPlatform.APPLE_MUSIC -> Button(
@@ -80,7 +99,6 @@ class UploadService(
                 label = "Apple Music",
                 emoji = Emoji("1393805548180344923", "itunes", false),
                 url = url,
-                // customId = "apple_music_button"
             )
 
             StreamingPlatform.YOUTUBE_MUSIC -> Button(
@@ -89,7 +107,6 @@ class UploadService(
                 label = "YouTube Music",
                 emoji = Emoji("1393805555457589301", "unknown", false),
                 url = url,
-                // customId = "youtube_music_button"
             )
 
             StreamingPlatform.TIDAL -> Button(
@@ -98,7 +115,6 @@ class UploadService(
                 label = "Tidal",
                 emoji = Emoji("1393805553297522841", "tidal", false),
                 url = url,
-                // customId = "tidal_button"
             )
 
             StreamingPlatform.DEEZER -> Button(
@@ -107,7 +123,6 @@ class UploadService(
                 label = "Deezer",
                 emoji = Emoji("1393805549707071588", "deezer", false),
                 url = url,
-                // customId = "deezer_button"
             )
 
             StreamingPlatform.AMAZON_MUSIC -> Button(
@@ -116,7 +131,6 @@ class UploadService(
                 label = "Amazon Music",
                 emoji = Emoji("1394147798772879371", "amazon_music", false),
                 url = url,
-                // customId = "amazon_music"
             )
 
             StreamingPlatform.SOUNDCLOUD -> Button(
@@ -125,7 +139,6 @@ class UploadService(
                 label = "Soundcloud",
                 emoji = Emoji("1394147704598302760", "soundcloud", false),
                 url = url,
-                // customId = "soundcloud_button"
             )
 
             else -> Button(
@@ -407,16 +420,21 @@ class UploadService(
 }
 
 @Serializable
-data class WebhookPayload(
+private data class WebhookPayload(
     val username: String = "bscm",
     @SerialName("avatar_url") val avatarUrl: String? = null,
     val embeds: List<WebhookEmbed>,
-    val attachments: List<BaseAttachment> = emptyList(),
+    val attachments: List<UploadService.BaseAttachment> = emptyList(),
     val components: List<ActionRow> = emptyList()
 )
 
 @Serializable
-data class WebhookEmbed(
+private data class SimpleWebhookPayload(
+    val attachments: List<UploadService.SimpleAttachment>,
+)
+
+@Serializable
+private data class WebhookEmbed(
     val title: String,
     val description: String? = null,
     val url: String? = null,
@@ -430,72 +448,45 @@ data class WebhookEmbed(
 )
 
 @Serializable
-data class Thumbnail(val url: String)
+private data class Thumbnail(val url: String)
 
 @Serializable
-data class Image(val url: String)
+private data class Image(val url: String)
 
 @Serializable
-data class Author(val name: String, val url: String? = null)
+private data class Author(val name: String, val url: String? = null)
 
 @Serializable
-data class EmbedField(
+private data class EmbedField(
     val name: String,
     val value: String,
     val inline: Boolean
 )
 
 @Serializable
-data class Footer(
+private data class Footer(
     val text: String,
     @SerialName("icon_url") val iconUrl: String? = null
 )
 
 @Serializable
-data class ActionRow(
+private data class ActionRow(
     val type: Int,
     val components: List<Button>
 )
 
 @Serializable
-data class Button(
+private data class Button(
     val type: Int,
     val style: Int,
     val label: String,
     val emoji: Emoji? = null,
     val url: String? = null,
-    // @SerialName("custom_id") val customId: String? = null
 )
 
 @Serializable
-data class Emoji(
+private data class Emoji(
     val id: String,
     val name: String,
     val animated: Boolean
 )
-
-@Serializable
-sealed interface BaseAttachment
-
-@Serializable
-data class Attachment(
-    val id: String,
-    val filename: String,
-    val url: String,
-    @SerialName("proxy_url") val proxyUrl: String,
-    val size: Int,
-    val height: Int? = null,
-    val width: Int? = null
-) : BaseAttachment
-
-@Serializable
-data class SimpleAttachment(
-    val id: String,
-    val filename: String,
-) : BaseAttachment
-
-@Serializable
-data class SimpleWebhookPayload(
-    val attachments: List<SimpleAttachment>,
-)
-
