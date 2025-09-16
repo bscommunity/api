@@ -1,16 +1,18 @@
 package org.bscm.interactions.commands
 
 import io.ktor.server.application.*
+import io.ktor.server.response.*
 import kotlinx.serialization.json.*
+import org.bscm.interactions.CommandHandler.ephemeralMessage
 import org.bscm.interactions.I18n
-import org.bscm.interactions.ephemeralMessage
-import org.bscm.interactions.respondJson
 
 object PublishCommand {
+    suspend fun ApplicationCall.respondJson(json: JsonObject) = respond(json)
+
     suspend fun handle(call: ApplicationCall, data: JsonObject, locale: String?) {
         val optionsArray = data["options"]?.jsonArray
         if (optionsArray == null || optionsArray.isEmpty()) {
-            call.respondJson(ephemeralMessage(I18n.t(locale, "provide_required_attachments")))
+            call.respondJson(ephemeralMessage { content(I18n.t(locale, "provide_required_attachments")) })
             return
         }
 
@@ -23,7 +25,7 @@ object PublishCommand {
         val explicitOpt = findOption("is_explicit")
 
         if (bundleOpt == null || chartOpt == null) {
-            call.respondJson(ephemeralMessage(I18n.t(locale, "missing_required_attachments")))
+            call.respondJson(ephemeralMessage { content(I18n.t(locale, "missing_required_attachments")) })
             return
         }
 
@@ -37,16 +39,29 @@ object PublishCommand {
         }
 
         val explicitVal = explicitOpt?.get("value")?.jsonPrimitive?.booleanOrNull
+        val bundleName = attachmentLabel(bundleOpt)
+        val chartName = attachmentLabel(chartOpt)
+        val gameplayUrl = gameplayOpt?.get("value")?.jsonPrimitive?.contentOrNull
 
-        val content = buildString {
-            append(I18n.t(locale, "publish_received")).append('\n')
-            append(I18n.t(locale, "bundle_label")).append(' ').append(attachmentLabel(bundleOpt)).append('\n')
-            append(I18n.t(locale, "chart_label")).append(' ').append(attachmentLabel(chartOpt)).append('\n')
-            gameplayOpt?.get("value")?.jsonPrimitive?.contentOrNull?.let { append(I18n.t(locale, "gameplay_url_label")).append(' ').append(it).append('\n') }
-            append(I18n.t(locale, "explicit_label")).append(' ').append(explicitVal).append('\n')
-            append(I18n.t(locale, "processing_not_implemented"))
+        println("Publish command received:")
+        println(" - Bundle: $bundleName")
+        println(" - Chart: $chartName")
+        println(" - Gameplay URL: ${gameplayUrl ?: "N/A"}")
+        println(" - Explicit: ${explicitVal ?: "N/A"}")
+
+        // EphemeralMessage with embed structured message
+        val json = ephemeralMessage {
+            embed {
+                title = I18n.t(locale, "publish_received")
+                description = I18n.t(locale, "processing_not_implemented")
+                field(I18n.t(locale, "bundle_label"), bundleName, inline = false)
+                field(I18n.t(locale, "chart_label"), chartName, inline = false)
+                gameplayUrl?.let { field(I18n.t(locale, "gameplay_url_label"), it, inline = false) }
+                field(I18n.t(locale, "explicit_label"), explicitVal.toString(), inline = false)
+                footer("bscm")
+            }
         }
 
-        call.respondJson(ephemeralMessage(content))
+        call.respondJson(json)
     }
 }

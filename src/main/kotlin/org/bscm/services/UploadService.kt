@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.bscm.interactions.*
 import org.bscm.models.Chart
 import org.bscm.models.StreamingLink
 import org.bscm.models.User
@@ -178,7 +179,7 @@ class UploadService(
             embed {
                 this.title = title
                 url = "https://bscm.netlify.app/link/chart/${chart.shareId}"
-                timestamp(java.util.Date().toInstant().toString())
+                timestamp(Date().toInstant().toString())
                 color = 3820816
                 image(chart.coverUrl)
                 author("New chart submitted")

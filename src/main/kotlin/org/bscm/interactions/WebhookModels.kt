@@ -1,4 +1,4 @@
-package org.bscm.services
+package org.bscm.interactions
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

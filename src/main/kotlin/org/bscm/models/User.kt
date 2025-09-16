@@ -18,5 +18,6 @@ data class User(
     val discordId: String,
     @Serializable(with = LocalDateTimeSerializer::class)
     val createdAt: LocalDateTime,
-    val accounts: List<Account>? = null // Optional, can be null if no account is associated
+    val accounts: List<Account>? = null,
+    val interactions: List<Interaction>? = null,
 )
