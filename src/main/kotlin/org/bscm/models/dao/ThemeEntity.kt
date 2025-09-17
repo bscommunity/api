@@ -1,0 +1,20 @@
+package org.bscm.models.dao
+
+import org.bscm.models.tables.ThemeTable
+import org.jetbrains.exposed.dao.ULongEntity
+import org.jetbrains.exposed.dao.ULongEntityClass
+import org.jetbrains.exposed.dao.id.EntityID
+
+class ThemeEntity(id: EntityID<ULong>) : ULongEntity(id) {
+    companion object : ULongEntityClass<ThemeEntity>(ThemeTable)
+
+    var shareId by ThemeTable.shareId
+    var name by ThemeTable.name
+    var replaces by ThemeTable.replaces
+    var coverUrl by ThemeTable.coverUrl
+    var previewUrl by ThemeTable.previewUrl
+    var isPublic by ThemeTable.isPublic
+    var isFeatured by ThemeTable.isFeatured
+    var downloadsSum by ThemeTable.downloadsSum
+    var latestPublishedAt by ThemeTable.latestPublishedAt
+}

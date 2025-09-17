@@ -30,6 +30,9 @@ fun Application.configureRouting() {
     val contributorRepository by inject<ContributorRepository>()
     val knownIssueRepository by inject<KnownIssueRepository>()
     val versionRepository by inject<VersionRepository>()
+    val tourPassRepository by inject<TourPassRepository>()
+    val themeRepository by inject<ThemeRepository>()
+    val userInteractionRepository by inject<UserInteractionRepository>()
 
     routing {
         swaggerUI(path = "docs", swaggerFile = "openapi/documentation.yaml")
@@ -62,6 +65,9 @@ fun Application.configureRouting() {
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
         contributorRoutes(contributorRepository)
         knownIssuesRoutes(knownIssueRepository)
+        tourPassRoutes(tourPassRepository, userRepository)
+        themeRoutes(themeRepository, userRepository)
+        userInteractionRoutes(userInteractionRepository)
         interactionsRoutes(application.environment.config.propertyOrNull("discord.publicKey")?.getString())
     }
 }
