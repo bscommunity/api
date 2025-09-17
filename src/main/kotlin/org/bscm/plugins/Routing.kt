@@ -10,10 +10,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.repository.*
 import org.bscm.routes.*
-import org.bscm.services.DiscordOAuthService
-import org.bscm.services.GoogleOAuthService
-import org.bscm.services.JWTService
-import org.bscm.services.UploadService
+import org.bscm.services.*
 import org.koin.ktor.ext.inject
 
 // Disclaimer: Dependency Injection can't be made inside 'routing { }' block
@@ -32,7 +29,7 @@ fun Application.configureRouting() {
     val versionRepository by inject<VersionRepository>()
     val tourPassRepository by inject<TourPassRepository>()
     val themeRepository by inject<ThemeRepository>()
-    val userInteractionRepository by inject<UserInteractionRepository>()
+    val collectionService by inject<CollectionService>()
 
     routing {
         swaggerUI(path = "docs", swaggerFile = "openapi/documentation.yaml")
@@ -67,7 +64,10 @@ fun Application.configureRouting() {
         knownIssuesRoutes(knownIssueRepository)
         tourPassRoutes(tourPassRepository, userRepository)
         themeRoutes(themeRepository, userRepository)
-        userInteractionRoutes(userInteractionRepository)
+        collectionRoutes(collectionService)
+        likeRoutes(collectionService)
+
+        // Discord interactions (slash commands, buttons, etc.)
         interactionsRoutes(application.environment.config.propertyOrNull("discord.publicKey")?.getString())
     }
 }

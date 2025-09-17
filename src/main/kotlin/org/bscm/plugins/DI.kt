@@ -25,7 +25,8 @@ fun mainModule(config: ApplicationConfig) = module {
     single<VersionRepository> { VersionRepositoryImpl() }
     single<TourPassRepository> { TourPassRepositoryImpl(get()) }
     single<ThemeRepository> { ThemeRepositoryImpl() }
-    single<UserInteractionRepository> { UserInteractionRepositoryImpl() }
+    single<UserCollectionRepository> { UserCollectionRepositoryImpl() }
+    single { CollectionService(get()) }
     single { JWTService(
         secret = config.property("jwt.secret").getString()
     ) }
