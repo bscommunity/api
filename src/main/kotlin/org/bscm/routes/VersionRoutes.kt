@@ -28,8 +28,8 @@ fun Route.versionRoutes(
     uploadService: UploadService
 ) {
     // Routes that require JWT authentication only (dashboard operations)
-    authenticate("auth-jwt") {
-        rateLimit(RateLimitName("protected")) {
+    authenticate("auth-bearer") {
+        rateLimit(RateLimitName("restricted")) {
             route("/charts") {
                 // Add a version to a chart
                 post("{chartId}/versions") {

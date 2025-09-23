@@ -62,7 +62,7 @@ fun Application.configureRouting() {
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
         contributorRoutes(contributorRepository)
         knownIssuesRoutes(knownIssueRepository)
-        tourPassRoutes(tourPassRepository, userRepository)
+        tourPassRoutes(tourPassRepository)
         themeRoutes(themeRepository, userRepository)
         collectionRoutes(collectionService)
         likeRoutes(collectionService)

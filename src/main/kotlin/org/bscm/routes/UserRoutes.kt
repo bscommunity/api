@@ -21,7 +21,7 @@ fun Route.userRoutes(userRepository: UserRepository) {
             call.respond(HttpStatusCode.Created, createdUser)
         }
 
-        authenticate("auth-jwt") {
+        authenticate("auth-bearer") {
             // Get all users
             get {
                 // Get query parameters (search)

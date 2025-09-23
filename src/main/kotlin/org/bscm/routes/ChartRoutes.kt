@@ -34,7 +34,7 @@ fun Route.chartRoutes(
 ) {
     route("/charts") {
         // Routes that accept both JWT or HMAC authentication
-        authenticate("auth-jwt", "auth-hmac", optional = true) {
+        authenticate("auth-bearer", "auth-hmac", optional = true) {
             rateLimit(RateLimitName("unrestricted")) {
                 post("analytics/{id}") {
                     val hmacPrincipal = call.principal<HMACPrincipal>()
@@ -63,7 +63,7 @@ fun Route.chartRoutes(
                 }
             }
 
-            rateLimit(RateLimitName("protected")) {
+            rateLimit(RateLimitName("restricted")) {
                 // Get all charts - now handles both auth types
                 get {
                     val query = call.request.queryParameters["query"]
@@ -168,8 +168,8 @@ fun Route.chartRoutes(
         }
 
         // Routes that require JWT authentication only (dashboard operations)
-        authenticate("auth-jwt") {
-            rateLimit(RateLimitName("protected")) {
+        authenticate("auth-bearer") {
+            rateLimit(RateLimitName("restricted")) {
                 // Create a new chart
                 post {
                     val principal = call.principal<JWTPrincipal>()

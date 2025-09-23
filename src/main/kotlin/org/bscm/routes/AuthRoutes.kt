@@ -86,7 +86,7 @@ fun Route.authRoutes(
             call.respond(user.toAuthResult(jwtService))
         }
 
-        authenticate("auth-jwt") {
+        authenticate("auth-bearer") {
             get("/me") {
                 val userId = call.getUserIdFromJWT() ?: return@get
                 val user = userRepository.getUserById(userId)
@@ -97,7 +97,7 @@ fun Route.authRoutes(
         }
 
         // Google OAuth linking and unlinking
-        authenticate("auth-jwt", optional = true) {
+        authenticate("auth-bearer", optional = true) {
             post("/google/link") {
                 val code = call.receiveAndValidateAuthCode() ?: return@post
                 val userId = call.getUserIdFromJWT() ?: return@post

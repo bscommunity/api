@@ -10,7 +10,6 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.TourPassRepository
-import org.bscm.repository.UserRepository
 import java.util.*
 
 data class CreateTourPassRequest(
@@ -25,12 +24,9 @@ data class UpdateTourPassRequest(
     val coverUrl: String?
 )
 
-fun Route.tourPassRoutes(
-    tourPassRepository: TourPassRepository,
-    userRepository: UserRepository,
-) {
+fun Route.tourPassRoutes(tourPassRepository: TourPassRepository) {
     route("/tourpasses") {
-        authenticate("auth-jwt", optional = true) {
+        authenticate("auth-bearer", optional = true) {
             rateLimit(RateLimitName("unrestricted")) {
                 get {
                     val principal = call.principal<JWTPrincipal>()
@@ -75,7 +71,7 @@ fun Route.tourPassRoutes(
             }
         }
 
-        authenticate("auth-jwt") {
+        authenticate("auth-bearer") {
             rateLimit(RateLimitName("restricted")) {
                 post {
                     val principal = call.principal<JWTPrincipal>()

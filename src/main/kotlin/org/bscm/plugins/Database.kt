@@ -3,6 +3,7 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import io.ktor.server.config.*
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.StdOutSqlLogger
 import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -34,7 +35,23 @@ fun Application.configureDatabases(config: ApplicationConfig) {
             user = user,
             password = password
         )
-        transaction { addLogger(StdOutSqlLogger) }
+        transaction {
+            addLogger(StdOutSqlLogger)
+            SchemaUtils.create(
+                org.bscm.models.tables.AccountTable,
+                org.bscm.models.tables.ChartStreamingLinkTable,
+                org.bscm.models.tables.ChartTable,
+                org.bscm.models.tables.CollectionItemTable,
+                org.bscm.models.tables.CollectionTable,
+                org.bscm.models.tables.ContributorTable,
+                org.bscm.models.tables.StreamingLinkTable,
+                org.bscm.models.tables.ThemeTable,
+                org.bscm.models.tables.TourPassTable,
+                org.bscm.models.tables.TourPassChartTable,
+                org.bscm.models.tables.UserTable,
+                org.bscm.models.tables.VersionTable,
+            )
+        }
         log.info("Database initialized")
 
         // Apply Flyway migrations (creates/updates tables like themes, tour_passes, interactions)

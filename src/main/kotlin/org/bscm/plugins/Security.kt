@@ -111,7 +111,7 @@ fun Application.configureSecurity(
     val hmacSecret = config.property("hmac.secret").getString()
 
     install(Authentication) {
-        jwt("auth-jwt") {
+        jwt("auth-bearer") {
             verifier(
                 JWT
                     .require(Algorithm.HMAC256(secret))

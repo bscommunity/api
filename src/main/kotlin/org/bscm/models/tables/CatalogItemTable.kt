@@ -13,4 +13,3 @@ abstract class CatalogItemTable(name: String) : ULongIdTable(name) {
     val downloadsSum = integer("downloads_sum").default(0)
     val latestPublishedAt = datetime("latest_published_at").nullable()
 }
-

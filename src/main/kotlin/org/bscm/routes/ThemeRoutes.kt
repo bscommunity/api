@@ -32,7 +32,7 @@ fun Route.themeRoutes(
     userRepository: UserRepository,
 ) {
     route("/themes") {
-        authenticate("auth-jwt", optional = true) {
+        authenticate("auth-bearer", optional = true) {
             rateLimit(RateLimitName("unrestricted")) {
                 get {
                     val principal = call.principal<JWTPrincipal>()
@@ -77,7 +77,7 @@ fun Route.themeRoutes(
             }
         }
 
-        authenticate("auth-jwt") {
+        authenticate("auth-bearer") {
             rateLimit(RateLimitName("restricted")) {
                 post {
                     val principal = call.principal<JWTPrincipal>()
