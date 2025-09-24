@@ -4,6 +4,10 @@ import org.bscm.models.Collection
 import org.bscm.models.CollectionItem
 import org.bscm.models.enums.ContentType
 import org.bscm.repository.UserCollectionRepository
+import org.bscm.routes.BatchInteractionRequest
+import org.bscm.routes.BatchInteractionResponse
+import org.bscm.routes.BatchInteractionResult
+import org.bscm.routes.InteractionType
 import java.util.*
 
 class CollectionService(
@@ -25,12 +29,8 @@ class CollectionService(
         return collectionRepository.createCollection(userId, name, isPublic)
     }
 
-    suspend fun getUserCollections(userId: UUID): List<Collection> {
-        return collectionRepository.getUserCollections(userId)
-    }
-
-    suspend fun getPublicCollections(limit: Int? = 20, offset: Int? = 0): List<Collection> {
-        return collectionRepository.getPublicCollections(limit, offset)
+    suspend fun getUserCollections(userId: UUID, limit: Int? = 20, offset: Int? = 0): List<Collection> {
+        return collectionRepository.getUserCollections(userId, limit, offset)
     }
 
     suspend fun getCollection(collectionId: ULong, userId: UUID? = null): Collection? {
@@ -179,7 +179,7 @@ class CollectionService(
     }
 
     /**
-     * Check if user liked this content
+     * Check if content is liked by user
      */
     suspend fun isContentLiked(userId: UUID, contentType: ContentType, contentId: ULong): Boolean {
         val likesCollection = getOrCreateLikesCollection(userId)
@@ -187,35 +187,134 @@ class CollectionService(
     }
 
     /**
-     * Get user's liked content
+     * Get user's liked content with optional filtering and pagination
      */
-    suspend fun getUserLikedContent(userId: UUID, contentType: ContentType? = null, limit: Int? = null, offset: Int? = null): List<CollectionItem> {
+    suspend fun getUserLikedContent(
+        userId: UUID,
+        contentType: ContentType? = null,
+        limit: Int? = null,
+        offset: Int? = null
+    ): List<CollectionItem> {
         val likesCollection = getOrCreateLikesCollection(userId)
         val allLikedItems = collectionRepository.getCollectionItems(likesCollection.id, userId)
 
-        var filteredItems = if (contentType != null) {
-            allLikedItems.filter { it.contentType == contentType }
-        } else {
-            allLikedItems
+        var filteredItems = allLikedItems
+
+        // Filter by content type if provided
+        contentType?.let { type ->
+            filteredItems = filteredItems.filter { it.contentType == type }
         }
 
         // Apply pagination
-        if (offset != null) {
-            filteredItems = filteredItems.drop(offset)
-        }
-        if (limit != null) {
-            filteredItems = filteredItems.take(limit)
+        val startIndex = offset ?: 0
+        val endIndex = if (limit != null) {
+            minOf(startIndex + limit, filteredItems.size)
+        } else {
+            filteredItems.size
         }
 
-        return filteredItems
+        return if (startIndex < filteredItems.size) {
+            filteredItems.subList(startIndex, endIndex)
+        } else {
+            emptyList()
+        }
     }
 
     /**
-     * Get content interaction stats (likes count)
+     * Get content interaction statistics (likes, bookmarks count)
      */
-    suspend fun getContentInteractionStats(contentType: ContentType, contentId: ULong): Map<String, Int> {
-        // Count how many users have this item in their "Likes" collection
-        // This requires a new method in the repository
-        return collectionRepository.getContentStats(LIKES_COLLECTION_NAME, contentType, contentId)
+    suspend fun getContentInteractionStats(contentType: ContentType, contentId: ULong): Map<String, Any> {
+        // Get likes count for this content
+        val likesCount = collectionRepository.getContentStats(LIKES_COLLECTION_NAME, contentType, contentId)
+            .getOrDefault("count", 0)
+
+        // Get bookmarks count for this content (favorites)
+        val bookmarksCount = collectionRepository.getContentStats(FAVORITES_COLLECTION_NAME, contentType, contentId)
+            .getOrDefault("count", 0)
+
+        return mapOf(
+            "contentType" to contentType.name,
+            "contentId" to contentId,
+            "likesCount" to likesCount,
+            "bookmarksCount" to bookmarksCount
+        )
+    }
+
+    /**
+     * Batch process multiple interactions in a single request
+     */
+    suspend fun batchProcessInteractions(userId: UUID, request: BatchInteractionRequest): BatchInteractionResponse {
+        val results = mutableListOf<BatchInteractionResult>()
+        val failedInteractions = mutableListOf<String>()
+        var overallSuccess = true
+
+        for ((index, interaction) in request.interactions.withIndex()) {
+            try {
+                val interactionId = "interaction_$index"
+                val contentId = interaction.contentId.toULongOrNull()
+
+                if (contentId == null) {
+                    val errorMsg = "Invalid contentId: ${interaction.contentId}"
+                    results.add(BatchInteractionResult(interactionId, false, errorMsg))
+                    failedInteractions.add(interactionId)
+                    overallSuccess = false
+                    continue
+                }
+
+                val success = when (interaction.interactionType) {
+                    InteractionType.LIKE -> {
+                        likeContent(userId, interaction.contentType, contentId)
+                    }
+
+                    InteractionType.UNLIKE -> {
+                        unlikeContent(userId, interaction.contentType, contentId)
+                    }
+
+                    InteractionType.BOOKMARK -> {
+                        if (interaction.collectionId != null) {
+                            // Add to specific collection
+                            val collectionId = interaction.collectionId.toULongOrNull()
+                                ?: throw IllegalArgumentException("Invalid collection ID")
+                            addItemToCollection(collectionId, userId, interaction.contentType, contentId)
+                        } else {
+                            // Add to favorites
+                            addToFavorites(userId, interaction.contentType, contentId)
+                        }
+                    }
+
+                    InteractionType.UNBOOKMARK -> {
+                        if (interaction.collectionId != null) {
+                            // Remove from specific collection
+                            val collectionId = interaction.collectionId.toULongOrNull()
+                                ?: throw IllegalArgumentException("Invalid collection ID")
+                            removeItemFromCollection(collectionId, userId, interaction.contentType, contentId)
+                        } else {
+                            // Remove from favorites
+                            removeFromFavorites(userId, interaction.contentType, contentId)
+                        }
+                    }
+                }
+
+                results.add(BatchInteractionResult(interactionId, success, null))
+
+                if (!success) {
+                    failedInteractions.add(interactionId)
+                    overallSuccess = false
+                }
+
+            } catch (e: Exception) {
+                val interactionId = "interaction_$index"
+                val errorMsg = e.message ?: "Unknown error occurred"
+                results.add(BatchInteractionResult(interactionId, false, errorMsg))
+                failedInteractions.add(interactionId)
+                overallSuccess = false
+            }
+        }
+
+        return BatchInteractionResponse(
+            success = overallSuccess,
+            results = results,
+            failedInteractions = failedInteractions
+        )
     }
 }

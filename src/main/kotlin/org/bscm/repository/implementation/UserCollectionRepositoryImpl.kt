@@ -37,47 +37,32 @@ class UserCollectionRepositoryImpl : UserCollectionRepository {
             )
         }
 
-    override suspend fun getUserCollections(userId: UUID): List<Collection> = newSuspendedTransaction {
-        CollectionEntity.find { CollectionTable.userId eq userId }
-            .orderBy(CollectionTable.updatedAt to SortOrder.DESC)
-            .map { entity ->
-                val itemCount = CollectionItemTable.selectAll()
-                    .where { CollectionItemTable.collectionId eq entity.id }
-                    .count().toInt()
-
-                Collection(
-                    id = entity.id.value,
-                    userId = entity.user.id.value,
-                    name = entity.name,
-                    isPublic = entity.isPublic,
-                    createdAt = entity.createdAt,
-                    updatedAt = entity.updatedAt,
-                    itemCount = itemCount
-                )
-            }
-    }
-
-    override suspend fun getPublicCollections(limit: Int?, offset: Int?): List<Collection> = newSuspendedTransaction {
-        val query = CollectionTable.selectAll()
-            .where { CollectionTable.isPublic eq true }
+    override suspend fun getUserCollections(
+        userId: UUID,
+        limit: Int?,
+        offset: Int?
+    ): List<Collection> = newSuspendedTransaction {
+        val query = CollectionEntity.find { CollectionTable.userId eq userId }
             .orderBy(CollectionTable.updatedAt to SortOrder.DESC)
 
-        if (limit != null) {
+        val collections = if (limit != null) {
             query.limit(limit).offset(offset?.toLong() ?: 0)
+        } else {
+            query
         }
 
-        query.map { row ->
+        collections.map { entity ->
             val itemCount = CollectionItemTable.selectAll()
-                .where { CollectionItemTable.collectionId eq row[CollectionTable.id] }
+                .where { CollectionItemTable.collectionId eq entity.id }
                 .count().toInt()
 
             Collection(
-                id = row[CollectionTable.id].value,
-                userId = row[CollectionTable.userId].value,
-                name = row[CollectionTable.name],
-                isPublic = row[CollectionTable.isPublic],
-                createdAt = row[CollectionTable.createdAt],
-                updatedAt = row[CollectionTable.updatedAt],
+                id = entity.id.value,
+                userId = entity.user.id.value,
+                name = entity.name,
+                isPublic = entity.isPublic,
+                createdAt = entity.createdAt,
+                updatedAt = entity.updatedAt,
                 itemCount = itemCount
             )
         }

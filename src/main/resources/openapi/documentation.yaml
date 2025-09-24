@@ -89,7 +89,7 @@ paths:
               examples:
                 Unauthorized:
                   value: "Unauthorized access"
-  /auth/login:
+  /auth/discord:
     post:
       summary: "User authentication"
       description: "Authenticates a user and returns an access token"

@@ -63,9 +63,8 @@ fun Application.configureRouting() {
         contributorRoutes(contributorRepository)
         knownIssuesRoutes(knownIssueRepository)
         tourPassRoutes(tourPassRepository)
-        themeRoutes(themeRepository, userRepository)
+        themeRoutes(themeRepository)
         collectionRoutes(collectionService)
-        likeRoutes(collectionService)
 
         // Discord interactions (slash commands, buttons, etc.)
         interactionsRoutes(application.environment.config.propertyOrNull("discord.publicKey")?.getString())

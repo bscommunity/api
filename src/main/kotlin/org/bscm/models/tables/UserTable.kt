@@ -1,7 +1,6 @@
 package org.bscm.models.tables
 
 import org.jetbrains.exposed.dao.id.UUIDTable
-import org.jetbrains.exposed.sql.javatime.CurrentDateTime
 import org.jetbrains.exposed.sql.javatime.datetime
 
 object UserTable : UUIDTable("users") {
@@ -9,5 +8,5 @@ object UserTable : UUIDTable("users") {
     val email = varchar("email", 255).uniqueIndex()
     val imageUrl = varchar("image_url", 255).nullable()
     val discordId = varchar("discord_id", 255).uniqueIndex()
-    val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
+    val createdAt = datetime("created_at").clientDefault { java.time.LocalDateTime.now() }
 }

@@ -9,6 +9,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import org.bscm.models.enums.ContentType
+import org.bscm.models.enums.InteractionType
+import org.bscm.plugins.UnauthorizedException
 import org.bscm.services.CollectionService
 import java.util.*
 
@@ -25,63 +27,64 @@ data class UpdateCollectionRequest(
 )
 
 @Serializable
-data class AddItemRequest(
+data class CollectionItem(
     val contentType: ContentType,
     val contentId: ULong
 )
 
-private suspend fun ApplicationCall.getUserId(): UUID? {
+// Batch processing data classes
+@Serializable
+data class BatchInteractionRequest(
+    val interactions: List<InteractionRequest>
+)
+
+@Serializable
+data class InteractionRequest(
+    val contentType: ContentType,
+    val contentId: String,
+    val collectionId: String? = null,
+    val interactionType: InteractionType,
+)
+
+private fun ApplicationCall.getUserId(): UUID {
     val principal = principal<JWTPrincipal>()
-    return principal?.payload?.getClaim("sub")?.asString()?.let { UUID.fromString(it) }
+    return principal?.subject?.let { UUID.fromString(it) } ?: throw UnauthorizedException("User not authenticated")
 }
 
 fun Route.collectionRoutes(collectionService: CollectionService) {
     route("/collections") {
-
-        // Get public collections
-        get {
-            val limit = call.request.queryParameters["limit"]?.toIntOrNull()
-            val offset = call.request.queryParameters["offset"]?.toIntOrNull()
-
-            val collections = collectionService.getPublicCollections(limit, offset)
-            call.respond(collections)
-        }
-
-        // Get specific collection (public or owned by user)
-        get("/{id}") {
-            val collectionId = call.parameters["id"]?.toULongOrNull()
-                ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid collection ID")
-
-            val userId = call.getUserId()
-            val collection = collectionService.getCollection(collectionId, userId)
-                ?: return@get call.respond(HttpStatusCode.NotFound, "Collection not found")
-
-            call.respond(collection)
-        }
-
-        // Get collection items
-        get("/{id}/items") {
-            val collectionId = call.parameters["id"]?.toULongOrNull()
-                ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid collection ID")
-
-            val userId = call.getUserId()
-            val items = collectionService.getCollectionItems(collectionId, userId)
-            call.respond(items)
-        }
-
-        // Authenticated routes
         authenticate("auth-bearer") {
+            get("/{id}") {
+                val collectionId = call.parameters["id"]?.toULongOrNull()
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid collection ID")
+
+                val userId = call.getUserId()
+                val collection = collectionService.getCollection(collectionId, userId)
+                    ?: return@get call.respond(HttpStatusCode.NotFound, "Collection not found")
+
+                call.respond(collection)
+            }
+
+            // Get collection items
+            get("/{id}/items") {
+                val collectionId = call.parameters["id"]?.toULongOrNull()
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid collection ID")
+
+                val userId = call.getUserId()
+                val items = collectionService.getCollectionItems(collectionId, userId)
+                call.respond(items)
+            }
 
             // Get user's collections
             get("/my") {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
                 val collections = collectionService.getUserCollections(userId)
                 call.respond(collections)
             }
 
             // Create new collection
             post {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
                 val request = call.receive<CreateCollectionRequest>()
 
                 try {
@@ -94,14 +97,15 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
 
             // Update collection
             put("/{id}") {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
                 val collectionId = call.parameters["id"]?.toULongOrNull()
                     ?: return@put call.respond(HttpStatusCode.BadRequest, "Invalid collection ID")
 
                 val request = call.receive<UpdateCollectionRequest>()
 
                 try {
-                    val updated = collectionService.updateCollection(collectionId, userId, request.name, request.isPublic)
+                    val updated =
+                        collectionService.updateCollection(collectionId, userId, request.name, request.isPublic)
                     if (updated) {
                         call.respond(HttpStatusCode.OK, mapOf("message" to "Collection updated successfully"))
                     } else {
@@ -114,7 +118,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
 
             // Delete collection
             delete("/{id}") {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
                 val collectionId = call.parameters["id"]?.toULongOrNull()
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, "Invalid collection ID")
 
@@ -128,28 +132,36 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
 
             // Add item to collection
             post("/{id}/items") {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
                 val collectionId = call.parameters["id"]?.toULongOrNull()
                     ?: return@post call.respond(HttpStatusCode.BadRequest, "Invalid collection ID")
 
-                val request = call.receive<AddItemRequest>()
+                val request = call.receive<CollectionItem>()
 
-                val added = collectionService.addItemToCollection(collectionId, userId, request.contentType, request.contentId)
+                val added =
+                    collectionService.addItemToCollection(collectionId, userId, request.contentType, request.contentId)
                 if (added) {
                     call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to collection"))
                 } else {
-                    call.respond(HttpStatusCode.BadRequest, "Failed to add item (may already exist or collection not found)")
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        "Failed to add item (may already exist or collection not found)"
+                    )
                 }
             }
 
             // Remove item from collection
             delete("/{id}/items") {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
                 val collectionId = call.parameters["id"]?.toULongOrNull()
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, "Invalid collection ID")
 
                 val contentType = call.request.queryParameters["contentType"]?.let {
-                    try { ContentType.valueOf(it.uppercase()) } catch (e: Exception) { null }
+                    try {
+                        ContentType.valueOf(it.uppercase())
+                    } catch (_: Exception) {
+                        null
+                    }
                 } ?: return@delete call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentType")
 
                 val contentId = call.request.queryParameters["contentId"]?.toULongOrNull()
@@ -165,10 +177,14 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
 
             // Get user's collections containing specific item
             get("/containing") {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
 
                 val contentType = call.request.queryParameters["contentType"]?.let {
-                    try { ContentType.valueOf(it.uppercase()) } catch (e: Exception) { null }
+                    try {
+                        ContentType.valueOf(it.uppercase())
+                    } catch (e: Exception) {
+                        null
+                    }
                 } ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentType")
 
                 val contentId = call.request.queryParameters["contentId"]?.toULongOrNull()
@@ -176,6 +192,19 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
 
                 val collections = collectionService.getUserCollectionsContaining(userId, contentType, contentId)
                 call.respond(collections)
+            }
+
+            // Batch process interactions
+            post("/batch") {
+                val userId = call.getUserId()
+                val request = call.receive<BatchInteractionRequest>()
+
+                try {
+                    val response = collectionService.batchProcessInteractions(userId, request)
+                    call.respond(HttpStatusCode.OK, response)
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                }
             }
         }
     }
@@ -186,15 +215,15 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
 
             // Get user's favorites
             get {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
                 val favorites = collectionService.getUserFavorites(userId)
                 call.respond(favorites)
             }
 
             // Add item to favorites
             post {
-                val userId = call.getUserId()!!
-                val request = call.receive<AddItemRequest>()
+                val userId = call.getUserId()
+                val request = call.receive<CollectionItem>()
 
                 val added = collectionService.addToFavorites(userId, request.contentType, request.contentId)
                 if (added) {
@@ -206,10 +235,14 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
 
             // Remove item from favorites
             delete {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
 
                 val contentType = call.request.queryParameters["contentType"]?.let {
-                    try { ContentType.valueOf(it.uppercase()) } catch (_: Exception) { null }
+                    try {
+                        ContentType.valueOf(it.uppercase())
+                    } catch (_: Exception) {
+                        null
+                    }
                 } ?: return@delete call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentType")
 
                 val contentId = call.request.queryParameters["contentId"]?.toULongOrNull()
@@ -225,10 +258,14 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
 
             // Check if item is in favorites
             get("/check") {
-                val userId = call.getUserId()!!
+                val userId = call.getUserId()
 
                 val contentType = call.request.queryParameters["contentType"]?.let {
-                    try { ContentType.valueOf(it.uppercase()) } catch (_: Exception) { null }
+                    try {
+                        ContentType.valueOf(it.uppercase())
+                    } catch (_: Exception) {
+                        null
+                    }
                 } ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentType")
 
                 val contentId = call.request.queryParameters["contentId"]?.toULongOrNull()
@@ -237,6 +274,101 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 val isFavorited = collectionService.isInFavorites(userId, contentType, contentId)
                 call.respond(mapOf("isFavorited" to isFavorited))
             }
+        }
+    }
+
+    // Like routes (merged from LikeRoutes.kt)
+    route("/likes") {
+        authenticate("auth-bearer") {
+
+            // Get user's liked content
+            get {
+                val userId = call.getUserId()
+                val contentType = call.request.queryParameters["contentType"]?.let {
+                    try {
+                        ContentType.valueOf(it.uppercase())
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+
+                val likedItems = collectionService.getUserLikedContent(userId, contentType, limit, offset)
+                call.respond(likedItems)
+            }
+
+            // Like content
+            post {
+                val userId = call.getUserId()
+                val request = call.receive<CollectionItem>()
+
+                val liked = collectionService.likeContent(userId, request.contentType, request.contentId)
+                if (liked) {
+                    call.respond(HttpStatusCode.OK, mapOf("message" to "Content liked successfully"))
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, "Failed to like content (may already be liked)")
+                }
+            }
+
+            // Unlike content
+            delete {
+                val userId = call.getUserId()
+
+                val contentType = call.request.queryParameters["contentType"]?.let {
+                    try {
+                        ContentType.valueOf(it.uppercase())
+                    } catch (_: Exception) {
+                        null
+                    }
+                } ?: return@delete call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentType")
+
+                val contentId = call.request.queryParameters["contentId"]?.toULongOrNull()
+                    ?: return@delete call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentId")
+
+                val unliked = collectionService.unlikeContent(userId, contentType, contentId)
+                if (unliked) {
+                    call.respond(HttpStatusCode.OK, mapOf("message" to "Content unliked successfully"))
+                } else {
+                    call.respond(HttpStatusCode.NotFound, "Content was not liked")
+                }
+            }
+
+            // Check if content is liked
+            get("/check") {
+                val userId = call.getUserId()
+
+                val contentType = call.request.queryParameters["contentType"]?.let {
+                    try {
+                        ContentType.valueOf(it.uppercase())
+                    } catch (_: Exception) {
+                        null
+                    }
+                } ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentType")
+
+                val contentId = call.request.queryParameters["contentId"]?.toULongOrNull()
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentId")
+
+                val isLiked = collectionService.isContentLiked(userId, contentType, contentId)
+                call.respond(mapOf("isLiked" to isLiked))
+            }
+        }
+
+        // Get content statistics (public endpoint)
+        get("/stats") {
+            val contentType = call.request.queryParameters["contentType"]?.let {
+                try {
+                    ContentType.valueOf(it.uppercase())
+                } catch (_: Exception) {
+                    null
+                }
+            } ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentType")
+
+            val contentId = call.request.queryParameters["contentId"]?.toULongOrNull()
+                ?: return@get call.respond(HttpStatusCode.BadRequest, "Invalid or missing contentId")
+
+            val stats = collectionService.getContentInteractionStats(contentType, contentId)
+            call.respond(stats)
         }
     }
 }

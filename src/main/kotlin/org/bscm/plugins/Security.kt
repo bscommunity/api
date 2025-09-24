@@ -11,6 +11,7 @@ import io.ktor.server.response.*
 import org.bscm.services.HMACService
 import org.bscm.services.JWTService
 import org.koin.ktor.ext.inject
+import java.util.*
 import kotlin.math.abs
 
 
@@ -118,7 +119,7 @@ fun Application.configureSecurity(
                     .build()
             )
             validate { credential ->
-                val userId = credential.subject?.let { jwtService.verifyAccessToken(it) }
+                val userId = credential.subject?.let { UUID.fromString(it) }
                 if (userId != null) {
                     JWTPrincipal(credential.payload)
                 } else {

@@ -99,7 +99,8 @@ fun Route.authRoutes(
         // Google OAuth linking and unlinking
         authenticate("auth-bearer", optional = true) {
             post("/google/link") {
-                val code = call.receiveAndValidateAuthCode() ?: return@post
+                val code = call.receiveOrNull<AuthRequest>()?.code
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
                 val userId = call.getUserIdFromJWT() ?: return@post
 
                 try {
@@ -144,15 +145,6 @@ fun Route.authRoutes(
     }
 }
 
-// Extension functions for cleaner code
-private suspend fun ApplicationCall.receiveAndValidateAuthCode(): String? {
-    val authRequest = receiveOrNull<AuthRequest>()
-        ?: return null.also { respondError(HttpStatusCode.BadRequest, "Invalid request body") }
-
-    return authRequest.code.takeIf { it.isNotBlank() }
-        ?: null.also { respondError(HttpStatusCode.BadRequest, "Code cannot be empty") }
-}
-
 private suspend inline fun <reified T : Any> ApplicationCall.receiveOrNull(): T? {
     return try {
         receive<T>()
@@ -185,8 +177,8 @@ private fun User.toAuthResult(jwtService: JWTService) = AuthResponse(
 @Serializable
 data class AuthRequest(
     val code: String,
-    val redirectUri: String?,
-    val codeVerifier: String?
+    val redirectUri: String? = null,
+    val codeVerifier: String? = null
 )
 
 @Serializable

@@ -10,7 +10,6 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ThemeRepository
-import org.bscm.repository.UserRepository
 import java.util.*
 
 data class CreateThemeRequest(
@@ -27,10 +26,7 @@ data class UpdateThemeRequest(
     val previewUrl: String?
 )
 
-fun Route.themeRoutes(
-    themeRepository: ThemeRepository,
-    userRepository: UserRepository,
-) {
+fun Route.themeRoutes(themeRepository: ThemeRepository, ) {
     route("/themes") {
         authenticate("auth-bearer", optional = true) {
             rateLimit(RateLimitName("unrestricted")) {

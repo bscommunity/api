@@ -15,7 +15,7 @@ class UserEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var email by UserTable.email
     var imageUrl by UserTable.imageUrl
     var discordId by UserTable.discordId
-    var createdAt by UserTable.createdAt
+    val createdAt by UserTable.createdAt
 
     val accounts by AccountEntity referrersOn AccountTable.userId
 }
