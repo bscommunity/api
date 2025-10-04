@@ -8,21 +8,21 @@ import java.time.LocalDateTime
 @Serializable
 data class Chart(
     val id: String,
-    val shareId: String,
     val artist: String,
     val track: String,
     val album: String?,
     val genre: Genre? = null,
-    val coverUrl: String,
     val trackUrls: List<StreamingLink> = emptyList(),
     val trackPreviewUrl: String? = null,
-    val isPublic: Boolean,
-    val isFeatured: Boolean,
     val versions: List<Version> = emptyList(),
     val contributors: List<Contributor> = emptyList(),
-    // Room Database fields (Room expects simple fields to query)
-    val downloadsSum: Int = 0,
-    val latestVersion: Version?,
+    val latestVersion: Version?, // Room database field
+
+    override val shareId: String,
+    override val coverUrl: String,
+    override val isPublic: Boolean,
+    override val isFeatured: Boolean,
+    override val downloadsSum: Int,
     @Serializable(with = LocalDateTimeSerializer::class)
-    val latestPublishedAt: LocalDateTime,
-)
+    override val latestPublishedAt: LocalDateTime,
+) : CatalogItem

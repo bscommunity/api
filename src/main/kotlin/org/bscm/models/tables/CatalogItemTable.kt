@@ -1,9 +1,12 @@
 package org.bscm.models.tables
 
 import org.jetbrains.exposed.dao.id.ULongIdTable
+import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.datetime
 
 abstract class CatalogItemTable(name: String) : ULongIdTable(name) {
+    val contentId = reference("content_id", ContentTable, onDelete = ReferenceOption.CASCADE).uniqueIndex()
+
     val shareId = varchar("shareId", 11).uniqueIndex()
     val coverUrl = varchar("cover_url", 255)
     val isPublic = bool("is_public").default(true)

@@ -4,8 +4,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class AnalyticsOption {
-    INSTALL,
-    UPDATE,
-    DELETE,
-    APP_UPDATE,
+    INSTALL_CONTENT,
+    UPDATE_CONTENT,
+    DELETE_CONTENT,
+    UPDATE_APP,
 }

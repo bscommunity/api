@@ -9,10 +9,7 @@ class CollectionItemEntity(id: EntityID<Int>) : Entity<Int>(id) {
     companion object : EntityClass<Int, CollectionItemEntity>(CollectionItemTable)
 
     var collection by CollectionEntity referencedOn CollectionItemTable.collectionId
-
-    var chart by ChartEntity optionalReferencedOn CollectionItemTable.chartId
-    var tourPass by TourPassEntity optionalReferencedOn CollectionItemTable.tourPassId
-    var theme by ThemeEntity optionalReferencedOn CollectionItemTable.themeId
+    var content by ContentEntity referencedOn CollectionItemTable.contentId
 
     var addedAt by CollectionItemTable.addedAt
 }

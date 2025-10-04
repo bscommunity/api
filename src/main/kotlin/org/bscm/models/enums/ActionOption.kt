@@ -3,6 +3,7 @@ package org.bscm.models.enums
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class InteractionType {
-    ADD, REMOVE
+enum class ActionOption {
+    ADD,
+    REMOVE
 }

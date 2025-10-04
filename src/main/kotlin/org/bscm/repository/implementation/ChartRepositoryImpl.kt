@@ -425,7 +425,7 @@ class ChartRepositoryImpl : ChartRepository {
         charts
     }
 
-    // App Chart variant of getCharts that includes streaming links and only returns the latest version
+    // Mobile App Chart variant of getCharts that includes streaming links and only returns the latest version
     override suspend fun getCharts(
         chartIds: List<ULong>?,
         search: String?,
@@ -622,7 +622,7 @@ class ChartRepositoryImpl : ChartRepository {
 
     override suspend fun postAnalytics(chartId: ULong, action: AnalyticsOption): Boolean = newSuspendedTransaction {
         when (action) {
-            AnalyticsOption.INSTALL, AnalyticsOption.UPDATE -> {
+            AnalyticsOption.INSTALL_CONTENT, AnalyticsOption.UPDATE_CONTENT -> {
                 // Handle download analytics
                 ChartEntity.findByIdAndUpdate(chartId) { entity ->
                     entity.latestVersion?.let { version ->
@@ -633,8 +633,8 @@ class ChartRepositoryImpl : ChartRepository {
                 true
             }
 
-            AnalyticsOption.DELETE -> throw NotFoundException("Cannot post analytics for deleted charts")
-            AnalyticsOption.APP_UPDATE -> throw NotFoundException("Cannot post analytics for app updates")
+            AnalyticsOption.DELETE_CONTENT -> throw NotFoundException("Cannot post analytics for deleted charts")
+            AnalyticsOption.UPDATE_APP -> throw NotFoundException("Cannot post analytics for app updates")
         }
     }
 

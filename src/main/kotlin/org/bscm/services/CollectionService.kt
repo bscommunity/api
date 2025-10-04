@@ -1,13 +1,9 @@
 package org.bscm.services
 
+import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
-import org.bscm.models.CollectionItem
 import org.bscm.models.enums.ContentType
 import org.bscm.repository.UserCollectionRepository
-import org.bscm.routes.BatchInteractionRequest
-import org.bscm.routes.BatchInteractionResponse
-import org.bscm.routes.BatchInteractionResult
-import org.bscm.routes.InteractionType
 import java.util.*
 
 class CollectionService(
@@ -103,87 +99,88 @@ class CollectionService(
     suspend fun addItemToCollection(
         collectionId: ULong,
         userId: UUID,
-        contentType: ContentType,
-        contentId: ULong
+        contentId: ULong,
     ): Boolean {
-        return collectionRepository.addItemToCollection(collectionId, userId, contentType, contentId)
+        return collectionRepository.addItemToCollection(collectionId, userId, contentId)
     }
 
     suspend fun removeItemFromCollection(
         collectionId: ULong,
         userId: UUID,
-        contentType: ContentType,
-        contentId: ULong
+        contentId: ULong,
     ): Boolean {
-        return collectionRepository.removeItemFromCollection(collectionId, userId, contentType, contentId)
+        return collectionRepository.removeItemFromCollection(collectionId, userId, contentId)
     }
 
-    suspend fun getCollectionItems(collectionId: ULong, userId: UUID? = null): List<CollectionItem> {
-        return collectionRepository.getCollectionItems(collectionId, userId)
-    }
-
-    suspend fun getUserCollectionsContaining(
-        userId: UUID,
-        contentType: ContentType,
-        contentId: ULong
-    ): List<Collection> {
-        return collectionRepository.getUserCollectionsContaining(userId, contentType, contentId)
+    suspend fun getCollectionItems(
+        collectionId: ULong,
+        userId: UUID? = null,
+        category: ContentType? = null,
+        limit: Int? = null,
+        offset: Int? = null
+    ): List<CatalogItem> {
+        return collectionRepository.getCollectionItems(collectionId, userId, category, limit, offset)
     }
 
     /**
      * Add item to user's favorites (convenience method)
      */
-    suspend fun addToFavorites(userId: UUID, contentType: ContentType, contentId: ULong): Boolean {
+    suspend fun addToFavorites(userId: UUID, contentId: ULong): Boolean {
         val favoritesCollection = getOrCreateFavoritesCollection(userId)
-        return collectionRepository.addItemToCollection(favoritesCollection.id, userId, contentType, contentId)
+        return collectionRepository.addItemToCollection(favoritesCollection.id, userId, contentId)
     }
 
     /**
      * Remove item from user's favorites (convenience method)
      */
-    suspend fun removeFromFavorites(userId: UUID, contentType: ContentType, contentId: ULong): Boolean {
+    suspend fun removeFromFavorites(userId: UUID, contentId: ULong): Boolean {
         val favoritesCollection = getOrCreateFavoritesCollection(userId)
-        return collectionRepository.removeItemFromCollection(favoritesCollection.id, userId, contentType, contentId)
+        return collectionRepository.removeItemFromCollection(favoritesCollection.id, userId, contentId)
     }
 
     /**
      * Check if item is in user's favorites
      */
-    suspend fun isInFavorites(userId: UUID, contentType: ContentType, contentId: ULong): Boolean {
+    suspend fun isInFavorites(userId: UUID, contentId: ULong): Boolean {
         val favoritesCollection = getOrCreateFavoritesCollection(userId)
-        return collectionRepository.isItemInCollection(favoritesCollection.id, contentType, contentId)
+        return collectionRepository.isItemInCollection(favoritesCollection.id, contentId)
     }
 
     /**
      * Get user's favorite items
      */
-    suspend fun getUserFavorites(userId: UUID): List<CollectionItem> {
+    suspend fun getUserFavorites(
+        userId: UUID,
+        category: ContentType? = null,
+        limit: Int? = null,
+        offset: Int? = null
+    ): List<CatalogItem> {
         val favoritesCollection = getOrCreateFavoritesCollection(userId)
-        return collectionRepository.getCollectionItems(favoritesCollection.id, userId)
+        return collectionRepository.getCollectionItems(favoritesCollection.id, userId, category, limit, offset)
     }
 
     /**
      * Add item to user's likes (convenience method)
      */
-    suspend fun likeContent(userId: UUID, contentType: ContentType, contentId: ULong): Boolean {
+    suspend fun likeContent(userId: UUID, contentId: ULong): Boolean {
         val likesCollection = getOrCreateLikesCollection(userId)
-        return collectionRepository.addItemToCollection(likesCollection.id, userId, contentType, contentId)
+        return collectionRepository.addItemToCollection(likesCollection.id, userId, contentId)
     }
 
     /**
      * Remove item from user's likes (convenience method)
      */
-    suspend fun unlikeContent(userId: UUID, contentType: ContentType, contentId: ULong): Boolean {
+    suspend fun unlikeContent(userId: UUID, contentId: ULong): Boolean {
         val likesCollection = getOrCreateLikesCollection(userId)
-        return collectionRepository.removeItemFromCollection(likesCollection.id, userId, contentType, contentId)
+        return collectionRepository.removeItemFromCollection(likesCollection.id, userId, contentId)
     }
 
     /**
      * Check if content is liked by user
      */
-    suspend fun isContentLiked(userId: UUID, contentType: ContentType, contentId: ULong): Boolean {
+    suspend fun isContentLiked(userId: UUID, contentId: ULong): Boolean {
         val likesCollection = getOrCreateLikesCollection(userId)
-        return collectionRepository.isItemInCollection(likesCollection.id, contentType, contentId)
+        return collectionRepository.isItemInCollection(likesCollection.id, contentId)
     }
 
     /**
@@ -194,127 +191,8 @@ class CollectionService(
         contentType: ContentType? = null,
         limit: Int? = null,
         offset: Int? = null
-    ): List<CollectionItem> {
+    ): List<CatalogItem> {
         val likesCollection = getOrCreateLikesCollection(userId)
-        val allLikedItems = collectionRepository.getCollectionItems(likesCollection.id, userId)
-
-        var filteredItems = allLikedItems
-
-        // Filter by content type if provided
-        contentType?.let { type ->
-            filteredItems = filteredItems.filter { it.contentType == type }
-        }
-
-        // Apply pagination
-        val startIndex = offset ?: 0
-        val endIndex = if (limit != null) {
-            minOf(startIndex + limit, filteredItems.size)
-        } else {
-            filteredItems.size
-        }
-
-        return if (startIndex < filteredItems.size) {
-            filteredItems.subList(startIndex, endIndex)
-        } else {
-            emptyList()
-        }
-    }
-
-    /**
-     * Get content interaction statistics (likes, bookmarks count)
-     */
-    suspend fun getContentInteractionStats(contentType: ContentType, contentId: ULong): Map<String, Any> {
-        // Get likes count for this content
-        val likesCount = collectionRepository.getContentStats(LIKES_COLLECTION_NAME, contentType, contentId)
-            .getOrDefault("count", 0)
-
-        // Get bookmarks count for this content (favorites)
-        val bookmarksCount = collectionRepository.getContentStats(FAVORITES_COLLECTION_NAME, contentType, contentId)
-            .getOrDefault("count", 0)
-
-        return mapOf(
-            "contentType" to contentType.name,
-            "contentId" to contentId,
-            "likesCount" to likesCount,
-            "bookmarksCount" to bookmarksCount
-        )
-    }
-
-    /**
-     * Batch process multiple interactions in a single request
-     */
-    suspend fun batchProcessInteractions(userId: UUID, request: BatchInteractionRequest): BatchInteractionResponse {
-        val results = mutableListOf<BatchInteractionResult>()
-        val failedInteractions = mutableListOf<String>()
-        var overallSuccess = true
-
-        for ((index, interaction) in request.interactions.withIndex()) {
-            try {
-                val interactionId = "interaction_$index"
-                val contentId = interaction.contentId.toULongOrNull()
-
-                if (contentId == null) {
-                    val errorMsg = "Invalid contentId: ${interaction.contentId}"
-                    results.add(BatchInteractionResult(interactionId, false, errorMsg))
-                    failedInteractions.add(interactionId)
-                    overallSuccess = false
-                    continue
-                }
-
-                val success = when (interaction.interactionType) {
-                    InteractionType.LIKE -> {
-                        likeContent(userId, interaction.contentType, contentId)
-                    }
-
-                    InteractionType.UNLIKE -> {
-                        unlikeContent(userId, interaction.contentType, contentId)
-                    }
-
-                    InteractionType.BOOKMARK -> {
-                        if (interaction.collectionId != null) {
-                            // Add to specific collection
-                            val collectionId = interaction.collectionId.toULongOrNull()
-                                ?: throw IllegalArgumentException("Invalid collection ID")
-                            addItemToCollection(collectionId, userId, interaction.contentType, contentId)
-                        } else {
-                            // Add to favorites
-                            addToFavorites(userId, interaction.contentType, contentId)
-                        }
-                    }
-
-                    InteractionType.UNBOOKMARK -> {
-                        if (interaction.collectionId != null) {
-                            // Remove from specific collection
-                            val collectionId = interaction.collectionId.toULongOrNull()
-                                ?: throw IllegalArgumentException("Invalid collection ID")
-                            removeItemFromCollection(collectionId, userId, interaction.contentType, contentId)
-                        } else {
-                            // Remove from favorites
-                            removeFromFavorites(userId, interaction.contentType, contentId)
-                        }
-                    }
-                }
-
-                results.add(BatchInteractionResult(interactionId, success, null))
-
-                if (!success) {
-                    failedInteractions.add(interactionId)
-                    overallSuccess = false
-                }
-
-            } catch (e: Exception) {
-                val interactionId = "interaction_$index"
-                val errorMsg = e.message ?: "Unknown error occurred"
-                results.add(BatchInteractionResult(interactionId, false, errorMsg))
-                failedInteractions.add(interactionId)
-                overallSuccess = false
-            }
-        }
-
-        return BatchInteractionResponse(
-            success = overallSuccess,
-            results = results,
-            failedInteractions = failedInteractions
-        )
+        return collectionRepository.getCollectionItems(likesCollection.id, userId, contentType, limit, offset)
     }
 }

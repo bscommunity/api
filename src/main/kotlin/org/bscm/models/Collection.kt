@@ -18,5 +18,5 @@ data class Collection(
     @Serializable(with = LocalDateTimeSerializer::class)
     val updatedAt: LocalDateTime,
     val itemCount: Int = 0,
-    val items: List<CollectionItem>? = null
+    val items: List<CatalogItem>? = null
 )
