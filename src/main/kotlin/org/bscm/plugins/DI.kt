@@ -25,28 +25,38 @@ fun mainModule(config: ApplicationConfig) = module {
     single<VersionRepository> { VersionRepositoryImpl() }
     single<TourPassRepository> { TourPassRepositoryImpl(get()) }
     single<ThemeRepository> { ThemeRepositoryImpl() }
-    single<UserCollectionRepository> { UserCollectionRepositoryImpl() }
+    single<CollectionRepository> { CollectionRepositoryImpl(get(), get(), get()) }
     single { CollectionService(get()) }
-    single { JWTService(
-        secret = config.property("jwt.secret").getString()
-    ) }
-    single { HMACService(
-        secret = config.property("hmac.secret").getString()
-    ) }
-    single { DiscordOAuthService(
-        clientId = config.property("discord.clientId").getString(),
-        clientSecret = config.property("discord.clientSecret").getString(),
-        redirectUri = config.property("discord.redirectUri").getString()
-    ) }
-    single { GoogleOAuthService(
-        clientId = config.property("google.clientId").getString(),
-        clientSecret = config.property("google.clientSecret").getString(),
-        redirectUri = config.property("google.redirectUri").getString()
-    ) }
-    single { UploadService(
-        webhookId = config.property("discord.webhookId").getString(),
-        webhookToken = config.property("discord.webhookToken").getString(),
-        botToken = config.property("discord.botToken").getString(),
-        channelId = config.property("discord.channelId").getString(),
-    ) }
+    single {
+        JWTService(
+            secret = config.property("jwt.secret").getString()
+        )
+    }
+    single {
+        HMACService(
+            secret = config.property("hmac.secret").getString()
+        )
+    }
+    single {
+        DiscordOAuthService(
+            clientId = config.property("discord.clientId").getString(),
+            clientSecret = config.property("discord.clientSecret").getString(),
+            redirectUri = config.property("discord.redirectUri").getString()
+        )
+    }
+    single {
+        GoogleOAuthService(
+            clientId = config.property("google.clientId").getString(),
+            clientSecret = config.property("google.clientSecret").getString(),
+            redirectUri = config.property("google.redirectUri").getString()
+        )
+    }
+    single {
+        UploadService(
+            webhookId = config.property("discord.webhookId").getString(),
+            webhookToken = config.property("discord.webhookToken").getString(),
+            botToken = config.property("discord.botToken").getString(),
+            channelId = config.property("discord.channelId").getString(),
+        )
+    }
 }

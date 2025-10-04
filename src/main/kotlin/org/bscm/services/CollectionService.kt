@@ -2,12 +2,13 @@ package org.bscm.services
 
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
+import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.enums.ContentType
-import org.bscm.repository.UserCollectionRepository
+import org.bscm.repository.CollectionRepository
 import java.util.*
 
 class CollectionService(
-    private val collectionRepository: UserCollectionRepository
+    private val collectionRepository: CollectionRepository
 ) {
 
     companion object {
@@ -44,20 +45,6 @@ class CollectionService(
             // Create system collection if it doesn't exist (always private)
             collectionRepository.createCollection(userId, collectionName, isPublic = false)
         }
-    }
-
-    /**
-     * Get or create the default "Favorites" collection for a user
-     */
-    suspend fun getOrCreateFavoritesCollection(userId: UUID): Collection {
-        return getOrCreateSystemCollection(userId, FAVORITES_COLLECTION_NAME)
-    }
-
-    /**
-     * Get or create the default "Likes" collection for a user
-     */
-    suspend fun getOrCreateLikesCollection(userId: UUID): Collection {
-        return getOrCreateSystemCollection(userId, LIKES_COLLECTION_NAME)
     }
 
     suspend fun updateCollection(
@@ -124,82 +111,8 @@ class CollectionService(
 
     suspend fun batchProcessInteractions(
         userId: UUID,
-        interactions: List<Pair<ULong, Boolean>>
+        interactions: List<CreateCollectionItemRequest>
     ): Int {
         return collectionRepository.batchProcessInteractions(userId, interactions)
-    }
-
-    /**
-     * Add item to user's favorites (convenience method)
-     */
-    suspend fun addToFavorites(userId: UUID, contentId: ULong): Boolean {
-        val favoritesCollection = getOrCreateFavoritesCollection(userId)
-        return collectionRepository.addItemToCollection(favoritesCollection.id, userId, contentId)
-    }
-
-    /**
-     * Remove item from user's favorites (convenience method)
-     */
-    suspend fun removeFromFavorites(userId: UUID, contentId: ULong): Boolean {
-        val favoritesCollection = getOrCreateFavoritesCollection(userId)
-        return collectionRepository.removeItemFromCollection(favoritesCollection.id, userId, contentId)
-    }
-
-    /**
-     * Check if item is in user's favorites
-     */
-    suspend fun isInFavorites(userId: UUID, contentId: ULong): Boolean {
-        val favoritesCollection = getOrCreateFavoritesCollection(userId)
-        return collectionRepository.isItemInCollection(favoritesCollection.id, contentId)
-    }
-
-    /**
-     * Get user's favorite items
-     */
-    suspend fun getUserFavorites(
-        userId: UUID,
-        category: ContentType? = null,
-        limit: Int? = null,
-        offset: Int? = null
-    ): List<CatalogItem> {
-        val favoritesCollection = getOrCreateFavoritesCollection(userId)
-        return collectionRepository.getCollectionItems(favoritesCollection.id, userId, category, limit, offset)
-    }
-
-    /**
-     * Add item to user's likes (convenience method)
-     */
-    suspend fun likeContent(userId: UUID, contentId: ULong): Boolean {
-        val likesCollection = getOrCreateLikesCollection(userId)
-        return collectionRepository.addItemToCollection(likesCollection.id, userId, contentId)
-    }
-
-    /**
-     * Remove item from user's likes (convenience method)
-     */
-    suspend fun unlikeContent(userId: UUID, contentId: ULong): Boolean {
-        val likesCollection = getOrCreateLikesCollection(userId)
-        return collectionRepository.removeItemFromCollection(likesCollection.id, userId, contentId)
-    }
-
-    /**
-     * Check if content is liked by user
-     */
-    suspend fun isContentLiked(userId: UUID, contentId: ULong): Boolean {
-        val likesCollection = getOrCreateLikesCollection(userId)
-        return collectionRepository.isItemInCollection(likesCollection.id, contentId)
-    }
-
-    /**
-     * Get user's liked content with optional filtering and pagination
-     */
-    suspend fun getUserLikedContent(
-        userId: UUID,
-        contentType: ContentType? = null,
-        limit: Int? = null,
-        offset: Int? = null
-    ): List<CatalogItem> {
-        val likesCollection = getOrCreateLikesCollection(userId)
-        return collectionRepository.getCollectionItems(likesCollection.id, userId, contentType, limit, offset)
     }
 }

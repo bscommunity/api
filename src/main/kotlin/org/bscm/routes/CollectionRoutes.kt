@@ -7,6 +7,7 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
 import org.bscm.models.enums.ContentType
@@ -137,7 +138,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
             // Batch process interactions
             post("/batch") {
                 val userId = call.getUserId()
-                val request = call.receive<List<Pair<ULong, Boolean>>>()
+                val request = call.receive<List<CreateCollectionItemRequest>>()
                 try {
                     collectionService.batchProcessInteractions(userId, request)
                     call.respond(HttpStatusCode.OK)

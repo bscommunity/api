@@ -2,10 +2,11 @@ package org.bscm.repository
 
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
+import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.enums.ContentType
 import java.util.*
 
-interface UserCollectionRepository {
+interface CollectionRepository {
     // Collection Management
     suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection
     suspend fun getCollection(collectionId: ULong, userId: UUID? = null): Collection?
@@ -18,5 +19,5 @@ interface UserCollectionRepository {
     suspend fun addItemToCollection(collectionId: ULong, userId: UUID, contentId: ULong): Boolean
     suspend fun removeItemFromCollection(collectionId: ULong, userId: UUID, contentId: ULong): Boolean
     suspend fun isItemInCollection(collectionId: ULong, contentId: ULong): Boolean
-    suspend fun batchProcessInteractions(userId: UUID, interactions: List<Pair<ULong, Boolean>>): Int
+    suspend fun batchProcessInteractions(userId: UUID, interactions: List<CreateCollectionItemRequest>): Int
 }
