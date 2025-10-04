@@ -6,11 +6,11 @@ import java.time.LocalDateTime
 
 @Serializable
 data class TourPass(
-    val id: String,
     val name: String,
     val artist: String?,
     val charts: List<Chart>,
 
+    override val id: String,
     override val shareId: String,
     override val coverUrl: String,
     override val isPublic: Boolean,

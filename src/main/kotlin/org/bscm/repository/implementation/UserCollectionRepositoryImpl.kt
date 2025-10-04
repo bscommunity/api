@@ -1,13 +1,19 @@
 package org.bscm.repository.implementation
 
-import org.bscm.models.*
+import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
-import org.bscm.models.dao.*
+import org.bscm.models.dao.CollectionEntity
+import org.bscm.models.dao.CollectionItemEntity
+import org.bscm.models.dao.ContentEntity
+import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.ContentType
-import org.bscm.models.tables.*
+import org.bscm.models.tables.CollectionItemTable
+import org.bscm.models.tables.CollectionTable
+import org.bscm.models.tables.ContentTable
+import org.bscm.repository.ChartRepository
+import org.bscm.repository.ThemeRepository
+import org.bscm.repository.TourPassRepository
 import org.bscm.repository.UserCollectionRepository
-import org.bscm.repository.implementation.ContributorRepositoryImpl.Companion.contributorEntityToContributor
-import org.bscm.repository.implementation.VersionRepositoryImpl.Companion.versionEntityToVersion
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.inSubQuery
@@ -214,184 +220,53 @@ class UserCollectionRepositoryImpl(
         // Fetch Charts with all related data
         itemsByType[ContentType.CHART]?.let { chartItems ->
             val chartIds = chartItems.map { it[CollectionItemTable.contentId].value }
-            val chartResults = fetchChartsWithAllData(chartIds)
+            val chartResults = chartRepository.getCharts(
+                chartIds = chartIds,
+                search = null,
+                sortBy = null,
+                difficulties = null,
+                genres = null,
+                limit = null,
+                offset = null,
+                fetchStreamingLinks = true
+            )
             catalogItems.addAll(chartResults)
         }
 
         // Fetch Themes
         itemsByType[ContentType.THEME]?.let { themeItems ->
             val themeIds = themeItems.map { it[CollectionItemTable.contentId].value }
-            val themeResults = fetchThemes(themeIds)
+            val themeResults = themeRepository.getThemes(
+                themeIds = themeIds,
+                search = null,
+                limit = null,
+                offset = null
+            )
             catalogItems.addAll(themeResults)
         }
 
         // Fetch TourPasses with charts
         itemsByType[ContentType.TOUR_PASS]?.let { tourPassItems ->
             val tourPassIds = tourPassItems.map { it[CollectionItemTable.contentId].value }
-            val tourPassResults = fetchTourPassesWithCharts(tourPassIds)
+            val tourPassResults = tourPassRepository.getTourPasses(
+                tourPassIds = tourPassIds,
+                search = null,
+                limit = null,
+                offset = null
+            )
             catalogItems.addAll(tourPassResults)
         }
 
         // Restore original order from collection (by addedAt)
         val orderMap = items.mapIndexed { index, item -> 
-            item[CollectionItemTable.contentId].value to index 
+            item[CollectionItemTable.contentId].value to index
         }.toMap()
-        
+
         catalogItems.sortedBy { item ->
-            val contentId = item.id.toULong()
-            orderMap[contentId] ?: Int.MAX_VALUE
+            val contentId = item.id.toULongOrNull()
+            contentId?.let { orderMap[it] } ?: Int.MAX_VALUE
         }
     }
-
-    private fun fetchChartsWithAllData(chartIds: List<ULong>): List<Chart> {
-        if (chartIds.isEmpty()) return emptyList()
-
-        // Build a comprehensive query with all necessary joins
-        val query = ChartTable
-            .leftJoin(VersionTable, { ChartTable.id }, { VersionTable.chartId })
-            .leftJoin(ContributorTable, { ChartTable.id }, { ContributorTable.chartId })
-            .leftJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
-            .leftJoin(ChartStreamingLinkTable, { ChartTable.id }, { ChartStreamingLinkTable.chartId })
-            .leftJoin(StreamingLinkTable, { ChartStreamingLinkTable.streamingLinkId }, { StreamingLinkTable.id })
-            .selectAll()
-            .where { ChartTable.id inList chartIds }
-
-        val results = query.toList()
-        return processChartResults(results)
-    }
-
-    private fun processChartResults(results: List<ResultRow>): List<Chart> {
-        val groupedByChartId = results.groupBy { it[ChartTable.id].value }
-
-        return groupedByChartId.map { (chartId, rows) ->
-            val chartEntity = ChartEntity.wrapRow(rows.first())
-
-            val streamingLinks = rows.mapNotNull { row ->
-                row.getOrNull(StreamingLinkTable.id)?.let {
-                    row.getOrNull(StreamingLinkTable.url)?.let {
-                        StreamingLinkEntity.wrapRow(row)
-                    }
-                }
-            }.distinctBy { it.id.value }.map { daoToStreamingLink(it) }
-
-            val versions = rows.mapNotNull { row ->
-                row.getOrNull(VersionTable.id)?.let {
-                    VersionEntity.wrapRow(row)
-                }
-            }.distinctBy { it.id.value }.map { versionEntityToVersion(it) }
-
-            val contributors = rows.mapNotNull { row ->
-                row.getOrNull(ContributorTable.userId)?.let {
-                    row.getOrNull(UserTable.id)?.let {
-                        val contributor = ContributorEntity.wrapRow(row)
-                        val user = UserEntity.wrapRow(row)
-                        contributorEntityToContributor(contributor, user)
-                    }
-                }
-            }.distinctBy { "${it.userId}-${it.role}" }
-
-            Chart(
-                id = chartEntity.id.value.toString(),
-                shareId = chartEntity.shareId,
-                artist = chartEntity.artist,
-                track = chartEntity.track,
-                album = chartEntity.album,
-                genre = chartEntity.genre,
-                trackUrls = streamingLinks,
-                trackPreviewUrl = chartEntity.trackPreviewUrl,
-                versions = versions,
-                contributors = contributors,
-                latestVersion = versions.maxByOrNull { it.publishedAt },
-                coverUrl = chartEntity.coverUrl,
-                isPublic = chartEntity.isPublic,
-                isFeatured = chartEntity.isFeatured,
-                downloadsSum = versions.sumOf { it.downloadsAmount },
-                latestPublishedAt = versions.maxByOrNull { it.publishedAt }?.publishedAt ?: LocalDateTime.now()
-            )
-        }
-    }
-
-    private fun fetchThemes(themeIds: List<ULong>): List<Theme> {
-        if (themeIds.isEmpty()) return emptyList()
-
-        return ThemeTable.selectAll()
-            .where { ThemeTable.id inList themeIds }
-            .map { row ->
-                val entity = ThemeEntity.wrapRow(row)
-                Theme(
-                    id = entity.id.value.toString(),
-                    shareId = entity.shareId,
-                    name = entity.name,
-                    replaces = entity.replaces,
-                    previewUrl = entity.previewUrl,
-                    coverUrl = entity.coverUrl,
-                    isPublic = entity.isPublic,
-                    isFeatured = entity.isFeatured,
-                    downloadsSum = entity.downloadsSum,
-                    latestPublishedAt = entity.latestPublishedAt ?: LocalDateTime.now()
-                )
-            }
-    }
-
-    private fun fetchTourPassesWithCharts(tourPassIds: List<ULong>): List<TourPass> {
-        if (tourPassIds.isEmpty()) return emptyList()
-
-        // Fetch TourPasses with their associated charts
-        val tourPassQuery = TourPassTable
-            .leftJoin(TourPassChartTable, { TourPassTable.id }, { TourPassChartTable.tourPassId })
-            .leftJoin(ChartTable, { TourPassChartTable.chartId }, { ChartTable.id })
-            .selectAll()
-            .where { TourPassTable.id inList tourPassIds }
-
-        val results = tourPassQuery.toList()
-        val groupedByTourPassId = results.groupBy { it[TourPassTable.id].value }
-
-        return groupedByTourPassId.map { (tourPassId, rows) ->
-            val tourPassEntity = TourPassEntity.wrapRow(rows.first())
-
-            val charts = rows.mapNotNull { row ->
-                row.getOrNull(ChartTable.id)?.let {
-                    val chartEntity = ChartEntity.wrapRow(row)
-                    Chart(
-                        id = chartEntity.id.value.toString(),
-                        shareId = chartEntity.shareId,
-                        artist = chartEntity.artist,
-                        track = chartEntity.track,
-                        album = chartEntity.album,
-                        genre = chartEntity.genre,
-                        trackUrls = emptyList(), // Not loading streaming links for tour pass charts
-                        trackPreviewUrl = chartEntity.trackPreviewUrl,
-                        versions = emptyList(), // Not loading versions for tour pass charts
-                        contributors = emptyList(), // Not loading contributors for tour pass charts
-                        latestVersion = null,
-                        coverUrl = chartEntity.coverUrl,
-                        isPublic = chartEntity.isPublic,
-                        isFeatured = chartEntity.isFeatured,
-                        downloadsSum = chartEntity.downloadsSum,
-                        latestPublishedAt = chartEntity.latestPublishedAt ?: LocalDateTime.now()
-                    )
-                }
-            }.distinctBy { it.id }
-
-            TourPass(
-                id = tourPassEntity.id.value.toString(),
-                shareId = tourPassEntity.shareId,
-                name = tourPassEntity.name,
-                artist = tourPassEntity.artist,
-                charts = charts,
-                coverUrl = tourPassEntity.coverUrl,
-                isPublic = tourPassEntity.isPublic,
-                isFeatured = tourPassEntity.isFeatured,
-                downloadsSum = tourPassEntity.downloadsSum,
-                latestPublishedAt = tourPassEntity.latestPublishedAt ?: LocalDateTime.now()
-            )
-        }
-    }
-
-    private fun daoToStreamingLink(entity: StreamingLinkEntity): StreamingLink = StreamingLink(
-        platform = entity.platform,
-        url = entity.url,
-    )
 
     override suspend fun isItemInCollection(collectionId: ULong, contentId: ULong): Boolean =
         newSuspendedTransaction {

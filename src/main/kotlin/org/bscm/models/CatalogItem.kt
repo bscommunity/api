@@ -5,6 +5,7 @@ import org.bscm.serialization.LocalDateTimeSerializer
 import java.time.LocalDateTime
 
 interface CatalogItem {
+    val id: String
     val shareId: String
     val coverUrl: String
     val isPublic: Boolean

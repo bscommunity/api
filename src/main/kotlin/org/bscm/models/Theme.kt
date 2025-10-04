@@ -6,11 +6,11 @@ import java.time.LocalDateTime
 
 @Serializable
 data class Theme(
-    val id: String,
     val name: String,
     val replaces: String,
     val previewUrl: String,
 
+    override val id: String,
     override val shareId: String,
     override val coverUrl: String,
     override val isPublic: Boolean,

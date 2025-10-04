@@ -122,6 +122,13 @@ class CollectionService(
         return collectionRepository.getCollectionItems(collectionId, userId, category, limit, offset)
     }
 
+    suspend fun batchProcessInteractions(
+        userId: UUID,
+        interactions: List<Pair<ULong, Boolean>>
+    ): Int {
+        return collectionRepository.batchProcessInteractions(userId, interactions)
+    }
+
     /**
      * Add item to user's favorites (convenience method)
      */

@@ -7,7 +7,6 @@ import java.time.LocalDateTime
 
 @Serializable
 data class Chart(
-    val id: String,
     val artist: String,
     val track: String,
     val album: String?,
@@ -18,6 +17,7 @@ data class Chart(
     val contributors: List<Contributor> = emptyList(),
     val latestVersion: Version?, // Room database field
 
+    override val id: String,
     override val shareId: String,
     override val coverUrl: String,
     override val isPublic: Boolean,
