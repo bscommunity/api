@@ -9,15 +9,15 @@ import java.util.*
 interface CollectionRepository {
     // Collection Management
     suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection
-    suspend fun getCollection(collectionId: ULong, userId: UUID? = null): Collection?
+    suspend fun getCollection(collectionId: UUID, userId: UUID? = null): Collection?
     suspend fun getUserCollections(userId: UUID, limit: Int? = null, offset: Int? = null): List<Collection>
-    suspend fun updateCollection(collectionId: ULong, userId: UUID, name: String?, isPublic: Boolean?): Boolean
-    suspend fun deleteCollection(collectionId: ULong, userId: UUID): Boolean
+    suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String?, isPublic: Boolean?): Boolean
+    suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean
 
     // Collection Item Management
-    suspend fun getCollectionItems(collectionId: ULong, userId: UUID? = null, category: ContentType?, limit: Int? = null, offset: Int? = null): List<CatalogItem>
-    suspend fun addItemToCollection(collectionId: ULong, userId: UUID, contentId: ULong): Boolean
-    suspend fun removeItemFromCollection(collectionId: ULong, userId: UUID, contentId: ULong): Boolean
-    suspend fun isItemInCollection(collectionId: ULong, contentId: ULong): Boolean
+    suspend fun getCollectionItems(collectionId: UUID, userId: UUID? = null, category: ContentType?, limit: Int? = null, offset: Int? = null): List<CatalogItem>
+    suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
+    suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
+    suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean
     suspend fun batchProcessInteractions(userId: UUID, interactions: List<CreateCollectionItemRequest>): Int
 }

@@ -14,6 +14,7 @@ import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.repository.*
+import org.bscm.utils.NanoIdUtils
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
 import java.time.LocalDateTime
@@ -113,6 +114,7 @@ private suspend fun generateRandomCharts(
                     val chart = chartRepository.createChart(
                         userId = ownerId,
                         chart = CreateChartRequest(
+                            contentId = NanoIdUtils.generate(),
                             artist = getRandomArtist(),
                             track = getRandomTrack(),
                             album = if (Random.nextBoolean()) getRandomAlbum() else null,

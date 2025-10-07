@@ -11,7 +11,7 @@ data class TourPass(
     val charts: List<Chart>,
 
     override val id: String,
-    override val shareId: String,
+    override val contentId: String,
     override val coverUrl: String,
     override val isPublic: Boolean,
     override val isFeatured: Boolean,

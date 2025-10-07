@@ -16,8 +16,6 @@ class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var album by ChartTable.album
     var genre by ChartTable.genre
 
-    var shareId by ChartTable.shareId
-
     var normalizedArtist by ChartTable.normalizedArtist
     var normalizedTrack by ChartTable.normalizedTrack
     var normalizedAlbum by ChartTable.normalizedAlbum
@@ -27,6 +25,7 @@ class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var isFeatured by ChartTable.isFeatured
     var isPublic by ChartTable.isPublic
 
+    var content by ContentEntity referencedOn ChartTable.contentId
     var latestVersion by VersionEntity optionalReferencedOn ChartTable.latestVersionId
 
     // Updated: Many-to-many relationship through junction table

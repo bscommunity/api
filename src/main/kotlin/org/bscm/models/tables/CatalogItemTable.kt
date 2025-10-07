@@ -7,7 +7,6 @@ import org.jetbrains.exposed.sql.javatime.datetime
 abstract class CatalogItemTable(name: String) : ULongIdTable(name) {
     val contentId = reference("content_id", ContentTable, onDelete = ReferenceOption.CASCADE).uniqueIndex()
 
-    val shareId = varchar("shareId", 11).uniqueIndex()
     val coverUrl = varchar("cover_url", 255)
     val isPublic = bool("is_public").default(true)
     val isFeatured = bool("is_featured").default(false)

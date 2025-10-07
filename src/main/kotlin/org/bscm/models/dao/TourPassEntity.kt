@@ -8,7 +8,6 @@ import org.jetbrains.exposed.dao.id.EntityID
 class TourPassEntity(id: EntityID<ULong>) : ULongEntity(id) {
     companion object : ULongEntityClass<TourPassEntity>(TourPassTable)
 
-    var shareId by TourPassTable.shareId
     var name by TourPassTable.name
     var artist by TourPassTable.artist
     var coverUrl by TourPassTable.coverUrl
@@ -16,4 +15,6 @@ class TourPassEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var isFeatured by TourPassTable.isFeatured
     var downloadsSum by TourPassTable.downloadsSum
     var latestPublishedAt by TourPassTable.latestPublishedAt
+
+    var content by ContentEntity referencedOn TourPassTable.contentId
 }

@@ -59,11 +59,11 @@ fun Route.tourPassRoutes(tourPassRepository: TourPassRepository) {
                     call.respond(tourPass)
                 }
 
-                get("/app/{shareId}") {
-                    val shareId = call.parameters["shareId"]
-                        ?: throw BadRequestException("Missing shareId parameter")
+                get("/app/{contentId}") {
+                    val contentId = call.parameters["contentId"]
+                        ?: throw BadRequestException("Missing contentId parameter")
 
-                    val tourPass = tourPassRepository.getAppTourPassById(shareId)
+                    val tourPass = tourPassRepository.getAppTourPassById(contentId)
                         ?: throw NotFoundException("TourPass not found")
 
                     call.respond(tourPass)

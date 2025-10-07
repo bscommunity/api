@@ -3,7 +3,7 @@ package org.bscm.models.tables
 import org.bscm.models.enums.Genre
 import org.jetbrains.exposed.sql.ReferenceOption
 
-// CatalogItemTable brings contentId, shareId, coverUrl, isPublic, isFeatured, downloadsSum, latestPublishedAt
+// CatalogItemTable brings contentId, contentId, coverUrl, isPublic, isFeatured, downloadsSum, latestPublishedAt
 object ChartTable : CatalogItemTable("charts") {
     val artist = varchar("artist", 200)
     val track = varchar("track", 200)

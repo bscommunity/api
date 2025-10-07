@@ -30,7 +30,7 @@ class CollectionService(
         return collectionRepository.getUserCollections(userId, limit, offset)
     }
 
-    suspend fun getCollection(collectionId: ULong, userId: UUID? = null): Collection? {
+    suspend fun getCollection(collectionId: UUID, userId: UUID? = null): Collection? {
         return collectionRepository.getCollection(collectionId, userId)
     }
 
@@ -48,7 +48,7 @@ class CollectionService(
     }
 
     suspend fun updateCollection(
-        collectionId: ULong,
+        collectionId: UUID,
         userId: UUID,
         name: String? = null,
         isPublic: Boolean? = null
@@ -72,7 +72,7 @@ class CollectionService(
         return collectionRepository.updateCollection(collectionId, userId, name, isPublic)
     }
 
-    suspend fun deleteCollection(collectionId: ULong, userId: UUID): Boolean {
+    suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean {
         // Get collection first to check if it's a system collection
         val collection = collectionRepository.getCollection(collectionId, userId)
         if (collection != null && collection.name in SYSTEM_COLLECTIONS) {
@@ -84,23 +84,23 @@ class CollectionService(
     }
 
     suspend fun addItemToCollection(
-        collectionId: ULong,
+        collectionId: UUID,
         userId: UUID,
-        contentId: ULong,
+        contentId: String,
     ): Boolean {
         return collectionRepository.addItemToCollection(collectionId, userId, contentId)
     }
 
     suspend fun removeItemFromCollection(
-        collectionId: ULong,
+        collectionId: UUID,
         userId: UUID,
-        contentId: ULong,
+        contentId: String,
     ): Boolean {
         return collectionRepository.removeItemFromCollection(collectionId, userId, contentId)
     }
 
     suspend fun getCollectionItems(
-        collectionId: ULong,
+        collectionId: UUID,
         userId: UUID? = null,
         category: ContentType? = null,
         limit: Int? = null,

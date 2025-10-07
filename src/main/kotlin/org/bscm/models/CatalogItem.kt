@@ -6,7 +6,7 @@ import java.time.LocalDateTime
 
 interface CatalogItem {
     val id: String
-    val shareId: String
+    val contentId: String
     val coverUrl: String
     val isPublic: Boolean
     val isFeatured: Boolean

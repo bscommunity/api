@@ -1194,7 +1194,7 @@ components:
         id:
           type: "string"
           description: "Unique chart identifier"
-        shareId:
+        contentId:
           type: "string"
           description: "Public sharing identifier"
         artist:
@@ -1261,7 +1261,7 @@ components:
           description: "Date when the latest version was published"
       required:
         - "id"
-        - "shareId"
+        - "contentId"
         - "artist"
         - "track"
         - "coverUrl"

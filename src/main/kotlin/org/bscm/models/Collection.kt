@@ -8,7 +8,8 @@ import java.util.*
 
 @Serializable
 data class Collection(
-    val id: ULong,
+    @Serializable(with = UUIDSerializer::class)
+    val id: UUID,
     @Serializable(with = UUIDSerializer::class)
     val userId: UUID,
     val name: String,

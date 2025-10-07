@@ -61,11 +61,11 @@ fun Route.themeRoutes(themeRepository: ThemeRepository, ) {
                     call.respond(theme)
                 }
 
-                get("/app/{shareId}") {
-                    val shareId = call.parameters["shareId"]
-                        ?: throw BadRequestException("Missing shareId parameter")
+                get("/app/{contentId}") {
+                    val contentId = call.parameters["contentId"]
+                        ?: throw BadRequestException("Missing contentId parameter")
 
-                    val theme = themeRepository.getAppThemeById(shareId)
+                    val theme = themeRepository.getAppThemeById(contentId)
                         ?: throw NotFoundException("Theme not found")
 
                     call.respond(theme)

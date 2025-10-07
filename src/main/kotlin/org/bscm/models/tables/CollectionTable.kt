@@ -1,11 +1,11 @@
 
 package org.bscm.models.tables
 
-import org.jetbrains.exposed.dao.id.ULongIdTable
+import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.datetime
 
-object CollectionTable : ULongIdTable("collections") {
+object CollectionTable : UUIDTable("collections") {
     val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)
 
     val name = varchar("name", 30)

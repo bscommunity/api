@@ -3,12 +3,13 @@ package org.bscm.repository.implementation
 import io.ktor.server.plugins.*
 import org.bscm.models.Chart
 import org.bscm.models.TourPass
+import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.TourPassEntity
+import org.bscm.models.enums.ContentType
 import org.bscm.models.tables.TourPassChartTable
 import org.bscm.models.tables.TourPassTable
 import org.bscm.repository.ChartRepository
 import org.bscm.repository.TourPassRepository
-import org.bscm.utils.NanoIdUtils
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -22,7 +23,7 @@ class TourPassRepositoryImpl(
     private fun daoToTourPass(entity: TourPassEntity, charts: List<Chart>): TourPass {
         return TourPass(
             id = entity.id.value.toString(),
-            shareId = entity.shareId,
+            contentId = entity.content.id.value,
             name = entity.name,
             artist = entity.artist,
             coverUrl = entity.coverUrl,
@@ -80,8 +81,8 @@ class TourPassRepositoryImpl(
         daoToTourPass(entity, charts)
     }
 
-    override suspend fun getAppTourPassById(shareId: String): TourPass? = newSuspendedTransaction {
-        val entity = TourPassEntity.find { TourPassTable.shareId eq shareId }.firstOrNull()
+    override suspend fun getAppTourPassById(contentId: String): TourPass? = newSuspendedTransaction {
+        val entity = TourPassEntity.find { TourPassTable.contentId eq contentId }.firstOrNull()
             ?: return@newSuspendedTransaction null
         val charts = getChartsForTourPass(entity.id.value, null)
         daoToTourPass(entity, charts)
@@ -93,8 +94,13 @@ class TourPassRepositoryImpl(
         artist: String?,
         coverUrl: String
     ): TourPass = newSuspendedTransaction {
+        // Create new content entry
+        val content = ContentEntity.new {
+            this.type = ContentType.TOUR_PASS
+        }
+
         val entity = TourPassEntity.new {
-            this.shareId = NanoIdUtils.generate()
+            this.content = content
             this.name = name
             this.artist = artist
             this.coverUrl = coverUrl

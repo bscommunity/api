@@ -8,7 +8,6 @@ import org.jetbrains.exposed.dao.id.EntityID
 class ThemeEntity(id: EntityID<ULong>) : ULongEntity(id) {
     companion object : ULongEntityClass<ThemeEntity>(ThemeTable)
 
-    var shareId by ThemeTable.shareId
     var name by ThemeTable.name
     var replaces by ThemeTable.replaces
     var coverUrl by ThemeTable.coverUrl
@@ -17,4 +16,6 @@ class ThemeEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var isFeatured by ThemeTable.isFeatured
     var downloadsSum by ThemeTable.downloadsSum
     var latestPublishedAt by ThemeTable.latestPublishedAt
+
+    var content by ContentEntity referencedOn ThemeTable.contentId
 }

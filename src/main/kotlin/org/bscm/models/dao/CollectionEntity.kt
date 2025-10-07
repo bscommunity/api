@@ -5,9 +5,10 @@ import org.bscm.models.tables.CollectionTable
 import org.jetbrains.exposed.dao.Entity
 import org.jetbrains.exposed.dao.EntityClass
 import org.jetbrains.exposed.dao.id.EntityID
+import java.util.*
 
-class CollectionEntity(id: EntityID<ULong>) : Entity<ULong>(id) {
-    companion object : EntityClass<ULong, CollectionEntity>(CollectionTable)
+class CollectionEntity(id: EntityID<UUID>) : Entity<UUID>(id) {
+    companion object : EntityClass<UUID, CollectionEntity>(CollectionTable)
 
     var user by UserEntity referencedOn CollectionTable.userId
     var name by CollectionTable.name

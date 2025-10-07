@@ -21,6 +21,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.time.LocalDateTime
 import java.util.*
 import kotlin.math.min
 
@@ -50,7 +51,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         return Chart(
             id = entity.id.value.toString(),
-            shareId = entity.shareId,
+            contentId = entity.content.id.value,
             track = entity.track,
             artist = entity.artist,
             album = entity.album,
@@ -93,9 +94,9 @@ class ChartRepositoryImpl : ChartRepository {
         )
     }
 
-    override suspend fun getAppChartById(shareId: String): Chart? = newSuspendedTransaction {
+    override suspend fun getAppChartById(contentId: String): Chart? = newSuspendedTransaction {
         val query = ChartTable.selectAll()
-            .where { ChartTable.shareId eq shareId }
+            .where { ChartTable.contentId eq contentId }
 
         applyJoinsAndSelect(query, fetchAllVersions = false, fetchStreamingLinks = true)
         val processedResults = processResultsInMemory(
@@ -484,15 +485,20 @@ class ChartRepositoryImpl : ChartRepository {
         userId: UUID,
         chart: CreateChartRequest,
     ): Chart = newSuspendedTransaction {
-        if (chart.shareId.isNullOrBlank()) {
+        if (chart.contentId.isNullOrBlank()) {
             throw BadRequestException("Share ID cannot be empty")
         }
 
         // exec("SET CONSTRAINTS chart_latest_version_id_fkey DEFERRED")
 
+        // Create the content entry first
+        val content = ContentEntity.new(chart.contentId) {
+            this.type = ContentType.CHART
+        }
+
         // Create the chart
         val newChart = ChartEntity.new(chart.id) {
-            this.shareId = chart.shareId
+            this.content = content
             this.artist = chart.artist
             this.track = chart.track
             this.album = chart.album
@@ -600,6 +606,9 @@ class ChartRepositoryImpl : ChartRepository {
             it.isFeatured = chart.isFeatured ?: it.isFeatured
             it.isPublic = chart.isPublic ?: it.isPublic
         }
+
+        // Update the content's updatedAt timestamp
+        existingChart?.content?.updatedAt = LocalDateTime.now()
 
         if (existingChart == null) {
             throw NotFoundException("Chart with ID $id not found")

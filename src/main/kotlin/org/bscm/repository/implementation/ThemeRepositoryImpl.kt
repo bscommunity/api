@@ -2,10 +2,11 @@ package org.bscm.repository.implementation
 
 import io.ktor.server.plugins.*
 import org.bscm.models.Theme
+import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.ThemeEntity
+import org.bscm.models.enums.ContentType
 import org.bscm.models.tables.ThemeTable
 import org.bscm.repository.ThemeRepository
-import org.bscm.utils.NanoIdUtils
 import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
@@ -18,7 +19,7 @@ class ThemeRepositoryImpl : ThemeRepository {
     private fun daoToTheme(entity: ThemeEntity): Theme {
         return Theme(
             id = entity.id.value.toString(),
-            shareId = entity.shareId,
+            contentId = entity.content.id.value,
             name = entity.name,
             replaces = entity.replaces,
             coverUrl = entity.coverUrl,
@@ -63,8 +64,8 @@ class ThemeRepositoryImpl : ThemeRepository {
         daoToTheme(entity)
     }
 
-    override suspend fun getAppThemeById(shareId: String): Theme? = newSuspendedTransaction {
-        val entity = ThemeEntity.find { ThemeTable.shareId eq shareId }.firstOrNull()
+    override suspend fun getAppThemeById(contentId: String): Theme? = newSuspendedTransaction {
+        val entity = ThemeEntity.find { ThemeTable.contentId eq contentId }.firstOrNull()
             ?: return@newSuspendedTransaction null
         daoToTheme(entity)
     }
@@ -76,8 +77,13 @@ class ThemeRepositoryImpl : ThemeRepository {
         coverUrl: String,
         previewUrl: String
     ): Theme = newSuspendedTransaction {
+        // Generate a unique content entry
+        val content = ContentEntity.new {
+            this.type = ContentType.THEME
+        }
+
         val entity = ThemeEntity.new {
-            this.shareId = NanoIdUtils.generate()
+            this.content = content
             this.name = name
             this.replaces = replaces
             this.coverUrl = coverUrl

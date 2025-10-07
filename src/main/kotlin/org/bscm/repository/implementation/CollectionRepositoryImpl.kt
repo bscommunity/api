@@ -81,7 +81,7 @@ class CollectionRepositoryImpl(
         }
     }
 
-    override suspend fun getCollection(collectionId: ULong, userId: UUID?): Collection? = newSuspendedTransaction {
+    override suspend fun getCollection(collectionId: UUID, userId: UUID?): Collection? = newSuspendedTransaction {
         val filter = if (userId != null) {
             (CollectionTable.id eq collectionId) and
                     ((CollectionTable.userId eq userId) or (CollectionTable.isPublic eq true))
@@ -106,7 +106,7 @@ class CollectionRepositoryImpl(
         }
     }
 
-    override suspend fun updateCollection(collectionId: ULong, userId: UUID, name: String?, isPublic: Boolean?): Boolean =
+    override suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String?, isPublic: Boolean?): Boolean =
         newSuspendedTransaction {
             val entity = CollectionEntity.find {
                 (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
@@ -118,7 +118,7 @@ class CollectionRepositoryImpl(
             true
         }
 
-    override suspend fun deleteCollection(collectionId: ULong, userId: UUID): Boolean = newSuspendedTransaction {
+    override suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean = newSuspendedTransaction {
         val entity = CollectionEntity.find {
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@newSuspendedTransaction false
@@ -127,7 +127,7 @@ class CollectionRepositoryImpl(
         true
     }
 
-    override suspend fun addItemToCollection(collectionId: ULong, userId: UUID, contentId: ULong): Boolean =
+    override suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
         newSuspendedTransaction {
             // Verify if the collection exists and belongs to the user
             val collection = CollectionEntity.find {
@@ -153,7 +153,7 @@ class CollectionRepositoryImpl(
             true
         }
 
-    override suspend fun removeItemFromCollection(collectionId: ULong, userId: UUID, contentId: ULong): Boolean =
+    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
         newSuspendedTransaction {
             // Verify if the collection belongs to the user
             val collection = CollectionEntity.find {
@@ -172,7 +172,7 @@ class CollectionRepositoryImpl(
         }
 
     override suspend fun getCollectionItems(
-        collectionId: ULong,
+        collectionId: UUID,
         userId: UUID?,
         category: ContentType?,
         limit: Int?,
@@ -220,7 +220,7 @@ class CollectionRepositoryImpl(
 
         // Fetch Charts with all related data
         itemsByType[ContentType.CHART]?.let { chartItems ->
-            val chartIds = chartItems.map { it[CollectionItemTable.contentId].value }
+            val chartIds = chartItems.map { it[CollectionItemTable.contentId].value.toULong() }
             val chartResults = chartRepository.getCharts(
                 chartIds = chartIds,
                 search = null,
@@ -236,7 +236,7 @@ class CollectionRepositoryImpl(
 
         // Fetch Themes
         itemsByType[ContentType.THEME]?.let { themeItems ->
-            val themeIds = themeItems.map { it[CollectionItemTable.contentId].value }
+            val themeIds = themeItems.map { it[CollectionItemTable.contentId].value.toULong() }
             val themeResults = themeRepository.getThemes(
                 themeIds = themeIds,
                 search = null,
@@ -248,7 +248,7 @@ class CollectionRepositoryImpl(
 
         // Fetch TourPasses with charts
         itemsByType[ContentType.TOUR_PASS]?.let { tourPassItems ->
-            val tourPassIds = tourPassItems.map { it[CollectionItemTable.contentId].value }
+            val tourPassIds = tourPassItems.map { it[CollectionItemTable.contentId].value.toULong() }
             val tourPassResults = tourPassRepository.getTourPasses(
                 tourPassIds = tourPassIds,
                 search = null,
@@ -264,12 +264,12 @@ class CollectionRepositoryImpl(
         }.toMap()
 
         catalogItems.sortedBy { item ->
-            val contentId = item.id.toULongOrNull()
-            contentId?.let { orderMap[it] } ?: Int.MAX_VALUE
+            val contentId = item.id
+            contentId.let { orderMap[it] } ?: Int.MAX_VALUE
         }
     }
 
-    override suspend fun isItemInCollection(collectionId: ULong, contentId: ULong): Boolean =
+    override suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean =
         newSuspendedTransaction {
             val filter = (CollectionItemTable.collectionId eq collectionId) and
                     (CollectionItemTable.contentId eq contentId)
@@ -303,7 +303,7 @@ class CollectionRepositoryImpl(
                 }
                 else -> {
                     // Try to convert to ULong and find the custom collection
-                    val customCollectionId = collectionIdStr.toULongOrNull() ?: continue
+                    val customCollectionId = UUID.fromString(collectionIdStr) ?: continue
                     CollectionEntity.find {
                         (CollectionTable.id eq customCollectionId) and (CollectionTable.userId eq userId)
                     }.firstOrNull() ?: continue // Skip if collection doesn't exist or doesn't belong to user

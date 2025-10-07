@@ -19,7 +19,7 @@ data class CreateChartRequest (
     // Server-side properties
     val id: ULong? = null,
     val versionId: ULong? = null,
-    val shareId: String? = null,
+    val contentId: String? = null,
 
     // First version properties
     val duration: Float,

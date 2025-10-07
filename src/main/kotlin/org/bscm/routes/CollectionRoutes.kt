@@ -31,8 +31,12 @@ private fun ApplicationCall.getContentTypeOrNull(): ContentType? {
     }
 }
 
-private fun ApplicationCall.getId(paramName: String = "id"): ULong {
-    return parameters[paramName]?.toULongOrNull()
+private fun ApplicationCall.getId(paramName: String = "id"): String {
+    return parameters[paramName] ?: throw IllegalArgumentException("Invalid or missing $paramName")
+}
+
+private fun ApplicationCall.getUUID(paramName: String = "id"): UUID {
+    return UUID.fromString(parameters[paramName])
         ?: throw IllegalArgumentException("Invalid or missing $paramName")
 }
 
@@ -70,7 +74,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 // Update collection
                 put {
                     val userId = call.getUserId()
-                    val collectionId = call.getId()
+                    val collectionId = call.getUUID()
                     val request = call.receive<UpdateCollectionRequest>()
                     try {
                         val updated = collectionService.updateCollection(collectionId, userId, request.name, request.isPublic)
@@ -87,7 +91,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 // Delete collection
                 delete {
                     val userId = call.getUserId()
-                    val collectionId = call.getId()
+                    val collectionId = call.getUUID()
                     val deleted = collectionService.deleteCollection(collectionId, userId)
                     if (deleted) {
                         call.respond(HttpStatusCode.OK, mapOf("message" to "Collection deleted successfully"))
@@ -99,7 +103,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 route("/items") {
                     get {
                         val userId = call.getUserId()
-                        val collectionId = call.getId()
+                        val collectionId = call.getUUID()
                         val category = call.getContentTypeOrNull()
                         val (limit, offset) = call.getPagination()
                         val items = collectionService.getCollectionItems(collectionId, userId, category, limit, offset)
@@ -109,10 +113,10 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     // Add item to collection
                     post("{itemId}") {
                         val userId = call.getUserId()
-                        val collectionId = call.getId()
-                        val itemId = call.getId("itemId")
+                        val collectionId = call.getUUID()
+                        val contentId = call.getId("itemId")
 
-                        val added = collectionService.addItemToCollection(collectionId, userId, itemId)
+                        val added = collectionService.addItemToCollection(collectionId, userId, contentId)
                         if (added) {
                             call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to collection"))
                         } else {
@@ -123,7 +127,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     // Remove item from collection
                     delete("{itemId}") {
                         val userId = call.getUserId()
-                        val collectionId = call.getId()
+                        val collectionId = call.getUUID()
                         val contentId = call.getId("itemId")
                         val removed = collectionService.removeItemFromCollection(collectionId, userId, contentId)
                         if (removed) {

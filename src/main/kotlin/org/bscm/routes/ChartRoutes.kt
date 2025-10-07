@@ -215,10 +215,11 @@ fun Route.chartRoutes(
 
                     println("Creating chart with request: $createRequest")
 
-                    val shareId = NanoIdUtils.generateOptimized(10, "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 63, 16)
+                    // Create a unique content ID for the chart
+                    val contentId = NanoIdUtils.generateOptimized(10, "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 63, 16)
 
                     val createRequestWithId = createRequest.copy(
-                        shareId = shareId,
+                        contentId = contentId
                     )
 
                     // Upload the chart bundle
@@ -232,15 +233,15 @@ fun Route.chartRoutes(
                         return@post
                     }
 
-                    val createRequestWithUrl = createRequest.copy(
+                    val createRequestWithBundle = createRequest.copy(
                         id = discordResponse.id.toULong(),
-                        shareId = shareId,
+                        contentId = contentId,
                         versionId = attachment.id.toULong(),
                         bundleUrl = attachment.url
                     )
 
                     // Create the chart in the repository
-                    val createdChart = chartRepository.createChart(userId, createRequestWithUrl)
+                    val createdChart = chartRepository.createChart(userId, createRequestWithBundle)
                     // println("Created chart: $createdChart")
 
                     call.respond(HttpStatusCode.Created, createdChart)

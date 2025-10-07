@@ -18,7 +18,7 @@ data class Chart(
     val latestVersion: Version?, // Room database field
 
     override val id: String,
-    override val shareId: String,
+    override val contentId: String,
     override val coverUrl: String,
     override val isPublic: Boolean,
     override val isFeatured: Boolean,

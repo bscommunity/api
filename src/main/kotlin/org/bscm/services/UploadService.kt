@@ -178,7 +178,7 @@ class UploadService(
             attachments(attachments)
             embed {
                 this.title = title
-                url = "https://bscm.netlify.app/link/chart/${chart.shareId}"
+                url = "https://bscm.netlify.app/link/chart/${chart.contentId}"
                 timestamp(Date().toInstant().toString())
                 color = 3820816
                 image(chart.coverUrl)
@@ -252,7 +252,7 @@ class UploadService(
                 previewUrl = newVersion.previewUrl,
                 coverUrl = chart.coverUrl,
                 trackUrls = chart.trackUrls,
-                shareId = chart.shareId,
+                contentId = chart.contentId,
             ),
             author,
             attachments = chart.versions.map {
