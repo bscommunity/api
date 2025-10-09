@@ -77,7 +77,7 @@ fun Route.chartRoutes(
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
 
-                    val ids = call.request.queryParameters.getAll("ids")?.map { it.toULong() }
+                    val ids = call.request.queryParameters.getAll("ids")
 
                     // Determine which type of authentication is being used
                     val jwtPrincipal = call.principal<JWTPrincipal>()
@@ -89,7 +89,8 @@ fun Route.chartRoutes(
                             val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
                             chartRepository.getCharts(
                                 userId = userId,
-                                chartIds = ids,
+                                contentIds = ids,
+                                chartIds = null,
                                 search = sanitizedQuery,
                                 sortBy,
                                 difficulties,
@@ -101,13 +102,12 @@ fun Route.chartRoutes(
                         // HMAC authentication (mobile app)
                         hmacPrincipal != null -> {
                             chartRepository.getCharts(
-                                chartIds = ids,
                                 search = sanitizedQuery,
-                                sortBy,
-                                difficulties,
-                                genres,
-                                limit,
-                                offset,
+                                sortBy = sortBy,
+                                difficulties = difficulties,
+                                genres = genres,
+                                limit = limit,
+                                offset = offset,
                             )
                         }
                         // No authentication (public access)

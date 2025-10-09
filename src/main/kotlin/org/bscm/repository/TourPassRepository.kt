@@ -6,7 +6,7 @@ import java.util.*
 interface TourPassRepository {
     suspend fun getTourPasses(
         userId: UUID? = null,
-        tourPassIds: List<ULong>? = null,
+        contentIds: List<String>?,
         search: String?,
         limit: Int? = null,
         offset: Int? = null,

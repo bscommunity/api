@@ -37,7 +37,7 @@ class TourPassRepositoryImpl(
 
     override suspend fun getTourPasses(
         userId: UUID?,
-        tourPassIds: List<ULong>?,
+        contentIds: List<String>?,
         search: String?,
         limit: Int?,
         offset: Int?
@@ -49,8 +49,8 @@ class TourPassRepositoryImpl(
             query.andWhere { TourPassTable.isPublic eq true }
         }
 
-        if (!tourPassIds.isNullOrEmpty()) {
-            query.andWhere { TourPassTable.id inList tourPassIds }
+        if (!contentIds.isNullOrEmpty()) {
+            query.andWhere { TourPassTable.contentId inList contentIds }
         }
 
         if (!search.isNullOrBlank()) {

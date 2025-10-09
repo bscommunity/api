@@ -7,9 +7,10 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionRequest
+import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
+import org.bscm.models.enums.ActionOption
 import org.bscm.models.enums.ContentType
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.services.CollectionService
@@ -74,7 +75,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 // Update collection
                 put {
                     val userId = call.getUserId()
-                    val collectionId = call.getUUID()
+                    val collectionId = call.getId()
                     val request = call.receive<UpdateCollectionRequest>()
                     try {
                         val updated = collectionService.updateCollection(collectionId, userId, request.name, request.isPublic)
@@ -91,7 +92,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 // Delete collection
                 delete {
                     val userId = call.getUserId()
-                    val collectionId = call.getUUID()
+                    val collectionId = call.getId()
                     val deleted = collectionService.deleteCollection(collectionId, userId)
                     if (deleted) {
                         call.respond(HttpStatusCode.OK, mapOf("message" to "Collection deleted successfully"))
@@ -103,7 +104,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 route("/items") {
                     get {
                         val userId = call.getUserId()
-                        val collectionId = call.getUUID()
+                        val collectionId = call.getId()
                         val category = call.getContentTypeOrNull()
                         val (limit, offset) = call.getPagination()
                         val items = collectionService.getCollectionItems(collectionId, userId, category, limit, offset)
@@ -111,12 +112,13 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     }
 
                     // Add item to collection
-                    post("{itemId}") {
+                    post {
                         val userId = call.getUserId()
-                        val collectionId = call.getUUID()
-                        val contentId = call.getId("itemId")
+                        val collectionId = call.getId()
 
-                        val added = collectionService.addItemToCollection(collectionId, userId, contentId)
+                        val request = call.receive<UpdateCollectionItemRequest>()
+
+                        val added = collectionService.addItemToCollection(collectionId, userId, request.contentId)
                         if (added) {
                             call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to collection"))
                         } else {
@@ -127,7 +129,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     // Remove item from collection
                     delete("{itemId}") {
                         val userId = call.getUserId()
-                        val collectionId = call.getUUID()
+                        val collectionId = call.getId()
                         val contentId = call.getId("itemId")
                         val removed = collectionService.removeItemFromCollection(collectionId, userId, contentId)
                         if (removed) {
@@ -142,9 +144,28 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
             // Batch process interactions
             post("/batch") {
                 val userId = call.getUserId()
-                val request = call.receive<List<CreateCollectionItemRequest>>()
+                val collectionId = call.getId()
+
+                val request = call.receive<List<UpdateCollectionItemRequest>>()
+                val itemsIds = request.map { it.contentId }
+
                 try {
-                    collectionService.batchProcessInteractions(userId, request)
+                    collectionService.batchProcessInteractions(userId, collectionId, itemsIds, ActionOption.ADD)
+                    call.respond(HttpStatusCode.OK)
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                }
+            }
+
+            delete("/batch") {
+                val userId = call.getUserId()
+                val collectionId = call.getId()
+
+                val request = call.receive<List<UpdateCollectionItemRequest>>()
+                val itemsIds = request.map { it.contentId }
+
+                try {
+                    collectionService.batchProcessInteractions(userId, collectionId, itemsIds, ActionOption.REMOVE)
                     call.respond(HttpStatusCode.OK)
                 } catch (e: Exception) {
                     call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))

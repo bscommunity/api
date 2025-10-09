@@ -33,15 +33,15 @@ class ThemeRepositoryImpl : ThemeRepository {
 
     override suspend fun getThemes(
         userId: UUID?,
-        themeIds: List<ULong>?,
+        contentIds: List<String>?,
         search: String?,
         limit: Int?,
         offset: Int?
     ): List<Theme> = newSuspendedTransaction {
         val query = ThemeTable.selectAll()
 
-        if (!themeIds.isNullOrEmpty()) {
-            query.andWhere { ThemeTable.id inList themeIds }
+        if (!contentIds.isNullOrEmpty()) {
+            query.andWhere { ThemeTable.contentId inList contentIds }
         }
 
         if (!search.isNullOrBlank()) {

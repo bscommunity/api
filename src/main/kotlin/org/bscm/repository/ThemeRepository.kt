@@ -6,7 +6,7 @@ import java.util.*
 interface ThemeRepository {
     suspend fun getThemes(
         userId: UUID? = null,
-        themeIds: List<ULong>? = null,
+        contentIds: List<String>? = null,
         search: String?,
         limit: Int? = null,
         offset: Int? = null,

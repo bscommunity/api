@@ -6,7 +6,7 @@ import org.bscm.models.dao.CollectionEntity
 import org.bscm.models.dao.CollectionItemEntity
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.UserEntity
-import org.bscm.models.dto.collection.CreateCollectionItemRequest
+import org.bscm.models.enums.ActionOption
 import org.bscm.models.enums.ContentType
 import org.bscm.models.tables.CollectionItemTable
 import org.bscm.models.tables.CollectionTable
@@ -27,7 +27,6 @@ class CollectionRepositoryImpl(
     private val themeRepository: ThemeRepository,
     private val tourPassRepository: TourPassRepository
 ) : CollectionRepository {
-
     override suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection =
         newSuspendedTransaction {
             val now = LocalDateTime.now()
@@ -106,17 +105,16 @@ class CollectionRepositoryImpl(
         }
     }
 
-    override suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String?, isPublic: Boolean?): Boolean =
-        newSuspendedTransaction {
-            val entity = CollectionEntity.find {
-                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-            }.firstOrNull() ?: return@newSuspendedTransaction false
+    override suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String?, isPublic: Boolean?): Boolean = newSuspendedTransaction {
+        val entity = CollectionEntity.find {
+            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
+        }.firstOrNull() ?: return@newSuspendedTransaction false
 
-            name?.let { entity.name = it }
-            isPublic?.let { entity.isPublic = it }
-            entity.updatedAt = LocalDateTime.now()
-            true
-        }
+        name?.let { entity.name = it }
+        isPublic?.let { entity.isPublic = it }
+        entity.updatedAt = LocalDateTime.now()
+        true
+    }
 
     override suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean = newSuspendedTransaction {
         val entity = CollectionEntity.find {
@@ -127,57 +125,49 @@ class CollectionRepositoryImpl(
         true
     }
 
-    override suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
-        newSuspendedTransaction {
-            // Verify if the collection exists and belongs to the user
-            val collection = CollectionEntity.find {
-                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-            }.firstOrNull() ?: return@newSuspendedTransaction false
+    override suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean = newSuspendedTransaction {
+        // Verify if the collection exists and belongs to the user
+        val collection = CollectionEntity.find {
+            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
+        }.firstOrNull() ?: return@newSuspendedTransaction false
 
-            // Verify if the item already exists in the collection
-            val existingFilter = (CollectionItemTable.collectionId eq collectionId) and
-                    Op.TRUE
+        // Verify if the item already exists in the collection
+        val existingFilter = (CollectionItemTable.collectionId eq collectionId) and
+                Op.TRUE
 
-            val existing = CollectionItemTable.selectAll().where { existingFilter }.firstOrNull()
-            if (existing != null) return@newSuspendedTransaction false
+        val existing = CollectionItemTable.selectAll().where { existingFilter }.firstOrNull()
+        if (existing != null) return@newSuspendedTransaction false
 
-            // Add item to collection
-            CollectionItemEntity.new {
-                this.collection = collection
-                this.content = ContentEntity[contentId]
-                this.addedAt = LocalDateTime.now()
-            }
-
-            // Update collection's updatedAt
-            collection.updatedAt = LocalDateTime.now()
-            true
+        // Add item to collection
+        CollectionItemEntity.new {
+            this.collection = collection
+            this.content = ContentEntity[contentId]
+            this.addedAt = LocalDateTime.now()
         }
 
-    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
-        newSuspendedTransaction {
-            // Verify if the collection belongs to the user
-            val collection = CollectionEntity.find {
-                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-            }.firstOrNull() ?: return@newSuspendedTransaction false
+        // Update collection's updatedAt
+        collection.updatedAt = LocalDateTime.now()
+        true
+    }
 
-            val filter = (CollectionItemTable.collectionId eq collectionId) and
-                    Op.TRUE
+    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean = newSuspendedTransaction {
+        // Verify if the collection belongs to the user
+        val collection = CollectionEntity.find {
+            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
+        }.firstOrNull() ?: return@newSuspendedTransaction false
 
-            val item = CollectionItemEntity.find { filter }.firstOrNull()
-                ?: return@newSuspendedTransaction false
+        val filter = (CollectionItemTable.collectionId eq collectionId) and
+                Op.TRUE
 
-            item.delete()
-            collection.updatedAt = LocalDateTime.now()
-            true
-        }
+        val item = CollectionItemEntity.find { filter }.firstOrNull()
+            ?: return@newSuspendedTransaction false
 
-    override suspend fun getCollectionItems(
-        collectionId: UUID,
-        userId: UUID?,
-        category: ContentType?,
-        limit: Int?,
-        offset: Int?
-    ): List<CatalogItem> = newSuspendedTransaction {
+        item.delete()
+        collection.updatedAt = LocalDateTime.now()
+        true
+    }
+
+    override suspend fun getCollectionItems(collectionId: UUID, userId: UUID?, category: ContentType?, limit: Int?, offset: Int?): List<CatalogItem> = newSuspendedTransaction {
         // Verify access to the collection
         val hasAccess = if (userId != null) {
             CollectionTable.selectAll().where {
@@ -220,25 +210,21 @@ class CollectionRepositoryImpl(
 
         // Fetch Charts with all related data
         itemsByType[ContentType.CHART]?.let { chartItems ->
-            val chartIds = chartItems.map { it[CollectionItemTable.contentId].value.toULong() }
+            val contentIds = chartItems.map { it[CollectionItemTable.contentId].value }
             val chartResults = chartRepository.getCharts(
-                chartIds = chartIds,
+                userId = null,
+                contentIds = contentIds,
                 search = null,
                 sortBy = null,
-                difficulties = null,
-                genres = null,
-                limit = null,
-                offset = null,
-                fetchStreamingLinks = true
             )
             catalogItems.addAll(chartResults)
         }
 
         // Fetch Themes
         itemsByType[ContentType.THEME]?.let { themeItems ->
-            val themeIds = themeItems.map { it[CollectionItemTable.contentId].value.toULong() }
+            val contentIds = themeItems.map { it[CollectionItemTable.contentId].value }
             val themeResults = themeRepository.getThemes(
-                themeIds = themeIds,
+                contentIds = contentIds,
                 search = null,
                 limit = null,
                 offset = null
@@ -248,9 +234,10 @@ class CollectionRepositoryImpl(
 
         // Fetch TourPasses with charts
         itemsByType[ContentType.TOUR_PASS]?.let { tourPassItems ->
-            val tourPassIds = tourPassItems.map { it[CollectionItemTable.contentId].value.toULong() }
+            val contentIds = tourPassItems.map { it[CollectionItemTable.contentId].value }
             val tourPassResults = tourPassRepository.getTourPasses(
-                tourPassIds = tourPassIds,
+                userId = null,
+                contentIds = contentIds,
                 search = null,
                 limit = null,
                 offset = null
@@ -269,71 +256,36 @@ class CollectionRepositoryImpl(
         }
     }
 
-    override suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean =
-        newSuspendedTransaction {
-            val filter = (CollectionItemTable.collectionId eq collectionId) and
-                    (CollectionItemTable.contentId eq contentId)
+    override suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean = newSuspendedTransaction {
+        val filter = (CollectionItemTable.collectionId eq collectionId) and
+                (CollectionItemTable.contentId eq contentId)
 
-            CollectionItemTable.selectAll().where { filter }.count() > 0
-        }
+        CollectionItemTable.selectAll().where { filter }.count() > 0
+    }
 
-    override suspend fun batchProcessInteractions(
-        userId: UUID,
-        interactions: List<CreateCollectionItemRequest>
-    ): Int = newSuspendedTransaction {
+    override suspend fun batchProcessInteractions(userId: UUID, collectionId: UUID, itemsIds: List<String>, action: ActionOption): Int = newSuspendedTransaction {
         var processedCount = 0
-
-        for (request in interactions) {
-            val (contentId, collectionIdStr, action) = request
-
-            // Determine the collection based on collectionId
-            val collection = when (collectionIdStr.lowercase()) {
-                "likes", "favorites" -> {
-                    // Find or create system collection
-                    val collectionName = if (collectionIdStr.lowercase() == "likes") "Likes" else "Favorites"
-                    CollectionEntity.find {
-                        (CollectionTable.userId eq userId) and (CollectionTable.name eq collectionName)
-                    }.firstOrNull() ?: CollectionEntity.new {
-                        user = UserEntity[userId]
-                        name = collectionName
-                        isPublic = false
-                        createdAt = LocalDateTime.now()
-                        updatedAt = LocalDateTime.now()
-                    }
-                }
-                else -> {
-                    // Try to convert to ULong and find the custom collection
-                    val customCollectionId = UUID.fromString(collectionIdStr) ?: continue
-                    CollectionEntity.find {
-                        (CollectionTable.id eq customCollectionId) and (CollectionTable.userId eq userId)
-                    }.firstOrNull() ?: continue // Skip if collection doesn't exist or doesn't belong to user
-                }
-            }
-
-            val existingFilter = (CollectionItemTable.collectionId eq collection.id) and
-                    (CollectionItemTable.contentId eq contentId)
-            val existing = CollectionItemTable.selectAll().where { existingFilter }.firstOrNull()
-
+        for (contentId in itemsIds) {
             when (action) {
-                org.bscm.models.enums.ActionOption.ADD -> {
-                    if (existing == null) {
-                        // Add item to collection
-                        CollectionItemEntity.new {
-                            this.collection = collection
-                            this.content = ContentEntity[contentId]
-                            this.addedAt = LocalDateTime.now()
-                        }
-                        collection.updatedAt = LocalDateTime.now()
-                        processedCount++
+                ActionOption.ADD -> {
+                    if (!CollectionItemEntity.find {
+                        (CollectionItemTable.collectionId eq collectionId) and
+                        (CollectionItemTable.contentId eq contentId)
+                    }.empty()) continue
+                    CollectionItemEntity.new {
+                        this.collection = CollectionEntity[collectionId]
+                        this.content = ContentEntity[contentId]
+                        addedAt = LocalDateTime.now()
                     }
+                    processedCount++
                 }
-                org.bscm.models.enums.ActionOption.REMOVE -> {
-                    if (existing != null) {
-                        // Remove item from collection
-                        CollectionItemEntity.find { existingFilter }.firstOrNull()?.delete()
-                        collection.updatedAt = LocalDateTime.now()
-                        processedCount++
-                    }
+                ActionOption.REMOVE -> {
+                    val item = CollectionItemEntity.find {
+                        (CollectionItemTable.collectionId eq collectionId) and
+                        (CollectionItemTable.contentId eq contentId)
+                    }.firstOrNull()
+                    item?.delete()
+                    processedCount++
                 }
             }
         }

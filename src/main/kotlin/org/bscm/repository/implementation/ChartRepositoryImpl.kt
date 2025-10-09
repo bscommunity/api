@@ -121,6 +121,7 @@ class ChartRepositoryImpl : ChartRepository {
     private fun fetchChartEntities(
         userId: UUID?,
         chartIds: List<ULong>?,
+        contentIds: List<String>?,
         search: String?,
         sortBy: ChartSortOption?,
         difficulties: List<Difficulty>?,
@@ -134,7 +135,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         // First, fetch the correctly filtered and sorted IDs with pagination
         val baseQuery = ChartTable.select(ChartTable.id)
-        applyAllFilters(baseQuery, userId, chartIds, search, difficulties, genres)
+        applyAllFilters(baseQuery, userId, chartIds, contentIds, search, difficulties, genres)
         applyOrdering(baseQuery, sortBy ?: ChartSortOption.LAST_UPDATED)
 
         // println("Base query: ${baseQuery.prepareSQL(QueryBuilder(false))}")
@@ -230,6 +231,7 @@ class ChartRepositoryImpl : ChartRepository {
         query: Query,
         userId: UUID?,
         chartIds: List<ULong>?,
+        contentIds: List<String>?,
         search: String?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?
@@ -254,6 +256,11 @@ class ChartRepositoryImpl : ChartRepository {
         // Filter by a specific list of chartIds if provided
         chartIds?.takeIf { it.isNotEmpty() }?.let { ids ->
             query.andWhere { ChartTable.id inList ids }
+        }
+
+        // Filter by a specific list of contentIds if provided
+        contentIds?.takeIf { it.isNotEmpty() }?.let { ids ->
+            query.andWhere { ChartTable.contentId inList ids.map { it } }
         }
 
         // Search functionality for artist, track, or album
@@ -386,6 +393,7 @@ class ChartRepositoryImpl : ChartRepository {
 
     override suspend fun getCharts(
         userId: UUID?,
+        contentIds: List<String>?,
         chartIds: List<ULong>?,
         search: String?,
         sortBy: ChartSortOption?,
@@ -397,6 +405,7 @@ class ChartRepositoryImpl : ChartRepository {
         val result = fetchChartEntities(
             userId,
             chartIds,
+            contentIds,
             search,
             sortBy,
             difficulties,
@@ -428,7 +437,7 @@ class ChartRepositoryImpl : ChartRepository {
 
     // Mobile App Chart variant of getCharts that includes streaming links and only returns the latest version
     override suspend fun getCharts(
-        chartIds: List<ULong>?,
+        contentIds: List<String>?,
         search: String?,
         sortBy: ChartSortOption?,
         difficulties: List<Difficulty>?,
@@ -439,7 +448,8 @@ class ChartRepositoryImpl : ChartRepository {
     ): List<Chart> = newSuspendedTransaction {
         val result = fetchChartEntities(
             null,
-            chartIds,
+            null,
+            contentIds,
             search,
             sortBy,
             difficulties,

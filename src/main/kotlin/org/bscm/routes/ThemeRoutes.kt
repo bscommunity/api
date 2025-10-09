@@ -38,11 +38,10 @@ fun Route.themeRoutes(themeRepository: ThemeRepository, ) {
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
                     val ids = call.request.queryParameters.getAll("ids")
-                        ?.mapNotNull { it.toULongOrNull() }
 
                     val themes = themeRepository.getThemes(
                         userId = userId,
-                        themeIds = ids,
+                        contentIds = ids,
                         search = search,
                         limit = limit,
                         offset = offset

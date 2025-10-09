@@ -2,7 +2,7 @@ package org.bscm.services
 
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
-import org.bscm.models.dto.collection.CreateCollectionItemRequest
+import org.bscm.models.enums.ActionOption
 import org.bscm.models.enums.ContentType
 import org.bscm.repository.CollectionRepository
 import java.util.*
@@ -30,8 +30,21 @@ class CollectionService(
         return collectionRepository.getUserCollections(userId, limit, offset)
     }
 
-    suspend fun getCollection(collectionId: UUID, userId: UUID? = null): Collection? {
-        return collectionRepository.getCollection(collectionId, userId)
+    /**
+     * Resolves a collectionId string to the actual UUID for the user.
+     * Supports system collections ("likes", "favorites") and UUIDs.
+     */
+    private suspend fun resolveCollectionIdForUser(userId: UUID, collectionId: String): UUID {
+        return when (collectionId.lowercase()) {
+            "likes" -> getOrCreateSystemCollection(userId, LIKES_COLLECTION_NAME).id
+            "favorites" -> getOrCreateSystemCollection(userId, FAVORITES_COLLECTION_NAME).id
+            else -> UUID.fromString(collectionId)
+        }
+    }
+
+    suspend fun getCollection(collectionId: String, userId: UUID? = null): Collection? {
+        val resolvedId = userId?.let { resolveCollectionIdForUser(it, collectionId) } ?: UUID.fromString(collectionId)
+        return collectionRepository.getCollection(resolvedId, userId)
     }
 
     /**
@@ -47,20 +60,17 @@ class CollectionService(
         }
     }
 
-    suspend fun updateCollection(
-        collectionId: UUID,
-        userId: UUID,
-        name: String? = null,
-        isPublic: Boolean? = null
-    ): Boolean {
+    suspend fun updateCollection(collectionId: String, userId: UUID, name: String? = null, isPublic: Boolean? = null): Boolean {
+        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
+
         // Get collection first to check if it's a system collection
-        val collection = collectionRepository.getCollection(collectionId, userId)
+        val collection = collectionRepository.getCollection(resolvedId, userId)
         if (collection != null && collection.name in SYSTEM_COLLECTIONS) {
             // Cannot rename system collections, but can change visibility
             return if (name != null) {
                 false // Cannot rename
             } else {
-                collectionRepository.updateCollection(collectionId, userId, null, isPublic)
+                collectionRepository.updateCollection(resolvedId, userId, null, isPublic)
             }
         }
 
@@ -69,50 +79,39 @@ class CollectionService(
             require(it.length <= 30) { "Collection name must be 30 characters or less" }
         }
 
-        return collectionRepository.updateCollection(collectionId, userId, name, isPublic)
+        return collectionRepository.updateCollection(resolvedId, userId, name, isPublic)
     }
 
-    suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean {
+    suspend fun deleteCollection(collectionId: String, userId: UUID): Boolean {
+        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
+
         // Get collection first to check if it's a system collection
-        val collection = collectionRepository.getCollection(collectionId, userId)
+        val collection = collectionRepository.getCollection(resolvedId, userId)
         if (collection != null && collection.name in SYSTEM_COLLECTIONS) {
             // Cannot delete system collections
             return false
         }
 
-        return collectionRepository.deleteCollection(collectionId, userId)
+        return collectionRepository.deleteCollection(resolvedId, userId)
     }
 
-    suspend fun addItemToCollection(
-        collectionId: UUID,
-        userId: UUID,
-        contentId: String,
-    ): Boolean {
-        return collectionRepository.addItemToCollection(collectionId, userId, contentId)
+    suspend fun addItemToCollection(collectionId: String, userId: UUID, contentId: String): Boolean {
+        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
+        return collectionRepository.addItemToCollection(resolvedId, userId, contentId)
     }
 
-    suspend fun removeItemFromCollection(
-        collectionId: UUID,
-        userId: UUID,
-        contentId: String,
-    ): Boolean {
-        return collectionRepository.removeItemFromCollection(collectionId, userId, contentId)
+    suspend fun removeItemFromCollection(collectionId: String, userId: UUID, contentId: String): Boolean {
+        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
+        return collectionRepository.removeItemFromCollection(resolvedId, userId, contentId)
     }
 
-    suspend fun getCollectionItems(
-        collectionId: UUID,
-        userId: UUID? = null,
-        category: ContentType? = null,
-        limit: Int? = null,
-        offset: Int? = null
-    ): List<CatalogItem> {
-        return collectionRepository.getCollectionItems(collectionId, userId, category, limit, offset)
+    suspend fun getCollectionItems(collectionId: String, userId: UUID? = null, category: ContentType? = null, limit: Int? = null, offset: Int? = null): List<CatalogItem> {
+        val resolvedId = userId?.let { resolveCollectionIdForUser(it, collectionId) } ?: UUID.fromString(collectionId)
+        return collectionRepository.getCollectionItems(resolvedId, userId, category, limit, offset)
     }
 
-    suspend fun batchProcessInteractions(
-        userId: UUID,
-        interactions: List<CreateCollectionItemRequest>
-    ): Int {
-        return collectionRepository.batchProcessInteractions(userId, interactions)
+    suspend fun batchProcessInteractions(userId: UUID, collectionId: String, itemsIds: List<String>, action: ActionOption): Int {
+        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
+        return collectionRepository.batchProcessInteractions(userId, resolvedId, itemsIds, action)
     }
 }

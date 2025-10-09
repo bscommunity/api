@@ -36,11 +36,17 @@ fun Route.tourPassRoutes(tourPassRepository: TourPassRepository) {
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
                     val ids = call.request.queryParameters.getAll("ids")
-                        ?.mapNotNull { it.toULongOrNull() }
+
+                    // Verify if all ids are UUIDs
+                    ids?.forEach {
+                        if (UUID.fromString(it) == null) {
+                            throw BadRequestException("Invalid ID format in ids parameter")
+                        }
+                    }
 
                     val tourPasses = tourPassRepository.getTourPasses(
                         userId = userId,
-                        tourPassIds = ids,
+                        contentIds = ids,
                         search = search,
                         limit = limit,
                         offset = offset

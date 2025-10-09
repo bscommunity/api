@@ -4,7 +4,8 @@ import kotlinx.serialization.Serializable
 import org.bscm.serialization.LocalDateTimeSerializer
 import java.time.LocalDateTime
 
-interface CatalogItem {
+@Serializable
+sealed interface CatalogItem {
     val id: String
     val contentId: String
     val coverUrl: String

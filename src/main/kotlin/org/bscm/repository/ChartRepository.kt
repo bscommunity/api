@@ -12,7 +12,8 @@ import java.util.*
 interface ChartRepository {
     suspend fun getCharts(
         userId: UUID?,
-        chartIds: List<ULong>?,
+        contentIds: List<String>? = null,
+        chartIds: List<ULong>? = null, // Necessary for TourPass charts fetching
         search: String?,
         sortBy: ChartSortOption?,
         difficulties: List<Difficulty>? = null,
@@ -21,7 +22,7 @@ interface ChartRepository {
         offset: Int? = null,
     ): List<Chart>
     suspend fun getCharts(
-        chartIds: List<ULong>?,
+        contentIds: List<String>? = null,
         search: String?,
         sortBy: ChartSortOption?,
         difficulties: List<Difficulty>? = null,
