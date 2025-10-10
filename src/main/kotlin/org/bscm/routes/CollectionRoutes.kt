@@ -10,7 +10,6 @@ import io.ktor.server.routing.*
 import org.bscm.models.dto.collection.CreateCollectionRequest
 import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
-import org.bscm.models.enums.ActionOption
 import org.bscm.models.enums.ContentType
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.services.CollectionService
@@ -34,11 +33,6 @@ private fun ApplicationCall.getContentTypeOrNull(): ContentType? {
 
 private fun ApplicationCall.getId(paramName: String = "id"): String {
     return parameters[paramName] ?: throw IllegalArgumentException("Invalid or missing $paramName")
-}
-
-private fun ApplicationCall.getUUID(paramName: String = "id"): UUID {
-    return UUID.fromString(parameters[paramName])
-        ?: throw IllegalArgumentException("Invalid or missing $paramName")
 }
 
 private fun ApplicationCall.getPagination(): Pair<Int?, Int?> {
@@ -141,31 +135,15 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 }
             }
 
-            // Batch process interactions
+            // Batch process items (add/remove) in collection
             post("/batch") {
                 val userId = call.getUserId()
                 val collectionId = call.getId()
 
                 val request = call.receive<List<UpdateCollectionItemRequest>>()
-                val itemsIds = request.map { it.contentId }
 
                 try {
-                    collectionService.batchProcessInteractions(userId, collectionId, itemsIds, ActionOption.ADD)
-                    call.respond(HttpStatusCode.OK)
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
-                }
-            }
-
-            delete("/batch") {
-                val userId = call.getUserId()
-                val collectionId = call.getId()
-
-                val request = call.receive<List<UpdateCollectionItemRequest>>()
-                val itemsIds = request.map { it.contentId }
-
-                try {
-                    collectionService.batchProcessInteractions(userId, collectionId, itemsIds, ActionOption.REMOVE)
+                    collectionService.batchProcessInteractions(userId, request)
                     call.respond(HttpStatusCode.OK)
                 } catch (e: Exception) {
                     call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))

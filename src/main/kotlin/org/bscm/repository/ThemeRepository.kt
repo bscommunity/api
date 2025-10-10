@@ -15,6 +15,6 @@ interface ThemeRepository {
     suspend fun getThemeById(id: ULong): Theme?
     suspend fun getAppThemeById(contentId: String): Theme?
     suspend fun createTheme(userId: UUID, name: String, replaces: String, coverUrl: String, previewUrl: String): Theme
-    suspend fun updateTheme(id: ULong, name: String?, replaces: String?, coverUrl: String?, previewUrl: String?): Theme
-    suspend fun deleteTheme(id: ULong): Boolean
+    suspend fun updateTheme(id: ULong, userId: UUID, name: String?, replaces: String?, coverUrl: String?, previewUrl: String?): Theme
+    suspend fun deleteTheme(id: ULong, userId: UUID): Boolean
 }

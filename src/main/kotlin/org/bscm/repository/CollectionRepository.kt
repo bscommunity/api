@@ -2,7 +2,7 @@ package org.bscm.repository
 
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
-import org.bscm.models.enums.ActionOption
+import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.enums.ContentType
 import java.util.*
 
@@ -19,5 +19,5 @@ interface CollectionRepository {
     suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
     suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
     suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean
-    suspend fun batchProcessInteractions(userId: UUID, collectionId: UUID, itemsIds: List<String>, action: ActionOption): Int
+    suspend fun batchProcessInteractions(userId: UUID, request: List<UpdateCollectionItemRequest>): Int
 }

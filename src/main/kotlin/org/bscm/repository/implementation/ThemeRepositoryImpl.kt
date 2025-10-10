@@ -98,6 +98,7 @@ class ThemeRepositoryImpl : ThemeRepository {
 
     override suspend fun updateTheme(
         id: ULong,
+        userId: UUID,
         name: String?,
         replaces: String?,
         coverUrl: String?,
@@ -113,7 +114,7 @@ class ThemeRepositoryImpl : ThemeRepository {
         daoToTheme(entity)
     }
 
-    override suspend fun deleteTheme(id: ULong): Boolean = newSuspendedTransaction {
+    override suspend fun deleteTheme(id: ULong, userId: UUID): Boolean = newSuspendedTransaction {
         val entity = ThemeEntity.findById(id) ?: return@newSuspendedTransaction false
         entity.delete()
         true

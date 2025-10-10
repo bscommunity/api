@@ -6,6 +6,7 @@ import org.bscm.models.dao.CollectionEntity
 import org.bscm.models.dao.CollectionItemEntity
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.UserEntity
+import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.enums.ActionOption
 import org.bscm.models.enums.ContentType
 import org.bscm.models.tables.CollectionItemTable
@@ -17,6 +18,7 @@ import org.bscm.repository.ThemeRepository
 import org.bscm.repository.TourPassRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.inSubQuery
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDateTime
@@ -263,29 +265,38 @@ class CollectionRepositoryImpl(
         CollectionItemTable.selectAll().where { filter }.count() > 0
     }
 
-    override suspend fun batchProcessInteractions(userId: UUID, collectionId: UUID, itemsIds: List<String>, action: ActionOption): Int = newSuspendedTransaction {
+    override suspend fun batchProcessInteractions(userId: UUID, request: List<UpdateCollectionItemRequest>): Int = newSuspendedTransaction {
+        // Group requests by collectionId and action to minimize DB queries
+        val grouped = request.groupBy { Pair(UUID.fromString(it.collectionId), it.action) }
         var processedCount = 0
-        for (contentId in itemsIds) {
+        for ((key, group) in grouped) {
+            val (collectionId, action) = key
+            val contentIds = group.map { it.contentId }
             when (action) {
                 ActionOption.ADD -> {
-                    if (!CollectionItemEntity.find {
+                    // Find existing items to avoid duplicates
+                    val existingIds = CollectionItemEntity.find {
                         (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId eq contentId)
-                    }.empty()) continue
-                    CollectionItemEntity.new {
-                        this.collection = CollectionEntity[collectionId]
-                        this.content = ContentEntity[contentId]
-                        addedAt = LocalDateTime.now()
+                        (CollectionItemTable.contentId inList contentIds)
+                    }.map { it.content.id.value }.toSet()
+                    val toAdd = contentIds.filterNot { it in existingIds }
+                    if (toAdd.isNotEmpty()) {
+                        val now = LocalDateTime.now()
+                        CollectionItemTable.batchInsert(toAdd) { contentId ->
+                            this[CollectionItemTable.collectionId] = collectionId
+                            this[CollectionItemTable.contentId] = contentId
+                            this[CollectionItemTable.addedAt] = now
+                        }
+                        processedCount += toAdd.size
                     }
-                    processedCount++
                 }
                 ActionOption.REMOVE -> {
-                    val item = CollectionItemEntity.find {
+                    // Batch delete using a single query
+                    val deleted = CollectionItemTable.deleteWhere {
                         (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId eq contentId)
-                    }.firstOrNull()
-                    item?.delete()
-                    processedCount++
+                        (CollectionItemTable.contentId inList contentIds)
+                    }
+                    processedCount += deleted
                 }
             }
         }

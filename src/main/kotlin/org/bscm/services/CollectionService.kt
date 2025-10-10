@@ -2,7 +2,7 @@ package org.bscm.services
 
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
-import org.bscm.models.enums.ActionOption
+import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.enums.ContentType
 import org.bscm.repository.CollectionRepository
 import java.util.*
@@ -110,8 +110,7 @@ class CollectionService(
         return collectionRepository.getCollectionItems(resolvedId, userId, category, limit, offset)
     }
 
-    suspend fun batchProcessInteractions(userId: UUID, collectionId: String, itemsIds: List<String>, action: ActionOption): Int {
-        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
-        return collectionRepository.batchProcessInteractions(userId, resolvedId, itemsIds, action)
+    suspend fun batchProcessInteractions(userId: UUID, request: List<UpdateCollectionItemRequest>): Int {
+        return collectionRepository.batchProcessInteractions(userId, request)
     }
 }

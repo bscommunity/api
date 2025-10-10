@@ -1,6 +1,7 @@
 package org.bscm.routes
 
 import io.ktor.http.*
+import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.*
@@ -25,6 +26,11 @@ data class UpdateThemeRequest(
     val coverUrl: String?,
     val previewUrl: String?
 )
+
+private fun ApplicationCall.getUserId(): UUID {
+    val principal = principal<JWTPrincipal>()
+    return principal?.subject?.let { UUID.fromString(it) } ?: throw UnauthorizedException("User not authenticated")
+}
 
 fun Route.themeRoutes(themeRepository: ThemeRepository, ) {
     route("/themes") {
@@ -93,8 +99,7 @@ fun Route.themeRoutes(themeRepository: ThemeRepository, ) {
                 }
 
                 put("/{id}") {
-                    val principal = call.principal<JWTPrincipal>()
-                        ?: throw UnauthorizedException("Authentication required")
+                    val userId = call.getUserId()
 
                     val id = call.parameters["id"]?.toULongOrNull()
                         ?: throw BadRequestException("Invalid or missing ID parameter")
@@ -103,6 +108,7 @@ fun Route.themeRoutes(themeRepository: ThemeRepository, ) {
 
                     val theme = themeRepository.updateTheme(
                         id = id,
+                        userId = userId,
                         name = request.name,
                         replaces = request.replaces,
                         coverUrl = request.coverUrl,
@@ -113,13 +119,12 @@ fun Route.themeRoutes(themeRepository: ThemeRepository, ) {
                 }
 
                 delete("/{id}") {
-                    val principal = call.principal<JWTPrincipal>()
-                        ?: throw UnauthorizedException("Authentication required")
+                    val userId = call.getUserId()
 
                     val id = call.parameters["id"]?.toULongOrNull()
                         ?: throw BadRequestException("Invalid or missing ID parameter")
 
-                    val success = themeRepository.deleteTheme(id)
+                    val success = themeRepository.deleteTheme(id, userId)
                     if (success) {
                         call.respond(HttpStatusCode.NoContent)
                     } else {
