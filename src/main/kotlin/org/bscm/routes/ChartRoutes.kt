@@ -34,45 +34,7 @@ fun Route.chartRoutes(
     uploadService: UploadService,
 ) {
     route("/charts") {
-        // Route that requires BOTH JWT and HMAC authentication (mobile app with user context)
-        authenticate("auth-combined") {
-            rateLimit(RateLimitName("restricted")) {
-                // Get all charts for authenticated mobile app users
-                get("/mobile") {
-                    val combined = call.principal<CombinedPrincipal>() ?: throw UnauthorizedException("Invalid authentication")
-
-                    // Extract query parameters
-                    val query = call.request.queryParameters["query"]
-                    val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
-
-                    val difficulties =
-                        call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
-                    val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
-
-                    val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
-                    val limit = call.request.queryParameters["limit"]?.toIntOrNull()
-                    val offset = call.request.queryParameters["offset"]?.toIntOrNull()
-
-                    // Get user ID from JWT principal (guaranteed to exist with combined auth)
-                    val userId = UUID.fromString(combined.jwtPrincipal.subject)
-
-                    // Fetch charts with user-specific data
-                    val charts = chartRepository.getAppCharts(
-                        userId = userId,
-                        search = sanitizedQuery,
-                        sortBy = sortBy,
-                        difficulties = difficulties,
-                        genres = genres,
-                        limit = limit,
-                        offset = offset,
-                    )
-
-                    call.respond(charts)
-                }
-            }
-        }
-
-        // Routes that accept either JWT or HMAC authentication (flexible)
+        // Routes that accept either JWT or HMAC authentication
         authenticate("auth-flexible") {
             rateLimit(RateLimitName("restricted")) {
                 // Get all charts - handles both mobile app and dashboard
@@ -93,7 +55,7 @@ fun Route.chartRoutes(
                     val hmacPrincipal = call.principal<HMACPrincipal>()
                     val combinedPrincipal = call.principal<CombinedPrincipal>()
 
-                    println("JWT Principal: $jwtPrincipal, HMAC Principal: $hmacPrincipal, Combined Principal: $combinedPrincipal")
+                    // println("JWT Principal: $jwtPrincipal, HMAC Principal: $hmacPrincipal, Combined Principal: $combinedPrincipal")
 
                     val charts = when {
                         // Combined auth (HMAC with JWT for user-specific data)

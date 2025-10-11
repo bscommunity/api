@@ -140,7 +140,15 @@ class ChartRepositoryImpl : ChartRepository {
 
         // First, fetch the correctly filtered and sorted IDs with pagination
         val baseQuery = ChartTable.select(ChartTable.id)
-        applyAllFilters(baseQuery, filterByUser.let { if (it) userId else null }, chartIds, contentIds, search, difficulties, genres)
+        applyAllFilters(
+            baseQuery,
+            filterByUser.let { if (it) userId else null },
+            chartIds,
+            contentIds,
+            search,
+            difficulties,
+            genres
+        )
         applyOrdering(baseQuery, sortBy ?: ChartSortOption.LAST_UPDATED)
 
         // println("Base query: ${baseQuery.prepareSQL(QueryBuilder(false))}")
@@ -253,9 +261,9 @@ class ChartRepositoryImpl : ChartRepository {
         userId?.let {
             query.andWhere {
                 ChartTable.id inSubQuery (
-                    ContributorTable.select(ContributorTable.chartId)
-                        .where { ContributorTable.userId eq it }
-                )
+                        ContributorTable.select(ContributorTable.chartId)
+                            .where { ContributorTable.userId eq it }
+                        )
             }
         }
 
@@ -365,9 +373,12 @@ class ChartRepositoryImpl : ChartRepository {
             statsQuery.adjustColumnSet {
                 leftJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
             }
+            statsQuery.adjustSelect {
+                select(CollectionItemTable.contentId, CollectionTable.name)
+            }
             statsQuery.andWhere {
                 (CollectionTable.userId eq userId) and
-                (CollectionItemTable.contentId inList contentIds)
+                        (CollectionItemTable.contentId inList contentIds)
             }
             statsQuery.groupBy { it[CollectionItemTable.contentId].value }
                 .mapValues { it.value.map { row -> row[CollectionTable.name] } }
@@ -523,8 +534,7 @@ class ChartRepositoryImpl : ChartRepository {
         )
 
         val charts = result.map { chartResult ->
-            println("Processing chart with ID: ${chartResult.chart.id.value} and stats: ${chartResult.userStats}")
-            println("Chart with ID: ${chartResult.chart.id.value} has stats ${chartResult.userStats}")
+            // println("Processing chart with ID: ${chartResult.chart.id.value} and stats: ${chartResult.userStats}")
             daoToChart(
                 entity = chartResult.chart,
                 streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
@@ -718,7 +728,7 @@ class ChartRepositoryImpl : ChartRepository {
         }
     }
 
-    override suspend fun refreshChartsBundles(ids: Map<String, String>): Boolean  = newSuspendedTransaction {
+    override suspend fun refreshChartsBundles(ids: Map<String, String>): Boolean = newSuspendedTransaction {
         // Iterate through all chart IDs in a batch and refresh its bundle URL
         val sql = buildString {
             append("UPDATE ${VersionTable.tableName} SET ${VersionTable.bundleUrl.name} = CASE ${VersionTable.id.name} ")

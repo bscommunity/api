@@ -12,8 +12,8 @@ class CollectionService(
 ) {
 
     companion object {
-        const val FAVORITES_COLLECTION_NAME = "Favorites"
-        const val LIKES_COLLECTION_NAME = "Likes"
+        const val FAVORITES_COLLECTION_NAME = "favorites"
+        const val LIKES_COLLECTION_NAME = "likes"
 
         // System collections that users cannot delete or rename
         val SYSTEM_COLLECTIONS = setOf(FAVORITES_COLLECTION_NAME, LIKES_COLLECTION_NAME)
