@@ -10,6 +10,9 @@ data class Theme(
     val replaces: String,
     val previewUrl: String,
 
+    override val isLiked: Boolean,
+    override val isFavorited: Boolean,
+
     override val id: String,
     override val contentId: String,
     override val coverUrl: String,

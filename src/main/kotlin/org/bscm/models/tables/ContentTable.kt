@@ -13,7 +13,6 @@ object ContentTable : IdTable<String>("contents") {
         .uniqueIndex()
     val type = enumerationByName("type", 20, ContentType::class)
     val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
-    val updatedAt = datetime("updated_at").clientDefault { LocalDateTime.now() }
 
     init {
         index(false, type)

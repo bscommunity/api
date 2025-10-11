@@ -214,10 +214,8 @@ class CollectionRepositoryImpl(
         itemsByType[ContentType.CHART]?.let { chartItems ->
             val contentIds = chartItems.map { it[CollectionItemTable.contentId].value }
             val chartResults = chartRepository.getCharts(
-                userId = null,
+                userId = userId,
                 contentIds = contentIds,
-                search = null,
-                sortBy = null,
             )
             catalogItems.addAll(chartResults)
         }

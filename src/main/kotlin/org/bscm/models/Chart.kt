@@ -17,6 +17,9 @@ data class Chart(
     val contributors: List<Contributor> = emptyList(),
     val latestVersion: Version?, // Room database field
 
+    override val isLiked: Boolean,
+    override val isFavorited: Boolean,
+
     override val id: String,
     override val contentId: String,
     override val coverUrl: String,

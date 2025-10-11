@@ -10,10 +10,9 @@ import org.bscm.models.enums.Genre
 import java.util.*
 
 interface ChartRepository {
-    suspend fun getCharts(
+    suspend fun getCharts(userId: UUID?, contentIds: List<String>? = null, chartIds: List<ULong>? = null): List<Chart>
+    suspend fun getFullCharts(
         userId: UUID?,
-        contentIds: List<String>? = null,
-        chartIds: List<ULong>? = null, // Necessary for TourPass charts fetching
         search: String?,
         sortBy: ChartSortOption?,
         difficulties: List<Difficulty>? = null,
@@ -21,15 +20,14 @@ interface ChartRepository {
         limit: Int? = null,
         offset: Int? = null,
     ): List<Chart>
-    suspend fun getCharts(
-        contentIds: List<String>? = null,
+    suspend fun getAppCharts(
+        userId: UUID?,
         search: String?,
         sortBy: ChartSortOption?,
         difficulties: List<Difficulty>? = null,
         genres: List<Genre>? = null,
         limit: Int? = null,
         offset: Int? = null,
-        fetchStreamingLinks: Boolean = true,
     ): List<Chart>
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: ULong): Chart?

@@ -16,6 +16,7 @@ import org.bscm.models.enums.AnalyticsOption
 import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
+import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.plugins.jsonClient
@@ -33,18 +34,121 @@ fun Route.chartRoutes(
     uploadService: UploadService,
 ) {
     route("/charts") {
-        // Routes that accept both JWT or HMAC authentication
-        authenticate("auth-bearer", "auth-hmac", optional = true) {
-            rateLimit(RateLimitName("unrestricted")) {
-                post("analytics/{id}") {
-                    val hmacPrincipal = call.principal<HMACPrincipal>()
+        // Route that requires BOTH JWT and HMAC authentication (mobile app with user context)
+        authenticate("auth-combined") {
+            rateLimit(RateLimitName("restricted")) {
+                // Get all charts for authenticated mobile app users
+                get("/mobile") {
+                    val combined = call.principal<CombinedPrincipal>() ?: throw UnauthorizedException("Invalid authentication")
 
-                    if (hmacPrincipal == null) {
-                        call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
-                        return@post
+                    // Extract query parameters
+                    val query = call.request.queryParameters["query"]
+                    val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
+
+                    val difficulties =
+                        call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
+                    val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
+
+                    val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                    val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+
+                    // Get user ID from JWT principal (guaranteed to exist with combined auth)
+                    val userId = UUID.fromString(combined.jwtPrincipal.subject)
+
+                    // Fetch charts with user-specific data
+                    val charts = chartRepository.getAppCharts(
+                        userId = userId,
+                        search = sanitizedQuery,
+                        sortBy = sortBy,
+                        difficulties = difficulties,
+                        genres = genres,
+                        limit = limit,
+                        offset = offset,
+                    )
+
+                    call.respond(charts)
+                }
+            }
+        }
+
+        // Routes that accept either JWT or HMAC authentication (flexible)
+        authenticate("auth-flexible") {
+            rateLimit(RateLimitName("restricted")) {
+                // Get all charts - handles both mobile app and dashboard
+                get {
+                    val query = call.request.queryParameters["query"]
+                    val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
+
+                    val difficulties =
+                        call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
+                    val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
+
+                    val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                    val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+
+                    // Try to get both principals
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
+                    val combinedPrincipal = call.principal<CombinedPrincipal>()
+
+                    println("JWT Principal: $jwtPrincipal, HMAC Principal: $hmacPrincipal, Combined Principal: $combinedPrincipal")
+
+                    val charts = when {
+                        // Combined auth (HMAC with JWT for user-specific data)
+                        combinedPrincipal != null -> {
+                            val userId = UUID.fromString(combinedPrincipal.jwtPrincipal.subject)
+                            chartRepository.getAppCharts(
+                                userId = userId,
+                                search = sanitizedQuery,
+                                sortBy = sortBy,
+                                difficulties = difficulties,
+                                genres = genres,
+                                limit = limit,
+                                offset = offset,
+                            )
+                        }
+                        // Mobile app (HMAC only, no user context)
+                        hmacPrincipal != null -> {
+                            chartRepository.getAppCharts(
+                                userId = null,
+                                search = sanitizedQuery,
+                                sortBy = sortBy,
+                                difficulties = difficulties,
+                                genres = genres,
+                                limit = limit,
+                                offset = offset,
+                            )
+                        }
+                        // JWT authentication (dashboard user)
+                        jwtPrincipal != null -> {
+                            val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
+                            chartRepository.getFullCharts(
+                                userId = userId,
+                                search = sanitizedQuery,
+                                sortBy = sortBy,
+                                difficulties = difficulties,
+                                genres = genres,
+                                limit = limit,
+                                offset = offset,
+                            )
+                        }
+
+                        else -> {}
                     }
 
-                    val idParam = call.parameters["id"]?.toULong() ?: throw BadRequestException("Invalid or missing ID parameter")
+                    call.respond(charts)
+                }
+            }
+        }
+
+        // Routes that accept HMAC authentication only
+        authenticate("auth-hmac") {
+            rateLimit(RateLimitName("unrestricted")) {
+                post("analytics/{id}") {
+                    val idParam =
+                        call.parameters["id"]?.toULong() ?: throw BadRequestException("Invalid or missing ID parameter")
                     val typeParam = call.queryParameters["type"]
                     val type = typeParam?.let { AnalyticsOption.valueOf(it) }
                         ?: throw BadRequestException("Invalid or missing type parameter")
@@ -64,65 +168,7 @@ fun Route.chartRoutes(
             }
 
             rateLimit(RateLimitName("restricted")) {
-                // Get all charts - now handles both auth types
-                get {
-                    val query = call.request.queryParameters["query"]
-                    val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
-
-                    val difficulties =
-                        call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
-                    val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
-
-                    val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
-                    val limit = call.request.queryParameters["limit"]?.toIntOrNull()
-                    val offset = call.request.queryParameters["offset"]?.toIntOrNull()
-
-                    val ids = call.request.queryParameters.getAll("ids")
-
-                    // Determine which type of authentication is being used
-                    val jwtPrincipal = call.principal<JWTPrincipal>()
-                    val hmacPrincipal = call.principal<HMACPrincipal>()
-
-                    val charts = when {
-                        // JWT authentication (dashboard user)
-                        jwtPrincipal != null -> {
-                            val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
-                            chartRepository.getCharts(
-                                userId = userId,
-                                contentIds = ids,
-                                chartIds = null,
-                                search = sanitizedQuery,
-                                sortBy,
-                                difficulties,
-                                genres,
-                                limit,
-                                offset,
-                            )
-                        }
-                        // HMAC authentication (mobile app)
-                        hmacPrincipal != null -> {
-                            chartRepository.getCharts(
-                                search = sanitizedQuery,
-                                sortBy = sortBy,
-                                difficulties = difficulties,
-                                genres = genres,
-                                limit = limit,
-                                offset = offset,
-                            )
-                        }
-                        // No authentication (public access)
-                        else -> {
-                            call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
-                            return@get
-                        }
-                    }
-
-                    // println("Returning ${charts.size} charts for query: $sanitizedQuery, difficulties: $difficulties, genres: $genres, sortBy: $sortBy, limit: $limit, offset: $offset")
-
-                    call.respond(charts)
-                }
-
-                // Get chart by ShareID
+                // Get chart by content id
                 get("{id}") {
                     val id = call.parameters["id"]
                     if (id == null) {
@@ -138,8 +184,10 @@ fun Route.chartRoutes(
 
                     val chart = when {
                         jwtPrincipal != null -> {
-                            chartRepository.getChartById(id.toULong()) ?: throw BadRequestException("Invalid or missing ID")
+                            chartRepository.getChartById(id.toULong())
+                                ?: throw BadRequestException("Invalid or missing ID")
                         }
+
                         hmacPrincipal != null -> chartRepository.getAppChartById(id)
                         else -> {
                             call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
@@ -190,11 +238,13 @@ fun Route.chartRoutes(
                                     chartJson = part.value
                                 }
                             }
+
                             is PartData.FileItem -> {
                                 if (part.name == "bundle") {
                                     bundleFileBytes = part.provider().toByteArray()
                                 }
                             }
+
                             else -> {}
                         }
                         part.dispose()
@@ -216,7 +266,12 @@ fun Route.chartRoutes(
                     println("Creating chart with request: $createRequest")
 
                     // Create a unique content ID for the chart
-                    val contentId = NanoIdUtils.generateOptimized(10, "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 63, 16)
+                    val contentId = NanoIdUtils.generateOptimized(
+                        10,
+                        "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                        63,
+                        16
+                    )
 
                     val createRequestWithId = createRequest.copy(
                         contentId = contentId

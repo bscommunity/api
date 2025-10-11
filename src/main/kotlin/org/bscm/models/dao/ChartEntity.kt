@@ -25,7 +25,7 @@ class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var isFeatured by ChartTable.isFeatured
     var isPublic by ChartTable.isPublic
 
-    var content by ContentEntity referencedOn ChartTable.contentId
+    var contentId by ChartTable.contentId
     var latestVersion by VersionEntity optionalReferencedOn ChartTable.latestVersionId
 
     // Updated: Many-to-many relationship through junction table

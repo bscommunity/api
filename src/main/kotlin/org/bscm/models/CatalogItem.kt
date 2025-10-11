@@ -14,6 +14,8 @@ sealed interface CatalogItem {
 
     // Aggregated/derived fields useful for queries
     val downloadsSum: Int
+    val isLiked: Boolean
+    val isFavorited: Boolean
 
     @Serializable(with = LocalDateTimeSerializer::class)
     val latestPublishedAt: LocalDateTime

@@ -33,6 +33,6 @@ fun Application.module() {
         log.info("[DiscordCmd] Not registered: botToken or clientId missing")
     }
 
+    // Optional: Seed the database if needed
     // Seed the database
-    // seedDatabase()
 }

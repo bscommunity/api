@@ -21,7 +21,6 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.time.LocalDateTime
 import java.util.*
 import kotlin.math.min
 
@@ -31,7 +30,8 @@ class ChartRepositoryImpl : ChartRepository {
         val chart: ChartEntity,
         val streamingLinks: List<StreamingLinkEntity>?,
         val versions: List<VersionEntity>,
-        val contributors: List<Pair<ContributorEntity, UserEntity>>
+        val contributors: List<Pair<ContributorEntity, UserEntity>>,
+        var userStats: Pair<Boolean, Boolean> // (isLiked, isFavorited)
     )
 
     private fun daoToStreamingLink(
@@ -46,12 +46,14 @@ class ChartRepositoryImpl : ChartRepository {
         streamingLinks: List<StreamingLink>?,
         versions: List<Version>,
         contributors: List<Contributor>? = null,
+        isLiked: Boolean = false,
+        isFavorited: Boolean = false,
     ): Chart {
         val latestVersion = versions.maxBy { it.publishedAt }
 
         return Chart(
             id = entity.id.value.toString(),
-            contentId = entity.content.id.value,
+            contentId = entity.contentId.value,
             track = entity.track,
             artist = entity.artist,
             album = entity.album,
@@ -63,10 +65,12 @@ class ChartRepositoryImpl : ChartRepository {
             genre = entity.genre,
             versions = versions,
             contributors = contributors ?: emptyList(),
+            latestPublishedAt = latestVersion.publishedAt,
             // Room Database fields (Android app expects these fields)
             downloadsSum = versions.sumOf { it.downloadsAmount },
             latestVersion = latestVersion,
-            latestPublishedAt = latestVersion.publishedAt,
+            isLiked = isLiked,
+            isFavorited = isFavorited
         )
     }
 
@@ -120,22 +124,23 @@ class ChartRepositoryImpl : ChartRepository {
 
     private fun fetchChartEntities(
         userId: UUID?,
-        chartIds: List<ULong>?,
-        contentIds: List<String>?,
-        search: String?,
-        sortBy: ChartSortOption?,
-        difficulties: List<Difficulty>?,
-        genres: List<Genre>?,
-        limit: Int?,
-        offset: Int?,
-        fetchAllVersions: Boolean,
-        fetchStreamingLinks: Boolean = true
+        chartIds: List<ULong>? = null,
+        contentIds: List<String>? = null,
+        search: String? = null,
+        sortBy: ChartSortOption? = null,
+        difficulties: List<Difficulty>? = null,
+        genres: List<Genre>? = null,
+        limit: Int? = null,
+        offset: Int? = null,
+        filterByUser: Boolean = false,
+        fetchAllVersions: Boolean = false,
+        fetchStreamingLinks: Boolean,
     ): List<ChartResult> {
         val startTime = System.currentTimeMillis()
 
         // First, fetch the correctly filtered and sorted IDs with pagination
         val baseQuery = ChartTable.select(ChartTable.id)
-        applyAllFilters(baseQuery, userId, chartIds, contentIds, search, difficulties, genres)
+        applyAllFilters(baseQuery, filterByUser.let { if (it) userId else null }, chartIds, contentIds, search, difficulties, genres)
         applyOrdering(baseQuery, sortBy ?: ChartSortOption.LAST_UPDATED)
 
         // println("Base query: ${baseQuery.prepareSQL(QueryBuilder(false))}")
@@ -163,6 +168,7 @@ class ChartRepositoryImpl : ChartRepository {
         // Process results to group related entities (versions, contributors, etc.)
         val processedResults = processResultsInMemory(
             results,
+            userId = if (userId != null && !filterByUser) userId else null,
             includeStreamingLinks = fetchStreamingLinks
         )
 
@@ -345,10 +351,32 @@ class ChartRepositoryImpl : ChartRepository {
 
     private fun processResultsInMemory(
         results: List<ResultRow>,
+        userId: UUID? = null,
         includeStreamingLinks: Boolean
     ): List<ChartResult> {
         // Group the rows by Chart ID
         val groupedByChartId = results.groupBy { it[ChartTable.id].value }
+
+        // Pre-fetch user stats for all charts in this batch if userId is provided
+        val userStats = if (userId != null) {
+            // Pre-fetch user stats for all charts in this batch
+            val contentIds = groupedByChartId.values.map { rows -> rows.first()[ChartTable.contentId].value }
+            val statsQuery = CollectionItemTable.select(CollectionItemTable.contentId, CollectionItemTable.collectionId)
+            statsQuery.adjustColumnSet {
+                leftJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+            }
+            statsQuery.andWhere {
+                (CollectionTable.userId eq userId) and
+                (CollectionItemTable.contentId inList contentIds)
+            }
+            statsQuery.groupBy { it[CollectionItemTable.contentId].value }
+                .mapValues { it.value.map { row -> row[CollectionTable.name] } }
+                .mapValues { (_, collections) ->
+                    val isLiked = collections.contains("likes")
+                    val isFavorited = !isLiked && collections.isNotEmpty() || collections.size > 1
+                    Pair(isLiked, isFavorited)
+                }
+        } else emptyMap()
 
         return groupedByChartId.map { (chartId, rows) ->
             val chartEntity = ChartEntity.wrapRow(rows.first())
@@ -386,36 +414,26 @@ class ChartRepositoryImpl : ChartRepository {
                 chart = chartEntity,
                 streamingLinks = streamingLinks,
                 versions = versions,
-                contributors = contributors
+                contributors = contributors,
+                userStats = userStats[chartEntity.contentId.value] ?: Pair(false, false)
             )
         }
     }
 
+    // Used by other functions (TourPasses) to fetch charts (for now, only for the mobile app)
     override suspend fun getCharts(
         userId: UUID?,
         contentIds: List<String>?,
         chartIds: List<ULong>?,
-        search: String?,
-        sortBy: ChartSortOption?,
-        difficulties: List<Difficulty>?,
-        genres: List<Genre>?,
-        limit: Int?,
-        offset: Int?,
     ): List<Chart> = newSuspendedTransaction {
         val result = fetchChartEntities(
-            userId,
-            chartIds,
-            contentIds,
-            search,
-            sortBy,
-            difficulties,
-            genres,
-            limit,
-            offset,
-            true
+            userId = userId,
+            chartIds = chartIds,
+            contentIds = contentIds,
+            filterByUser = false,
+            fetchStreamingLinks = true,
+            fetchAllVersions = true
         )
-
-        println("Fetched ${result.size} charts with filters: userId=$userId, chartIds=${chartIds?.joinToString()}, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
 
         val charts = result.map { chartResult ->
             // println("Processing chart with ID: ${chartResult.chart.id.value}")
@@ -429,6 +447,52 @@ class ChartRepositoryImpl : ChartRepository {
                         it.component2()
                     )
                 },
+                isLiked = chartResult.userStats.first,
+                isFavorited = chartResult.userStats.second
+            )
+        }
+
+        charts
+    }
+
+    override suspend fun getFullCharts(
+        userId: UUID?,
+        search: String?,
+        sortBy: ChartSortOption?,
+        difficulties: List<Difficulty>?,
+        genres: List<Genre>?,
+        limit: Int?,
+        offset: Int?,
+    ): List<Chart> = newSuspendedTransaction {
+        val result = fetchChartEntities(
+            userId = userId,
+            search = search,
+            sortBy = sortBy,
+            difficulties = difficulties,
+            genres = genres,
+            limit = limit,
+            offset = offset,
+            fetchStreamingLinks = false,
+            filterByUser = true,
+            fetchAllVersions = true,
+        )
+
+        println("Fetched ${result.size} charts with filters: userId=$userId, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
+
+        val charts = result.map { chartResult ->
+            // println("Processing chart with ID: ${chartResult.chart.id.value}")
+            daoToChart(
+                entity = chartResult.chart,
+                streamingLinks = null, // No streaming links for this variant
+                versions = chartResult.versions.map { versionEntityToVersion(it) },
+                contributors = chartResult.contributors.map {
+                    contributorEntityToContributor(
+                        it.component1(),
+                        it.component2()
+                    )
+                },
+                isLiked = false,
+                isFavorited = false
             )
         }
 
@@ -436,32 +500,31 @@ class ChartRepositoryImpl : ChartRepository {
     }
 
     // Mobile App Chart variant of getCharts that includes streaming links and only returns the latest version
-    override suspend fun getCharts(
-        contentIds: List<String>?,
+    override suspend fun getAppCharts(
+        userId: UUID?,
         search: String?,
         sortBy: ChartSortOption?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?,
         limit: Int?,
         offset: Int?,
-        fetchStreamingLinks: Boolean,
     ): List<Chart> = newSuspendedTransaction {
         val result = fetchChartEntities(
-            null,
-            null,
-            contentIds,
-            search,
-            sortBy,
-            difficulties,
-            genres,
-            limit,
-            offset,
-            false,
-            fetchStreamingLinks
+            userId = userId,
+            search = search,
+            sortBy = sortBy,
+            difficulties = difficulties,
+            genres = genres,
+            limit = limit,
+            offset = offset,
+            filterByUser = false,
+            fetchAllVersions = false,
+            fetchStreamingLinks = true,
         )
 
         val charts = result.map { chartResult ->
-            // println("Processing chart with ID: ${chartResult.chart.id.value}")
+            println("Processing chart with ID: ${chartResult.chart.id.value} and stats: ${chartResult.userStats}")
+            println("Chart with ID: ${chartResult.chart.id.value} has stats ${chartResult.userStats}")
             daoToChart(
                 entity = chartResult.chart,
                 streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
@@ -472,6 +535,8 @@ class ChartRepositoryImpl : ChartRepository {
                         it.component2()
                     )
                 },
+                isLiked = chartResult.userStats.first,
+                isFavorited = chartResult.userStats.second
             )
         }
 
@@ -508,7 +573,7 @@ class ChartRepositoryImpl : ChartRepository {
 
         // Create the chart
         val newChart = ChartEntity.new(chart.id) {
-            this.content = content
+            this.contentId = content.id
             this.artist = chart.artist
             this.track = chart.track
             this.album = chart.album
@@ -607,7 +672,6 @@ class ChartRepositoryImpl : ChartRepository {
     }
 
     override suspend fun updateChart(id: ULong, chart: UpdateChartRequest): Chart = newSuspendedTransaction {
-
         val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
             it.artist = chart.artist ?: it.artist
             it.track = chart.track ?: it.track
@@ -616,9 +680,6 @@ class ChartRepositoryImpl : ChartRepository {
             it.isFeatured = chart.isFeatured ?: it.isFeatured
             it.isPublic = chart.isPublic ?: it.isPublic
         }
-
-        // Update the content's updatedAt timestamp
-        existingChart?.content?.updatedAt = LocalDateTime.now()
 
         if (existingChart == null) {
             throw NotFoundException("Chart with ID $id not found")

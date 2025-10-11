@@ -10,5 +10,4 @@ class ContentEntity(id: EntityID<String>) : Entity<String>(id) {
 
     var type by ContentTable.type
     val createdAt by ContentTable.createdAt
-    var updatedAt by ContentTable.updatedAt
 }

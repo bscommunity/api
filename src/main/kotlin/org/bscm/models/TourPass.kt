@@ -10,6 +10,9 @@ data class TourPass(
     val artist: String?,
     val charts: List<Chart>,
 
+    override val isLiked: Boolean,
+    override val isFavorited: Boolean,
+
     override val id: String,
     override val contentId: String,
     override val coverUrl: String,

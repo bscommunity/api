@@ -30,6 +30,8 @@ class TourPassRepositoryImpl(
             charts = charts,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
+            isLiked = false, // Placeholder, logic to be implemented
+            isFavorited = false, // Placeholder, logic to be implemented
             downloadsSum = entity.downloadsSum,
             latestPublishedAt = entity.latestPublishedAt ?: LocalDateTime.now()
         )
@@ -146,12 +148,6 @@ class TourPassRepositoryImpl(
         return chartRepository.getCharts(
             userId = userId,
             chartIds = chartIds,
-            search = null,
-            sortBy = null,
-            difficulties = null,
-            genres = null,
-            limit = null,
-            offset = null
         )
     }
 
