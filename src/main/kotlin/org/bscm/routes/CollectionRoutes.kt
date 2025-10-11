@@ -138,7 +138,6 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
             // Batch process items (add/remove) in collection
             post("/batch") {
                 val userId = call.getUserId()
-                val collectionId = call.getId()
 
                 val request = call.receive<List<UpdateCollectionItemRequest>>()
 

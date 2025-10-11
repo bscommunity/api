@@ -267,11 +267,27 @@ class CollectionRepositoryImpl(
 
     override suspend fun batchProcessInteractions(userId: UUID, request: List<UpdateCollectionItemRequest>): Int = newSuspendedTransaction {
         // Group requests by collectionId and action to minimize DB queries
-        val grouped = request.groupBy { Pair(UUID.fromString(it.collectionId), it.action) }
+        val grouped = request.groupBy { Pair(it.collectionId, it.action) }
         var processedCount = 0
         for ((key, group) in grouped) {
-            val (collectionId, action) = key
+            val (collectionIdStr, action) = key
             val contentIds = group.map { it.contentId }
+            val isSystemCollection = collectionIdStr == "likes" || collectionIdStr == "favorites"
+            val collectionId: UUID = if (isSystemCollection) {
+                // Find or create the special collection for the user
+                val existing = CollectionEntity.find {
+                    (CollectionTable.userId eq userId) and (CollectionTable.name eq collectionIdStr)
+                }.firstOrNull()
+                existing?.id?.value ?: CollectionEntity.new {
+                    user = UserEntity[userId]
+                    name = collectionIdStr
+                    isPublic = false
+                    createdAt = LocalDateTime.now()
+                    updatedAt = LocalDateTime.now()
+                }.id.value
+            } else {
+                UUID.fromString(collectionIdStr)
+            }
             when (action) {
                 ActionOption.ADD -> {
                     // Find existing items to avoid duplicates
