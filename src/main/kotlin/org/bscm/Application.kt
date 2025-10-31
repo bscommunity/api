@@ -1,7 +1,8 @@
 package org.bscm
 
 import io.ktor.server.application.*
-import org.bscm.plugins.configureDatabases
+import org.bscm.plugins.*
+import org.bscm.utils.CommandUtils.registerDiscordCommands
 
 fun main(args: Array<String>) {
     io.ktor.server.netty.EngineMain.main(args)
@@ -12,7 +13,7 @@ fun Application.module() {
     configureDatabases(environment.config)
 
     // Plugins
-    /*configureDI()
+    configureDI()
     configureSerialization()
     configureHTTP()
     configureStatusPages()
@@ -30,7 +31,7 @@ fun Application.module() {
         registerDiscordCommands(botToken, clientId, guildId)
     } else {
         log.info("[DiscordCmd] Not registered: botToken or clientId missing")
-    }*/
+    }
 
     // Optional: Seed the database if needed
     // Seed the database
