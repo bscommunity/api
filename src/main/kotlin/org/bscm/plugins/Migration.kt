@@ -1,7 +1,6 @@
 package org.bscm.plugins
 
 import MigrationUtils
-import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ExperimentalDatabaseMigrationApi
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -35,35 +34,4 @@ fun generateExposedMigrationScript(
     }
 
     println("Migration generated: ${scriptDirectory.resolve(scriptName)}")
-}
-
-
-fun migrateDatabase(jdbcUrl: String, user: String, password: String) {
-    // Generate the migration script
-    /*val scriptDirectory = Path.of("src/main/resources/db/migration")
-    val scriptName = "V2__datetime.sql"
-
-    generateExposedMigrationScript(
-        jdbcUrl = jdbcUrl,
-        driver = "org.postgresql.Driver",
-        user = user,
-        password = password,
-        scriptDirectory = scriptDirectory,
-        scriptName = scriptName,
-        tables = arrayOf(
-            org.bscm.models.tables.AccountTable,
-            org.bscm.models.tables.ContributorTable,
-            org.bscm.models.tables.UserTable,
-            org.bscm.models.tables.VersionTable,
-        )
-    )*/
-
-    val flyway = Flyway.configure()
-        .dataSource(jdbcUrl, user, password)
-        .validateMigrationNaming(true)
-        .baselineOnMigrate(true) // Used when migrating an existing database for the first time
-        .load()
-
-    // Executa as migrações
-    flyway.migrate()
 }

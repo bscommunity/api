@@ -54,10 +54,6 @@ fun Application.configureDatabases(config: ApplicationConfig) {
             )
         }
         log.info("Database initialized")
-
-        // Apply Flyway migrations (creates/updates tables like themes, tour_passes, interactions)
-        migrateDatabase(url, user, password)
-        log.info("Database migrations applied")
     } catch (e: Exception) {
         log.error("Failed to initialize database", e)
     }
