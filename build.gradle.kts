@@ -4,10 +4,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-kotlin {
-    jvmToolchain(21)
-}
-
 group = "org.bscm"
 version = "0.0.1"
 
