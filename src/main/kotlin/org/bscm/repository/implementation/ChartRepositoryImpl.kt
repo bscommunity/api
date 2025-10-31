@@ -710,9 +710,9 @@ class ChartRepositoryImpl : ChartRepository {
         true
     }
 
-    override suspend fun postAnalytics(chartId: ULong, action: AnalyticsOption): Boolean = newSuspendedTransaction {
+    override suspend fun postAnalytics(chartId: ULong, action: OperationOption): Boolean = newSuspendedTransaction {
         when (action) {
-            AnalyticsOption.INSTALL_CONTENT, AnalyticsOption.UPDATE_CONTENT -> {
+            OperationOption.INSTALL, OperationOption.UPDATE -> {
                 // Handle download analytics
                 ChartEntity.findByIdAndUpdate(chartId) { entity ->
                     entity.latestVersion?.let { version ->
@@ -723,8 +723,7 @@ class ChartRepositoryImpl : ChartRepository {
                 true
             }
 
-            AnalyticsOption.DELETE_CONTENT -> throw NotFoundException("Cannot post analytics for deleted charts")
-            AnalyticsOption.UPDATE_APP -> throw NotFoundException("Cannot post analytics for app updates")
+            OperationOption.DELETE -> throw NotFoundException("Cannot post analytics for deleted charts")
         }
     }
 

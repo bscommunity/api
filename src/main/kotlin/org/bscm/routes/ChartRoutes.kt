@@ -12,10 +12,10 @@ import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
-import org.bscm.models.enums.AnalyticsOption
 import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
+import org.bscm.models.enums.OperationOption
 import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
@@ -112,7 +112,7 @@ fun Route.chartRoutes(
                     val idParam =
                         call.parameters["id"]?.toULong() ?: throw BadRequestException("Invalid or missing ID parameter")
                     val typeParam = call.queryParameters["type"]
-                    val type = typeParam?.let { AnalyticsOption.valueOf(it) }
+                    val type = typeParam?.let { OperationOption.valueOf(it) }
                         ?: throw BadRequestException("Invalid or missing type parameter")
 
                     val stats = chartRepository.postAnalytics(idParam, type)
