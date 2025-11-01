@@ -1,0 +1,13 @@
+ALTER TABLE charts ADD latest_updated_at TIMESTAMP NULL;
+ALTER TABLE charts ADD author_id uuid;
+ALTER TABLE charts ALTER COLUMN content_id TYPE VARCHAR(16);
+ALTER TABLE themes ADD latest_updated_at TIMESTAMP NULL;
+ALTER TABLE themes ADD author_id uuid;
+ALTER TABLE tour_passes ADD latest_updated_at TIMESTAMP NULL;
+ALTER TABLE tour_passes ADD author_id uuid;
+ALTER TABLE charts ADD CONSTRAINT fk_charts_author_id__id FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
+ALTER TABLE themes ADD CONSTRAINT fk_themes_author_id__id FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
+ALTER TABLE tour_passes ADD CONSTRAINT fk_tour_passes_author_id__id FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
+ALTER TABLE charts DROP COLUMN latest_published_at;
+ALTER TABLE themes DROP COLUMN latest_published_at;
+ALTER TABLE tour_passes DROP COLUMN latest_published_at;

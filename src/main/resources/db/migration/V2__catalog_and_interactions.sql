@@ -1,0 +1,12 @@
+ALTER TABLE charts ADD content_id VARCHAR(16);
+ALTER TABLE charts ADD downloads_sum INT DEFAULT 0 NOT NULL;
+ALTER TABLE charts ADD latest_published_at TIMESTAMP NULL;
+ALTER TABLE charts ADD CONSTRAINT charts_content_id_unique UNIQUE (content_id);
+ALTER TABLE charts ALTER COLUMN normalized_artist TYPE VARCHAR(200);
+ALTER TABLE charts ALTER COLUMN normalized_track TYPE VARCHAR(200);
+ALTER TABLE charts ALTER COLUMN normalized_album TYPE VARCHAR(200);
+ALTER TABLE users ALTER COLUMN created_at TYPE TIMESTAMP, ALTER COLUMN created_at DROP DEFAULT;
+ALTER TABLE charts ADD CONSTRAINT fk_charts_content_id__id FOREIGN KEY (content_id) REFERENCES contents(id) ON DELETE CASCADE ON UPDATE RESTRICT;
+ALTER TABLE charts DROP COLUMN "shareId";
+CREATE INDEX charts_normalized_artist_normalized_track_normalized_album ON charts (normalized_artist, normalized_track, normalized_album);
+DROP INDEX IF EXISTS charts_shareid_unique;
