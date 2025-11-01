@@ -1,8 +1,9 @@
-package org.bscm.plugins
+package org.bscm.migrations
 
 import MigrationUtils
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ExperimentalDatabaseMigrationApi
+import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.nio.file.Path
 
@@ -18,7 +19,7 @@ fun generateExposedMigrationScript(
     password: String,
     scriptDirectory: Path,
     scriptName: String,
-    vararg tables: org.jetbrains.exposed.sql.Table
+    vararg tables: Table
 ) {
     // Connects to the DB so MigrationUtils can read the current schema
     Database.connect(url = jdbcUrl, driver = driver, user = user, password = password)

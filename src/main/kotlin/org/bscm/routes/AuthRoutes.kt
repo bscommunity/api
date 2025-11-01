@@ -13,7 +13,7 @@ import org.bscm.models.User
 import org.bscm.models.dto.account.CreateAccountRequest
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
-import org.bscm.repository.UserRepository
+import org.bscm.models.repository.IUserRepository
 import org.bscm.services.DiscordOAuthService
 import org.bscm.services.GoogleOAuthService
 import org.bscm.services.JWTService
@@ -21,7 +21,7 @@ import java.time.LocalDateTime
 import java.util.*
 
 fun Route.authRoutes(
-    userRepository: UserRepository,
+    userRepository: IUserRepository,
     discordOAuthService: DiscordOAuthService,
     googleOAuthService: GoogleOAuthService,
     jwtService: JWTService
@@ -31,7 +31,7 @@ fun Route.authRoutes(
             val authRequest = call.receiveOrNull<AuthRequest>()
                 ?: return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
 
-            println("authRequest: $authRequest")
+            // println("authRequest: $authRequest")
 
             try {
                 val accessToken = discordOAuthService.getAccessToken(authRequest)

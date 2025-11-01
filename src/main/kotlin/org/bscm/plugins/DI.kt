@@ -2,8 +2,8 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
+import org.bscm.models.repository.*
 import org.bscm.repository.*
-import org.bscm.repository.implementation.*
 import org.bscm.services.*
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
@@ -18,14 +18,14 @@ fun Application.configureDI() {
 }
 
 fun mainModule(config: ApplicationConfig) = module {
-    single<UserRepository> { UserRepositoryImpl() }
-    single<ChartRepository> { ChartRepositoryImpl() }
-    single<ContributorRepository> { ContributorRepositoryImpl() }
-    single<KnownIssueRepository> { KnownIssueRepositoryImpl() }
-    single<VersionRepository> { VersionRepositoryImpl() }
-    single<TourPassRepository> { TourPassRepositoryImpl(get()) }
-    single<ThemeRepository> { ThemeRepositoryImpl() }
-    single<CollectionRepository> { CollectionRepositoryImpl(get(), get(), get()) }
+    single<IUserRepository> { UserRepository() }
+    single<IChartRepository> { ChartRepository() }
+    single<IContributorRepository> { ContributorRepository() }
+    single<IKnownIssueRepository> { KnownIssueRepository() }
+    single<IVersionRepository> { VersionRepository() }
+    single<ITourPassRepository> { TourPassRepository(get()) }
+    single<IThemeRepository> { ThemeRepository() }
+    single<ICollectionRepository> { CollectionRepository(get(), get(), get()) }
     single { CollectionService(get()) }
     single {
         JWTService(

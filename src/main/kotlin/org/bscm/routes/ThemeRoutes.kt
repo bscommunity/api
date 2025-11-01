@@ -9,8 +9,8 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.bscm.models.repository.IThemeRepository
 import org.bscm.plugins.UnauthorizedException
-import org.bscm.repository.ThemeRepository
 import java.util.*
 
 data class CreateThemeRequest(
@@ -32,7 +32,7 @@ private fun ApplicationCall.getUserId(): UUID {
     return principal?.subject?.let { UUID.fromString(it) } ?: throw UnauthorizedException("User not authenticated")
 }
 
-fun Route.themeRoutes(themeRepository: ThemeRepository, ) {
+fun Route.themeRoutes(themeRepository: IThemeRepository, ) {
     route("/themes") {
         authenticate("auth-bearer", optional = true) {
             rateLimit(RateLimitName("unrestricted")) {

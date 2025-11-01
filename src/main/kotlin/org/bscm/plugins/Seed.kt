@@ -13,7 +13,7 @@ import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
-import org.bscm.repository.*
+import org.bscm.models.repository.*
 import org.bscm.utils.NanoIdUtils
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
@@ -24,11 +24,11 @@ import kotlin.random.Random
 private val logger = LoggerFactory.getLogger("SeedScript")
 
 fun Application.seedDatabase() {
-    val chartRepository by inject<ChartRepository>()
-    val userRepository by inject<UserRepository>()
-    val versionRepository by inject<VersionRepository>()
-    val contributorRepository by inject<ContributorRepository>()
-    val knownIssueRepository by inject<KnownIssueRepository>()
+    val chartRepository by inject<IChartRepository>()
+    val userRepository by inject<IUserRepository>()
+    val versionRepository by inject<IVersionRepository>()
+    val contributorRepository by inject<IContributorRepository>()
+    val knownIssueRepository by inject<IKnownIssueRepository>()
 
     runBlocking {
         generateRandomCharts(
@@ -48,11 +48,11 @@ fun Application.seedDatabase() {
  */
 private suspend fun generateRandomCharts(
     count: Int,
-    chartRepository: ChartRepository,
-    userRepository: UserRepository,
-    versionRepository: VersionRepository,
-    contributorRepository: ContributorRepository,
-    knownIssueRepository: KnownIssueRepository
+    chartRepository: IChartRepository,
+    userRepository: IUserRepository,
+    versionRepository: IVersionRepository,
+    contributorRepository: IContributorRepository,
+    knownIssueRepository: IKnownIssueRepository
 ) = coroutineScope {
     // Create users first (sequentially since it's a small number)
     // Create or retrieve users

@@ -9,10 +9,10 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
-import org.bscm.repository.UserRepository
+import org.bscm.models.repository.IUserRepository
 import java.util.*
 
-fun Route.userRoutes(userRepository: UserRepository) {
+fun Route.userRoutes(userRepository: IUserRepository) {
     route("/users") {
         // Create a new user
         post {

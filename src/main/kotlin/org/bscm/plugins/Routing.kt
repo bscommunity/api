@@ -8,7 +8,7 @@ import io.ktor.server.http.content.*
 import io.ktor.server.plugins.swagger.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.repository.*
+import org.bscm.models.repository.*
 import org.bscm.routes.*
 import org.bscm.services.*
 import org.koin.ktor.ext.inject
@@ -22,13 +22,13 @@ fun Application.configureRouting() {
     val uploadService by inject<UploadService>()
     val jwtService by inject<JWTService>()
 
-    val userRepository by inject<UserRepository>()
-    val chartRepository by inject<ChartRepository>()
-    val contributorRepository by inject<ContributorRepository>()
-    val knownIssueRepository by inject<KnownIssueRepository>()
-    val versionRepository by inject<VersionRepository>()
-    val tourPassRepository by inject<TourPassRepository>()
-    val themeRepository by inject<ThemeRepository>()
+    val userRepository by inject<IUserRepository>()
+    val chartRepository by inject<IChartRepository>()
+    val contributorRepository by inject<IContributorRepository>()
+    val knownIssueRepository by inject<IKnownIssueRepository>()
+    val versionRepository by inject<IVersionRepository>()
+    val tourPassRepository by inject<ITourPassRepository>()
+    val themeRepository by inject<IThemeRepository>()
     val collectionService by inject<CollectionService>()
 
     routing {

@@ -7,10 +7,10 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
-import org.bscm.repository.ContributorRepository
+import org.bscm.models.repository.IContributorRepository
 import java.util.*
 
-fun Route.contributorRoutes(contributorRepository: ContributorRepository) {
+fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
     route("/charts") {
         // Add contributors to a chart
         post("{id}/contributors") {

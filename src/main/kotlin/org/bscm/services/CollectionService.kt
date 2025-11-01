@@ -4,11 +4,11 @@ import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
 import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.enums.ContentType
-import org.bscm.repository.CollectionRepository
+import org.bscm.models.repository.ICollectionRepository
 import java.util.*
 
 class CollectionService(
-    private val collectionRepository: CollectionRepository
+    private val collectionRepository: ICollectionRepository
 ) {
 
     companion object {

@@ -2,6 +2,7 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
+import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.StdOutSqlLogger
@@ -54,6 +55,17 @@ fun Application.configureDatabases(config: ApplicationConfig) {
             )
         }
         log.info("Database initialized")
+
+        val flyway = Flyway.configure()
+            .dataSource(url, user, password)
+            .validateMigrationNaming(true)
+            .baselineOnMigrate(true) // Used when migrating an existing database for the first time
+            .load()
+
+        // Executa as migrações
+        flyway.migrate()
+
+        log.info("Database migrations applied successfully")
     } catch (e: Exception) {
         log.error("Failed to initialize database", e)
     }

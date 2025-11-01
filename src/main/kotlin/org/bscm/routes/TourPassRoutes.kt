@@ -8,8 +8,8 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.bscm.models.repository.ITourPassRepository
 import org.bscm.plugins.UnauthorizedException
-import org.bscm.repository.TourPassRepository
 import java.util.*
 
 data class CreateTourPassRequest(
@@ -24,7 +24,7 @@ data class UpdateTourPassRequest(
     val coverUrl: String?
 )
 
-fun Route.tourPassRoutes(tourPassRepository: TourPassRepository) {
+fun Route.tourPassRoutes(tourPassRepository: ITourPassRepository) {
     route("/tourpasses") {
         authenticate("auth-bearer", optional = true) {
             rateLimit(RateLimitName("unrestricted")) {

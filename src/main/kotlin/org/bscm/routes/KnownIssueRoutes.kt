@@ -6,10 +6,10 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.KnownIssue
-import org.bscm.repository.KnownIssueRepository
+import org.bscm.models.repository.IKnownIssueRepository
 import java.util.*
 
-fun Route.knownIssuesRoutes(knownIssueRepository: KnownIssueRepository) {
+fun Route.knownIssuesRoutes(knownIssueRepository: IKnownIssueRepository) {
     route("/charts") {
         // Add an issue to a chart
         post("{id}/issues") {

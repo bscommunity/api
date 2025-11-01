@@ -17,6 +17,8 @@ sealed interface CatalogItem {
     val isLiked: Boolean
     val isFavorited: Boolean
 
+    val contributors: List<Contributor>
+
     @Serializable(with = LocalDateTimeSerializer::class)
     val latestPublishedAt: LocalDateTime
 }

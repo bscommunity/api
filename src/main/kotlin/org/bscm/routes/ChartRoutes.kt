@@ -16,21 +16,21 @@ import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.OperationOption
+import org.bscm.models.repository.IChartRepository
+import org.bscm.models.repository.IUserRepository
+import org.bscm.models.repository.IVersionRepository
 import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.plugins.jsonClient
-import org.bscm.repository.ChartRepository
-import org.bscm.repository.UserRepository
-import org.bscm.repository.VersionRepository
 import org.bscm.services.UploadService
 import org.bscm.utils.NanoIdUtils
 import java.util.*
 
 fun Route.chartRoutes(
-    chartRepository: ChartRepository,
-    userRepository: UserRepository,
-    versionRepository: VersionRepository,
+    chartRepository: IChartRepository,
+    userRepository: IUserRepository,
+    versionRepository: IVersionRepository,
     uploadService: UploadService,
 ) {
     route("/charts") {

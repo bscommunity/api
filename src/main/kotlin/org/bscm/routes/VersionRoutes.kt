@@ -11,20 +11,20 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.repository.IChartRepository
+import org.bscm.models.repository.IUserRepository
+import org.bscm.models.repository.IVersionRepository
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.plugins.jsonClient
-import org.bscm.repository.ChartRepository
-import org.bscm.repository.UserRepository
-import org.bscm.repository.VersionRepository
 import org.bscm.services.UploadService
 import org.bscm.utils.QueryUtils.getNormalizedQuery
 import org.bscm.utils.QueryUtils.similarity
 import java.util.*
 
 fun Route.versionRoutes(
-    versionRepository: VersionRepository,
-    chartRepository: ChartRepository,
-    userRepository: UserRepository,
+    versionRepository: IVersionRepository,
+    chartRepository: IChartRepository,
+    userRepository: IUserRepository,
     uploadService: UploadService
 ) {
     // Routes that require JWT authentication only (dashboard operations)

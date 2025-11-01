@@ -13,5 +13,7 @@ abstract class CatalogItemTable(name: String) : ULongIdTable(name) {
 
     // Aggregated/derived fields useful for queries
     val downloadsSum = integer("downloads_sum").default(0)
-    val latestPublishedAt = datetime("latest_published_at").nullable()
+    val latestUpdatedAt = datetime("latest_updated_at").nullable()
+
+    val authorId = reference("author_id", UserTable, ReferenceOption.CASCADE)
 }

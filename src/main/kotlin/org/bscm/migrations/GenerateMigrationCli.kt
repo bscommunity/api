@@ -1,4 +1,4 @@
-package org.bscm.plugins
+package org.bscm.migrations
 
 import org.bscm.models.tables.*
 import java.nio.file.Path
