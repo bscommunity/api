@@ -20,6 +20,7 @@ repositories {
         url = uri("https://packages.confluent.io/maven")
         name = "confluence"
     }
+    maven { url = uri("https://jitpack.io") }
 }
 
 dependencies {
@@ -73,4 +74,7 @@ dependencies {
 
     // BouncyCastle
     implementation(libs.bouncycastle)
+
+    // Decoding
+    implementation(libs.unitykt)
 }

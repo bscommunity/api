@@ -5,10 +5,11 @@ koin = "4.1.0-Beta5"
 exposed = "0.61.0"
 postgres = "42.7.5"
 h2 = "2.3.232"
-logback = "1.5.13"
+logback = "1.5.20"
 flyway = "11.8.1"
 kotlinx-datetime = "0.7.1"
 bouncycastle = "1.78.1"
+unitykt="v0.1.0_alpha.14"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -57,3 +58,4 @@ ktor-server-config-yaml = { module = "io.ktor:ktor-server-config-yaml", version.
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+unitykt = { module = "com.github.Deficuet:UnityKt", version.ref = "unitykt" }
