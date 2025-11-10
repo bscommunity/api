@@ -23,8 +23,9 @@ import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.plugins.jsonClient
+import org.bscm.protobuf.ChartParser
+import org.bscm.services.DecodingService
 import org.bscm.services.UploadService
-import org.bscm.utils.NanoIdUtils
 import java.util.*
 
 fun Route.chartRoutes(
@@ -225,7 +226,18 @@ fun Route.chartRoutes(
                         return@post
                     }
 
-                    println("Creating chart with request: $createRequest")
+                    val extracted = DecodingService.extractChartFileFromBundle(bundleFileBytes)
+                    if (extracted?.isEmpty() == true) {
+                        call.respond(HttpStatusCode.BadRequest, "No .bytes files found in uploaded zip")
+                        return@post
+                    }
+
+                    val parsedMap = ChartParser.parse(extracted!!)
+                    println("Parsed chart: ${parsedMap.effects.size} effects, ${parsedMap.notes.size} notes")
+
+                    return@post
+
+                    /*println("Creating chart with request: $createRequest")
 
                     // Create a unique content ID for the chart
                     val contentId = NanoIdUtils.generateOptimized(
@@ -261,7 +273,7 @@ fun Route.chartRoutes(
                     val createdChart = chartRepository.createChart(userId, createRequestWithBundle)
                     // println("Created chart: $createdChart")
 
-                    call.respond(HttpStatusCode.Created, createdChart)
+                    call.respond(HttpStatusCode.Created, createdChart)*/
                 }
 
                 // Update an existing chart

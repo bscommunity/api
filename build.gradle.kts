@@ -77,4 +77,5 @@ dependencies {
 
     // Decoding
     implementation(libs.unitykt)
+    implementation(libs.compress)
 }
