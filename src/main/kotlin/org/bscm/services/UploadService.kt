@@ -256,19 +256,22 @@ class UploadService(
         )
         val normalizedTrack = getNormalizedTrackName(chart.track)
 
+        println("Uploading chart: cover=${coverImage != null} (${coverImage?.size ?: 0} bytes), bundle=${chartBundle.size} bytes")
+
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?with_components=true",
             formData = formData {
                 append("payload_json", payloadJson, Headers.build { append(HttpHeaders.ContentType, "application/json") })
                 // Attach cover image first so we can reliably identify it later
+                // Use unique field names (file0, file1) to avoid conflicts
                 coverImage?.let { bytes ->
-                    append("file", bytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"cover.png\"")
+                    append("file0", bytes, Headers.build {
+                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file0\"; filename=\"cover.png\"")
                         append(HttpHeaders.ContentType, ContentType.Image.PNG.toString())
                     })
                 }
-                append("file", chartBundle, Headers.build {
-                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"${normalizedTrack}_v1.zip\"")
+                append("file1", chartBundle, Headers.build {
+                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file1\"; filename=\"${normalizedTrack}_v1.zip\"")
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
             }
@@ -278,11 +281,13 @@ class UploadService(
             throw Exception("Failed to send: ${response.status}, ${response.bodyAsText()}")
         }
 
-        println("Discord response body: ${response.bodyAsText()}")
+        val discordResponse = jsonClient.decodeFromString<DiscordMessageResponse>(response.bodyAsText())
+        println("Discord response: ${discordResponse.attachments.size} attachment(s) received")
+        discordResponse.attachments.forEachIndexed { idx, att ->
+            println("  [$idx] ${att.filename} (id=${att.id})")
+        }
 
-        println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
-
-        return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
+        return discordResponse
     }
 
     @OptIn(InternalAPI::class)
