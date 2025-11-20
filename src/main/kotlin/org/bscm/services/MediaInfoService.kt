@@ -4,8 +4,12 @@ import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.bscm.models.StreamingLink
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
@@ -16,8 +20,6 @@ import java.time.LocalDate
 object MediaInfoService {
     // API Keys (replace with your config management)
     private const val LASTFM_API_KEY = "YOUR_LASTFM_API_KEY"
-    private const val SPOTIFY_API_KEY = "YOUR_SPOTIFY_API_KEY"
-    private const val SPOTIFY_CLIENT_ID = "YOUR_SPOTIFY_CLIENT_ID"
 
     // API URLs
     private const val ITUNES_API_URL = "https://itunes.apple.com/search"
@@ -26,7 +28,10 @@ object MediaInfoService {
     private const val MUSICBRAINZ_API_URL = "https://musicbrainz.org/ws/2/recording"
 
     private val client = HttpClient()
+    private val json = Json { ignoreUnknownKeys = true }
 
+    @Serializable
+    data class ITunesSearchResult(val results: List<ITunesResponse> = emptyList())
     @Serializable
     data class ITunesResponse(
         val trackName: String,
@@ -41,10 +46,7 @@ object MediaInfoService {
     )
 
     @Serializable
-    data class LastFMResponse(
-        val track: LastFMTrack
-    )
-
+    data class LastFMResponse(val track: LastFMTrack)
     @Serializable
     data class LastFMTrack(
         val name: String,
@@ -53,25 +55,19 @@ object MediaInfoService {
         val url: String,
         val toptags: LastFMTags? = null
     )
-
     @Serializable
     data class LastFMArtist(val name: String)
-
     @Serializable
     data class LastFMAlbum(val title: String, val image: List<LastFMImage>)
-
     @Serializable
-    data class LastFMImage(val text: String)
-
+    data class LastFMImage(@SerialName("#text") val url: String? = null)
     @Serializable
     data class LastFMTags(val tag: List<LastFMTag>)
-
     @Serializable
     data class LastFMTag(val name: String)
 
     @Serializable
     data class OdesliResponse(val linksByPlatform: Map<String, OdesliLink>)
-
     @Serializable
     data class OdesliLink(val url: String)
 
@@ -111,10 +107,7 @@ object MediaInfoService {
 
     fun findBestTrackMatch(tracks: List<ITunesResponse>, targetTrack: String, targetArtist: String): ITunesResponse? {
         if (tracks.isEmpty()) return null
-        val scoredTracks = tracks.map {
-            it to calculateTrackScore(it, targetTrack, targetArtist)
-        }
-        return scoredTracks.maxByOrNull { it.second }?.first
+        return tracks.maxByOrNull { calculateTrackScore(it, targetTrack, targetArtist) }
     }
 
     fun calculateTrackScore(track: ITunesResponse, targetTrack: String, targetArtist: String): Int {
@@ -124,22 +117,23 @@ object MediaInfoService {
         val collectionName = track.collectionName.lowercase()
         val normalizedTargetTrack = targetTrack.lowercase()
         val normalizedTargetArtist = targetArtist.lowercase()
-        if (trackName == normalizedTargetTrack) score += 100
-        else if (trackName.contains(normalizedTargetTrack)) score += 70
-        else if (normalizedTargetTrack.contains(trackName)) score += 50
-        if (artistName == normalizedTargetArtist) score += 80
-        else if (artistName.contains(normalizedTargetArtist) || normalizedTargetArtist.contains(artistName)) score += 60
-        val remixPatterns = Regex(
-            "\\b(remix|edit|version|remaster|acoustic|live|instrumental|radio|extended|club|dub|vip)\\b",
-            RegexOption.IGNORE_CASE
-        )
+        score += when {
+            trackName == normalizedTargetTrack -> 100
+            trackName.contains(normalizedTargetTrack) -> 70
+            normalizedTargetTrack.contains(trackName) -> 50
+            else -> 0
+        }
+        score += when {
+            artistName == normalizedTargetArtist -> 80
+            artistName.contains(normalizedTargetArtist) || normalizedTargetArtist.contains(artistName) -> 60
+            else -> 0
+        }
+        val remixPatterns = Regex("\\b(remix|edit|version|remaster|acoustic|live|instrumental|radio|extended|club|dub|vip)\\b", RegexOption.IGNORE_CASE)
         if (remixPatterns.containsMatchIn(trackName)) score -= 30
         if (collectionName.contains("single") || (track.trackCount ?: 0) == 1) score += 20
         if (!collectionName.contains("remix") && !collectionName.contains("edit")) score += 15
-        val releaseYear =
-            track.releaseDate?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it.substring(0, 10)).year } ?: 0
-        val currentYear = LocalDate.now().year
-        if (releaseYear >= currentYear - 2) score += 5
+        val releaseYear = track.releaseDate?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it.substring(0, 10)).year } ?: 0
+        if (releaseYear >= LocalDate.now().year - 2) score += 5
         return score
     }
 
@@ -148,33 +142,24 @@ object MediaInfoService {
         val cleanedArtist = cleanArtistName(artist)
         var foundGenre: Genre? = null
         val errors = mutableListOf<String>()
-        // Try iTunes
         try {
-            val query = listOf(
-                "term" to "$cleanedTrack $cleanedArtist",
-                "entity" to "song",
-                "limit" to "5"
-            ).formUrlEncode()
+            val query = listOf("term" to "$cleanedTrack $cleanedArtist", "entity" to "song", "limit" to "5").formUrlEncode()
             val iTunesResults = fetchItunesApi(query)
-            if (iTunesResults.isNotEmpty()) {
-                val bestMatch = findBestTrackMatch(iTunesResults, cleanedTrack, cleanedArtist)
-                if (bestMatch != null) {
-                    foundGenre = GenresUtils.normalizeGenre(bestMatch.primaryGenreName)
-                    return MediaInfoModel(
-                        coverUrl = bestMatch.artworkUrl100.replace("100x100", "600x600"),
-                        album = bestMatch.collectionName,
-                        track = bestMatch.trackName,
-                        artist = bestMatch.artistName,
-                        genre = foundGenre,
-                        trackUrls = listOf(StreamingLink(StreamingPlatform.APPLE_MUSIC, bestMatch.trackViewUrl)),
-                        trackPreviewUrl = bestMatch.previewUrl
-                    )
-                }
+            val bestMatch = findBestTrackMatch(iTunesResults, cleanedTrack, cleanedArtist)
+            if (bestMatch != null) {
+                foundGenre = GenresUtils.normalizeGenre(bestMatch.primaryGenreName)
+                return MediaInfoModel(
+                    coverUrl = bestMatch.artworkUrl100.replace("100x100", "600x600"),
+                    album = bestMatch.collectionName,
+                    track = bestMatch.trackName,
+                    artist = bestMatch.artistName,
+                    genre = foundGenre,
+                    trackUrls = listOf(StreamingLink(StreamingPlatform.APPLE_MUSIC, bestMatch.trackViewUrl)),
+                    trackPreviewUrl = bestMatch.previewUrl
+                )
             }
-        } catch (e: Exception) {
-            errors.add(e.message ?: "iTunes error")
-        }
-        // Try Last.fm
+        } catch (e: Exception) { errors.add(e.message ?: "iTunes error") }
+
         try {
             val query = listOf(
                 "method" to "track.getInfo",
@@ -186,15 +171,11 @@ object MediaInfoService {
             val lastFmData = fetchLastfmApi(query)
             if (lastFmData.track.album != null) {
                 val tags = lastFmData.track.toptags?.tag ?: emptyList()
-                for (tag in tags) {
-                    val genreFromTag = GenresUtils.normalizeGenre(tag.name)
-                    if (genreFromTag != null) {
-                        foundGenre = genreFromTag
-                        break
-                    }
+                tags.firstOrNull { GenresUtils.normalizeGenre(it.name) != null }?.let { tag ->
+                    foundGenre = GenresUtils.normalizeGenre(tag.name)
                 }
                 return MediaInfoModel(
-                    coverUrl = lastFmData.track.album.image.getOrNull(3)?.text,
+                    coverUrl = lastFmData.track.album.image.getOrNull(3)?.url,
                     album = lastFmData.track.album.title,
                     track = lastFmData.track.name,
                     artist = lastFmData.track.artist.name,
@@ -203,95 +184,107 @@ object MediaInfoService {
                     trackPreviewUrl = null
                 )
             }
-        } catch (e: Exception) {
-            errors.add(e.message ?: "Last.fm error")
-        }
-        // Flexible iTunes search fallback
+        } catch (e: Exception) { errors.add(e.message ?: "Last.fm error") }
+
         try {
             val veryCleanTrack = cleanedTrack.split("-")[0].trim()
-            val query = listOf(
-                "term" to "$veryCleanTrack ${cleanedArtist.split("&")[0].trim()}",
-                "entity" to "song",
-                "limit" to "5"
-            ).formUrlEncode()
+            val partialArtist = cleanedArtist.split("&")[0].trim()
+            val query = listOf("term" to "$veryCleanTrack $partialArtist", "entity" to "song", "limit" to "5").formUrlEncode()
             val iTunesResults = fetchItunesApi(query)
-            if (iTunesResults.isNotEmpty()) {
-                val bestMatch = findBestTrackMatch(iTunesResults, veryCleanTrack, cleanedArtist.split("&")[0].trim())
-                if (bestMatch != null) {
-                    foundGenre = GenresUtils.normalizeGenre(bestMatch.primaryGenreName) ?: foundGenre
-                    return MediaInfoModel(
-                        coverUrl = bestMatch.artworkUrl100.replace("100x100", "600x600"),
-                        album = bestMatch.collectionName,
-                        track = bestMatch.trackName,
-                        artist = bestMatch.artistName,
-                        genre = foundGenre,
-                        trackUrls = listOf(StreamingLink(StreamingPlatform.APPLE_MUSIC, bestMatch.trackViewUrl)),
-                        trackPreviewUrl = bestMatch.previewUrl
-                    )
-                }
+            val bestMatch = findBestTrackMatch(iTunesResults, veryCleanTrack, partialArtist)
+            if (bestMatch != null) {
+                foundGenre = GenresUtils.normalizeGenre(bestMatch.primaryGenreName) ?: foundGenre
+                return MediaInfoModel(
+                    coverUrl = bestMatch.artworkUrl100.replace("100x100", "600x600"),
+                    album = bestMatch.collectionName,
+                    track = bestMatch.trackName,
+                    artist = bestMatch.artistName,
+                    genre = foundGenre,
+                    trackUrls = listOf(StreamingLink(StreamingPlatform.APPLE_MUSIC, bestMatch.trackViewUrl)),
+                    trackPreviewUrl = bestMatch.previewUrl
+                )
             }
-        } catch (e: Exception) {
-            errors.add(e.message ?: "iTunes fallback error")
-        }
+        } catch (e: Exception) { errors.add(e.message ?: "iTunes fallback error") }
+
         throw Exception("Unable to find information for '$track' by '$artist'. Details: ${errors.joinToString("; ")}")
     }
 
     suspend fun getTrackStreamingLinks(url: String, track: String, artist: String): List<StreamingLink> {
-        // Odesli
         try {
             val odesliData = fetchOdesliApi(url)
-            val odesliLinks = odesliData.linksByPlatform.map { (key, value) ->
-                StreamingLink(StreamingPlatformUtils.fromKey(key), value.url)
-            }
+            val odesliLinks = odesliData.linksByPlatform.map { (key, value) -> StreamingLink(StreamingPlatformUtils.fromKey(key), value.url) }
+            println("Found ${odesliLinks.size} links via Odesli")
             return StreamingPlatformUtils.processLinksWithPrioritization(odesliLinks, true)
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            println("Odesli fetch error: ${error.message}")
         }
-        // MusicBrainz fallback
+
         try {
-            var musicBrainzData = fetchMusicBrainzApi("", "recording:\"$track\" AND artist:\"$artist\"")
-            val recordings = musicBrainzData["recordings"] as? List<Map<String, Any>> ?: emptyList()
-            val trackId = recordings.getOrNull(0)?.get("id") as? String ?: return emptyList()
-            musicBrainzData = fetchMusicBrainzApi("/$trackId", "inc=url-rels")
-            val relations = musicBrainzData["relations"] as? List<Map<String, Any>> ?: emptyList()
-            val musicBrainzLinks = relations.filter { it["type"] == "free streaming" }.map {
-                StreamingLink(
-                    StreamingPlatformUtils.fromUrl(it["url.resource"] as String),
-                    it["url.resource"] as String
-                )
+            val recordingIds = fetchMusicBrainzRecordingIds("recording:\"$track\" AND artist:\"$artist\"")
+            val firstId = recordingIds.firstOrNull() ?: return emptyList()
+            val relations = fetchMusicBrainzRelations(firstId)
+            val musicBrainzLinks = relations.filter { it.type == "free streaming" && it.url?.resource != null }.map {
+                val link = it.url!!.resource!!
+                StreamingLink(StreamingPlatformUtils.fromUrl(link), link)
             }
+            println("Found ${musicBrainzLinks.size} links via MusicBrainz")
             return StreamingPlatformUtils.processLinksWithPrioritization(musicBrainzLinks, false)
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            println("MusicBrainz fetch error: ${error.message}")
         }
+
         throw Exception("No streaming links found for track")
     }
 
     private suspend fun fetchItunesApi(query: String): List<ITunesResponse> {
         val response: HttpResponse = client.get("$ITUNES_API_URL?$query")
         if (!response.status.isSuccess()) throw Exception("iTunes API error: ${response.status.description}")
-        val data = Json.decodeFromString<Map<String, Any>>(response.bodyAsText())
-        val results = data["results"] as? List<Map<String, Any>> ?: return emptyList()
-        return results.map { Json.decodeFromString<ITunesResponse>(Json.encodeToString(it)) }
+        return json.decodeFromString<ITunesSearchResult>(response.bodyAsText()).results
     }
 
     private suspend fun fetchOdesliApi(url: String): OdesliResponse {
-        val response: HttpResponse = client.get("$ODESLI_API_URL?url=$url")
+        val response: HttpResponse = client.get("$ODESLI_API_URL/links?url=$url")
         if (!response.status.isSuccess()) throw Exception("Odesli API error: ${response.status.description}")
-        return Json.decodeFromString(response.bodyAsText())
+        return json.decodeFromString<OdesliResponse>(response.bodyAsText())
     }
 
     private suspend fun fetchLastfmApi(query: String): LastFMResponse {
         val response: HttpResponse = client.get("$LASTFM_API_URL?$query")
         if (!response.status.isSuccess()) throw Exception("Last.fm API error: ${response.status.description}")
-        val data = Json.decodeFromString<Map<String, Any>>(response.bodyAsText())
-        if (data["message"] != null) throw Exception(data["message"].toString())
-        return Json.decodeFromString(response.bodyAsText())
+        val root = json.parseToJsonElement(response.bodyAsText()).jsonObject
+        if (root["message"] != null) throw Exception(root["message"]!!.jsonPrimitive.content)
+        return json.decodeFromString<LastFMResponse>(response.bodyAsText())
     }
 
-    private suspend fun fetchMusicBrainzApi(url: String, query: String): Map<String, Any> {
-        val response: HttpResponse = client.get("$MUSICBRAINZ_API_URL$url?$query&fmt=json")
+    // MusicBrainz lightweight JSON parsing
+    @Serializable
+    private data class MBRecording(val id: String? = null)
+    @Serializable
+    private data class MBUrl(val resource: String? = null)
+    @Serializable
+    private data class MBRelation(val type: String? = null, val url: MBUrl? = null)
+
+    private suspend fun fetchMusicBrainzRecordingIds(query: String): List<String> {
+        val response: HttpResponse = client.get("$MUSICBRAINZ_API_URL?${query}&fmt=json") {
+            header("User-Agent", "bscm/1.0 (app.bscm@gmail.com)")
+        }
         if (!response.status.isSuccess()) throw Exception("MusicBrainz API error: ${response.status.description}")
-        return Json.decodeFromString(response.bodyAsText())
+        val root = json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val recordings = root["recordings"] as? JsonArray ?: return emptyList()
+        return recordings.mapNotNull { recEl -> recEl.jsonObject["id"]?.jsonPrimitive?.content }
     }
-
-    // Spotify API and token management not implemented here (requires OAuth and secure storage)
+    private suspend fun fetchMusicBrainzRelations(recordingId: String): List<MBRelation> {
+        val response: HttpResponse = client.get("$MUSICBRAINZ_API_URL/$recordingId?inc=url-rels&fmt=json") {
+            header("User-Agent", "bscm/1.0 (app.bscm@gmail.com)")
+        }
+        if (!response.status.isSuccess()) throw Exception("MusicBrainz API error: ${response.status.description}")
+        val root = json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val relationsEl = root["relations"] as? JsonArray ?: return emptyList()
+        return relationsEl.map { relEl ->
+            val obj = relEl.jsonObject
+            val type = obj["type"]?.jsonPrimitive?.content
+            val url = obj["url"]?.jsonObject?.get("resource")?.jsonPrimitive?.content
+            MBRelation(type = type, url = MBUrl(url))
+        }
+    }
 }

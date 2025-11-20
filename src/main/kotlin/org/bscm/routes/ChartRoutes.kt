@@ -274,7 +274,12 @@ fun Route.chartRoutes(
                     // 5. Fetch media info (album cover, streaming links) using track + artist from bundleInfo overrides
                     val trackName = bundleInfo?.title ?: clientRequest?.track ?: "Unknown"
                     val artistName = bundleInfo?.artist ?: clientRequest?.artist ?: "Unknown"
-                    val mediaInfo = try { MediaInfoService.getMediaInfo(trackName, artistName) } catch (_: Exception) { null }
+                    val mediaInfo = try { MediaInfoService.getMediaInfo(trackName, artistName) } catch (error: Exception) {
+                        println("MediaInfo fetch error: ${error.message}")
+                        null
+                    }
+
+                    println("MediaInfo fetched: $mediaInfo")
 
                     // Fallback cover: if extracted coverBytes available, upload later; else use mediaInfo.coverUrl
                     val coverUrlPlaceholder = if (coverBytes != null) "" else (mediaInfo?.coverUrl ?: clientRequest?.coverUrl ?: "")
@@ -284,7 +289,10 @@ fun Route.chartRoutes(
                         if (!mediaInfo?.trackUrls.isNullOrEmpty()) {
                             MediaInfoService.getTrackStreamingLinks(mediaInfo.trackUrls.first().url, trackName, artistName)
                         } else clientRequest?.trackUrls ?: emptyList()
-                    } catch (_: Exception) { mediaInfo?.trackUrls ?: clientRequest?.trackUrls ?: emptyList() }
+                    } catch (error: Exception) {
+                        println("Streaming links fetch error: ${error.message}")
+                        mediaInfo?.trackUrls ?: clientRequest?.trackUrls ?: emptyList()
+                    }
 
                     // 7. BPM: prefer bundleInfo.bpm else clientRequest else approximate (not implemented)
                     val bpm = bundleInfo?.bpm ?: clientRequest?.bpm ?: 0

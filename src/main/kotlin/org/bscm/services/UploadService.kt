@@ -134,14 +134,58 @@ class UploadService(
     private fun buildComponents(trackUrls: List<StreamingLink>): List<ActionRow> {
         if (trackUrls.isEmpty()) return emptyList()
 
-        val buttons = trackUrls.map { streamingLink ->
-            getButtonForPlatform(streamingLink.platform, streamingLink.url)
+        // Discord constraints
+        val maxRows = 5
+        val maxButtonsPerRow = 3
+        val maxTotalButtons = maxRows * maxButtonsPerRow // 15
+
+        // 1. Deduplicate by platform only (keep first occurrence per platform)
+        // This matches the TypeScript logic where processLinksWithPrioritization already deduplicates by platform group
+        val seenPlatforms = mutableSetOf<StreamingPlatform>()
+        val deduped = trackUrls.filter { link ->
+            if (seenPlatforms.contains(link.platform)) {
+                false
+            } else {
+                seenPlatforms.add(link.platform)
+                true
+            }
         }
 
-        // Organize buttons into rows of up to 3 buttons each
-        return buttons.chunked(3).map { buttonGroup ->
-            ActionRow(type = 1, components = buttonGroup)
+        // 2. Prioritize platforms (order list). Unknown or extra remain in tail.
+        val priorityOrder = listOf(
+            StreamingPlatform.SPOTIFY,
+            StreamingPlatform.APPLE_MUSIC,
+            StreamingPlatform.YOUTUBE_MUSIC,
+            StreamingPlatform.DEEZER,
+            StreamingPlatform.TIDAL,
+            StreamingPlatform.AMAZON_MUSIC,
+            StreamingPlatform.SOUNDCLOUD,
+            StreamingPlatform.LAST_FM
+        )
+
+        val prioritized = deduped.sortedBy { link ->
+            val idx = priorityOrder.indexOf(link.platform)
+            if (idx == -1) Int.MAX_VALUE else idx
         }
+
+        // 3. Limit total buttons respecting Discord cap
+        val limited = prioritized.take(maxTotalButtons)
+
+        // 4. Build buttons
+        val buttons = limited.map { streamingLink -> getButtonForPlatform(streamingLink.platform, streamingLink.url) }
+
+        // 5. Pack into rows up to 3 buttons each, max 5 rows
+        val rows = mutableListOf<ActionRow>()
+        var idx = 0
+        while (idx < buttons.size && rows.size < maxRows) {
+            val slice = buttons.subList(idx, kotlin.math.min(idx + maxButtonsPerRow, buttons.size))
+            rows.add(ActionRow(type = 1, components = slice))
+            idx += maxButtonsPerRow
+        }
+
+        println("Component build debug: input=${trackUrls.size}, deduped=${deduped.size}, finalButtons=${buttons.size}, rows=${rows.size}")
+
+        return rows
     }
 
     // Extended to allow embedding of an attached cover image via Discord's attachment:// scheme
@@ -364,7 +408,7 @@ class UploadService(
         var fetched = 0
         while (fetched < maxMessages) {
             val url = "https://discord.com/api/v10/channels/$channelId/messages?limit=$messagesPerRequest" +
-                (lastMessageId?.let { "&before=$it" } ?: "")
+                    (lastMessageId?.let { "&before=$it" } ?: "")
             val response: HttpResponse = applicationHttpClient.get(url) {
                 header(HttpHeaders.Authorization, "Bot $botToken")
             }
