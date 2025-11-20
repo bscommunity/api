@@ -210,91 +210,121 @@ fun Route.chartRoutes(
 
                     val user = userRepository.getUserById(userId) ?: throw UnauthorizedException("User not found")
 
-                    // Parse the multipart form data
+                    // Parse multipart form
                     val multipart = call.receiveMultipart()
                     var chartJson: String? = null
                     var bundleFileBytes: ByteArray? = null
 
                     multipart.forEachPart { part ->
                         when (part) {
-                            is PartData.FormItem -> {
-                                if (part.name == "chart") {
-                                    chartJson = part.value
-                                }
-                            }
-
-                            is PartData.FileItem -> {
-                                if (part.name == "bundle") {
-                                    bundleFileBytes = part.provider().toByteArray()
-                                }
-                            }
-
+                            is PartData.FormItem -> if (part.name == "chart") chartJson = part.value
+                            is PartData.FileItem -> if (part.name == "bundle") bundleFileBytes = part.provider().toByteArray()
                             else -> {}
                         }
                         part.dispose()
                     }
 
-                    if (chartJson == null || bundleFileBytes == null) {
-                        call.respond(HttpStatusCode.BadRequest, "Chart data or bundle missing")
+                    if (bundleFileBytes == null) {
+                        call.respond(HttpStatusCode.BadRequest, "Bundle missing")
                         return@post
                     }
 
-                    // Deserialize the chart JSON
-                    val createRequest = try {
-                        jsonClient.decodeFromString<CreateChartRequest>(chartJson)
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, "Invalid chart JSON: ${e.message}")
-                        return@post
+                    // Try to decode provided chart JSON (optional overrides from client)
+                    val clientRequest: CreateChartRequest? = chartJson?.let {
+                        try { jsonClient.decodeFromString<CreateChartRequest>(it) } catch (_: Exception) { null }
                     }
 
-                    val extracted = DecodingService.extractChartFileFromBundle(bundleFileBytes)
-                    if (extracted?.isEmpty() == true) {
-                        call.respond(HttpStatusCode.BadRequest, "No .bytes files found in uploaded zip")
+                    // 1. Extract info.json metadata
+                    val bundleInfo = DecodingService.extractBundleInfo(bundleFileBytes!!)
+
+                    // 2. Extract cover image (raw bytes) if any
+                    val coverBytes = DecodingService.extractCoverImage(bundleFileBytes!!)
+
+                    // 3. Extract chart.bytes from chart.bundle and parse protobuf
+                    val chartBytes = DecodingService.extractChartFileFromBundle(bundleFileBytes!!)
+                    if (chartBytes == null) {
+                        call.respond(HttpStatusCode.BadRequest, "Failed to extract chart.bundle bytes")
                         return@post
                     }
+                    val parsed = ChartParser.parse(chartBytes)
+                    val computedStats = DecodingService.computeChartStats(parsed)
 
-                    val parsedMap = ChartParser.parse(extracted!!)
-                    println("Parsed chart: ${parsedMap.effects.size} effects, ${parsedMap.notes.size} notes")
+                    // 4. Derive difficulty from bundleInfo.difficulty mapping to enum
+                    val difficultyEnum = when (bundleInfo?.difficulty) {
+                        4 -> Difficulty.NORMAL
+                        3 -> Difficulty.HARD
+                        1 -> Difficulty.EXTREME
+                        else -> Difficulty.NORMAL
+                    }
 
-                    return@post
+                    // 5. Fetch media info (album cover, streaming links) using track + artist from bundleInfo overrides
+                    val trackName = bundleInfo?.title ?: clientRequest?.track ?: "Unknown"
+                    val artistName = bundleInfo?.artist ?: clientRequest?.artist ?: "Unknown"
+                    val mediaInfo = try { MediaInfoService.getMediaInfo(trackName, artistName) } catch (_: Exception) { null }
 
-                    /*println("Creating chart with request: $createRequest")
+                    // Fallback cover: if extracted coverBytes available, upload later; else use mediaInfo.coverUrl
+                    val coverUrl = mediaInfo?.coverUrl ?: clientRequest?.coverUrl ?: ""
 
-                    // Create a unique content ID for the chart
-                    val contentId = NanoIdUtils.generateOptimized(
+                    // 6. Track URLs (streaming links). If mediaInfo returned some, optionally enrich them with Odesli
+                    val streamingLinks = try {
+                        if (!mediaInfo?.trackUrls.isNullOrEmpty()) {
+                            MediaInfoService.getTrackStreamingLinks(mediaInfo!!.trackUrls.first().url, trackName, artistName)
+                        } else clientRequest?.trackUrls ?: emptyList()
+                    } catch (_: Exception) { mediaInfo?.trackUrls ?: clientRequest?.trackUrls ?: emptyList() }
+
+                    // 7. BPM: prefer bundleInfo.bpm else clientRequest else approximate (not implemented)
+                    val bpm = bundleInfo?.bpm ?: clientRequest?.bpm ?: 0
+
+                    // 8. isDeluxe flag from bundle type
+                    val isDeluxe = bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: clientRequest?.isDeluxe ?: false
+
+                    // 9. Explicit flag from client or default false
+                    val isExplicit = clientRequest?.isExplicit ?: false
+
+                    // 10. Generate contentId
+                    val contentId = org.bscm.utils.NanoIdUtils.generateOptimized(
                         10,
                         "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
                         63,
                         16
                     )
 
-                    val createRequestWithId = createRequest.copy(
-                        contentId = contentId
+                    // 11. Upload bundle to Discord (cover image uploading not yet implemented separately)
+                    val createChartForUpload = CreateChartRequest(
+                        artist = artistName,
+                        track = trackName,
+                        album = mediaInfo?.album,
+                        trackUrls = streamingLinks,
+                        trackPreviewUrl = mediaInfo?.trackPreviewUrl,
+                        coverUrl = coverUrl,
+                        genre = mediaInfo?.genre,
+                        isExplicit = isExplicit,
+                        duration = computedStats.duration,
+                        notesAmount = computedStats.notesAmount,
+                        effectsAmount = computedStats.effectsAmount,
+                        bpm = bpm,
+                        difficulty = difficultyEnum,
+                        isDeluxe = isDeluxe,
+                        bundleUrl = "", // Placeholder replaced after Discord upload
+                        previewUrl = null,
+                        contentId = contentId,
                     )
 
-                    // Upload the chart bundle
-                    val discordResponse = uploadService.uploadChart(createRequestWithId, user, bundleFileBytes)
-                    println("Successfully uploaded bundle with ${discordResponse.id}")
-
+                    val discordResponse = uploadService.uploadChart(createChartForUpload, user, bundleFileBytes!!)
                     val attachment = discordResponse.attachments.firstOrNull()
-
                     if (attachment == null) {
-                        call.respond(HttpStatusCode.BadRequest, "Failed to upload bundle")
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to upload bundle")
                         return@post
                     }
 
-                    val createRequestWithBundle = createRequest.copy(
+                    val finalCreate = createChartForUpload.copy(
                         id = discordResponse.id.toULong(),
-                        contentId = contentId,
                         versionId = attachment.id.toULong(),
-                        bundleUrl = attachment.url
+                        bundleUrl = attachment.url,
                     )
 
-                    // Create the chart in the repository
-                    val createdChart = chartRepository.createChart(userId, createRequestWithBundle)
-                    // println("Created chart: $createdChart")
-
-                    call.respond(HttpStatusCode.Created, createdChart)*/
+                    val createdChart = chartRepository.createChart(userId, finalCreate)
+                    call.respond(HttpStatusCode.Created, createdChart)
                 }
 
                 // Update an existing chart
