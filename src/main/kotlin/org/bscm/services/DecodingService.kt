@@ -78,11 +78,11 @@ class DecodingService {
             targetBundleName: String = "chart.bundle",
         ): ByteArray? {
             val bundleBytes = extractBundleBytesFromZip(zipBytes, targetBundleName) ?: return null
-            println("Bundle '$targetBundleName' extracted, size=${bundleBytes.size} bytes.")
+            // println("Bundle '$targetBundleName' extracted, size=${bundleBytes.size} bytes.")
             UnityAssetManager.new().use { manager ->
                 val context: ImportContext = manager.loadFromByteArray(bundleBytes, targetBundleName)
                 val tex: TextAsset = context.objectMap.values.firstObjectOf<TextAsset>()
-                println("TextAsset '${tex.mName}' found")
+                // println("TextAsset '${tex.mName}' found")
                 return tex.mScript
             }
         }
@@ -99,8 +99,19 @@ class DecodingService {
                     val tex: Texture2D = context.objectMap.values.firstObjectOf<Texture2D>()
                     // Accessing properties triggers lazy loading
                     val buffered = tex.getImage() ?: return null
+                    // Fix orientation: Unity Texture2D may be flipped horizontally and rotated 180 degrees
+                    val rotated = java.awt.image.BufferedImage(buffered.width, buffered.height, buffered.type).apply {
+                        val g2d = createGraphics()
+                        val transform = java.awt.geom.AffineTransform()
+                        transform.scale(-1.0, 1.0)
+                        transform.translate(-buffered.width.toDouble(), 0.0)
+                        transform.concatenate(java.awt.geom.AffineTransform.getRotateInstance(Math.PI, buffered.width / 2.0, buffered.height / 2.0))
+                        g2d.transform = transform
+                        g2d.drawImage(buffered, 0, 0, null)
+                        g2d.dispose()
+                    }
                     val out = ByteArrayOutputStream()
-                    ImageIO.write(buffered, "png", out) // Always normalize to PNG
+                    ImageIO.write(rotated, "png", out) // Always normalize to PNG
                     out.toByteArray()
                 }
             } catch (e: Exception) {

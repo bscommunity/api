@@ -282,7 +282,7 @@ fun Route.chartRoutes(
                     // 6. Track URLs (streaming links). If mediaInfo returned some, optionally enrich them with Odesli
                     val streamingLinks = try {
                         if (!mediaInfo?.trackUrls.isNullOrEmpty()) {
-                            MediaInfoService.getTrackStreamingLinks(mediaInfo!!.trackUrls.first().url, trackName, artistName)
+                            MediaInfoService.getTrackStreamingLinks(mediaInfo.trackUrls.first().url, trackName, artistName)
                         } else clientRequest?.trackUrls ?: emptyList()
                     } catch (_: Exception) { mediaInfo?.trackUrls ?: clientRequest?.trackUrls ?: emptyList() }
 
@@ -292,10 +292,7 @@ fun Route.chartRoutes(
                     // 8. isDeluxe flag from bundle type
                     val isDeluxe = bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: clientRequest?.isDeluxe ?: false
 
-                    // 9. Explicit flag from client or default false
-                    val isExplicit = clientRequest?.isExplicit ?: false
-
-                    // 10. Generate contentId
+                    // 9. Generate contentId
                     val contentId = org.bscm.utils.NanoIdUtils.generateOptimized(
                         10,
                         "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -303,7 +300,8 @@ fun Route.chartRoutes(
                         16
                     )
 
-                    // 11. Upload bundle to Discord (cover image uploading not yet implemented separately)
+                    // 10. Upload bundle to Discord (cover image uploading not yet implemented separately)
+                    println("Bundle size: ${bundleFileBytes.size}")
                     val createChartForUpload = CreateChartRequest(
                         artist = artistName,
                         track = trackName,
@@ -312,7 +310,7 @@ fun Route.chartRoutes(
                         trackPreviewUrl = mediaInfo?.trackPreviewUrl,
                         coverUrl = coverUrlPlaceholder,
                         genre = mediaInfo?.genre,
-                        isExplicit = isExplicit,
+                        isExplicit = isExplicitFromForm,
                         duration = computedStats.duration,
                         notesAmount = computedStats.notesAmount,
                         effectsAmount = computedStats.effectsAmount,

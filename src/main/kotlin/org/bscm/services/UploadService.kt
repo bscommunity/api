@@ -174,6 +174,9 @@ class UploadService(
 
         val components = buildComponents(chart.trackUrls)
 
+        println("Streaming links: ${chart.trackUrls}")
+        println("Components: $components")
+
         val payload = message {
             username("bscm")
             avatar("https://i.imgur.com/7e4lzGf.png")
@@ -230,6 +233,8 @@ class UploadService(
         if (!response.status.isSuccess()) {
             throw Exception("Failed to send: ${response.status}, ${response.bodyAsText()}")
         }
+
+        println("Discord response body: ${response.bodyAsText()}")
 
         println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
 
