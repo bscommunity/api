@@ -3,9 +3,12 @@ package org.bscm.services
 import io.github.deficuet.unitykt.ImportContext
 import io.github.deficuet.unitykt.UnityAssetManager
 import io.github.deficuet.unitykt.classes.TextAsset
+import io.github.deficuet.unitykt.classes.Texture2D
 import io.github.deficuet.unitykt.firstObjectOf
 import org.apache.commons.compress.archivers.zip.ZipFile
 import org.bscm.protobuf.Chart // Import parsed chart data class
+import java.io.ByteArrayOutputStream
+import javax.imageio.ImageIO
 
 class DecodingService {
     companion object {
@@ -85,19 +88,25 @@ class DecodingService {
         }
 
         /**
-         * Tries to obtain a cover image from the zip. Strategy:
-         * 1. Look for a top-level file whose name matches cover.(png|jpg|jpeg)
-         * 2. (Future) Attempt to inspect the Unity bundle for Texture2D assets.
+         * Extracts the cover image from the Unity AssetBundle (Texture2D).
          */
-        fun extractCoverImage(zipBytes: ByteArray): ByteArray? {
-            // Strategy 1: look for typical cover filenames
-            val directCover = extractEntryBytesFromZip(zipBytes) { name ->
-                name.contains("cover", ignoreCase = true) &&
-                        (name.endsWith(".png", true) || name.endsWith(".jpg", true) || name.endsWith(".jpeg", true))
+        fun extractCoverImage(zipBytes: ByteArray, bundleName: String = "artwork.bundle"): ByteArray? {
+            val bundleBytes = extractBundleBytesFromZip(zipBytes, bundleName) ?: return null
+            return try {
+                UnityAssetManager.new().use { manager ->
+                    val context: ImportContext = manager.loadFromByteArray(bundleBytes, bundleName)
+                    // Extract Texture2D asset containing the cover image
+                    val tex: Texture2D = context.objectMap.values.firstObjectOf<Texture2D>()
+                    // Accessing properties triggers lazy loading
+                    val buffered = tex.getImage() ?: return null
+                    val out = ByteArrayOutputStream()
+                    ImageIO.write(buffered, "png", out) // Always normalize to PNG
+                    out.toByteArray()
+                }
+            } catch (e: Exception) {
+                println("Failed to extract Texture2D cover from bundle: ${e.message}")
+                null
             }
-            if (directCover != null) return directCover
-            // Strategy 2 placeholder: could inspect Unity bundle for Texture2D assets (not implemented yet for stability)
-            return null
         }
 
         /**
@@ -117,7 +126,7 @@ class DecodingService {
             val maxOffset = noteOffsets.maxOrNull() ?: 0f
             return ChartStats(
                 notesAmount = parsed.notes.size,
-                effectsAmount = parsed.effects.size,
+                effectsAmount = parsed.effects.sumOf { it.effects.size },
                 duration = maxOffset, // Interpreting offsets already in seconds (adjust if needed)
             )
         }

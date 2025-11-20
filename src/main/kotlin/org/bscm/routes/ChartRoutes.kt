@@ -25,6 +25,7 @@ import org.bscm.plugins.UnauthorizedException
 import org.bscm.plugins.jsonClient
 import org.bscm.protobuf.ChartParser
 import org.bscm.services.DecodingService
+import org.bscm.services.MediaInfoService
 import org.bscm.services.UploadService
 import java.util.*
 
@@ -204,6 +205,15 @@ fun Route.chartRoutes(
             rateLimit(RateLimitName("restricted")) {
                 // Create a new chart
                 post {
+                    // ================= PIPELINE OVERVIEW =================
+                    // FORM FIELDS: previewUrl, isExplicit
+                    // ZIP (BUNDLE) DECODE: cover image PNG (Texture2D), chart.bytes (TextAsset)
+                    // INFO.JSON: track, artist, difficulty, isDeluxe, bpm
+                    // MEDIA SERVICE: album, trackUrls, trackPreviewUrl, genre
+                    // INTERNAL CALCS: duration, notesAmount, effectsAmount (from parsed chart)
+                    // AFTER DISCORD UPLOAD: bundleUrl (zip attachment), coverUrl (cover attachment)
+                    // =====================================================
+
                     val principal = call.principal<JWTPrincipal>()
                     val userId = principal?.subject?.let { UUID.fromString(it) }
                         ?: throw UnauthorizedException("User unauthorized")
@@ -234,14 +244,18 @@ fun Route.chartRoutes(
                         try { jsonClient.decodeFromString<CreateChartRequest>(it) } catch (_: Exception) { null }
                     }
 
+                    // Extract previewUrl & isExplicit early (source-of-truth: form JSON)
+                    val previewUrlFromForm = clientRequest?.previewUrl
+                    val isExplicitFromForm = clientRequest?.isExplicit ?: false
+
                     // 1. Extract info.json metadata
-                    val bundleInfo = DecodingService.extractBundleInfo(bundleFileBytes!!)
+                    val bundleInfo = DecodingService.extractBundleInfo(bundleFileBytes)
 
                     // 2. Extract cover image (raw bytes) if any
-                    val coverBytes = DecodingService.extractCoverImage(bundleFileBytes!!)
+                    val coverBytes = DecodingService.extractCoverImage(bundleFileBytes)
 
                     // 3. Extract chart.bytes from chart.bundle and parse protobuf
-                    val chartBytes = DecodingService.extractChartFileFromBundle(bundleFileBytes!!)
+                    val chartBytes = DecodingService.extractChartFileFromBundle(bundleFileBytes)
                     if (chartBytes == null) {
                         call.respond(HttpStatusCode.BadRequest, "Failed to extract chart.bundle bytes")
                         return@post
@@ -263,7 +277,7 @@ fun Route.chartRoutes(
                     val mediaInfo = try { MediaInfoService.getMediaInfo(trackName, artistName) } catch (_: Exception) { null }
 
                     // Fallback cover: if extracted coverBytes available, upload later; else use mediaInfo.coverUrl
-                    val coverUrl = mediaInfo?.coverUrl ?: clientRequest?.coverUrl ?: ""
+                    val coverUrlPlaceholder = if (coverBytes != null) "" else (mediaInfo?.coverUrl ?: clientRequest?.coverUrl ?: "")
 
                     // 6. Track URLs (streaming links). If mediaInfo returned some, optionally enrich them with Odesli
                     val streamingLinks = try {
@@ -296,7 +310,7 @@ fun Route.chartRoutes(
                         album = mediaInfo?.album,
                         trackUrls = streamingLinks,
                         trackPreviewUrl = mediaInfo?.trackPreviewUrl,
-                        coverUrl = coverUrl,
+                        coverUrl = coverUrlPlaceholder,
                         genre = mediaInfo?.genre,
                         isExplicit = isExplicit,
                         duration = computedStats.duration,
@@ -305,22 +319,28 @@ fun Route.chartRoutes(
                         bpm = bpm,
                         difficulty = difficultyEnum,
                         isDeluxe = isDeluxe,
-                        bundleUrl = "", // Placeholder replaced after Discord upload
-                        previewUrl = null,
+                        bundleUrl = "",
+                        previewUrl = previewUrlFromForm,
                         contentId = contentId,
                     )
 
-                    val discordResponse = uploadService.uploadChart(createChartForUpload, user, bundleFileBytes!!)
-                    val attachment = discordResponse.attachments.firstOrNull()
-                    if (attachment == null) {
+                    val discordResponse = uploadService.uploadChart(createChartForUpload, user,
+                        bundleFileBytes, coverBytes)
+
+                    // Identify attachments by extension
+                    val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
+                    val coverAttachment = discordResponse.attachments.firstOrNull { it.filename.equals("cover.png", true) }
+
+                    if (bundleAttachment == null) {
                         call.respond(HttpStatusCode.InternalServerError, "Failed to upload bundle")
                         return@post
                     }
 
                     val finalCreate = createChartForUpload.copy(
                         id = discordResponse.id.toULong(),
-                        versionId = attachment.id.toULong(),
-                        bundleUrl = attachment.url,
+                        versionId = bundleAttachment.id.toULong(),
+                        bundleUrl = bundleAttachment.url,
+                        coverUrl = coverAttachment?.url ?: createChartForUpload.coverUrl,
                     )
 
                     val createdChart = chartRepository.createChart(userId, finalCreate)

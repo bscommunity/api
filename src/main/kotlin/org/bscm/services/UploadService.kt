@@ -144,10 +144,12 @@ class UploadService(
         }
     }
 
+    // Extended to allow embedding of an attached cover image via Discord's attachment:// scheme
     private fun buildWebhookPayload(
         chart: CreateChartRequest,
         author: User,
-        attachments: List<BaseAttachment> = emptyList()
+        attachments: List<BaseAttachment> = emptyList(),
+        embedCoverAsAttachment: Boolean = false,
     ): String {
         val durationFormatted =
             String.format("%dm%ds", (chart.duration / 60).toInt(), (chart.duration % 60).toInt())
@@ -181,7 +183,8 @@ class UploadService(
                 url = "https://bscm.netlify.app/link/chart/${chart.contentId}"
                 timestamp(Date().toInstant().toString())
                 color = 3820816
-                image(chart.coverUrl)
+                // If we are attaching the cover image file, reference it using attachment://cover.png
+                if (embedCoverAsAttachment) image("attachment://cover.png") else image(chart.coverUrl)
                 author("New chart submitted")
                 fields.forEach { field(it.name, it.value, it.inline) }
                 footer("Submitted by @${author.username}", author.imageUrl)
@@ -192,22 +195,33 @@ class UploadService(
         return jsonClient.encodeToString(WebhookPayload.serializer(), payload)
     }
 
-    suspend fun uploadChart(chart: CreateChartRequest, author: User, chartBundle: ByteArray): DiscordMessageResponse {
-        val payloadJson = buildWebhookPayload(chart, author)
+    suspend fun uploadChart(
+        chart: CreateChartRequest,
+        author: User,
+        chartBundle: ByteArray,
+        coverImage: ByteArray? = null,
+    ): DiscordMessageResponse {
+        // Build payload referencing cover image attachment if provided
+        val payloadJson = buildWebhookPayload(
+            chart,
+            author,
+            embedCoverAsAttachment = coverImage != null
+        )
         val normalizedTrack = getNormalizedTrackName(chart.track)
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?with_components=true",
             formData = formData {
-                // The message content
-                append("payload_json", payloadJson, Headers.build {
-                    append(HttpHeaders.ContentType, "application/json")
-                })
+                append("payload_json", payloadJson, Headers.build { append(HttpHeaders.ContentType, "application/json") })
+                // Attach cover image first so we can reliably identify it later
+                coverImage?.let { bytes ->
+                    append("file", bytes, Headers.build {
+                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"cover.png\"")
+                        append(HttpHeaders.ContentType, ContentType.Image.PNG.toString())
+                    })
+                }
                 append("file", chartBundle, Headers.build {
-                    append(
-                        HttpHeaders.ContentDisposition,
-                        "form-data; name=\"file\"; filename=\"${normalizedTrack}_v1.zip\""
-                    )
+                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"${normalizedTrack}_v1.zip\"")
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
             }
