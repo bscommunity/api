@@ -213,7 +213,7 @@ object MediaInfoService {
         try {
             val odesliData = fetchOdesliApi(url)
             val odesliLinks = odesliData.linksByPlatform.map { (key, value) -> StreamingLink(StreamingPlatformUtils.fromKey(key), value.url) }
-            println("Found ${odesliLinks.size} links via Odesli")
+            // println("Found ${odesliLinks.size} links via Odesli")
             return StreamingPlatformUtils.processLinksWithPrioritization(odesliLinks, true)
         } catch (error: Exception) {
             println("Odesli fetch error: ${error.message}")
@@ -227,7 +227,7 @@ object MediaInfoService {
                 val link = it.url!!.resource!!
                 StreamingLink(StreamingPlatformUtils.fromUrl(link), link)
             }
-            println("Found ${musicBrainzLinks.size} links via MusicBrainz")
+            // println("Found ${musicBrainzLinks.size} links via MusicBrainz")
             return StreamingPlatformUtils.processLinksWithPrioritization(musicBrainzLinks, false)
         } catch (error: Exception) {
             println("MusicBrainz fetch error: ${error.message}")

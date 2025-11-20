@@ -28,7 +28,7 @@ data class SimpleAttachment(
 data class WebhookPayload(
     val username: String = "bscm",
     @SerialName("avatar_url") val avatarUrl: String? = null,
-    val embeds: List<WebhookEmbed> = emptyList(),
+    val embeds: List<Embed> = emptyList(),
     val attachments: List<BaseAttachment> = emptyList(),
     val components: List<ActionRow> = emptyList(),
     val content: String? = null,
@@ -40,7 +40,7 @@ data class SimpleWebhookPayload(
 )
 
 @Serializable
-data class WebhookEmbed(
+data class Embed(
     val title: String,
     val description: String? = null,
     val url: String? = null,
@@ -102,7 +102,7 @@ class MessageBuilder {
     private var username: String = "bscm"
     private var avatarUrl: String? = null
     private var content: String? = null
-    private val embeds: MutableList<WebhookEmbed> = mutableListOf()
+    private val embeds: MutableList<Embed> = mutableListOf()
     private val attachments: MutableList<BaseAttachment> = mutableListOf()
     private val components: MutableList<ActionRow> = mutableListOf()
 
@@ -158,7 +158,7 @@ class EmbedBuilder {
     fun footer(text: String, iconUrl: String? = null) = apply { footerText = text; footerIcon = iconUrl }
     fun timestamp(iso: String = Instant.now().toString()) = apply { timestamp = iso }
 
-    fun build(): WebhookEmbed = WebhookEmbed(
+    fun build(): Embed = Embed(
         title = title,
         description = description,
         url = url,

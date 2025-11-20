@@ -309,7 +309,7 @@ fun Route.chartRoutes(
                     )
 
                     // 10. Upload bundle to Discord (cover image uploading not yet implemented separately)
-                    println("Bundle size: ${bundleFileBytes.size}")
+                    // println("Bundle size: ${bundleFileBytes.size}")
                     val createChartForUpload = CreateChartRequest(
                         artist = artistName,
                         track = trackName,
@@ -335,7 +335,9 @@ fun Route.chartRoutes(
 
                     // Identify attachments by extension
                     val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
-                    val coverAttachment = discordResponse.attachments.firstOrNull { it.filename.equals("cover.png", true) }
+                    val coverUrl = discordResponse.embeds.firstOrNull()?.image?.url
+
+                    // println("Discord attachments: ${discordResponse.attachments}")
 
                     if (bundleAttachment == null) {
                         call.respond(HttpStatusCode.InternalServerError, "Failed to upload bundle")
@@ -346,10 +348,11 @@ fun Route.chartRoutes(
                         id = discordResponse.id.toULong(),
                         versionId = bundleAttachment.id.toULong(),
                         bundleUrl = bundleAttachment.url,
-                        coverUrl = coverAttachment?.url ?: createChartForUpload.coverUrl,
+                        coverUrl = coverUrl ?: createChartForUpload.coverUrl,
                     )
 
                     val createdChart = chartRepository.createChart(userId, finalCreate)
+
                     call.respond(HttpStatusCode.Created, createdChart)
                 }
 

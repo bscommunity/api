@@ -121,7 +121,7 @@ object StreamingPlatformUtils {
 
         // Convert to final format and log
         return linkMap.values.map { data ->
-            println("Found link for platform: ${data.platform}, URL: ${data.url}")
+            // println("Found link for platform: ${data.platform}, URL: ${data.url}")
             StreamingLink(data.platform, data.url)
         }
     }

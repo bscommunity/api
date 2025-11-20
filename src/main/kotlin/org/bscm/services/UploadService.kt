@@ -50,6 +50,7 @@ class UploadService(
         val id: String,
         @SerialName("channel_id") val channelId: String,
         val attachments: List<Attachment>,
+        val embeds: List<Embed>,
     )
 
     private fun getNormalizedTrackName(track: String): String {
@@ -183,7 +184,7 @@ class UploadService(
             idx += maxButtonsPerRow
         }
 
-        println("Component build debug: input=${trackUrls.size}, deduped=${deduped.size}, finalButtons=${buttons.size}, rows=${rows.size}")
+        // println("Component build debug: input=${trackUrls.size}, deduped=${deduped.size}, finalButtons=${buttons.size}, rows=${rows.size}")
 
         return rows
     }
@@ -218,23 +219,21 @@ class UploadService(
 
         val components = buildComponents(chart.trackUrls)
 
-        println("Streaming links: ${chart.trackUrls}")
-        println("Components: $components")
+        // println("Streaming links: ${chart.trackUrls}")
+        // println("Components: $components")
 
         val payload = message {
-            username("bscm")
-            avatar("https://i.imgur.com/7e4lzGf.png")
+            username(author.username)
+            avatar(author.imageUrl)
             attachments(attachments)
             embed {
                 this.title = title
                 url = "https://bscm.netlify.app/link/chart/${chart.contentId}"
-                timestamp(Date().toInstant().toString())
                 color = 3820816
                 // If we are attaching the cover image file, reference it using attachment://cover.png
                 if (embedCoverAsAttachment) image("attachment://cover.png") else image(chart.coverUrl)
                 author("New chart submitted")
                 fields.forEach { field(it.name, it.value, it.inline) }
-                footer("Submitted by @${author.username}", author.imageUrl)
             }
             components.forEach { component(it) }
         }
@@ -282,10 +281,13 @@ class UploadService(
         }
 
         val discordResponse = jsonClient.decodeFromString<DiscordMessageResponse>(response.bodyAsText())
-        println("Discord response: ${discordResponse.attachments.size} attachment(s) received")
+
+        // println("Uploaded message: ${response.bodyAsText()} and $discordResponse")
+
+        /*println("Discord response: ${discordResponse.attachments.size} attachment(s) received")
         discordResponse.attachments.forEachIndexed { idx, att ->
             println("  [$idx] ${att.filename} (id=${att.id})")
-        }
+        }*/
 
         return discordResponse
     }
@@ -354,7 +356,7 @@ class UploadService(
             throw Exception("Failed to send: ${response.status}, ${response.bodyAsText()}")
         }
 
-        // println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
+        println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
 
         return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }

@@ -35,7 +35,7 @@ object CommandHandler {
             content?.let { put("content", it) }
             if (embeds.isNotEmpty()) {
                 put("embeds", buildJsonArray {
-                    embeds.forEach { add(jsonClient.encodeToJsonElement(WebhookEmbed.serializer(), it)) }
+                    embeds.forEach { add(jsonClient.encodeToJsonElement(Embed.serializer(), it)) }
                 })
             }
             if (components.isNotEmpty()) {
