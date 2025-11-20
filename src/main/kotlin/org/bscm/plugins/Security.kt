@@ -186,7 +186,7 @@ class CombinedAuthenticationProvider internal constructor(
         val hmacValid = hmacPrincipal != null || !hmacRequired
 
         // At least one authentication method must be present
-        if (jwtPrincipal == null && hmacPrincipal == null) {
+        if (jwtPrincipal == null && jwtRequired || hmacPrincipal == null && hmacRequired) {
             context.challenge("CombinedAuthChallenge", AuthenticationFailedCause.NoCredentials) { challenge, call ->
                 call.respond(
                     HttpStatusCode.Unauthorized,
@@ -309,6 +309,17 @@ fun Application.configureSecurity(
 
         // Flexible authentication: JWT OR HMAC (at least one required)
         combinedAuth("auth-flexible") {
+            this.jwtVerifier = JWT
+                .require(Algorithm.HMAC256(secret))
+                .build()
+            this.jwtRealm = jwtRealm
+            this.hmacService = hmacService
+            this.jwtRequired = false
+            this.hmacRequired = false
+        }
+
+        // Public access: No authentication required
+        combinedAuth("auth-public") {
             this.jwtVerifier = JWT
                 .require(Algorithm.HMAC256(secret))
                 .build()

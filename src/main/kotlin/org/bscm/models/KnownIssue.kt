@@ -6,12 +6,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import org.bscm.serialization.LocalDateTimeSerializer
 import org.bscm.serialization.UUIDSerializer
-import java.time.LocalDateTime
 import java.util.*
 
 @Serializable
 data class KnownIssue(
     val id: UUID,
     val description: String,
-    val createdAt: LocalDateTime
+    // val createdAt: LocalDateTime
 )

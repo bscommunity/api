@@ -12,10 +12,10 @@ import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
-import org.bscm.models.enums.ChartSortOption
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.OperationOption
+import org.bscm.models.enums.SortOption
 import org.bscm.models.repository.IChartRepository
 import org.bscm.models.repository.IUserRepository
 import org.bscm.models.repository.IVersionRepository
@@ -36,7 +36,7 @@ fun Route.chartRoutes(
 ) {
     route("/charts") {
         // Routes that accept either JWT or HMAC authentication
-        authenticate("auth-flexible") {
+        authenticate("auth-public") {
             rateLimit(RateLimitName("restricted")) {
                 // Get all charts - handles both mobile app and dashboard
                 get {
@@ -45,9 +45,12 @@ fun Route.chartRoutes(
 
                     val difficulties =
                         call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
-                    val genres = call.request.queryParameters.getAll("genres")?.map { Genre.valueOf(it) }
+                    val genres = call.request.queryParameters.getAll("genres")?.flatMap { it.split(",") }?.map { Genre.valueOf(it) }
 
-                    val sortBy = call.request.queryParameters["sortBy"]?.let { ChartSortOption.valueOf(it) }
+                    val isDashboard = call.request.queryParameters["isDashboard"]?.toBoolean()
+                    val hasDeluxe = call.request.queryParameters["hasDeluxe"]?.toBoolean()
+
+                    val sortBy = call.request.queryParameters["sortBy"]?.let { SortOption.valueOf(it) }
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
 
@@ -58,12 +61,12 @@ fun Route.chartRoutes(
 
                     // println("JWT Principal: $jwtPrincipal, HMAC Principal: $hmacPrincipal, Combined Principal: $combinedPrincipal")
 
-                    val charts = when {
+                    val result = when {
                         // Combined auth (HMAC with JWT for user-specific data)
                         combinedPrincipal != null -> {
                             val userId = UUID.fromString(combinedPrincipal.jwtPrincipal.subject)
                             chartRepository.getAppCharts(
-                                userId = userId,
+                                userId = if (isDashboard == true) userId else null,
                                 search = sanitizedQuery,
                                 sortBy = sortBy,
                                 difficulties = difficulties,
@@ -88,7 +91,7 @@ fun Route.chartRoutes(
                         jwtPrincipal != null -> {
                             val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
                             chartRepository.getFullCharts(
-                                userId = userId,
+                                userId = if (isDashboard == true) userId else null,
                                 search = sanitizedQuery,
                                 sortBy = sortBy,
                                 difficulties = difficulties,
@@ -98,10 +101,36 @@ fun Route.chartRoutes(
                             )
                         }
 
-                        else -> {}
+                        // No authentication - limit to first 4 pages of app charts
+                        else -> {
+                            val page = (offset ?: 0) / (limit ?: 20) + 1
+                            if (page < 5) {
+                                chartRepository.getAppCharts(
+                                    userId = null,
+                                    search = sanitizedQuery,
+                                    sortBy = sortBy,
+                                    difficulties = difficulties,
+                                    genres = genres,
+                                    limit = limit,
+                                    offset = offset,
+                                )
+                            } else {
+                                Pair(emptyList(), 0)
+                            }
+                        }
                     }
 
-                    call.respond(charts)
+                    call.respond(result)
+                }
+            }
+
+            rateLimit(RateLimitName("unrestricted")) {
+                get("suggestions") {
+                    val query = call.request.queryParameters["query"] ?: ""
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
+
+                    val suggestions = chartRepository.getSuggestions(query, limit)
+                    call.respond(suggestions)
                 }
             }
         }
@@ -119,14 +148,6 @@ fun Route.chartRoutes(
                     val stats = chartRepository.postAnalytics(idParam, type)
 
                     call.respond(stats)
-                }
-
-                get("suggestions") {
-                    val query = call.request.queryParameters["query"] ?: ""
-                    val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
-
-                    val suggestions = chartRepository.getSuggestions(query, limit)
-                    call.respond(suggestions)
                 }
             }
 

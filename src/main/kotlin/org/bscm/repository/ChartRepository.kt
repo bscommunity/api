@@ -22,7 +22,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.*
-import kotlin.math.min
+import kotlin.math.max
 
 class ChartRepository : IChartRepository {
 
@@ -127,15 +127,15 @@ class ChartRepository : IChartRepository {
         chartIds: List<ULong>? = null,
         contentIds: List<String>? = null,
         search: String? = null,
-        sortBy: ChartSortOption? = null,
+        sortBy: SortOption? = null,
         difficulties: List<Difficulty>? = null,
         genres: List<Genre>? = null,
-        limit: Int? = null,
+        limit: Int? = 20,
         offset: Int? = null,
         filterByUser: Boolean = false,
         fetchAllVersions: Boolean = false,
         fetchStreamingLinks: Boolean,
-    ): List<ChartResult> {
+    ): Pair<List<ChartResult>, Int> {
         val startTime = System.currentTimeMillis()
 
         // First, fetch the correctly filtered and sorted IDs with pagination
@@ -149,7 +149,9 @@ class ChartRepository : IChartRepository {
             difficulties,
             genres
         )
-        applyOrdering(baseQuery, sortBy ?: ChartSortOption.LAST_UPDATED)
+        applyOrdering(baseQuery, sortBy ?: SortOption.LAST_UPDATED)
+
+        val totalCount = baseQuery.count().toInt()
 
         // println("Base query: ${baseQuery.prepareSQL(QueryBuilder(false))}")
 
@@ -159,10 +161,10 @@ class ChartRepository : IChartRepository {
         val paginatedIds = baseQuery.map { it[ChartTable.id].value }
         if (paginatedIds.isEmpty()) {
             // println("No charts found with the provided filters.")
-            return emptyList()
+            return Pair(emptyList(), totalCount)
         }
 
-        println("Paginated IDs: ${paginatedIds.joinToString()}")
+        // println("Paginated IDs: ${paginatedIds.joinToString()}")
 
         // Now, fetch the full data for those specific IDs
         val fullQuery = ChartTable.selectAll().where { ChartTable.id inList paginatedIds }
@@ -190,7 +192,7 @@ class ChartRepository : IChartRepository {
         val endTime = System.currentTimeMillis()
         println("Charts fetch completed in ${endTime - startTime}ms with ${sortedResults.size} charts")
 
-        return sortedResults
+        return Pair(sortedResults, totalCount)
     }
 
     /**
@@ -335,9 +337,9 @@ class ChartRepository : IChartRepository {
         }
     }
 
-    private fun applyOrdering(query: Query, sortBy: ChartSortOption) {
+    private fun applyOrdering(query: Query, sortBy: SortOption) {
         when (sortBy) {
-            ChartSortOption.LAST_UPDATED -> {
+            SortOption.LAST_UPDATED -> {
                 query
                     .adjustColumnSet {
                         innerJoin(VersionTable, { ChartTable.latestVersionId }, { VersionTable.id })
@@ -436,8 +438,8 @@ class ChartRepository : IChartRepository {
         userId: UUID?,
         contentIds: List<String>?,
         chartIds: List<ULong>?,
-    ): List<Chart> = newSuspendedTransaction {
-        val result = fetchChartEntities(
+    ): Pair<List<Chart>, Int> = newSuspendedTransaction {
+        val (results, total) = fetchChartEntities(
             userId = userId,
             chartIds = chartIds,
             contentIds = contentIds,
@@ -446,7 +448,7 @@ class ChartRepository : IChartRepository {
             fetchAllVersions = true
         )
 
-        val charts = result.map { chartResult ->
+        val charts = results.map { chartResult ->
             // println("Processing chart with ID: ${chartResult.chart.id.value}")
             daoToChart(
                 entity = chartResult.chart,
@@ -463,19 +465,19 @@ class ChartRepository : IChartRepository {
             )
         }
 
-        charts
+        Pair(charts, total)
     }
 
     override suspend fun getFullCharts(
         userId: UUID?,
         search: String?,
-        sortBy: ChartSortOption?,
+        sortBy: SortOption?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?,
         limit: Int?,
         offset: Int?,
-    ): List<Chart> = newSuspendedTransaction {
-        val result = fetchChartEntities(
+    ): Pair<List<Chart>, Int> = newSuspendedTransaction {
+        val (results, total) = fetchChartEntities(
             userId = userId,
             search = search,
             sortBy = sortBy,
@@ -488,9 +490,9 @@ class ChartRepository : IChartRepository {
             fetchAllVersions = true,
         )
 
-        println("Fetched ${result.size} charts with filters: userId=$userId, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
+        println("Fetched ${results.size} charts with filters: userId=$userId, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
 
-        val charts = result.map { chartResult ->
+        val charts = results.map { chartResult ->
             // println("Processing chart with ID: ${chartResult.chart.id.value}")
             daoToChart(
                 entity = chartResult.chart,
@@ -507,20 +509,20 @@ class ChartRepository : IChartRepository {
             )
         }
 
-        charts
+        Pair(charts, total)
     }
 
     // Mobile App Chart variant of getCharts that includes streaming links and only returns the latest version
     override suspend fun getAppCharts(
         userId: UUID?,
         search: String?,
-        sortBy: ChartSortOption?,
+        sortBy: SortOption?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?,
         limit: Int?,
         offset: Int?,
-    ): List<Chart> = newSuspendedTransaction {
-        val result = fetchChartEntities(
+    ): Pair<List<Chart>, Int> = newSuspendedTransaction {
+        val (results, total) = fetchChartEntities(
             userId = userId,
             search = search,
             sortBy = sortBy,
@@ -533,7 +535,7 @@ class ChartRepository : IChartRepository {
             fetchStreamingLinks = true,
         )
 
-        val charts = result.map { chartResult ->
+        val charts = results.map { chartResult ->
             // println("Processing chart with ID: ${chartResult.chart.id.value} and stats: ${chartResult.userStats}")
             daoToChart(
                 entity = chartResult.chart,
@@ -550,7 +552,7 @@ class ChartRepository : IChartRepository {
             )
         }
 
-        charts
+        Pair(charts, total)
     }
 
     override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {
@@ -558,7 +560,7 @@ class ChartRepository : IChartRepository {
 
         val startTime = System.currentTimeMillis()
 
-        val result = QueryUtils.getSearchMatches(query, min(limit, 10))
+        val result = QueryUtils.getSearchMatches(query, max(20, limit))
 
         val endTime = System.currentTimeMillis()
 

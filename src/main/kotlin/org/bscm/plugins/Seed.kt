@@ -17,7 +17,6 @@ import org.bscm.models.repository.*
 import org.bscm.utils.NanoIdUtils
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
-import java.time.LocalDateTime
 import java.util.*
 import kotlin.random.Random
 
@@ -194,7 +193,6 @@ private suspend fun generateRandomCharts(
                                         KnownIssue(
                                             id = UUID.randomUUID(),
                                             description = getRandomIssue(),
-                                            createdAt = LocalDateTime.now(),
                                         )
                                     )
                                 }

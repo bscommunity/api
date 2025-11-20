@@ -217,7 +217,7 @@ class CollectionRepository(
                 userId = userId,
                 contentIds = contentIds,
             )
-            catalogItems.addAll(chartResults)
+            catalogItems.addAll(chartResults.first)
         }
 
         // Fetch Themes

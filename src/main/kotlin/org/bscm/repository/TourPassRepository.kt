@@ -148,7 +148,7 @@ class TourPassRepository(
         return chartRepository.getCharts(
             userId = userId,
             chartIds = chartIds,
-        )
+        ).first
     }
 
     override suspend fun addChartToTourPass(tourPassId: ULong, chartId: ULong): Boolean = newSuspendedTransaction {
