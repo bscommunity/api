@@ -112,7 +112,7 @@ class DecodingService {
         /**
          * Compute derived statistics from parsed protobuf chart object.
          */
-        fun computeChartStats(parsed: Chart): ChartStats {
+        fun computeChartStats(parsed: Chart, bpm: Int?): ChartStats {
             val noteOffsets = mutableListOf<Float>()
             parsed.notes.forEach { n ->
                 n.single?.note?.let { noteOffsets.add(it.offset) }
@@ -124,10 +124,12 @@ class DecodingService {
             parsed.speeds.forEach { noteOffsets.add(it.offset) }
             parsed.sections.forEach { noteOffsets.add(it.offset) }
             val maxOffset = noteOffsets.maxOrNull() ?: 0f
+            val bpm = bpm?.toFloat() ?: 120f
+            val beatsPerSecond = bpm / 60f
             return ChartStats(
                 notesAmount = parsed.notes.size,
                 effectsAmount = parsed.effects.sumOf { it.effects.size },
-                duration = maxOffset, // Interpreting offsets already in seconds (adjust if needed)
+                duration = maxOffset / beatsPerSecond, // Offsets are in beats, convert to seconds
             )
         }
 

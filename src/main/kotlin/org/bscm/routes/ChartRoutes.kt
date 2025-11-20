@@ -261,7 +261,7 @@ fun Route.chartRoutes(
                         return@post
                     }
                     val parsed = ChartParser.parse(chartBytes)
-                    val computedStats = DecodingService.computeChartStats(parsed)
+                    val computedStats = DecodingService.computeChartStats(parsed, bundleInfo?.bpm)
 
                     // 4. Derive difficulty from bundleInfo.difficulty mapping to enum
                     val difficultyEnum = when (bundleInfo?.difficulty) {
