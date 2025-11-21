@@ -17,6 +17,7 @@ interface IChartRepository {
         sortBy: SortOption?,
         difficulties: List<Difficulty>? = null,
         genres: List<Genre>? = null,
+        isDeluxe: Boolean? = null,
         limit: Int? = null,
         offset: Int? = null,
     ): Pair<List<Chart>, Int>
@@ -26,6 +27,7 @@ interface IChartRepository {
         sortBy: SortOption?,
         difficulties: List<Difficulty>? = null,
         genres: List<Genre>? = null,
+        isDeluxe: Boolean? = null,
         limit: Int? = null,
         offset: Int? = null,
     ): Pair<List<Chart>, Int>

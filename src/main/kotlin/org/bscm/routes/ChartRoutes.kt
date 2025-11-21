@@ -47,9 +47,9 @@ fun Route.chartRoutes(
                     val difficulties =
                         call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
                     val genres = call.request.queryParameters.getAll("genres")?.flatMap { it.split(",") }?.map { Genre.valueOf(it) }
+                    val isDeluxe =  call.request.queryParameters.getAll("versions")?.any { it.equals("DELUXE", ignoreCase = true) }
 
                     val isDashboard = call.request.queryParameters["isDashboard"]?.toBoolean()
-                    val hasDeluxe = call.request.queryParameters["hasDeluxe"]?.toBoolean()
 
                     val sortBy = call.request.queryParameters["sortBy"]?.let { SortOption.valueOf(it) }
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
@@ -72,6 +72,7 @@ fun Route.chartRoutes(
                                 sortBy = sortBy,
                                 difficulties = difficulties,
                                 genres = genres,
+                                isDeluxe = isDeluxe,
                                 limit = limit,
                                 offset = offset,
                             )
@@ -84,6 +85,7 @@ fun Route.chartRoutes(
                                 sortBy = sortBy,
                                 difficulties = difficulties,
                                 genres = genres,
+                                isDeluxe = isDeluxe,
                                 limit = limit,
                                 offset = offset,
                             )
@@ -97,6 +99,7 @@ fun Route.chartRoutes(
                                 sortBy = sortBy,
                                 difficulties = difficulties,
                                 genres = genres,
+                                isDeluxe = isDeluxe,
                                 limit = limit,
                                 offset = offset,
                             )
@@ -112,6 +115,7 @@ fun Route.chartRoutes(
                                     sortBy = sortBy,
                                     difficulties = difficulties,
                                     genres = genres,
+                                    isDeluxe = isDeluxe,
                                     limit = limit,
                                     offset = offset,
                                 )

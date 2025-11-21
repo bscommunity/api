@@ -130,6 +130,7 @@ class ChartRepository : IChartRepository {
         sortBy: SortOption? = null,
         difficulties: List<Difficulty>? = null,
         genres: List<Genre>? = null,
+        isDeluxe: Boolean? = null,
         limit: Int? = 20,
         offset: Int? = null,
         filterByUser: Boolean = false,
@@ -147,7 +148,8 @@ class ChartRepository : IChartRepository {
             contentIds,
             search,
             difficulties,
-            genres
+            genres,
+            isDeluxe
         )
         applyOrdering(baseQuery, sortBy ?: SortOption.LAST_UPDATED)
 
@@ -250,7 +252,8 @@ class ChartRepository : IChartRepository {
         contentIds: List<String>?,
         search: String?,
         difficulties: List<Difficulty>?,
-        genres: List<Genre>?
+        genres: List<Genre>?,
+        isDeluxe: Boolean?,
     ) {
         // Only return public charts if userId is null
         if (userId == null) {
@@ -297,6 +300,16 @@ class ChartRepository : IChartRepository {
         // Filter by genres
         genres?.takeIf { it.isNotEmpty() }?.let {
             query.andWhere { ChartTable.genre inList it }
+        }
+
+        // Filter by isDeluxe
+        isDeluxe?.let { deluxe ->
+            query.andWhere {
+                ChartTable.latestVersionId inSubQuery (
+                        VersionTable.select(VersionTable.id)
+                            .where { VersionTable.isDeluxe eq deluxe }
+                        )
+            }
         }
     }
 
@@ -474,8 +487,9 @@ class ChartRepository : IChartRepository {
         sortBy: SortOption?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?,
+        isDeluxe: Boolean?,
         limit: Int?,
-        offset: Int?,
+        offset: Int?
     ): Pair<List<Chart>, Int> = newSuspendedTransaction {
         val (results, total) = fetchChartEntities(
             userId = userId,
@@ -483,6 +497,7 @@ class ChartRepository : IChartRepository {
             sortBy = sortBy,
             difficulties = difficulties,
             genres = genres,
+            isDeluxe = isDeluxe,
             limit = limit,
             offset = offset,
             fetchStreamingLinks = false,
@@ -519,6 +534,7 @@ class ChartRepository : IChartRepository {
         sortBy: SortOption?,
         difficulties: List<Difficulty>?,
         genres: List<Genre>?,
+        isDeluxe: Boolean?,
         limit: Int?,
         offset: Int?,
     ): Pair<List<Chart>, Int> = newSuspendedTransaction {
@@ -528,6 +544,7 @@ class ChartRepository : IChartRepository {
             sortBy = sortBy,
             difficulties = difficulties,
             genres = genres,
+            isDeluxe = isDeluxe,
             limit = limit,
             offset = offset,
             filterByUser = false,
