@@ -747,20 +747,41 @@ class ChartRepository : IChartRepository {
         }
     }
 
-    override suspend fun refreshChartsBundles(ids: Map<String, String>): Boolean = newSuspendedTransaction {
-        // Iterate through all chart IDs in a batch and refresh its bundle URL
-        val sql = buildString {
+    override suspend fun refreshChartsBundles(ids: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = newSuspendedTransaction {
+        // Update bundle URLs
+        val bundleSql = buildString {
             append("UPDATE ${VersionTable.tableName} SET ${VersionTable.bundleUrl.name} = CASE ${VersionTable.id.name} ")
-            ids.forEach { (id, url) ->
-                append("WHEN '$id' THEN '$url' ")
+            ids.forEach { (id, data) ->
+                append("WHEN '$id' THEN '${data.bundleUrl}' ")
             }
             append("END WHERE ${VersionTable.id.name} IN (${ids.keys.joinToString { "'$it'" }});")
         }
 
+        // Update cover URLs for charts that have a cover URL and existing coverUrl contains 'cdn.discordapp.com'
+        val idsWithCovers = ids.filter { it.value.coverUrl != null }
+        val coverSql = if (idsWithCovers.isNotEmpty()) {
+            buildString {
+                append("UPDATE ${ChartTable.tableName} SET ${ChartTable.coverUrl.name} = CASE ${ChartTable.id.name} ")
+                idsWithCovers.forEach { (versionId, data) ->
+                    // Get chart ID from version ID
+                    append("WHEN (SELECT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} = '$versionId') THEN '${data.coverUrl}' ")
+                }
+                append("END WHERE ${ChartTable.id.name} IN (")
+                append("SELECT DISTINCT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} IN (${idsWithCovers.keys.joinToString { "'$it'" }})")
+                append(") AND ${ChartTable.coverUrl.name} LIKE 'https://cdn.discordapp.com%';")
+            }
+        } else null
+
         transaction {
-            exec(sql)
+            exec(bundleSql)
+            if (coverSql != null) {
+                exec(coverSql)
+            }
 
             println("Successfully refreshed bundle URLs for ${ids.size} charts")
+            if (idsWithCovers.isNotEmpty()) {
+                println("Successfully refreshed cover URLs for ${idsWithCovers.size} charts (only where coverUrl contains 'cdn.discordapp.com')")
+            }
             true
         }
 

@@ -406,11 +406,17 @@ class UploadService(
         return response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.OK
     }
 
-    // Refreshes all bundle URLs in the webhook messages (from the charts channel)
-    suspend fun refreshBundleUrls(): Map<String, String> {
+    @Serializable
+    data class RefreshData(
+        val bundleUrl: String,
+        val coverUrl: String? = null
+    )
+
+    // Refreshes all bundle URLs and cover URLs in the webhook messages (from the charts channel)
+    suspend fun refreshBundleUrls(): Map<String, RefreshData> {
         val maxMessages = 1000
         val messagesPerRequest = 100
-        val bundleUrls = mutableMapOf<String, String>()
+        val refreshData = mutableMapOf<String, RefreshData>()
         var lastMessageId: String? = null
         var fetched = 0
         while (fetched < maxMessages) {
@@ -441,12 +447,22 @@ class UploadService(
             for (msg in messages) {
                 val obj = msg.jsonObject
                 val attachments = obj["attachments"]?.jsonArray
+                val embeds = obj["embeds"]?.jsonArray
+
                 if (attachments != null && attachments.isNotEmpty()) {
                     val lastAttachment = attachments.last().jsonObject
-                    val url = lastAttachment["url"]?.jsonPrimitive?.content
+                    val bundleUrl = lastAttachment["url"]?.jsonPrimitive?.content
                     val id = lastAttachment["id"]?.jsonPrimitive?.content
-                    if (id != null && url != null) {
-                        bundleUrls[id] = url
+
+                    // Get cover URL from first embed's image
+                    val coverUrl = embeds?.firstOrNull()?.jsonObject
+                        ?.get("image")?.jsonObject
+                        ?.get("url")?.jsonPrimitive?.content
+
+                    println("Refreshing message ID=${obj["id"]?.jsonPrimitive?.content}: bundleUrl=$bundleUrl, coverUrl=$coverUrl")
+
+                    if (id != null && bundleUrl != null) {
+                        refreshData[id] = RefreshData(bundleUrl, coverUrl)
                     }
                 }
             }
@@ -456,6 +472,6 @@ class UploadService(
 
             if (messages.size < messagesPerRequest) break
         }
-        return bundleUrls
+        return refreshData
     }
 }
