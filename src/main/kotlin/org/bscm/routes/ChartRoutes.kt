@@ -23,10 +23,9 @@ import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.plugins.jsonClient
-import org.bscm.protobuf.ChartParser
-import org.bscm.services.DecodingService
-import org.bscm.services.MediaInfoService
+import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
+import org.koin.ktor.ext.getKoin
 import java.util.*
 
 fun Route.chartRoutes(
@@ -209,22 +208,13 @@ fun Route.chartRoutes(
             rateLimit(RateLimitName("restricted")) {
                 // Create a new chart
                 post {
-                    // ================= PIPELINE OVERVIEW =================
-                    // FORM FIELDS: previewUrl, isExplicit
-                    // ZIP (BUNDLE) DECODE: cover image PNG (Texture2D), chart.bytes (TextAsset)
-                    // INFO.JSON: track, artist, difficulty, isDeluxe, bpm
-                    // MEDIA SERVICE: album, trackUrls, trackPreviewUrl, genre
-                    // INTERNAL CALCS: duration, notesAmount, effectsAmount (from parsed chart)
-                    // AFTER DISCORD UPLOAD: bundleUrl (zip attachment), coverUrl (cover attachment)
-                    // =====================================================
-
                     val principal = call.principal<JWTPrincipal>()
                     val userId = principal?.subject?.let { UUID.fromString(it) }
                         ?: throw UnauthorizedException("User unauthorized")
 
                     val user = userRepository.getUserById(userId) ?: throw UnauthorizedException("User not found")
 
-                    // Parse multipart form
+                    // Parse multipart form (bundle + optional overrides JSON under 'chart')
                     val multipart = call.receiveMultipart()
                     var chartJson: String? = null
                     var bundleFileBytes: ByteArray? = null
@@ -243,121 +233,27 @@ fun Route.chartRoutes(
                         return@post
                     }
 
-                    // Try to decode provided chart JSON (optional overrides from client)
+                    // Optional client overrides
                     val clientRequest: CreateChartRequest? = chartJson?.let {
                         try { jsonClient.decodeFromString<CreateChartRequest>(it) } catch (_: Exception) { null }
                     }
 
-                    // Extract previewUrl & isExplicit early (source-of-truth: form JSON)
-                    val previewUrlFromForm = clientRequest?.previewUrl
-                    val isExplicitFromForm = clientRequest?.isExplicit ?: false
+                    val publishService = call.application.getKoin().get<ChartPublishService>()
 
-                    // 1. Extract info.json metadata
-                    val bundleInfo = DecodingService.extractBundleInfo(bundleFileBytes)
-
-                    // 2. Extract cover image (raw bytes) if any
-                    val coverBytes = DecodingService.extractCoverImage(bundleFileBytes)
-
-                    // 3. Extract chart.bytes from chart.bundle and parse protobuf
-                    val chartBytes = DecodingService.extractChartFileFromBundle(bundleFileBytes)
-                    if (chartBytes == null) {
-                        call.respond(HttpStatusCode.BadRequest, "Failed to extract chart.bundle bytes")
-                        return@post
+                    try {
+                        val result = publishService.publish(
+                            user = user,
+                            bundleBytes = bundleFileBytes,
+                            overrides = ChartPublishService.Overrides(
+                                isExplicit = clientRequest?.isExplicit,
+                                previewUrl = clientRequest?.previewUrl,
+                            )
+                        )
+                        call.respond(HttpStatusCode.Created, result.chart)
+                    } catch (e: Exception) {
+                        println("Chart publish failed: ${e.message}")
+                        call.respond(HttpStatusCode.InternalServerError, e.message ?: "Failed to publish chart")
                     }
-                    val parsed = ChartParser.parse(chartBytes)
-                    val computedStats = DecodingService.computeChartStats(parsed, bundleInfo?.bpm)
-
-                    // 4. Derive difficulty from bundleInfo.difficulty mapping to enum
-                    val difficultyEnum = when (bundleInfo?.difficulty) {
-                        4 -> Difficulty.NORMAL
-                        3 -> Difficulty.HARD
-                        1 -> Difficulty.EXTREME
-                        else -> Difficulty.NORMAL
-                    }
-
-                    // 5. Fetch media info (album cover, streaming links) using track + artist from bundleInfo overrides
-                    val trackName = bundleInfo?.title ?: clientRequest?.track ?: "Unknown"
-                    val artistName = bundleInfo?.artist ?: clientRequest?.artist ?: "Unknown"
-                    val mediaInfo = try { MediaInfoService.getMediaInfo(trackName, artistName) } catch (error: Exception) {
-                        println("MediaInfo fetch error: ${error.message}")
-                        null
-                    }
-
-                    println("MediaInfo fetched: $mediaInfo")
-
-                    // Fallback cover: if extracted coverBytes available, upload later; else use mediaInfo.coverUrl
-                    val coverUrlPlaceholder = if (coverBytes != null) "" else (mediaInfo?.coverUrl ?: clientRequest?.coverUrl ?: "")
-
-                    // 6. Track URLs (streaming links). If mediaInfo returned some, optionally enrich them with Odesli
-                    val streamingLinks = try {
-                        if (!mediaInfo?.trackUrls.isNullOrEmpty()) {
-                            MediaInfoService.getTrackStreamingLinks(mediaInfo.trackUrls.first().url, trackName, artistName)
-                        } else clientRequest?.trackUrls ?: emptyList()
-                    } catch (error: Exception) {
-                        println("Streaming links fetch error: ${error.message}")
-                        mediaInfo?.trackUrls ?: clientRequest?.trackUrls ?: emptyList()
-                    }
-
-                    // 7. BPM: prefer bundleInfo.bpm else clientRequest else approximate (not implemented)
-                    val bpm = bundleInfo?.bpm ?: clientRequest?.bpm ?: 0
-
-                    // 8. isDeluxe flag from bundle type
-                    val isDeluxe = bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: clientRequest?.isDeluxe ?: false
-
-                    // 9. Generate contentId
-                    val contentId = org.bscm.utils.NanoIdUtils.generateOptimized(
-                        10,
-                        "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                        63,
-                        16
-                    )
-
-                    // 10. Upload bundle to Discord (cover image uploading not yet implemented separately)
-                    // println("Bundle size: ${bundleFileBytes.size}")
-                    val createChartForUpload = CreateChartRequest(
-                        artist = artistName,
-                        track = trackName,
-                        album = mediaInfo?.album,
-                        trackUrls = streamingLinks,
-                        trackPreviewUrl = mediaInfo?.trackPreviewUrl,
-                        coverUrl = coverUrlPlaceholder,
-                        genre = mediaInfo?.genre,
-                        isExplicit = isExplicitFromForm,
-                        duration = computedStats.duration,
-                        notesAmount = computedStats.notesAmount,
-                        effectsAmount = computedStats.effectsAmount,
-                        bpm = bpm,
-                        difficulty = difficultyEnum,
-                        isDeluxe = isDeluxe,
-                        bundleUrl = "",
-                        previewUrl = previewUrlFromForm,
-                        contentId = contentId,
-                    )
-
-                    val discordResponse = uploadService.uploadChart(createChartForUpload, user,
-                        bundleFileBytes, coverBytes)
-
-                    // Identify attachments by extension
-                    val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
-                    val coverUrl = discordResponse.embeds.firstOrNull()?.image?.url
-
-                    // println("Discord attachments: ${discordResponse.attachments}")
-
-                    if (bundleAttachment == null) {
-                        call.respond(HttpStatusCode.InternalServerError, "Failed to upload bundle")
-                        return@post
-                    }
-
-                    val finalCreate = createChartForUpload.copy(
-                        id = discordResponse.id.toULong(),
-                        versionId = bundleAttachment.id.toULong(),
-                        bundleUrl = bundleAttachment.url,
-                        coverUrl = coverUrl ?: createChartForUpload.coverUrl,
-                    )
-
-                    val createdChart = chartRepository.createChart(userId, finalCreate)
-
-                    call.respond(HttpStatusCode.Created, createdChart)
                 }
 
                 // Update an existing chart

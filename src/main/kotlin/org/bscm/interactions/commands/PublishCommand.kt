@@ -8,16 +8,11 @@ import io.ktor.utils.io.*
 import kotlinx.serialization.json.*
 import org.bscm.interactions.CommandHandler.ephemeralMessage
 import org.bscm.interactions.I18n
-import org.bscm.models.dto.chart.CreateChartRequest
-import org.bscm.models.enums.Difficulty
 import org.bscm.models.repository.IChartRepository
 import org.bscm.models.repository.IUserRepository
 import org.bscm.plugins.applicationHttpClient
-import org.bscm.protobuf.ChartParser
-import org.bscm.services.DecodingService
-import org.bscm.services.MediaInfoService
+import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
-import org.bscm.utils.NanoIdUtils
 import org.koin.ktor.ext.getKoin
 
 object PublishCommand {
@@ -101,7 +96,7 @@ object PublishCommand {
         println("Publish command received:")
         println(" - Bundle: $bundleName")
         println(" - Gameplay URL: ${gameplayUrl ?: "N/A"}")
-        println(" - Explicit: ${explicitVal ?: "N/A"}")
+        println(" - Explicit: $explicitVal")
 
         // EphemeralMessage with embed structured message
         val progressJson = ephemeralMessage {
@@ -135,132 +130,38 @@ object PublishCommand {
             return
         }
 
-        // 1. Extract info.json metadata
-        val bundleInfo = DecodingService.extractBundleInfo(bundleBytes)
+        val publishService = call.application.getKoin().get<ChartPublishService>()
 
-        // 2. Extract cover image (raw bytes) if any
-        val coverBytes = DecodingService.extractCoverImage(bundleBytes)
-
-        // 3. Extract chart.bytes from chart.bundle and parse protobuf
-        val chartBytes = DecodingService.extractChartFileFromBundle(bundleBytes)
-        if (chartBytes == null) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "chart_bytes_failed")) })
-            return
-        }
-        val parsed = try {
-            ChartParser.parse(chartBytes)
-        } catch (e: Exception) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "chart_parse_failed")) })
-            return
-        }
-        val computedStats = DecodingService.computeChartStats(parsed, bundleInfo?.bpm)
-
-        // 4. Derive difficulty from bundleInfo.difficulty mapping to enum
-        val difficultyEnum = when (bundleInfo?.difficulty) {
-            4 -> Difficulty.NORMAL
-            3 -> Difficulty.HARD
-            1 -> Difficulty.EXTREME
-            else -> Difficulty.NORMAL
-        }
-
-        // 5. Fetch media info (album cover, streaming links) using track + artist from bundleInfo overrides
-        val trackName = bundleInfo?.title ?: "Unknown"
-        val artistName = bundleInfo?.artist ?: "Unknown"
-        val mediaInfo = try { MediaInfoService.getMediaInfo(trackName, artistName) } catch (_: Exception) { null }
-
-        // Fallback cover: if extracted coverBytes available, upload later; else use mediaInfo.coverUrl
-        val coverUrlPlaceholder = if (coverBytes != null) "" else (mediaInfo?.coverUrl ?: "")
-
-        // 6. Track URLs (streaming links).
-        val streamingLinks = try {
-            if (!mediaInfo?.trackUrls.isNullOrEmpty()) {
-                MediaInfoService.getTrackStreamingLinks(mediaInfo.trackUrls.first().url, trackName, artistName)
-            } else mediaInfo?.trackUrls ?: emptyList()
-        } catch (_: Exception) {
-            mediaInfo?.trackUrls ?: emptyList()
-        }
-
-        // 7. BPM: prefer bundleInfo.bpm else approximate
-        val bpm = bundleInfo?.bpm ?: 0
-
-        // 8. isDeluxe flag
-        val isDeluxe = bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false
-
-        // 9. Generate contentId
-        val contentId = NanoIdUtils.generateOptimized(
-            10,
-            "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-            63,
-            16
-        )
-
-        // 10. Upload bundle to Discord (cover image uploading handled by UploadService)
-        val createChartForUpload = CreateChartRequest(
-            artist = artistName,
-            track = trackName,
-            album = mediaInfo?.album,
-            trackUrls = streamingLinks,
-            trackPreviewUrl = mediaInfo?.trackPreviewUrl,
-            coverUrl = coverUrlPlaceholder,
-            genre = mediaInfo?.genre,
-            isExplicit = explicitVal,
-            duration = computedStats.duration,
-            notesAmount = computedStats.notesAmount,
-            effectsAmount = computedStats.effectsAmount,
-            bpm = bpm,
-            difficulty = difficultyEnum,
-            isDeluxe = isDeluxe,
-            bundleUrl = "",
-            previewUrl = gameplayUrl,
-            contentId = contentId,
-        )
-
-        val discordResponse = try {
-            uploadService.uploadChart(createChartForUpload, user, bundleBytes, coverBytes)
-        } catch (e: Exception) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "discord_upload_failed")) })
-            return
-        }
-
-        val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
-        val coverUrl = discordResponse.embeds.firstOrNull()?.image?.url
-
-        if (bundleAttachment == null) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "discord_upload_missing_bundle")) })
-            return
-        }
-
-        val finalCreate = createChartForUpload.copy(
-            id = discordResponse.id.toULong(),
-            versionId = bundleAttachment.id.toULong(),
-            bundleUrl = bundleAttachment.url,
-            coverUrl = coverUrl ?: createChartForUpload.coverUrl,
-        )
-
-        val createdChart = try {
-            chartRepository.createChart(user.id, finalCreate)
+        val result = try {
+            publishService.publish(
+                user = user,
+                bundleBytes = bundleBytes,
+                overrides = ChartPublishService.Overrides(
+                    isExplicit = explicitVal,
+                    previewUrl = gameplayUrl,
+                )
+            )
         } catch (e: Exception) {
             call.respondJson(ephemeralMessage { content(I18n.t(locale, "chart_persist_failed")) })
             return
         }
 
         // Success ephemeral message
-        val successJson = ephemeralMessage {
+        val jsonSuccess = ephemeralMessage {
             embed {
                 title = I18n.t(locale, "publish_success_title")
                 description = I18n.t(locale, "publish_success_description")
-                field("Track", createdChart.track, true)
-                field("Artist", createdChart.artist, true)
-                field("Difficulty", createChartForUpload.difficulty.name, true)
-                field("Duration",
-                    String.format("%dm%ds", (createChartForUpload.duration / 60).toInt(), (createChartForUpload.duration % 60).toInt()), true)
-                field("Notes", createChartForUpload.notesAmount.toString(), true)
-                field("Effects", createChartForUpload.effectsAmount.toString(), true)
-                field("Link", "https://bscm.netlify.app/link/chart/${createdChart.contentId}", false)
+                field("Track", result.chart.track, true)
+                field("Artist", result.chart.artist, true)
+                /*field("Difficulty", result.chart.difficulty.name, true)
+                field("Duration", "${String.format("%dm%ds", (result.chart.duration / 60).toInt(), (result.chart.duration % 60).toInt())}", true)
+                field("Notes", result.chart.notesAmount.toString(), true)
+                field("Effects", result.chart.effectsAmount.toString(), true)*/
+                field("Link", "https://bscm.netlify.app/link/chart/${result.chart.contentId}", false)
                 footer("bscm")
             }
         }
 
-        call.respondJson(successJson)
+        call.respondJson(jsonSuccess)
     }
 }
