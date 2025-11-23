@@ -5,21 +5,25 @@ import io.ktor.client.statement.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.utils.io.*
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
-import org.bscm.interactions.CommandHandler.ephemeralMessage
+import org.bscm.interactions.Button
+import org.bscm.interactions.CommandHandler.immediateEphemeralResponse
 import org.bscm.interactions.I18n
+import org.bscm.interactions.message
 import org.bscm.models.repository.IUserRepository
 import org.bscm.plugins.applicationHttpClient
 import org.bscm.services.ChartPublishService
+import org.bscm.services.InteractionResponseService
 import org.koin.ktor.ext.getKoin
 
 object PublishCommand {
     suspend fun ApplicationCall.respondJson(json: JsonObject) = respond(json)
 
-    // Updated to receive entire payload so we can access user/member info for discordId lookup
     suspend fun handle(call: ApplicationCall, payload: JsonObject, data: JsonObject, locale: String?) {
         val koin = call.application.getKoin()
         val userRepository = koin.get<IUserRepository>()
+        val interactionService = koin.get<InteractionResponseService>()
 
         // Extract Discord user id (guild -> member.user.id, DM -> user.id)
         val discordUserId = payload["member"]?.jsonObject
@@ -28,7 +32,7 @@ object PublishCommand {
             ?: payload["user"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
 
         if (discordUserId == null) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "missing_user_context")) })
+            call.respondJson(immediateEphemeralResponse { content(I18n.t(locale, "missing_user_context")) })
             return
         }
 
@@ -36,7 +40,7 @@ object PublishCommand {
         val user = userRepository.getUserByDiscordId(discordUserId)
         if (user == null) {
             // Invite to create account
-            val json = ephemeralMessage {
+            val json = immediateEphemeralResponse {
                 embed {
                     title = I18n.t(locale, "account_required_title")
                     description = I18n.t(locale, "account_required_description")
@@ -45,7 +49,7 @@ object PublishCommand {
                 }
                 // Provide a button to registration page
                 buttonRow(
-                    org.bscm.interactions.Button(
+                    Button(
                         type = 2,
                         style = 5,
                         label = "Create Account",
@@ -59,7 +63,7 @@ object PublishCommand {
 
         val optionsArray = data["options"]?.jsonArray
         if (optionsArray == null || optionsArray.isEmpty()) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "provide_required_attachments")) })
+            call.respondJson(immediateEphemeralResponse { content(I18n.t(locale, "provide_required_attachments")) })
             return
         }
 
@@ -71,7 +75,7 @@ object PublishCommand {
         val explicitOpt = findOption("is_explicit")
 
         if (bundleOpt == null) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "missing_required_attachments")) })
+            call.respondJson(immediateEphemeralResponse { content(I18n.t(locale, "missing_required_attachments")) })
             return
         }
 
@@ -94,98 +98,133 @@ object PublishCommand {
         println(" - Gameplay URL: ${gameplayUrl ?: "N/A"}")
         println(" - Explicit: $explicitVal")
 
-        // EphemeralMessage with embed structured message
-        val progressJson = ephemeralMessage {
-            embed {
-                title = "⏳ ${I18n.t(locale, "publish_received")}"
-                description = I18n.t(locale, "processing_chart")
-                color = 16776960 // Yellow
+        // ====== Step 1: Send deferred response (acknowledges interaction immediately) ======
+        call.respondJson(interactionService.deferredResponse(ephemeral = true))
+
+        // Extract interaction token for follow-ups
+        val interactionToken = payload["token"]?.jsonPrimitive?.contentOrNull
+        if (interactionToken == null) {
+            println("ERROR: Missing interaction token")
+            return
+        }
+
+        // ====== Step 2: Process in background and update via editOriginalResponse ======
+        call.application.launch {
+            try {
+                // Update: Downloading bundle
+                interactionService.editOriginalResponse(interactionToken, message {
+                    embed {
+                        title = "📥 ${I18n.t(locale, "downloading_bundle")}"
+                        description = I18n.t(locale, "downloading_bundle_description")
+                        color = 3447003 // Blue
+                    }
+                })
+
+                val bundleId = bundleOpt["value"]?.jsonPrimitive?.contentOrNull
+                val bundleAttachmentObj = bundleId?.let { attachments?.get(it)?.jsonObject }
+                val bundleUrl = bundleAttachmentObj?.get("url")?.jsonPrimitive?.contentOrNull
+
+                if (bundleUrl == null) {
+                    interactionService.editOriginalResponse(interactionToken, message {
+                        embed {
+                            title = "❌ ${I18n.t(locale, "error")}"
+                            description = I18n.t(locale, "bundle_download_failed")
+                            color = 15548997 // Discord red
+                        }
+                    })
+                    return@launch
+                }
+
+                val bundleBytes: ByteArray = try {
+                    val resp: HttpResponse = applicationHttpClient.get(bundleUrl)
+                    resp.bodyAsChannel().toByteArray()
+                } catch (e: Exception) {
+                    println("Failed to download bundle: ${e.message}")
+                    interactionService.editOriginalResponse(interactionToken, message {
+                        embed {
+                            title = "❌ ${I18n.t(locale, "error")}"
+                            description = I18n.t(locale, "bundle_download_failed")
+                            color = 15548997 // Discord red
+                        }
+                    })
+                    return@launch
+                }
+
+                // Update: Processing chart
+                interactionService.editOriginalResponse(interactionToken, message {
+                    embed {
+                        title = "⚙️ ${I18n.t(locale, "processing_chart")}"
+                        description = I18n.t(locale, "processing_chart_description")
+                        color = 16776960 // Yellow
+                    }
+                })
+
+                val publishService = call.application.getKoin().get<ChartPublishService>()
+
+                val result = try {
+                    publishService.publish(
+                        user = user,
+                        bundleBytes = bundleBytes,
+                        overrides = ChartPublishService.Overrides(
+                            isExplicit = explicitVal,
+                            previewUrl = gameplayUrl,
+                        )
+                    )
+                } catch (e: Exception) {
+                    println("Failed to publish chart: ${e.message}")
+                    e.printStackTrace()
+                    interactionService.editOriginalResponse(interactionToken, message {
+                        embed {
+                            title = "❌ ${I18n.t(locale, "error")}"
+                            description = I18n.t(locale, "chart_persist_failed") + "\n\n```${e.message}```"
+                            color = 15548997 // Discord red
+                        }
+                    })
+                    return@launch
+                }
+
+                val v = result.initialVersion
+
+                // Update: Success!
+                interactionService.editOriginalResponse(interactionToken, message {
+                    embed {
+                        title = "✅ ${I18n.t(locale, "publish_success_title")}"
+                        description = I18n.t(locale, "publish_success_description")
+                        field(I18n.t(locale, "track_label"), result.chart.track, true)
+                        field(I18n.t(locale, "artist_label"), result.chart.artist, true)
+                        field(I18n.t(locale, "difficulty_label"), v.difficulty.name, true)
+                        field(I18n.t(locale, "duration_label"), String.format("%dm%ds", (v.duration / 60).toInt(), (v.duration % 60).toInt()), true)
+                        field(I18n.t(locale, "notes_label"), v.notesAmount.toString(), true)
+                        field(I18n.t(locale, "effects_label"), v.effectsAmount.toString(), true)
+                        field("", I18n.t(locale, "manage_chart_info"), false)
+                        color = 5763719 // Discord green
+                    }
+                    buttonRow(
+                        Button(
+                            type = 2,
+                            style = 5,
+                            label = "View Chart",
+                            url = "https://bscm.netlify.app/link/chart/${result.chart.contentId}"
+                        ),
+                        Button(
+                            type = 2,
+                            style = 5,
+                            label = "Open Dashboard",
+                            url = "https://bscm.netlify.app"
+                        )
+                    )
+                })
+            } catch (e: Exception) {
+                println("Unexpected error in publish command: ${e.message}")
+                e.printStackTrace()
+                interactionService.editOriginalResponse(interactionToken, message {
+                    embed {
+                        title = "❌ ${I18n.t(locale, "error")}"
+                        description = "${I18n.t(locale, "unexpected_error")}\n\n```${e.message}```"
+                        color = 15548997 // Discord red
+                    }
+                })
             }
         }
-
-        call.respondJson(progressJson)
-
-        // ====== Download bundle from Discord CDN ======
-        val bundleId = bundleOpt["value"]?.jsonPrimitive?.contentOrNull
-        val bundleAttachmentObj = bundleId?.let { attachments?.get(it)?.jsonObject }
-        val bundleUrl = bundleAttachmentObj?.get("url")?.jsonPrimitive?.contentOrNull
-
-        if (bundleUrl == null) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "bundle_download_failed")) })
-            return
-        }
-
-        val bundleBytes: ByteArray = try {
-            val resp: HttpResponse = applicationHttpClient.get(bundleUrl)
-            resp.bodyAsChannel().toByteArray()
-        } catch (e: Exception) {
-            println("Failed to download bundle: ${e.message}")
-            call.respondJson(ephemeralMessage {
-                embed {
-                    title = "❌ Error"
-                    description = I18n.t(locale, "bundle_download_failed")
-                    color = 15548997 // Discord red
-                }
-            })
-            return
-        }
-
-        val publishService = call.application.getKoin().get<ChartPublishService>()
-
-        val result = try {
-            publishService.publish(
-                user = user,
-                bundleBytes = bundleBytes,
-                overrides = ChartPublishService.Overrides(
-                    isExplicit = explicitVal,
-                    previewUrl = gameplayUrl,
-                )
-            )
-        } catch (e: Exception) {
-            println("Failed to publish chart: ${e.message}")
-            e.printStackTrace()
-            call.respondJson(ephemeralMessage {
-                embed {
-                    title = "❌ Error"
-                    description = I18n.t(locale, "chart_persist_failed")
-                    color = 15548997 // Discord red
-                }
-            })
-            return
-        }
-
-        val v = result.initialVersion
-
-        // Success ephemeral message
-        val jsonSuccess = ephemeralMessage {
-            embed {
-                title = "✅ ${I18n.t(locale, "publish_success_title")}"
-                description = I18n.t(locale, "publish_success_description")
-                field(I18n.t(locale, "track_label"), result.chart.track, true)
-                field(I18n.t(locale, "artist_label"), result.chart.artist, true)
-                field(I18n.t(locale, "difficulty_label"), v.difficulty.name, true)
-                field(I18n.t(locale, "duration_label"), String.format("%dm%ds", (v.duration / 60).toInt(), (v.duration % 60).toInt()), true)
-                field(I18n.t(locale, "notes_label"), v.notesAmount.toString(), true)
-                field(I18n.t(locale, "effects_label"), v.effectsAmount.toString(), true)
-                field("", I18n.t(locale, "manage_chart_info"), false)
-                color = 5763719 // Discord green
-            }
-            buttonRow(
-                org.bscm.interactions.Button(
-                    type = 2,
-                    style = 5,
-                    label = "View Chart",
-                    url = "https://bscm.netlify.app/link/chart/${result.chart.contentId}"
-                ),
-                org.bscm.interactions.Button(
-                    type = 2,
-                    style = 5,
-                    label = "Open Dashboard",
-                    url = "https://bscm.netlify.app"
-                )
-            )
-        }
-
-        call.respondJson(jsonSuccess)
     }
 }

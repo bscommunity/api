@@ -47,4 +47,7 @@ object CommandHandler {
     }
 
     fun ephemeralMessage(block: MessageBuilder.() -> Unit): JsonObject = message(block).toInteractionJson(ephemeral = true)
+
+    fun immediateEphemeralResponse(block: MessageBuilder.() -> Unit): JsonObject =
+        message(block).toInteractionJson(ephemeral = true)
 }

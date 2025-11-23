@@ -9,7 +9,7 @@ import org.bscm.interactions.CommandHandler
 import org.bscm.interactions.I18n
 import org.bscm.utils.Ed25519Utils.verifyEd25519
 
-fun Route.interactionsRoutes(publicKey: String?, appId: String?, botToken: String?) {
+fun Route.interactionsRoutes(publicKey: String?) {
     post("/interactions") {
         val signature = call.request.header("X-Signature-Ed25519")
         val timestamp = call.request.header("X-Signature-Timestamp")
@@ -36,7 +36,7 @@ fun Route.interactionsRoutes(publicKey: String?, appId: String?, botToken: Strin
 
         when (json["type"]?.jsonPrimitive?.intOrNull) {
             1 -> call.respond(HttpStatusCode.OK, buildJsonObject { put("type", 1) }) // Discord's default PING (obligatory)
-            2 -> CommandHandler.handle(call, json, appId, botToken) // APPLICATION_COMMAND
+            2 -> CommandHandler.handle(call, json) // APPLICATION_COMMAND
             else -> call.respond(HttpStatusCode.NotImplemented, I18n.t(json["locale"]?.jsonPrimitive?.contentOrNull, "unsupported_interaction_type"))
         }
     }

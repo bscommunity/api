@@ -65,4 +65,10 @@ fun mainModule(config: ApplicationConfig) = module {
             uploadService = get()
         )
     }
+    single {
+        InteractionResponseService(
+            botToken = config.property("discord.botToken").getString(),
+            applicationId = config.property("discord.clientId").getString(),
+        )
+    }
 }

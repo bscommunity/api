@@ -34,7 +34,12 @@ object I18n {
             "notes_label" to "Notes",
             "effects_label" to "Effects",
             "link_label" to "Link",
-            "manage_chart_info" to "You can edit or delete this chart from your dashboard."
+            "manage_chart_info" to "You can edit or delete this chart from your dashboard.",
+            "downloading_bundle" to "Downloading Bundle",
+            "downloading_bundle_description" to "Downloading your chart bundle from Discord...",
+            "processing_chart_description" to "Validating and processing your chart data...",
+            "error" to "Error",
+            "unexpected_error" to "An unexpected error occurred while processing your chart."
         ),
         "pt_BR" to mapOf(
             "pong" to "pong!",
@@ -68,7 +73,12 @@ object I18n {
             "notes_label" to "Notas",
             "effects_label" to "Efeitos",
             "link_label" to "Link",
-            "manage_chart_info" to "Você pode editar ou deletar este chart no seu painel."
+            "manage_chart_info" to "Você pode editar ou deletar este chart no seu painel.",
+            "downloading_bundle" to "Baixando Bundle",
+            "downloading_bundle_description" to "Baixando o bundle do seu chart do Discord...",
+            "processing_chart_description" to "Validando e processando os dados do seu chart...",
+            "error" to "Erro",
+            "unexpected_error" to "Ocorreu um erro inesperado ao processar seu chart."
         ),
         "es" to mapOf(
             "pong" to "pong!",
@@ -102,7 +112,12 @@ object I18n {
             "notes_label" to "Notas",
             "effects_label" to "Efectos",
             "link_label" to "Enlace",
-            "manage_chart_info" to "Puedes editar o eliminar este chart desde tu panel."
+            "manage_chart_info" to "Puedes editar o eliminar este chart desde tu panel.",
+            "downloading_bundle" to "Descargando Bundle",
+            "downloading_bundle_description" to "Descargando el bundle de tu chart desde Discord...",
+            "processing_chart_description" to "Validando y procesando los datos de tu chart...",
+            "error" to "Error",
+            "unexpected_error" to "Ocurrió un error inesperado al procesar tu chart."
         ),
         "ru" to mapOf(
             "pong" to "pong!",
@@ -136,7 +151,12 @@ object I18n {
             "notes_label" to "Ноты",
             "effects_label" to "Эффекты",
             "link_label" to "Ссылка",
-            "manage_chart_info" to "Вы можете редактировать или удалить эту карту из панели управления."
+            "manage_chart_info" to "Вы можете редактировать или удалить эту карту из панели управления.",
+            "downloading_bundle" to "Загрузка Bundle",
+            "downloading_bundle_description" to "Загрузка bundle вашей карты из Discord...",
+            "processing_chart_description" to "Проверка и обработка данных вашей карты...",
+            "error" to "Ошибка",
+            "unexpected_error" to "Произошла неожиданная ошибка при обработке вашей карты."
         )
     )
 
