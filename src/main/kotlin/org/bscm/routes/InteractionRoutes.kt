@@ -32,6 +32,8 @@ fun Route.interactionsRoutes(publicKey: String?) {
             return@post
         }
 
+        // println("Received interaction: $json")
+
         when (json["type"]?.jsonPrimitive?.intOrNull) {
             1 -> call.respond(HttpStatusCode.OK, buildJsonObject { put("type", 1) }) // Discord's default PING (obligatory)
             2 -> CommandHandler.handle(call, json) // APPLICATION_COMMAND

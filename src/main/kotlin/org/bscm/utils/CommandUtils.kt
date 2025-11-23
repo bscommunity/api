@@ -31,15 +31,10 @@ object CommandUtils {
 
         val commands = listOf(
             ApplicationCommand(
-                name = "ping",
-                description = "Replies with pong!"
-            ),
-            ApplicationCommand(
                 name = "publish",
                 description = "Publishes a new chart (attachments required)",
                 options = listOf(
                     CommandOption(11, "bundle_zip", "Bundle .zip (attachment)", true),
-                    CommandOption(11, "chart_file", ".chart file (attachment)", true),
                     CommandOption(3, "gameplay_url", "Gameplay URL (YouTube)", false),
                     CommandOption(5, "is_explicit", "Explicit?", false)
                 )

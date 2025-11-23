@@ -18,7 +18,7 @@ object CommandHandler {
 
         when (name) {
             "publish" -> {
-                PublishCommand.handle(call, data, locale)
+                PublishCommand.handle(call, payload, data, locale)
                 return
             }
             else -> {
