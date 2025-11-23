@@ -8,11 +8,9 @@ import io.ktor.utils.io.*
 import kotlinx.serialization.json.*
 import org.bscm.interactions.CommandHandler.ephemeralMessage
 import org.bscm.interactions.I18n
-import org.bscm.models.repository.IChartRepository
 import org.bscm.models.repository.IUserRepository
 import org.bscm.plugins.applicationHttpClient
 import org.bscm.services.ChartPublishService
-import org.bscm.services.UploadService
 import org.koin.ktor.ext.getKoin
 
 object PublishCommand {
@@ -22,8 +20,6 @@ object PublishCommand {
     suspend fun handle(call: ApplicationCall, payload: JsonObject, data: JsonObject, locale: String?) {
         val koin = call.application.getKoin()
         val userRepository = koin.get<IUserRepository>()
-        val chartRepository = koin.get<IChartRepository>()
-        val uploadService = koin.get<UploadService>()
 
         // Extract Discord user id (guild -> member.user.id, DM -> user.id)
         val discordUserId = payload["member"]?.jsonObject
@@ -146,6 +142,8 @@ object PublishCommand {
             return
         }
 
+        val v = result.initialVersion
+
         // Success ephemeral message
         val jsonSuccess = ephemeralMessage {
             embed {
@@ -153,10 +151,10 @@ object PublishCommand {
                 description = I18n.t(locale, "publish_success_description")
                 field("Track", result.chart.track, true)
                 field("Artist", result.chart.artist, true)
-                /*field("Difficulty", result.chart.difficulty.name, true)
-                field("Duration", "${String.format("%dm%ds", (result.chart.duration / 60).toInt(), (result.chart.duration % 60).toInt())}", true)
-                field("Notes", result.chart.notesAmount.toString(), true)
-                field("Effects", result.chart.effectsAmount.toString(), true)*/
+                field("Difficulty", v.difficulty.name, true)
+                field("Duration", String.format("%dm%ds", (v.duration / 60).toInt(), (v.duration % 60).toInt()), true)
+                field("Notes", v.notesAmount.toString(), true)
+                field("Effects", v.effectsAmount.toString(), true)
                 field("Link", "https://bscm.netlify.app/link/chart/${result.chart.contentId}", false)
                 footer("bscm")
             }

@@ -4,6 +4,7 @@ import org.bscm.models.Chart
 import org.bscm.models.StreamingLink
 import org.bscm.models.User
 import org.bscm.models.dto.chart.CreateChartRequest
+import org.bscm.models.dto.version.SimplifiedVersion
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.repository.IChartRepository
@@ -30,6 +31,7 @@ class ChartPublishService(
 
     data class Result(
         val chart: Chart,
+        val initialVersion: SimplifiedVersion,
         val discordMessageId: String,
         val versionAttachmentId: String,
     )
@@ -124,6 +126,14 @@ class ChartPublishService(
 
         return Result(
             chart = createdChart,
+            initialVersion = SimplifiedVersion(
+                difficulty = finalCreate.difficulty,
+                duration = finalCreate.duration,
+                notesAmount = finalCreate.notesAmount,
+                effectsAmount = finalCreate.effectsAmount,
+                isDeluxe = finalCreate.isDeluxe,
+                isExplicit = finalCreate.isExplicit,
+            ),
             discordMessageId = discordResponse.id,
             versionAttachmentId = bundleAttachment.id,
         )
