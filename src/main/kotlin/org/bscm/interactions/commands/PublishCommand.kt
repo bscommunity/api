@@ -41,15 +41,15 @@ object PublishCommand {
                     title = I18n.t(locale, "account_required_title")
                     description = I18n.t(locale, "account_required_description")
                     field(I18n.t(locale, "next_steps_label"), I18n.t(locale, "create_account_steps"), false)
-                    footer("bscm")
+                    color = 15548997 // Discord red
                 }
                 // Provide a button to registration page
                 buttonRow(
                     org.bscm.interactions.Button(
                         type = 2,
                         style = 5,
-                        label = "Open Dashboard",
-                        url = "https://bscm.netlify.app/register"
+                        label = "Create Account",
+                        url = "https://bscm.netlify.app"
                     )
                 )
             }
@@ -97,12 +97,9 @@ object PublishCommand {
         // EphemeralMessage with embed structured message
         val progressJson = ephemeralMessage {
             embed {
-                title = I18n.t(locale, "publish_received")
-                description = I18n.t(locale, "processing_not_implemented")
-                field(I18n.t(locale, "bundle_label"), bundleName, inline = false)
-                gameplayUrl?.let { field(I18n.t(locale, "gameplay_url_label"), it, inline = false) }
-                field(I18n.t(locale, "explicit_label"), explicitVal.toString(), inline = false)
-                footer("bscm")
+                title = "⏳ ${I18n.t(locale, "publish_received")}"
+                description = I18n.t(locale, "processing_chart")
+                color = 16776960 // Yellow
             }
         }
 
@@ -122,7 +119,14 @@ object PublishCommand {
             val resp: HttpResponse = applicationHttpClient.get(bundleUrl)
             resp.bodyAsChannel().toByteArray()
         } catch (e: Exception) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "bundle_download_failed")) })
+            println("Failed to download bundle: ${e.message}")
+            call.respondJson(ephemeralMessage {
+                embed {
+                    title = "❌ Error"
+                    description = I18n.t(locale, "bundle_download_failed")
+                    color = 15548997 // Discord red
+                }
+            })
             return
         }
 
@@ -138,7 +142,15 @@ object PublishCommand {
                 )
             )
         } catch (e: Exception) {
-            call.respondJson(ephemeralMessage { content(I18n.t(locale, "chart_persist_failed")) })
+            println("Failed to publish chart: ${e.message}")
+            e.printStackTrace()
+            call.respondJson(ephemeralMessage {
+                embed {
+                    title = "❌ Error"
+                    description = I18n.t(locale, "chart_persist_failed")
+                    color = 15548997 // Discord red
+                }
+            })
             return
         }
 
@@ -147,17 +159,31 @@ object PublishCommand {
         // Success ephemeral message
         val jsonSuccess = ephemeralMessage {
             embed {
-                title = I18n.t(locale, "publish_success_title")
+                title = "✅ ${I18n.t(locale, "publish_success_title")}"
                 description = I18n.t(locale, "publish_success_description")
-                field("Track", result.chart.track, true)
-                field("Artist", result.chart.artist, true)
-                field("Difficulty", v.difficulty.name, true)
-                field("Duration", String.format("%dm%ds", (v.duration / 60).toInt(), (v.duration % 60).toInt()), true)
-                field("Notes", v.notesAmount.toString(), true)
-                field("Effects", v.effectsAmount.toString(), true)
-                field("Link", "https://bscm.netlify.app/link/chart/${result.chart.contentId}", false)
-                footer("bscm")
+                field(I18n.t(locale, "track_label"), result.chart.track, true)
+                field(I18n.t(locale, "artist_label"), result.chart.artist, true)
+                field(I18n.t(locale, "difficulty_label"), v.difficulty.name, true)
+                field(I18n.t(locale, "duration_label"), String.format("%dm%ds", (v.duration / 60).toInt(), (v.duration % 60).toInt()), true)
+                field(I18n.t(locale, "notes_label"), v.notesAmount.toString(), true)
+                field(I18n.t(locale, "effects_label"), v.effectsAmount.toString(), true)
+                field("", I18n.t(locale, "manage_chart_info"), false)
+                color = 5763719 // Discord green
             }
+            buttonRow(
+                org.bscm.interactions.Button(
+                    type = 2,
+                    style = 5,
+                    label = "View Chart",
+                    url = "https://bscm.netlify.app/link/chart/${result.chart.contentId}"
+                ),
+                org.bscm.interactions.Button(
+                    type = 2,
+                    style = 5,
+                    label = "Open Dashboard",
+                    url = "https://bscm.netlify.app"
+                )
+            )
         }
 
         call.respondJson(jsonSuccess)

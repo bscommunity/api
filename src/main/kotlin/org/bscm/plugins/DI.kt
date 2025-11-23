@@ -59,4 +59,10 @@ fun mainModule(config: ApplicationConfig) = module {
             channelId = config.property("discord.channelId").getString(),
         )
     }
+    single {
+        ChartPublishService(
+            chartRepository = get(),
+            uploadService = get()
+        )
+    }
 }

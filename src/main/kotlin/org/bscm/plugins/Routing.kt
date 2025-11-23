@@ -67,6 +67,10 @@ fun Application.configureRouting() {
         collectionRoutes(collectionService)
 
         // Discord interactions (slash commands, buttons, etc.)
-        interactionsRoutes(application.environment.config.propertyOrNull("discord.publicKey")?.getString())
+        interactionsRoutes(
+            application.environment.config.propertyOrNull("discord.publicKey")?.getString(),
+            application.environment.config.propertyOrNull("discord.appId")?.getString(),
+            application.environment.config.propertyOrNull("discord.botToken")?.getString()
+        )
     }
 }
