@@ -27,6 +27,7 @@ import org.bscm.protobuf.ChartParser
 import org.bscm.services.DecodingService
 import org.bscm.services.MediaInfoService
 import org.bscm.services.UploadService
+import org.bscm.services.safeExtractCoverImage
 import java.util.*
 
 fun Route.chartRoutes(
@@ -256,7 +257,7 @@ fun Route.chartRoutes(
                     val bundleInfo = DecodingService.extractBundleInfo(bundleFileBytes)
 
                     // 2. Extract cover image (raw bytes) if any
-                    val coverBytes = DecodingService.extractCoverImage(bundleFileBytes)
+                    val coverBytes = DecodingService.Companion.safeExtractCoverImage(bundleFileBytes)
 
                     // 3. Extract chart.bytes from chart.bundle and parse protobuf
                     val chartBytes = DecodingService.extractChartFileFromBundle(bundleFileBytes)

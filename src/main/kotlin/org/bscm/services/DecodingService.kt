@@ -10,6 +10,31 @@ import org.bscm.protobuf.Chart // Import parsed chart data class
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
+object NativeTextureSupport {
+    private val available: Boolean by lazy {
+        try {
+            Class.forName("io.github.deficuet.unitykt.extension.TextureDecoder")
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+    fun isAvailable(): Boolean = available
+}
+
+fun DecodingService.Companion.safeExtractCoverImage(zipBytes: ByteArray, bundleName: String = "artwork.bundle"): ByteArray? {
+    if (!NativeTextureSupport.isAvailable()) return null
+    return try {
+        extractCoverImage(zipBytes, bundleName)
+    } catch (_: UnsatisfiedLinkError) {
+        null
+    } catch (_: NoClassDefFoundError) {
+        null
+    } catch (_: Exception) {
+        null
+    }
+}
+
 class DecodingService {
     companion object {
         data class BundleInfo(
