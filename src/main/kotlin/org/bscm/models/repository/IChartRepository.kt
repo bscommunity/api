@@ -20,6 +20,7 @@ interface IChartRepository {
         isDeluxe: Boolean? = null,
         limit: Int? = null,
         offset: Int? = null,
+        count: Boolean = false
     ): Pair<List<Chart>, Int>
     suspend fun getAppCharts(
         userId: UUID?,
@@ -30,6 +31,7 @@ interface IChartRepository {
         isDeluxe: Boolean? = null,
         limit: Int? = null,
         offset: Int? = null,
+        count: Boolean = false
     ): Pair<List<Chart>, Int>
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: ULong): Chart?

@@ -53,6 +53,7 @@ fun Route.chartRoutes(
                     val sortBy = call.request.queryParameters["sortBy"]?.let { SortOption.valueOf(it) }
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+                    val count = call.request.queryParameters["count"]?.toBoolean() ?: false
 
                     // Try to get both principals
                     val jwtPrincipal = call.principal<JWTPrincipal>()
@@ -74,6 +75,7 @@ fun Route.chartRoutes(
                                 isDeluxe = isDeluxe,
                                 limit = limit,
                                 offset = offset,
+                                count = count,
                             )
                         }
                         // Mobile app (HMAC only, no user context)
@@ -87,6 +89,7 @@ fun Route.chartRoutes(
                                 isDeluxe = isDeluxe,
                                 limit = limit,
                                 offset = offset,
+                                count = count,
                             )
                         }
                         // JWT authentication (dashboard user)
@@ -101,6 +104,7 @@ fun Route.chartRoutes(
                                 isDeluxe = isDeluxe,
                                 limit = limit,
                                 offset = offset,
+                                count = count,
                             )
                         }
 
@@ -117,6 +121,7 @@ fun Route.chartRoutes(
                                     isDeluxe = isDeluxe,
                                     limit = limit,
                                     offset = offset,
+                                    count = count,
                                 )
                             } else {
                                 Pair(emptyList(), 0)
@@ -124,38 +129,9 @@ fun Route.chartRoutes(
                         }
                     }
 
-                    call.respond(result)
+                    call.respond(if (count) result else result.first)
                 }
-            }
 
-            rateLimit(RateLimitName("unrestricted")) {
-                get("suggestions") {
-                    val query = call.request.queryParameters["query"] ?: ""
-                    val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
-
-                    val suggestions = chartRepository.getSuggestions(query, limit)
-                    call.respond(suggestions)
-                }
-            }
-        }
-
-        // Routes that accept HMAC authentication only
-        authenticate("auth-hmac") {
-            rateLimit(RateLimitName("unrestricted")) {
-                post("analytics/{id}") {
-                    val idParam =
-                        call.parameters["id"]?.toULong() ?: throw BadRequestException("Invalid or missing ID parameter")
-                    val typeParam = call.queryParameters["type"]
-                    val type = typeParam?.let { OperationOption.valueOf(it) }
-                        ?: throw BadRequestException("Invalid or missing type parameter")
-
-                    val stats = chartRepository.postAnalytics(idParam, type)
-
-                    call.respond(stats)
-                }
-            }
-
-            rateLimit(RateLimitName("restricted")) {
                 // Get chart by content id
                 get("{id}") {
                     val id = call.parameters["id"]
@@ -190,7 +166,36 @@ fun Route.chartRoutes(
                         return@get
                     }
                 }
+            }
 
+            rateLimit(RateLimitName("unrestricted")) {
+                get("suggestions") {
+                    val query = call.request.queryParameters["query"] ?: ""
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
+
+                    val suggestions = chartRepository.getSuggestions(query, limit)
+                    call.respond(suggestions)
+                }
+            }
+        }
+
+        // Routes that accept HMAC authentication only
+        authenticate("auth-hmac") {
+            rateLimit(RateLimitName("unrestricted")) {
+                post("analytics/{id}") {
+                    val idParam =
+                        call.parameters["id"]?.toULong() ?: throw BadRequestException("Invalid or missing ID parameter")
+                    val typeParam = call.queryParameters["type"]
+                    val type = typeParam?.let { OperationOption.valueOf(it) }
+                        ?: throw BadRequestException("Invalid or missing type parameter")
+
+                    val stats = chartRepository.postAnalytics(idParam, type)
+
+                    call.respond(stats)
+                }
+            }
+
+            rateLimit(RateLimitName("restricted")) {
                 // Get latest versions of charts by IDs
                 get("latest-versions") {
                     val chartIds = call.request.queryParameters["chartIds"]

@@ -42,17 +42,17 @@ object PublishCommand {
             // Invite to create account
             val json = immediateEphemeralResponse {
                 embed {
-                    title = I18n.t(locale, "account_required_title")
+                    title = "⚠️ ${I18n.t(locale, "account_required_title")}"
                     description = I18n.t(locale, "account_required_description")
                     field(I18n.t(locale, "next_steps_label"), I18n.t(locale, "create_account_steps"), false)
-                    color = 15548997 // Discord red
+                    color = 16776960 // Yellow
                 }
                 // Provide a button to registration page
                 buttonRow(
                     Button(
                         type = 2,
                         style = 5,
-                        label = "Create Account",
+                        label = I18n.t(locale, "account_create_button"),
                         url = "https://bscm.netlify.app"
                     )
                 )
@@ -72,7 +72,7 @@ object PublishCommand {
 
         val bundleOpt = findOption("bundle_zip")
         val gameplayOpt = findOption("gameplay_url")
-        val explicitOpt = findOption("is_explicit")
+        // val explicitOpt = findOption("is_explicit")
 
         if (bundleOpt == null) {
             call.respondJson(immediateEphemeralResponse { content(I18n.t(locale, "missing_required_attachments")) })
@@ -89,14 +89,14 @@ object PublishCommand {
             return att?.get("filename")?.jsonPrimitive?.contentOrNull ?: "attachment:$id"
         }
 
-        val explicitVal = explicitOpt?.get("value")?.jsonPrimitive?.booleanOrNull ?: false
+        val explicitVal = false // explicitOpt?.get("value")?.jsonPrimitive?.booleanOrNull ?: false
         val bundleName = attachmentLabel(bundleOpt)
         val gameplayUrl = gameplayOpt?.get("value")?.jsonPrimitive?.contentOrNull
 
-        println("Publish command received:")
+        /*println("Publish command received:")
         println(" - Bundle: $bundleName")
         println(" - Gameplay URL: ${gameplayUrl ?: "N/A"}")
-        println(" - Explicit: $explicitVal")
+        println(" - Explicit: $explicitVal")*/
 
         // ====== Step 1: Send deferred response (acknowledges interaction immediately) ======
         call.respondJson(interactionService.deferredResponse(ephemeral = true))
@@ -196,21 +196,21 @@ object PublishCommand {
                         field(I18n.t(locale, "duration_label"), String.format("%dm%ds", (v.duration / 60).toInt(), (v.duration % 60).toInt()), true)
                         field(I18n.t(locale, "notes_label"), v.notesAmount.toString(), true)
                         field(I18n.t(locale, "effects_label"), v.effectsAmount.toString(), true)
-                        field("", I18n.t(locale, "manage_chart_info"), false)
+                        footer(I18n.t(locale, "manage_chart_info"))
                         color = 5763719 // Discord green
                     }
                     buttonRow(
                         Button(
                             type = 2,
                             style = 5,
-                            label = "View Chart",
+                            label = I18n.t(locale, "view_chart_button"),
                             url = "https://bscm.netlify.app/link/chart/${result.chart.contentId}"
                         ),
                         Button(
                             type = 2,
                             style = 5,
-                            label = "Open Dashboard",
-                            url = "https://bscm.netlify.app"
+                            label = I18n.t(locale, "open_dashboard_button"),
+                            url = "https://bscm.netlify.app/dashboard/uploads"
                         )
                     )
                 })

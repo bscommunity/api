@@ -36,7 +36,7 @@ object CommandUtils {
                 options = listOf(
                     CommandOption(11, "bundle_zip", "Bundle .zip (attachment)", true),
                     CommandOption(3, "gameplay_url", "Gameplay URL (YouTube)", false),
-                    CommandOption(5, "is_explicit", "Explicit?", false)
+                    // CommandOption(5, "is_explicit", "Explicit?", false)
                 )
             )
         )

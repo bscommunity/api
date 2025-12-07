@@ -133,6 +133,7 @@ class ChartRepository : IChartRepository {
         isDeluxe: Boolean? = null,
         limit: Int? = 20,
         offset: Int? = null,
+        count: Boolean = false,
         filterByUser: Boolean = false,
         fetchAllVersions: Boolean = false,
         fetchStreamingLinks: Boolean,
@@ -153,8 +154,6 @@ class ChartRepository : IChartRepository {
         )
         applyOrdering(baseQuery, sortBy ?: SortOption.LAST_UPDATED)
 
-        val totalCount = baseQuery.count().toInt()
-
         // println("Base query: ${baseQuery.prepareSQL(QueryBuilder(false))}")
 
         limit?.takeIf { it > 0 }?.let { baseQuery.limit(it) }
@@ -163,7 +162,7 @@ class ChartRepository : IChartRepository {
         val paginatedIds = baseQuery.map { it[ChartTable.id].value }
         if (paginatedIds.isEmpty()) {
             // println("No charts found with the provided filters.")
-            return Pair(emptyList(), totalCount)
+            return Pair(emptyList(), 0)
         }
 
         // println("Paginated IDs: ${paginatedIds.joinToString()}")
@@ -194,7 +193,11 @@ class ChartRepository : IChartRepository {
         val endTime = System.currentTimeMillis()
         println("Charts fetch completed in ${endTime - startTime}ms with ${sortedResults.size} charts")
 
-        return Pair(sortedResults, totalCount)
+        return if (count) {
+            Pair(sortedResults, baseQuery.count().toInt())
+        } else {
+            Pair(sortedResults, -1)
+        }
     }
 
     /**
@@ -489,7 +492,8 @@ class ChartRepository : IChartRepository {
         genres: List<Genre>?,
         isDeluxe: Boolean?,
         limit: Int?,
-        offset: Int?
+        offset: Int?,
+        count: Boolean,
     ): Pair<List<Chart>, Int> = newSuspendedTransaction {
         val (results, total) = fetchChartEntities(
             userId = userId,
@@ -500,6 +504,7 @@ class ChartRepository : IChartRepository {
             isDeluxe = isDeluxe,
             limit = limit,
             offset = offset,
+            count = count,
             fetchStreamingLinks = false,
             filterByUser = true,
             fetchAllVersions = true,
@@ -537,6 +542,7 @@ class ChartRepository : IChartRepository {
         isDeluxe: Boolean?,
         limit: Int?,
         offset: Int?,
+        count: Boolean,
     ): Pair<List<Chart>, Int> = newSuspendedTransaction {
         val (results, total) = fetchChartEntities(
             userId = userId,
@@ -547,6 +553,7 @@ class ChartRepository : IChartRepository {
             isDeluxe = isDeluxe,
             limit = limit,
             offset = offset,
+            count = count,
             filterByUser = false,
             fetchAllVersions = false,
             fetchStreamingLinks = true,
