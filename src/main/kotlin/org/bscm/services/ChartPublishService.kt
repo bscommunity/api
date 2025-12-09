@@ -40,16 +40,22 @@ class ChartPublishService(
         // 1. Extract info.json metadata
         val bundleInfo = DecodingService.extractBundleInfo(bundleBytes)
 
-        // 2. Extract cover image (raw bytes) if any
-        val coverBytes = DecodingService.extractCoverImage(bundleBytes)
+        // 2. Inject metadata back into the bundle (append computed/enhanced info to info.json)
+        val infoToInject = mapOf(
+            "processedAt" to System.currentTimeMillis(),
+            "userId" to user.id
+        )
+        val enhancedBundleBytes = DecodingService.injectInfoToBundle(bundleBytes, infoToInject)
 
-        // 3. Extract chart.bytes and parse
-        val chartBytes = DecodingService.extractChartFileFromBundle(bundleBytes)
+        // 3. Extract cover image (raw bytes) if any
+        val coverBytes = DecodingService.extractCoverImage(enhancedBundleBytes)
+
+        // 4. Extract chart.bytes and parse
+        val chartBytes = DecodingService.extractChartFileFromBundle(enhancedBundleBytes)
             ?: throw IllegalStateException("Failed to extract chart.bytes from bundle")
         val parsedProto = ChartParser.parse(chartBytes)
         val computedStats = DecodingService.computeChartStats(parsedProto, bundleInfo?.bpm)
 
-        // 4. Derive difficulty
         val difficultyEnum = when (bundleInfo?.difficulty) {
             4 -> Difficulty.NORMAL
             3 -> Difficulty.HARD

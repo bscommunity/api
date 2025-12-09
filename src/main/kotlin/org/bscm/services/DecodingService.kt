@@ -5,8 +5,10 @@ import io.github.deficuet.unitykt.UnityAssetManager
 import io.github.deficuet.unitykt.classes.TextAsset
 import io.github.deficuet.unitykt.classes.Texture2D
 import io.github.deficuet.unitykt.firstObjectOf
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
-import org.bscm.protobuf.Chart // Import parsed chart data class
+import org.bscm.protobuf.Chart
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
@@ -149,5 +151,84 @@ class DecodingService {
             val effectsAmount: Int,
             val duration: Float,
         )
+
+        /**
+         * Injects/appends additional data to the info.json file within the zip bundle.
+         * Returns modified zip bytes with updated info.json.
+         *
+         * @param zipBytes The original zip bundle bytes
+         * @param infoToAppend Map of key-value pairs to append to info.json
+         * @param infoFileName Name of the info file to modify (default: "info.json")
+         * @return Modified zip bytes with updated info.json
+         */
+        fun injectInfoToBundle(
+            zipBytes: ByteArray,
+            infoToAppend: Map<String, Any>,
+            infoFileName: String = "info.json"
+        ): ByteArray {
+            val outputBuffer = ByteArrayOutputStream()
+            ZipArchiveOutputStream(outputBuffer).use { zipOut ->
+                ZipFile.Builder().setByteArray(zipBytes).get().use { zipIn ->
+                    val entries = zipIn.entries.toList()
+
+                    for (entry in entries) {
+                        if (entry.isDirectory) continue
+
+                        val entryData = if (entry.name.equals(infoFileName, ignoreCase = true)) {
+                            // Read existing info.json
+                            val existingBytes = zipIn.getInputStream(entry).use { it.readBytes() }
+                            val existingJson = existingBytes.decodeToString()
+
+                            // Append new data to info.json
+                            val modifiedJson = appendToJson(existingJson, infoToAppend)
+                            modifiedJson.encodeToByteArray()
+                        } else {
+                            // Keep other entries as-is
+                            zipIn.getInputStream(entry).use { it.readBytes() }
+                        }
+
+                        // Write entry to output zip
+                        val newEntry = ZipArchiveEntry(entry.name)
+                        newEntry.size = entryData.size.toLong()
+                        zipOut.putArchiveEntry(newEntry)
+                        zipOut.write(entryData)
+                        zipOut.closeArchiveEntry()
+                    }
+                }
+            }
+            return outputBuffer.toByteArray()
+        }
+
+        /**
+         * Helper function to append key-value pairs to a JSON string.
+         * Handles basic JSON format (assumes simple structure).
+         */
+        private fun appendToJson(json: String, toAppend: Map<String, Any>): String {
+            var result = json.trimEnd()
+
+            // Remove trailing closing brace if present
+            if (result.endsWith("}")) {
+                result = result.dropLast(1).trimEnd()
+                if (!result.endsWith(",")) {
+                    result += ","
+                }
+            } else {
+                result += ","
+            }
+
+            // Add new fields
+            val newFields = toAppend.map { (key, value) ->
+                val valueStr = when (value) {
+                    is String -> "\"$value\""
+                    is Number -> value.toString()
+                    is Boolean -> value.toString()
+                    else -> "\"$value\""
+                }
+                "\"$key\": $valueStr"
+            }.joinToString(", ")
+
+            result += "\n  $newFields\n}"
+            return result
+        }
     }
 }
