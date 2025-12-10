@@ -29,5 +29,7 @@ google:
   clientId: $GOOGLE_CLIENT_ID
   clientSecret: $GOOGLE_CLIENT_SECRET
   redirectUri: $GOOGLE_REDIRECT_URI
+lastfm:
+    apiKey: $LASTFM_API_KEY
 status:
   url: $STATUS_URL

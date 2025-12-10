@@ -16,6 +16,7 @@ data class Chart(
     val track: String,
     val album: String?,
     val genre: Genre? = null,
+    val remoteCoverUrl: String,
     val trackUrls: List<StreamingLink> = emptyList(),
     val trackPreviewUrl: String? = null,
     val versions: List<Version> = emptyList(),

@@ -31,6 +31,8 @@ fun Application.configureRouting() {
     val themeRepository by inject<IThemeRepository>()
     val collectionService by inject<CollectionService>()
 
+    val mediaInfoService by inject<MediaInfoService>()
+
     routing {
         swaggerUI(path = "docs", swaggerFile = "openapi/documentation.yaml")
         staticResources("/static", "static") // eg. `/static/index.html`
@@ -65,6 +67,7 @@ fun Application.configureRouting() {
         tourPassRoutes(tourPassRepository)
         themeRoutes(themeRepository)
         collectionRoutes(collectionService)
+        testRoutes(mediaInfoService)
 
         // Discord interactions (slash commands, buttons, etc.)
         interactionsRoutes(

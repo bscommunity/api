@@ -62,7 +62,13 @@ fun mainModule(config: ApplicationConfig) = module {
     single {
         ChartPublishService(
             chartRepository = get(),
-            uploadService = get()
+            uploadService = get(),
+            mediaInfoService = get(),
+        )
+    }
+    single {
+        MediaInfoService(
+            lastfmApiKey = config.property("lastfm.apiKey").getString()
         )
     }
     single {
