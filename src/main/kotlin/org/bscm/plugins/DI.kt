@@ -53,16 +53,25 @@ fun mainModule(config: ApplicationConfig) = module {
     }
     single {
         UploadService(
-            webhookId = config.property("discord.webhookId").getString(),
-            webhookToken = config.property("discord.webhookToken").getString(),
+            webhookId = config.property("workshop.webhookId").getString(),
+            webhookToken = config.property("workshop.webhookToken").getString(),
             botToken = config.property("discord.botToken").getString(),
-            channelId = config.property("discord.channelId").getString(),
+            channelId = config.property("workshop.channelId").getString(),
+        )
+    }
+    single(qualifier = org.koin.core.qualifier.named("support")) {
+        UploadService(
+            webhookId = config.property("support.webhookId").getString(),
+            webhookToken = config.property("support.webhookToken").getString(),
+            botToken = config.property("discord.botToken").getString(),
+            channelId = config.property("support.channelId").getString(),
         )
     }
     single {
         ChartPublishService(
             chartRepository = get(),
             uploadService = get(),
+            supportUploadService = get(qualifier = org.koin.core.qualifier.named("support")),
             mediaInfoService = get(),
         )
     }

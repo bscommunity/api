@@ -25,7 +25,8 @@ fun Route.versionRoutes(
     versionRepository: IVersionRepository,
     chartRepository: IChartRepository,
     userRepository: IUserRepository,
-    uploadService: UploadService
+    uploadService: UploadService,
+    supportUploadService: UploadService
 ) {
     // Routes that require JWT authentication only (dashboard operations)
     authenticate("auth-bearer") {
@@ -34,10 +35,7 @@ fun Route.versionRoutes(
                 // Add a version to a chart
                 post("{chartId}/versions") {
                     val chartId = call.parameters["chartId"]?.toULong()
-
-                    if (chartId == null) {
-                        throw BadRequestException("Invalid or missing chart ID")
-                    }
+                        ?: throw BadRequestException("Invalid or missing chart ID")
 
                     val principal = call.principal<JWTPrincipal>()
                     val userId = principal?.subject?.let { UUID.fromString(it) }
@@ -185,10 +183,14 @@ fun Route.versionRoutes(
                 throw Exception("Failed to refresh bundle")
             }
 
-            val result = chartRepository.refreshChartsBundles(messages)
+            // Fetch audio URLs from support channel
+            val audioUrls = supportUploadService.refreshAudioUrls()
+            println("Found ${audioUrls.size} audio URLs from support channel")
+
+            val result = chartRepository.refreshChartsBundles(messages, audioUrls)
 
             if (result) {
-                call.respond(HttpStatusCode.OK, "Successfully refreshed ${messages.size} bundle URLs")
+                call.respond(HttpStatusCode.OK, "Successfully refreshed ${messages.size} bundle URLs and ${audioUrls.size} audio URLs")
             } else {
                 throw Exception("Failed to refresh bundle URLs")
             }

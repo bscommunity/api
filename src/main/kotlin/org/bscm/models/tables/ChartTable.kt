@@ -11,6 +11,7 @@ object ChartTable : CatalogItemTable("charts") {
     val genre = enumerationByName("genres", 20, Genre::class).nullable()
     val remoteCoverUrl = varchar("remote_cover_url", 255).nullable()
     val trackPreviewUrl = varchar("track_preview_url", 255).nullable()
+    val trackPreviewAudioUrl = varchar("track_preview_audio_url", 255).nullable()
 
     val normalizedArtist = varchar("normalized_artist", 200).nullable().index()
     val normalizedTrack = varchar("normalized_track", 200).nullable().index()

@@ -20,6 +20,7 @@ fun Application.configureRouting() {
     val googleOAuthService: GoogleOAuthService by inject()
 
     val uploadService by inject<UploadService>()
+    val supportUploadService by inject<UploadService>(qualifier = org.koin.core.qualifier.named("support"))
     val jwtService by inject<JWTService>()
 
     val userRepository by inject<IUserRepository>()
@@ -61,7 +62,7 @@ fun Application.configureRouting() {
         userRoutes(userRepository)
 
         chartRoutes(chartRepository, userRepository, versionRepository, uploadService)
-        versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
+        versionRoutes(versionRepository, chartRepository, userRepository, uploadService, supportUploadService)
         contributorRoutes(contributorRepository)
         knownIssuesRoutes(knownIssueRepository)
         tourPassRoutes(tourPassRepository)

@@ -409,7 +409,8 @@ class UploadService(
     @Serializable
     data class RefreshData(
         val bundleUrl: String,
-        val coverUrl: String? = null
+        val coverUrl: String? = null,
+        val audioUrl: String? = null
     )
 
     // Refreshes all bundle URLs and cover URLs in the webhook messages (from the charts channel)
@@ -473,5 +474,114 @@ class UploadService(
             if (messages.size < messagesPerRequest) break
         }
         return refreshData
+    }
+
+    /**
+     * Refreshes audio URLs from the support channel messages
+     * @return Map of contentId to audio URL
+     */
+    suspend fun refreshAudioUrls(): Map<String, String> {
+        val maxMessages = 1000
+        val messagesPerRequest = 100
+        val audioData = mutableMapOf<String, String>()
+        var lastMessageId: String? = null
+        var fetched = 0
+
+        while (fetched < maxMessages) {
+            val url = "https://discord.com/api/v10/channels/$channelId/messages?limit=$messagesPerRequest" +
+                    (lastMessageId?.let { "&before=$it" } ?: "")
+            val response: HttpResponse = applicationHttpClient.get(url) {
+                header(HttpHeaders.Authorization, "Bot $botToken")
+            }
+
+            // Rate limit handling
+            val rateLimitRemaining = response.headers["X-RateLimit-Remaining"]?.toIntOrNull() ?: 1
+            val rateLimitResetAfter = response.headers["X-RateLimit-Reset-After"]?.toDoubleOrNull() ?: 0.0
+            if (response.status.value == 429) {
+                val retryAfter = response.headers["Retry-After"]?.toDoubleOrNull() ?: rateLimitResetAfter
+                delay((retryAfter * 1000).toLong())
+                continue
+            } else if (rateLimitRemaining == 0) {
+                delay((rateLimitResetAfter * 1000).toLong())
+            }
+
+            val messagesJson = response.bodyAsText()
+            val messages = jsonClient.decodeFromString(JsonArray.serializer(), messagesJson)
+
+            if (messages.isEmpty()) break
+
+            for (msg in messages) {
+                val obj = msg.jsonObject
+                val content = obj["content"]?.jsonPrimitive?.content ?: ""
+                val attachments = obj["attachments"]?.jsonArray
+
+                // Extract track info and original URL from message content
+                if (attachments != null && attachments.isNotEmpty()) {
+                    val audioAttachment = attachments.first().jsonObject
+                    val audioUrl = audioAttachment["url"]?.jsonPrimitive?.content
+
+                    if (audioUrl != null && content.contains("Original:")) {
+                        // Extract the original URL to use as key for matching
+                        val originalUrl = content.substringAfter("Original: ").trim()
+                        audioData[originalUrl] = audioUrl
+                        println("Found audio URL for original: $originalUrl -> $audioUrl")
+                    }
+                }
+            }
+
+            lastMessageId = messages.last().jsonObject["id"]?.jsonPrimitive?.content
+            fetched += messages.size
+
+            if (messages.size < messagesPerRequest) break
+        }
+        return audioData
+    }
+
+    /**
+     * Upload an audio file to Discord and return the attachment URL
+     * @param audioBytes The audio file bytes (e.g., MP3)
+     * @param filename The filename for the attachment
+     * @param trackName Track name for the message content
+     * @param artistName Artist name for the message content
+     * @param originalUrl Original preview URL from the source
+     * @return The Discord attachment URL
+     */
+    suspend fun uploadAudioFile(
+        audioBytes: ByteArray,
+        filename: String,
+        trackName: String,
+        artistName: String,
+        originalUrl: String
+    ): String {
+        val payload = jsonClient.encodeToString(
+            WebhookPayload.serializer(),
+            WebhookPayload(
+                content = "**$trackName – $artistName**\nOriginal: $originalUrl",
+                attachments = emptyList()
+            )
+        )
+
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = webhookUrl,
+            formData = formData {
+                append("payload_json", payload, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+                append("file", audioBytes, Headers.build {
+                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"$filename\"")
+                    append(HttpHeaders.ContentType, "audio/mpeg")
+                })
+            }
+        )
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to upload audio: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        val discordResponse = jsonClient.decodeFromString<DiscordMessageResponse>(response.bodyAsText())
+        val audioAttachment = discordResponse.attachments.firstOrNull()
+            ?: throw IllegalStateException("Discord response missing audio attachment")
+
+        return audioAttachment.url
     }
 }

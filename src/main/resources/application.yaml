@@ -32,5 +32,10 @@ workshop:
   channelId: $WORKSHOP_CHANNEL_ID
   webhookId: $WORKSHOP_WEBHOOK_ID
   webhookToken: $WORKSHOP_WEBHOOK_TOKEN
+support:
+  guildId: $SUPPORT_GUILD_ID # optional (dev) for instant commands
+  channelId: $SUPPORT_CHANNEL_ID
+  webhookId: $SUPPORT_WEBHOOK_ID
+  webhookToken: $SUPPORT_WEBHOOK_TOKEN
 status:
   url: $STATUS_URL

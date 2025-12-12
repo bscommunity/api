@@ -1,5 +1,8 @@
 package org.bscm.services
 
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
 import org.bscm.models.Chart
 import org.bscm.models.StreamingLink
 import org.bscm.models.User
@@ -15,6 +18,7 @@ import org.bscm.utils.NanoIdUtils
 class ChartPublishService(
     private val chartRepository: IChartRepository,
     private val uploadService: UploadService,
+    private val supportUploadService: UploadService,
     private val mediaInfoService: MediaInfoService
 ) {
     data class Overrides(
@@ -36,6 +40,26 @@ class ChartPublishService(
         val discordMessageId: String,
         val versionAttachmentId: String,
     )
+
+    private suspend fun downloadAudioFile(url: String): ByteArray {
+        val response: HttpResponse = org.bscm.plugins.applicationHttpClient.get(url)
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to download audio file: ${response.status}")
+        }
+        return response.readRawBytes()
+    }
+
+    private fun getNormalizedTrackName(track: String): String {
+        val normalized = track.trim()
+            .lowercase(java.util.Locale.getDefault())
+            .replace(Regex("\\s*\\([^)]*\\)"), "")   // remove (...)
+            .replace(Regex("\\s*\\[.*?]"), "")       // remove [...]
+            .replace(Regex("\\s*[Ff]eat\\..*"), "")  // remove feat...
+            .replace(Regex("[^a-zA-Z0-9 ]"), " ")    // replace non-alfa numeric with space
+            .replace(Regex("\\s+"), "_")             // collapse whitespace → underscore
+            .trim('_')                               // trim leading/trailing underscores
+        return normalized
+    }
 
     suspend fun publish(user: User, bundleBytes: ByteArray, overrides: Overrides = Overrides()): Result {
         val contentId = NanoIdUtils.generateOptimized(
@@ -147,11 +171,34 @@ class ChartPublishService(
             ?: throw IllegalStateException("Discord response missing bundle attachment")
         val coverUrlFinal = discordResponse.embeds.firstOrNull()?.image?.url ?: createForUpload.coverUrl
 
+        // Upload audio preview to Discord support channel if available
+        val trackPreviewAudioUrl = if (!createForUpload.trackPreviewUrl.isNullOrBlank()) {
+            try {
+                println("Downloading audio preview from: ${createForUpload.trackPreviewUrl}")
+                val audioBytes = downloadAudioFile(createForUpload.trackPreviewUrl)
+                val normalizedTrack = getNormalizedTrackName(createForUpload.track)
+                val audioFilename = "${normalizedTrack}_preview.mp3"
+
+                println("Uploading audio preview to Discord support channel...")
+                supportUploadService.uploadAudioFile(
+                    audioBytes = audioBytes,
+                    filename = audioFilename,
+                    trackName = createForUpload.track,
+                    artistName = createForUpload.artist,
+                    originalUrl = createForUpload.trackPreviewUrl
+                )
+            } catch (e: Exception) {
+                println("Failed to upload audio preview: ${e.message}")
+                null
+            }
+        } else null
+
         val finalCreate = createForUpload.copy(
             id = discordResponse.id.toULong(),
             versionId = bundleAttachment.id.toULong(),
             bundleUrl = bundleAttachment.url,
             coverUrl = coverUrlFinal,
+            trackPreviewAudioUrl = trackPreviewAudioUrl,
         )
 
         val createdChart = chartRepository.createChart(user.id, finalCreate)
@@ -171,4 +218,3 @@ class ChartPublishService(
         )
     }
 }
-

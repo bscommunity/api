@@ -59,6 +59,7 @@ class ChartRepository : IChartRepository {
             album = entity.album,
             trackUrls = streamingLinks ?: emptyList(),
             trackPreviewUrl = entity.trackPreviewUrl,
+            trackPreviewAudioUrl = entity.trackPreviewAudioUrl,
             coverUrl = entity.coverUrl,
             remoteCoverUrl = entity.remoteCoverUrl,
             isPublic = entity.isPublic,
@@ -616,6 +617,7 @@ class ChartRepository : IChartRepository {
             this.album = chart.album
             this.genre = chart.genre
             this.trackPreviewUrl = chart.trackPreviewUrl
+            this.trackPreviewAudioUrl = chart.trackPreviewAudioUrl
             this.coverUrl = chart.coverUrl
             this.authorId = UserEntity[userId].id
         }
@@ -755,7 +757,7 @@ class ChartRepository : IChartRepository {
         }
     }
 
-    override suspend fun refreshChartsBundles(ids: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = newSuspendedTransaction {
+    override suspend fun refreshChartsBundles(ids: Map<String, org.bscm.services.UploadService.RefreshData>, audioUrls: Map<String, String>): Boolean = newSuspendedTransaction {
         // Update bundle URLs
         val bundleSql = buildString {
             append("UPDATE ${VersionTable.tableName} SET ${VersionTable.bundleUrl.name} = CASE ${VersionTable.id.name} ")
@@ -780,15 +782,35 @@ class ChartRepository : IChartRepository {
             }
         } else null
 
+        // Update audio URLs based on trackPreviewUrl matching
+        val audioSql = if (audioUrls.isNotEmpty()) {
+            buildString {
+                append("UPDATE ${ChartTable.tableName} SET ${ChartTable.trackPreviewAudioUrl.name} = CASE ${ChartTable.trackPreviewUrl.name} ")
+                audioUrls.forEach { (originalUrl, discordAudioUrl) ->
+                    // Escape single quotes in URLs
+                    val escapedOriginal = originalUrl.replace("'", "''")
+                    val escapedDiscord = discordAudioUrl.replace("'", "''")
+                    append("WHEN '$escapedOriginal' THEN '$escapedDiscord' ")
+                }
+                append("END WHERE ${ChartTable.trackPreviewUrl.name} IN (${audioUrls.keys.joinToString { "'${it.replace("'", "''")}'" }});")
+            }
+        } else null
+
         transaction {
             exec(bundleSql)
             if (coverSql != null) {
                 exec(coverSql)
             }
+            if (audioSql != null) {
+                exec(audioSql)
+            }
 
             println("Successfully refreshed bundle URLs for ${ids.size} charts")
             if (idsWithCovers.isNotEmpty()) {
                 println("Successfully refreshed cover URLs for ${idsWithCovers.size} charts (only where coverUrl contains 'cdn.discordapp.com')")
+            }
+            if (audioUrls.isNotEmpty()) {
+                println("Successfully refreshed audio URLs for ${audioUrls.size} charts")
             }
             true
         }
