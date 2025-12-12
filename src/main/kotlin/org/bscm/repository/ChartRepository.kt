@@ -60,6 +60,7 @@ class ChartRepository : IChartRepository {
             trackUrls = streamingLinks ?: emptyList(),
             trackPreviewUrl = entity.trackPreviewUrl,
             coverUrl = entity.coverUrl,
+            remoteCoverUrl = entity.remoteCoverUrl,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
             genre = entity.genre,

@@ -274,8 +274,6 @@ class MediaInfoService(lastfmApiKey: String) {
             errors.add(e.message ?: "Last.fm error")
         }
 
-
-
         throw Exception("Unable to find information for '$track' by '$artist'. Details: ${errors.joinToString("; ")}")
     }
 

@@ -13,6 +13,7 @@ data class CreateChartRequest (
     val trackUrls: List<StreamingLink>,
     val trackPreviewUrl: String? = null,
     val coverUrl: String,
+    val remoteCoverUrl: String? = null,
     val genre: Genre? = null,
     val isExplicit: Boolean,
 

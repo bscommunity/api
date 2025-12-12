@@ -92,7 +92,7 @@ class ChartPublishService(
 
         val bpm = overrides.bpm ?: bundleInfo?.bpm ?: 0
         val isDeluxe = overrides.isDeluxe ?: (bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false)
-        val isExplicit = overrides.isExplicit ?: false
+        val isExplicit = overrides.isExplicit ?: mediaInfo?.isExplicit ?: false
         val previewUrl = overrides.previewUrl
 
         // 4. Inject metadata back into the bundle (append computed/enhanced info to info.json)
@@ -126,6 +126,7 @@ class ChartPublishService(
             track = mediaInfo?.track ?: trackName,
             album = overrides.album ?: mediaInfo?.album,
             trackUrls = streamingLinks,
+            remoteCoverUrl = mediaInfo?.coverUrl,
             trackPreviewUrl = mediaInfo?.trackPreviewUrl,
             coverUrl = coverUrlPlaceholder,
             genre = overrides.genre ?: mediaInfo?.genre,

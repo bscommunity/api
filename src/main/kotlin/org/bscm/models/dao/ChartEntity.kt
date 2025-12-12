@@ -26,6 +26,7 @@ class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var normalizedAlbum by ChartTable.normalizedAlbum
 
     var coverUrl by ChartTable.coverUrl
+    var remoteCoverUrl by ChartTable.remoteCoverUrl
     var isPublic by ChartTable.isPublic
     var isFeatured by ChartTable.isFeatured
 
