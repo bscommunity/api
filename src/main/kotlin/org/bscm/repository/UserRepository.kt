@@ -2,22 +2,29 @@ package org.bscm.repository
 
 import io.ktor.server.plugins.*
 import org.bscm.models.Account
+import org.bscm.models.CatalogItem
 import org.bscm.models.User
 import org.bscm.models.dao.AccountEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.account.CreateAccountRequest
 import org.bscm.models.dto.user.CreateUserRequest
+import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
-import org.bscm.models.repository.IUserRepository
-import org.bscm.models.tables.AccountTable
-import org.bscm.models.tables.UserTable
+import org.bscm.models.dto.user.UserStats
+import org.bscm.models.enums.ContentType
+import org.bscm.models.repository.*
+import org.bscm.models.tables.*
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import org.jetbrains.exposed.sql.upsert
 import java.util.*
 
-class UserRepository : IUserRepository {
+class UserRepository(
+    private val chartRepository: IChartRepository,
+    private val themeRepository: IThemeRepository,
+    private val tourPassRepository: ITourPassRepository,
+    private val collectionRepository: ICollectionRepository
+) : IUserRepository {
     companion object {
         fun userEntityToUser(entity: UserEntity, includeAccounts: Boolean = false): User = User(
             id = entity.id.value,
@@ -31,6 +38,13 @@ class UserRepository : IUserRepository {
             } else {
                 emptyList()
             }
+        )
+
+        fun userEntityToSimplifiedUser(entity: UserEntity): SimplifiedUser = SimplifiedUser(
+            id = entity.id.value,
+            username = entity.username,
+            imageUrl = entity.imageUrl,
+            createdAt = entity.createdAt
         )
 
         fun accountEntityToAccount(entity: AccountEntity): Account = Account(
@@ -66,8 +80,8 @@ class UserRepository : IUserRepository {
         UserEntity.find { UserTable.discordId eq discordId }.singleOrNull()?.let(::userEntityToUser)
     }
 
-    override suspend fun getUserByUsername(username: String): User? = newSuspendedTransaction {
-        UserEntity.find { UserTable.username eq username }.singleOrNull()?.let(::userEntityToUser)
+    override suspend fun getUserByUsername(username: String): SimplifiedUser? = newSuspendedTransaction {
+        UserEntity.find { UserTable.username eq username }.singleOrNull()?.let(::userEntityToSimplifiedUser)
     }
 
     override suspend fun createUser(user: CreateUserRequest): User = newSuspendedTransaction {
@@ -121,4 +135,157 @@ class UserRepository : IUserRepository {
 
         true
     }
+
+    override suspend fun getUserCharts(
+        userId: UUID,
+        requestingUserId: UUID?,
+        contentType: ContentType?,
+        query: String?,
+        limit: Int,
+        offset: Int
+    ): List<CatalogItem> = newSuspendedTransaction {
+        // Get content IDs for the user's charts filtered by content type
+        val contentQuery = ContentTable
+            .innerJoin(ChartTable, { ContentTable.id }, { ChartTable.contentId })
+            .select(ContentTable.id, ContentTable.type)
+            .where { ChartTable.authorId eq userId }
+
+        // Apply content type filter if specified
+        contentType?.let {
+            contentQuery.andWhere { ContentTable.type eq it }
+        }
+
+        // Apply text search on chart metadata if query is provided
+        query?.let { searchQuery ->
+            contentQuery.andWhere {
+                (ChartTable.artist like "%$searchQuery%") or
+                (ChartTable.track like "%$searchQuery%") or
+                (ChartTable.album like "%$searchQuery%")
+            }
+        }
+
+        // Order by latest updated at
+        contentQuery.orderBy(ChartTable.latestUpdatedAt to SortOrder.DESC)
+
+        // Apply limit and offset
+        val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
+
+        val contentIds = paginatedQuery.map { it[ContentTable.id].value }
+
+        if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
+
+        // Group by content type and fetch accordingly
+        val contentsByType = paginatedQuery.groupBy { it[ContentTable.type] }
+
+        val results = mutableListOf<CatalogItem>()
+
+        // Fetch Charts
+        contentsByType[ContentType.CHART]?.let {
+            val chartContentIds = it.map { row -> row[ContentTable.id].value }
+            val (charts, _) = chartRepository.getCharts(
+                userId = requestingUserId,
+                contentIds = chartContentIds
+            )
+            results.addAll(charts)
+        }
+
+        // Future: Fetch TourPasses
+        contentsByType[ContentType.TOUR_PASS]?.let {
+            val tourPassContentIds = it.map { row -> row[ContentTable.id].value }
+            val tourPasses = tourPassRepository.getTourPasses(
+                userId = requestingUserId,
+                contentIds = tourPassContentIds,
+                search = null,
+                limit = null,
+                offset = null
+            )
+            results.addAll(tourPasses)
+        }
+
+        // Future: Fetch Themes
+        contentsByType[ContentType.THEME]?.let {
+            val themeContentIds = it.map { row -> row[ContentTable.id].value }
+            val themes = themeRepository.getThemes(
+                contentIds = themeContentIds,
+                search = null,
+                limit = null,
+                offset = null
+            )
+            results.addAll(themes)
+        }
+
+        // Return in order of original query
+        val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
+        results.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
+    }
+
+    override suspend fun getUserStats(userId: UUID): UserStats = newSuspendedTransaction {
+        // Count charts
+        val totalCharts = ChartTable
+            .select(ChartTable.id)
+            .where { ChartTable.authorId eq userId }
+            .count()
+            .toInt()
+
+        // Count collections (excluding system collections)
+        val totalCollections = CollectionTable
+            .select(CollectionTable.id)
+            .where {
+                (CollectionTable.userId eq userId) and
+                (CollectionTable.name notInList listOf("likes", "favorites"))
+            }
+            .count()
+            .toInt()
+
+        // Count tour passes (future)
+        val totalTourpasses = TourPassTable
+            .select(TourPassTable.id)
+            .where { TourPassTable.authorId eq userId }
+            .count()
+            .toInt()
+
+        // Count themes (future)
+        val totalThemes = ThemeTable
+            .select(ThemeTable.id)
+            .where { ThemeTable.authorId eq userId }
+            .count()
+            .toInt()
+
+        UserStats(
+            totalCharts = totalCharts,
+            totalCollections = totalCollections,
+            totalTourpasses = totalTourpasses,
+            totalThemes = totalThemes
+        )
+    }
+
+    override suspend fun getSystemCollectionItems(
+        userId: UUID,
+        collectionName: String,
+        requestingUserId: UUID?,
+        limit: Int
+    ): List<CatalogItem> = newSuspendedTransaction {
+        // Find the system collection for the user
+        val collection = CollectionTable
+            .select(CollectionTable.id)
+            .where {
+                (CollectionTable.userId eq userId) and
+                (CollectionTable.name eq collectionName)
+            }
+            .singleOrNull()
+            ?: return@newSuspendedTransaction emptyList()
+
+        val collectionId = collection[CollectionTable.id].value
+
+        // Use the collection repository to get items (respects visibility and proper fetching)
+        collectionRepository.getCollectionItems(
+            collectionId = collectionId,
+            userId = requestingUserId,
+            category = null,
+            limit = limit,
+            offset = 0
+        )
+    }
 }
+
+

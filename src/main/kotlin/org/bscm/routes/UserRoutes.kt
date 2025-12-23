@@ -9,10 +9,16 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
+import org.bscm.models.dto.user.UserProfileResponse
+import org.bscm.models.enums.ContentType
 import org.bscm.models.repository.IUserRepository
+import org.bscm.services.CollectionService
 import java.util.*
 
-fun Route.userRoutes(userRepository: IUserRepository) {
+fun Route.userRoutes(
+    userRepository: IUserRepository,
+    collectionService: CollectionService
+) {
     route("/users") {
         // Create a new user
         post {
@@ -21,8 +27,19 @@ fun Route.userRoutes(userRepository: IUserRepository) {
             call.respond(HttpStatusCode.Created, createdUser)
         }
 
-        authenticate("auth-bearer") {
-            // Get all users
+        authenticate("auth-bearer", optional = true) {
+            /**
+             * GET /users
+             *
+             * Retrieves a list of users. Supports an optional `search` query parameter
+             * to filter users by name/username.
+             *
+             * Query parameters:
+             * - search: Optional search string to filter users.
+             *
+             * Response:
+             * - 200 OK with the list of users.
+             */
             get {
                 // Get query parameters (search)
                 val search = call.request.queryParameters["search"]
@@ -32,6 +49,18 @@ fun Route.userRoutes(userRepository: IUserRepository) {
                 call.respond(users)
             }
 
+            /**
+             * GET /users/hello
+             *
+             * Test endpoint that reads JWT principal information and returns a simple
+             * greeting including the username and token expiry time (in milliseconds).
+             *
+             * Security:
+             * - Requires authentication (JWT principal).
+             *
+             * Response:
+             * - 200 OK with a plain text greeting.
+             */
             get("/hello") {
                 val principal = call.principal<JWTPrincipal>()
                 val username = principal!!.payload.getClaim("username").asString()
@@ -39,7 +68,19 @@ fun Route.userRoutes(userRepository: IUserRepository) {
                 call.respondText("Hello, $username! Token is expired at $expiresAt ms.")
             }
 
-            // Get user by Discord ID
+            /**
+             * GET /users/{id}
+             *
+             * Retrieves a single user by their Discord ID.
+             *
+             * Path parameters:
+             * - id: Discord ID (required).
+             *
+             * Responses:
+             * - 200 OK with the user when found.
+             * - 404 Not Found if the user does not exist.
+             * - 400 Bad Request (IllegalArgumentException) if the id parameter is missing/invalid.
+             */
             get("{id}") {
                 val id = call.parameters["id"] ?: throw IllegalArgumentException("Invalid or missing Discord ID")
 
@@ -51,19 +92,142 @@ fun Route.userRoutes(userRepository: IUserRepository) {
                 }
             }
 
-            // Get user by username
-            get("by-username/{username}") {
-                val username = call.parameters["username"] ?: throw IllegalArgumentException("Invalid or missing username")
+            /**
+             * GET /users/by-username/{username}
+             *
+             * Retrieves a user's profile by username, including related data such as
+             * charts, collections (only if the requester is the owner), likes, bookmarks,
+             * and aggregated statistics.
+             *
+             * Path parameters:
+             * - username: Target user's username (required).
+             *
+             * Authentication:
+             * - Reads JWT principal when present to identify the requesting user and
+             *   determine ownership (affects limits and visible data).
+             *
+             * Query parameters:
+             * - contentType: Optional filter for chart content type (case-insensitive).
+             * - query: Optional search/query string for charts.
+             * - limit: Optional limit for charts result set (owner and non-owner caps apply).
+             * - offset: Optional pagination offset for charts (defaults to 0).
+             *
+             * Limits:
+             * - charts limit: owner -> max 50 (default 50); non-owner -> max 20 (default 20).
+             * - collections: only returned for owner (limit 10).
+             * - likes/bookmarks: owner -> 50, non-owner -> 20.
+             *
+             * Responses:
+             * - 200 OK with UserProfileResponse containing user, charts, collections,
+             *   likes, bookmarks and stats.
+             * - 404 Not Found if the user does not exist.
+             * - 400 Bad Request (IllegalArgumentException) if required parameters are missing/invalid.
+             */
+            get("username/{username}") {
+                val username = call.parameters["username"]
+                    ?: throw IllegalArgumentException("Invalid or missing username")
 
-                val user = userRepository.getUserByUsername(username)
-                if (user != null) {
-                    call.respond(user)
-                } else {
-                    throw NotFoundException("User not found")
+                // Get the requesting user ID from JWT (if authenticated)
+                val principal = call.principal<JWTPrincipal>()
+                val requestingUserId = principal?.subject?.let { UUID.fromString(it) }
+
+                // Get the target user
+                val targetUser = userRepository.getUserByUsername(username)
+                    ?: throw NotFoundException("User not found")
+
+                // Determine if the requesting user is viewing their own profile
+                val isOwner = requestingUserId == targetUser.id
+
+                // Parse query parameters
+                val contentType = call.request.queryParameters["contentType"]?.let {
+                    try {
+                        ContentType.valueOf(it.uppercase())
+                    } catch (_: IllegalArgumentException) {
+                        null
+                    }
                 }
+                val query = call.request.queryParameters["query"]
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+
+                // Set limits based on ownership
+                val chartsLimit = if (isOwner) {
+                    limit?.coerceAtMost(50) ?: 50
+                } else {
+                    limit?.coerceAtMost(20) ?: 20
+                }
+                val collectionsLimit = if (isOwner) 10 else 0
+                val likesBookmarksLimit = if (isOwner) 50 else 20
+
+                // Fetch user's charts
+                val charts = userRepository.getUserCharts(
+                    userId = targetUser.id,
+                    requestingUserId = requestingUserId,
+                    contentType = contentType,
+                    query = query,
+                    limit = chartsLimit,
+                    offset = offset
+                )
+
+                // Fetch collections (only for owner)
+                val collections = if (isOwner) {
+                    collectionService.getUserCollections(
+                        userId = targetUser.id,
+                        limit = collectionsLimit,
+                        offset = 0
+                    )
+                } else {
+                    null
+                }
+
+                // Fetch likes from system collection
+                val likes = userRepository.getSystemCollectionItems(
+                    userId = targetUser.id,
+                    collectionName = "likes",
+                    requestingUserId = requestingUserId,
+                    limit = likesBookmarksLimit
+                )
+
+                // Fetch bookmarks from system collection (favorites)
+                val bookmarks = userRepository.getSystemCollectionItems(
+                    userId = targetUser.id,
+                    collectionName = "favorites",
+                    requestingUserId = requestingUserId,
+                    limit = likesBookmarksLimit
+                )
+
+                // Get user stats
+                val stats = userRepository.getUserStats(targetUser.id)
+
+                // Build response
+                val response = UserProfileResponse(
+                    user = targetUser,
+                    charts = charts,
+                    collections = collections,
+                    likes = likes,
+                    bookmarks = bookmarks,
+                    stats = stats
+                )
+
+                call.respond(response)
             }
 
-            // Update an existing user
+            /**
+             * PUT /users/{id}
+             *
+             * Updates an existing user's mutable fields.
+             *
+             * Path parameters:
+             * - id: UUID of the user to update (required).
+             *
+             * Request body:
+             * - UpdateUserRequest DTO with fields to update.
+             *
+             * Responses:
+             * - 200 OK (implicitly) if update succeeds.
+             * - 404 Not Found if the user does not exist.
+             * - 400 Bad Request (IllegalArgumentException) if the id parameter is missing/invalid.
+             */
             put("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {
@@ -78,7 +242,19 @@ fun Route.userRoutes(userRepository: IUserRepository) {
                 }
             }
 
-            // Delete a user
+            /**
+             * DELETE /users/{id}
+             *
+             * Deletes a user by UUID.
+             *
+             * Path parameters:
+             * - id: UUID of the user to delete (required).
+             *
+             * Responses:
+             * - 200 OK with a success message if deletion succeeded.
+             * - 404 Not Found if the user does not exist.
+             * - 400 Bad Request (IllegalArgumentException) if the id parameter is missing/invalid.
+             */
             delete("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                 if (id == null) {

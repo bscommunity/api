@@ -21,9 +21,10 @@ class ContributorRepository : IContributorRepository {
 
             return Contributor(
                 user = SimplifiedUser(
-                    id = entity.user.id.value.toString(),
+                    id = entity.user.id.value,
                     username = entity.user.username,
                     imageUrl = entity.user.imageUrl,
+                    createdAt = entity.user.createdAt,
                 ),
                 chartId = chartId.toString(),
                 roles = entity.roles,
@@ -37,9 +38,10 @@ class ContributorRepository : IContributorRepository {
 
             return Contributor(
                 user = SimplifiedUser(
-                    id = user.id.value.toString(),
+                    id = user.id.value,
                     username = user.username,
                     imageUrl = user.imageUrl,
+                    createdAt = user.createdAt,
                 ),
                 chartId = chartId.toString(),
                 roles = entity.roles,

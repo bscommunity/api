@@ -18,7 +18,6 @@ fun Application.configureDI() {
 }
 
 fun mainModule(config: ApplicationConfig) = module {
-    single<IUserRepository> { UserRepository() }
     single<IChartRepository> { ChartRepository() }
     single<IContributorRepository> { ContributorRepository() }
     single<IKnownIssueRepository> { KnownIssueRepository() }
@@ -26,6 +25,7 @@ fun mainModule(config: ApplicationConfig) = module {
     single<ITourPassRepository> { TourPassRepository(get()) }
     single<IThemeRepository> { ThemeRepository() }
     single<ICollectionRepository> { CollectionRepository(get(), get(), get()) }
+    single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
     single { CollectionService(get()) }
     single {
         JWTService(

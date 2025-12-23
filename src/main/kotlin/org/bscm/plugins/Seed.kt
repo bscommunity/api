@@ -4,10 +4,10 @@ import io.ktor.server.application.*
 import kotlinx.coroutines.*
 import org.bscm.models.KnownIssue
 import org.bscm.models.StreamingLink
-import org.bscm.models.User
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
+import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
@@ -55,7 +55,7 @@ private suspend fun generateRandomCharts(
 ) = coroutineScope {
     // Create users first (sequentially since it's a small number)
     // Create or retrieve users
-    val users = mutableListOf<User>()
+    val users = mutableListOf<SimplifiedUser>()
     val usersToCreate = 5
 
     // Try to get existing users first
@@ -63,7 +63,7 @@ private suspend fun generateRandomCharts(
         val user = userRepository.getUserByUsername("user$i")
         if (user != null) {
             users.add(user)
-            logger.info("Found existing user: ${user?.username}")
+            logger.info("Found existing user: ${user.username}")
             continue
         }
 
@@ -77,7 +77,12 @@ private suspend fun generateRandomCharts(
                     imageUrl = "https://example.com/avatar$i.png"
                 )
             )
-            users.add(newUser)
+            users.add(SimplifiedUser(
+                id = newUser.id,
+                username = newUser.username,
+                imageUrl = newUser.imageUrl,
+                createdAt = newUser.createdAt
+            ))
             logger.info("Created new user: ${newUser.username}")
         } catch (e: Exception) {
             logger.error("Failed to create user$i: ${e.message}", e)
