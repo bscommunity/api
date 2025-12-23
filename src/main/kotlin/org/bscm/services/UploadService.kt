@@ -408,6 +408,7 @@ class UploadService(
 
     @Serializable
     data class RefreshData(
+        val versionId: String,
         val bundleUrl: String,
         val coverUrl: String? = null,
         val audioUrl: String? = null
@@ -447,13 +448,14 @@ class UploadService(
 
             for (msg in messages) {
                 val obj = msg.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.content
                 val attachments = obj["attachments"]?.jsonArray
                 val embeds = obj["embeds"]?.jsonArray
 
                 if (attachments != null && attachments.isNotEmpty()) {
                     val lastAttachment = attachments.last().jsonObject
                     val bundleUrl = lastAttachment["url"]?.jsonPrimitive?.content
-                    val id = lastAttachment["id"]?.jsonPrimitive?.content
+                    val versionId = lastAttachment["id"]?.jsonPrimitive?.content
 
                     // Get cover URL from first embed's image
                     val coverUrl = embeds?.firstOrNull()?.jsonObject
@@ -462,8 +464,8 @@ class UploadService(
 
                     println("Refreshing message ID=${obj["id"]?.jsonPrimitive?.content}: bundleUrl=$bundleUrl, coverUrl=$coverUrl")
 
-                    if (id != null && bundleUrl != null) {
-                        refreshData[id] = RefreshData(bundleUrl, coverUrl)
+                    if (id != null && versionId != null && bundleUrl != null) {
+                        refreshData[id] = RefreshData(versionId, bundleUrl, coverUrl)
                     }
                 }
             }

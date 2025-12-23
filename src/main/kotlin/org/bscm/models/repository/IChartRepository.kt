@@ -10,7 +10,7 @@ import org.bscm.models.enums.SortOption
 import java.util.*
 
 interface IChartRepository {
-    suspend fun getCharts(userId: UUID?, contentIds: List<String>? = null, chartIds: List<ULong>? = null): Pair<List<Chart>, Int>
+    suspend fun getCharts(userId: UUID?, contentIds: List<String>? = null, chartIds: List<ULong>? = null): Pair<List<Chart>, Int?>
     suspend fun getFullCharts(
         userId: UUID?,
         search: String?,
@@ -21,7 +21,7 @@ interface IChartRepository {
         limit: Int? = null,
         offset: Int? = null,
         count: Boolean = false
-    ): Pair<List<Chart>, Int>
+    ): Pair<List<Chart>, Int?>
     suspend fun getAppCharts(
         userId: UUID?,
         search: String?,
@@ -32,7 +32,7 @@ interface IChartRepository {
         limit: Int? = null,
         offset: Int? = null,
         count: Boolean = false
-    ): Pair<List<Chart>, Int>
+    ): Pair<List<Chart>, Int?>
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: ULong): Chart?
     suspend fun getAppChartById(contentId: String): Chart?
@@ -40,5 +40,5 @@ interface IChartRepository {
     suspend fun updateChart(id: ULong, chart: UpdateChartRequest): Chart
     suspend fun deleteChart(id: ULong): Boolean
     suspend fun postAnalytics(chartId: ULong, action: OperationOption): Boolean
-    suspend fun refreshChartsBundles(ids: Map<String, org.bscm.services.UploadService.RefreshData>, audioUrls: Map<String, String> = emptyMap()): Boolean
+    suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean
 }

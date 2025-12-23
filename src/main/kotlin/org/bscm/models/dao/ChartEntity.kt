@@ -20,14 +20,12 @@ class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var album by ChartTable.album
     var genre by ChartTable.genre
     var trackPreviewUrl by ChartTable.trackPreviewUrl
-    var trackPreviewAudioUrl by ChartTable.trackPreviewAudioUrl
 
     var normalizedArtist by ChartTable.normalizedArtist
     var normalizedTrack by ChartTable.normalizedTrack
     var normalizedAlbum by ChartTable.normalizedAlbum
 
     var coverUrl by ChartTable.coverUrl
-    var remoteCoverUrl by ChartTable.remoteCoverUrl
     var isPublic by ChartTable.isPublic
     var isFeatured by ChartTable.isFeatured
 

@@ -124,12 +124,14 @@ fun Route.chartRoutes(
                                     count = count,
                                 )
                             } else {
-                                Pair(emptyList(), 0)
+                                // Return empty response with 0 total
+                                // ChartListResponse(emptyList())
+                                Pair(emptyList(), null)
                             }
                         }
                     }
 
-                    call.respond(if (count) result else result.first)
+                    call.respond(result)
                 }
 
                 // Get chart by content id

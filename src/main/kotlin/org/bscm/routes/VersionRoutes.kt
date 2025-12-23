@@ -184,13 +184,13 @@ fun Route.versionRoutes(
             }
 
             // Fetch audio URLs from support channel
-            val audioUrls = supportUploadService.refreshAudioUrls()
-            println("Found ${audioUrls.size} audio URLs from support channel")
+            // val audioUrls = supportUploadService.refreshAudioUrls()
+            // println("Found ${audioUrls.size} audio URLs from support channel")
 
-            val result = chartRepository.refreshChartsBundles(messages, audioUrls)
+            val result = chartRepository.refreshChartsBundles(messages)
 
             if (result) {
-                call.respond(HttpStatusCode.OK, "Successfully refreshed ${messages.size} bundle URLs and ${audioUrls.size} audio URLs")
+                call.respond(HttpStatusCode.OK, "Successfully refreshed ${messages.size} bundle URLs")
             } else {
                 throw Exception("Failed to refresh bundle URLs")
             }

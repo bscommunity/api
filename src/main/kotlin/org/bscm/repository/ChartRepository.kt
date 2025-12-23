@@ -59,9 +59,7 @@ class ChartRepository : IChartRepository {
             album = entity.album,
             trackUrls = streamingLinks ?: emptyList(),
             trackPreviewUrl = entity.trackPreviewUrl,
-            trackPreviewAudioUrl = entity.trackPreviewAudioUrl,
             coverUrl = entity.coverUrl,
-            remoteCoverUrl = entity.remoteCoverUrl,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
             genre = entity.genre,
@@ -456,7 +454,7 @@ class ChartRepository : IChartRepository {
         userId: UUID?,
         contentIds: List<String>?,
         chartIds: List<ULong>?,
-    ): Pair<List<Chart>, Int> = newSuspendedTransaction {
+    ): Pair<List<Chart>, Int?> = newSuspendedTransaction {
         val (results, total) = fetchChartEntities(
             userId = userId,
             chartIds = chartIds,
@@ -483,7 +481,7 @@ class ChartRepository : IChartRepository {
             )
         }
 
-        Pair(charts, total)
+        Pair(charts, if (contentIds != null || chartIds != null) total else null)
     }
 
     override suspend fun getFullCharts(
@@ -496,7 +494,7 @@ class ChartRepository : IChartRepository {
         limit: Int?,
         offset: Int?,
         count: Boolean,
-    ): Pair<List<Chart>, Int> = newSuspendedTransaction {
+    ): Pair<List<Chart>, Int?> = newSuspendedTransaction {
         val (results, total) = fetchChartEntities(
             userId = userId,
             search = search,
@@ -531,7 +529,7 @@ class ChartRepository : IChartRepository {
             )
         }
 
-        Pair(charts, total)
+        Pair(charts, if (count) total else null)
     }
 
     // Mobile App Chart variant of getCharts that includes streaming links and only returns the latest version
@@ -545,7 +543,7 @@ class ChartRepository : IChartRepository {
         limit: Int?,
         offset: Int?,
         count: Boolean,
-    ): Pair<List<Chart>, Int> = newSuspendedTransaction {
+    ): Pair<List<Chart>, Int?> = newSuspendedTransaction {
         val (results, total) = fetchChartEntities(
             userId = userId,
             search = search,
@@ -578,7 +576,7 @@ class ChartRepository : IChartRepository {
             )
         }
 
-        Pair(charts, total)
+        Pair(charts, if (count) total else null)
     }
 
     override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {
@@ -617,7 +615,6 @@ class ChartRepository : IChartRepository {
             this.album = chart.album
             this.genre = chart.genre
             this.trackPreviewUrl = chart.trackPreviewUrl
-            this.trackPreviewAudioUrl = chart.trackPreviewAudioUrl
             this.coverUrl = chart.coverUrl
             this.authorId = UserEntity[userId].id
         }
@@ -757,84 +754,46 @@ class ChartRepository : IChartRepository {
         }
     }
 
-    override suspend fun refreshChartsBundles(ids: Map<String, org.bscm.services.UploadService.RefreshData>, audioUrls: Map<String, String>): Boolean = newSuspendedTransaction {
-        // Update bundle URLs
+    override suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = newSuspendedTransaction {
+        // messages: key is message/chart id, value has versionId and URLs
+        // Update bundle URLs by versionId from values
         val bundleSql = buildString {
             append("UPDATE ${VersionTable.tableName} SET ${VersionTable.bundleUrl.name} = CASE ${VersionTable.id.name} ")
-            ids.forEach { (id, data) ->
-                append("WHEN '$id' THEN '${data.bundleUrl}' ")
+            messages.forEach { (_, data) ->
+                append("WHEN '${data.versionId}' THEN '${data.bundleUrl}' ")
             }
-            append("END WHERE ${VersionTable.id.name} IN (${ids.keys.joinToString { "'$it'" }});")
+            append("END WHERE ${VersionTable.id.name} IN (${messages.values.joinToString { "'${it.versionId}'" }});")
         }
 
         // Update cover URLs for charts that have a cover URL and existing coverUrl contains 'cdn.discordapp.com'
-        val idsWithCovers = ids.filter { it.value.coverUrl != null }
-        val coverSql = if (idsWithCovers.isNotEmpty()) {
+        val withCovers = messages.values.filter { it.coverUrl != null }
+        val coverSql = if (withCovers.isNotEmpty()) {
             buildString {
                 append("UPDATE ${ChartTable.tableName} SET ${ChartTable.coverUrl.name} = CASE ${ChartTable.id.name} ")
-                idsWithCovers.forEach { (versionId, data) ->
+                withCovers.forEach { data ->
                     // Get chart ID from version ID
-                    append("WHEN (SELECT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} = '$versionId') THEN '${data.coverUrl}' ")
+                    append("WHEN (SELECT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} = '${data.versionId}') THEN '${data.coverUrl}' ")
                 }
                 append("END WHERE ${ChartTable.id.name} IN (")
-                append("SELECT DISTINCT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} IN (${idsWithCovers.keys.joinToString { "'$it'" }})")
+                append("SELECT DISTINCT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} IN (${withCovers.joinToString { "'${it.versionId}'" }})")
                 append(") AND ${ChartTable.coverUrl.name} LIKE 'https://cdn.discordapp.com%';")
             }
         } else null
 
-        // Update audio URLs based on trackPreviewUrl matching
-        val audioSql = if (audioUrls.isNotEmpty()) {
-            buildString {
-                append("UPDATE ${ChartTable.tableName} SET ${ChartTable.trackPreviewAudioUrl.name} = CASE ${ChartTable.trackPreviewUrl.name} ")
-                audioUrls.forEach { (originalUrl, discordAudioUrl) ->
-                    // Escape single quotes in URLs
-                    val escapedOriginal = originalUrl.replace("'", "''")
-                    val escapedDiscord = discordAudioUrl.replace("'", "''")
-                    append("WHEN '$escapedOriginal' THEN '$escapedDiscord' ")
-                }
-                append("END WHERE ${ChartTable.trackPreviewUrl.name} IN (${audioUrls.keys.joinToString { "'${it.replace("'", "''")}'" }});")
-            }
-        } else null
+        // Update audio URLs
+
 
         transaction {
             exec(bundleSql)
             if (coverSql != null) {
                 exec(coverSql)
             }
-            if (audioSql != null) {
-                exec(audioSql)
-            }
 
-            println("Successfully refreshed bundle URLs for ${ids.size} charts")
-            if (idsWithCovers.isNotEmpty()) {
-                println("Successfully refreshed cover URLs for ${idsWithCovers.size} charts (only where coverUrl contains 'cdn.discordapp.com')")
-            }
-            if (audioUrls.isNotEmpty()) {
-                println("Successfully refreshed audio URLs for ${audioUrls.size} charts")
+            println("Successfully refreshed bundle URLs for ${messages.size} charts")
+            if (withCovers.isNotEmpty()) {
+                println("Successfully refreshed cover URLs for ${withCovers.size} charts (only where coverUrl contains 'cdn.discordapp.com')")
             }
             true
         }
-
-        /*val batchUpdate = BatchUpdateStatement(VersionTable)
-
-        chartsIds.forEach { entry ->
-            batchUpdate.addBatch(
-            batchUpdate[VersionTable.bundleUrl] = entry.value
-        }
-
-        val result = batchUpdate.execute(TransactionManager.current())
-
-        if (result == null) {
-            println("No charts were updated. Check if the provided chart IDs are valid.")
-            return@newSuspendedTransaction false
-        }
-
-        if (result > 0) {
-            println("Successfully refreshed bundle URLs for ${chartsIds.size} charts")
-            true
-        } else {
-            println("Failed to refresh bundle URLs for charts: $chartsIds")
-            false
-        }*/
     }
 }

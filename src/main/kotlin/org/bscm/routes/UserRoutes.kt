@@ -51,6 +51,18 @@ fun Route.userRoutes(userRepository: IUserRepository) {
                 }
             }
 
+            // Get user by username
+            get("by-username/{username}") {
+                val username = call.parameters["username"] ?: throw IllegalArgumentException("Invalid or missing username")
+
+                val user = userRepository.getUserByUsername(username)
+                if (user != null) {
+                    call.respond(user)
+                } else {
+                    throw NotFoundException("User not found")
+                }
+            }
+
             // Update an existing user
             put("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }

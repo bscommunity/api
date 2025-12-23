@@ -150,7 +150,6 @@ class ChartPublishService(
             track = mediaInfo?.track ?: trackName,
             album = overrides.album ?: mediaInfo?.album,
             trackUrls = streamingLinks,
-            remoteCoverUrl = mediaInfo?.coverUrl,
             trackPreviewUrl = mediaInfo?.trackPreviewUrl,
             coverUrl = coverUrlPlaceholder,
             genre = overrides.genre ?: mediaInfo?.genre,
@@ -171,34 +170,11 @@ class ChartPublishService(
             ?: throw IllegalStateException("Discord response missing bundle attachment")
         val coverUrlFinal = discordResponse.embeds.firstOrNull()?.image?.url ?: createForUpload.coverUrl
 
-        // Upload audio preview to Discord support channel if available
-        val trackPreviewAudioUrl = if (!createForUpload.trackPreviewUrl.isNullOrBlank()) {
-            try {
-                println("Downloading audio preview from: ${createForUpload.trackPreviewUrl}")
-                val audioBytes = downloadAudioFile(createForUpload.trackPreviewUrl)
-                val normalizedTrack = getNormalizedTrackName(createForUpload.track)
-                val audioFilename = "${normalizedTrack}_preview.mp3"
-
-                println("Uploading audio preview to Discord support channel...")
-                supportUploadService.uploadAudioFile(
-                    audioBytes = audioBytes,
-                    filename = audioFilename,
-                    trackName = createForUpload.track,
-                    artistName = createForUpload.artist,
-                    originalUrl = createForUpload.trackPreviewUrl
-                )
-            } catch (e: Exception) {
-                println("Failed to upload audio preview: ${e.message}")
-                null
-            }
-        } else null
-
         val finalCreate = createForUpload.copy(
             id = discordResponse.id.toULong(),
             versionId = bundleAttachment.id.toULong(),
             bundleUrl = bundleAttachment.url,
             coverUrl = coverUrlFinal,
-            trackPreviewAudioUrl = trackPreviewAudioUrl,
         )
 
         val createdChart = chartRepository.createChart(user.id, finalCreate)
