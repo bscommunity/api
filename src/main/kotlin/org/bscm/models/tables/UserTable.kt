@@ -1,5 +1,6 @@
 package org.bscm.models.tables
 
+import org.bscm.models.enums.UserRole
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.javatime.datetime
 
@@ -7,6 +8,22 @@ object UserTable : UUIDTable("users") {
     val username = varchar("username", 255).uniqueIndex()
     val email = varchar("email", 255).uniqueIndex()
     val imageUrl = varchar("image_url", 255).nullable()
+    val bannerUrl = varchar("banner_url", 255).nullable()
+    val avatarUrl = varchar("avatar_url", 255).nullable()
+    val accentColor = integer("accent_color").nullable() // e.g., "16711680"
+    val bio = text("bio").nullable()
+
+    val role = enumerationByName("role", 20, UserRole::class)
+        .default(UserRole.USER)
+
+    val isVerified = bool("is_verified").default(false)
+    val verifiedAt = datetime("verified_at").nullable()
+
+    val verifiedBy = reference(
+        "verified_by",
+        UserTable
+    ).nullable()
+
     val discordId = varchar("discord_id", 255).uniqueIndex()
     val createdAt = datetime("created_at").clientDefault { java.time.LocalDateTime.now() }
 }

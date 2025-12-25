@@ -28,6 +28,7 @@ class ContributorRepository : IContributorRepository {
                 ),
                 chartId = chartId.toString(),
                 roles = entity.roles,
+                note = entity.note,
                 joinedAt = entity.joinedAt,
             )
         }

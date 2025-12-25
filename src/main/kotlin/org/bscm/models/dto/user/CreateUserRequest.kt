@@ -7,5 +7,7 @@ data class CreateUserRequest(
     val username: String,
     val email: String,
     val discordId: String,
-    val imageUrl: String?
+    val avatarUrl: String? = null,
+    val bannerUrl: String? = null,
+    val accentColor: Int? = null,
 )

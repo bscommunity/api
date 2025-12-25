@@ -2,6 +2,7 @@ package org.bscm.repository
 
 import io.ktor.server.plugins.*
 import org.bscm.models.Account
+import org.bscm.models.Badge
 import org.bscm.models.CatalogItem
 import org.bscm.models.User
 import org.bscm.models.dao.AccountEntity
@@ -26,18 +27,22 @@ class UserRepository(
     private val collectionRepository: ICollectionRepository
 ) : IUserRepository {
     companion object {
-        fun userEntityToUser(entity: UserEntity, includeAccounts: Boolean = false): User = User(
+        fun userEntityToUser(entity: UserEntity): User = User(
             id = entity.id.value,
             username = entity.username,
             email = entity.email,
             imageUrl = entity.imageUrl,
+            bannerUrl = entity.bannerUrl,
+            avatarUrl = entity.avatarUrl,
+            accentColor = entity.accentColor,
+            bio = entity.bio,
+
+            role = entity.role,
+            isVerified = entity.isVerified,
+            verifiedAt = entity.verifiedAt,
+
             discordId = entity.discordId,
             createdAt = entity.createdAt,
-            accounts = if (includeAccounts) {
-                entity.accounts.map { accountEntityToAccount(it) }
-            } else {
-                emptyList()
-            }
         )
 
         fun userEntityToSimplifiedUser(entity: UserEntity): SimplifiedUser = SimplifiedUser(
@@ -70,9 +75,9 @@ class UserRepository(
         }
     }
 
-    override suspend fun getUserById(id: UUID): User? = newSuspendedTransaction {
+    override suspend fun getUserById(id: UUID): User = newSuspendedTransaction {
         UserEntity.findById(id).let {
-            it?.let { userEntityToUser(it, true) }
+            it?.let { userEntityToUser(it) }
         } ?: throw NotFoundException("User not found with ID: $id")
     }
 
@@ -89,7 +94,9 @@ class UserRepository(
             this.username = user.username
             this.email = user.email
             this.discordId = user.discordId
-            this.imageUrl = user.imageUrl
+            this.avatarUrl = user.avatarUrl
+            this.bannerUrl = user.bannerUrl
+            this.accentColor = user.accentColor
         }
         userEntityToUser(newUser)
     }
@@ -99,9 +106,12 @@ class UserRepository(
         existingUser.apply {
             username = user.username.let { if (it.isNullOrBlank()) username else it }
             email = user.email.let { if (it.isNullOrBlank()) email else it }
-            imageUrl = user.imageUrl.let { if (it.isNullOrBlank()) imageUrl else it }
+            avatarUrl = user.avatarUrl.let { if (it.isNullOrBlank()) avatarUrl else it }
+            bannerUrl = user.bannerUrl.let { if (it.isNullOrBlank()) bannerUrl else it }
+            accentColor = user.accentColor ?: accentColor
+            bio = user.bio.let { if (it.isNullOrBlank()) bio else it }
         }
-        userEntityToUser(existingUser, true)
+        userEntityToUser(existingUser)
     }
 
     override suspend fun deleteUser(id: UUID): Boolean = newSuspendedTransaction {
@@ -134,6 +144,20 @@ class UserRepository(
         AccountTable.deleteWhere { AccountTable.userId eq id }
 
         true
+    }
+
+    override suspend fun getUserBadges(userId: UUID): List<Badge> = newSuspendedTransaction {
+        UserBadgeTable.innerJoin(BadgeTable).selectAll().where {
+            UserBadgeTable.userId eq userId
+        }.map { row ->
+            Badge(
+                id = row[BadgeTable.id].value,
+                name = row[BadgeTable.name],
+                description = row[BadgeTable.description],
+                criteria = row[BadgeTable.criteria],
+                createdAt = row[BadgeTable.createdAt]
+            )
+        }
     }
 
     override suspend fun getUserCharts(

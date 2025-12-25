@@ -22,7 +22,9 @@ class DiscordOAuthService(
         val id: String,
         val username: String,
         val email: String?,
-        val avatar: String?
+        val avatar: String?,
+        val banner: String?,
+        @SerialName("accent_color") val accentColor: Int?
     )
 
     @Serializable
@@ -59,15 +61,24 @@ class DiscordOAuthService(
         }
     }
 
-    suspend fun getUserInfo(accessToken: String): DiscordUser =
-        applicationHttpClient.get("$discordApiEndpoint/users/@me") {
+    suspend fun getUserInfo(accessToken: String): DiscordUser {
+        val response = applicationHttpClient.get("$discordApiEndpoint/users/@me") {
             headers {
                 append(HttpHeaders.Authorization, "Bearer $accessToken")
             }
-        }.body()
+        }.body<DiscordUser>()
+
+        println("Discord User Info: $response")
+
+        return response
+    }
 
     fun getAvatarUrl(userId: String, avatarHash: String): String {
         return "https://cdn.discordapp.com/avatars/$userId/$avatarHash.png"
+    }
+
+    fun getBannerUrl(userId: String, bannerHash: String): String {
+        return "https://cdn.discordapp.com/banners/$userId/$bannerHash.png"
     }
 }
 

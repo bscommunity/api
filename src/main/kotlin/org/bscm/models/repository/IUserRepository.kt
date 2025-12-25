@@ -1,5 +1,6 @@
 package org.bscm.models.repository
 
+import org.bscm.models.Badge
 import org.bscm.models.CatalogItem
 import org.bscm.models.User
 import org.bscm.models.dto.account.CreateAccountRequest
@@ -22,6 +23,8 @@ interface IUserRepository {
     suspend fun deleteAccount(id: UUID): Boolean
 
     // Profile-specific methods
+    suspend fun getUserBadges(userId: UUID): List<Badge>
+
     suspend fun getUserCharts(
         userId: UUID,
         requestingUserId: UUID?,

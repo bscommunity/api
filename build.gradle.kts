@@ -72,8 +72,9 @@ dependencies {
     implementation(libs.kotlinx.datetime)
     implementation(libs.ktor.server.config.yaml)
 
-    // BouncyCastle
-    implementation(libs.bouncycastle)
+    // Utils
+    implementation(libs.bouncycastle) // For cryptographic operations (e.g., NanoId)
+    implementation(libs.classgraph) // For classpath scanning (e.g., loading Exposed tables)
 
     // Decoding
     implementation(libs.unitykt)

@@ -74,7 +74,7 @@ private suspend fun generateRandomCharts(
                     username = "user$i",
                     email = "user$i@example.com",
                     discordId = "${100000000000000000 + i}",
-                    imageUrl = "https://example.com/avatar$i.png"
+                    avatarUrl = "https://example.com/avatar$i.png"
                 )
             )
             users.add(SimplifiedUser(

@@ -48,19 +48,27 @@ fun Route.authRoutes(
                             existingUser.id, UpdateUserRequest(
                                 username = discordUser.username,
                                 email = discordUser.email,
-                                imageUrl = discordUser.avatar?.let {
+                                avatarUrl = discordUser.avatar?.let {
                                     discordOAuthService.getAvatarUrl(discordUser.id, it)
-                                }
+                                },
+                                bannerUrl = discordUser.banner?.let {
+                                    discordOAuthService.getBannerUrl(discordUser.id, it)
+                                },
+                                accentColor = discordUser.accentColor
                             ))
                     }
                     ?: userRepository.createUser(
                         CreateUserRequest(
                             username = discordUser.username,
                             email = discordUser.email,
-                            imageUrl = discordUser.avatar?.let {
+                            discordId = discordUser.id,
+                            avatarUrl = discordUser.avatar?.let {
                                 discordOAuthService.getAvatarUrl(discordUser.id, it)
                             },
-                            discordId = discordUser.id
+                            bannerUrl = discordUser.banner?.let {
+                                discordOAuthService.getBannerUrl(discordUser.id, it)
+                            },
+                            accentColor = discordUser.accentColor
                         )
                     )
 
