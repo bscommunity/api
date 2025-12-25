@@ -21,5 +21,5 @@ data class Collection(
     val updatedAt: LocalDateTime,
     val items: List<CatalogItem>? = null,
     val coverUrl: String? = null, // SS
-    val itemCount: Int = 0, // SS
+    val itemsCount: Int = 0, // SS
 )

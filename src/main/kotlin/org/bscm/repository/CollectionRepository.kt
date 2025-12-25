@@ -47,7 +47,7 @@ class CollectionRepository(
                 isPublic = entity.isPublic,
                 createdAt = entity.createdAt,
                 updatedAt = entity.updatedAt,
-                itemCount = 0
+                itemsCount = 0
             )
         }
 
@@ -77,7 +77,7 @@ class CollectionRepository(
                 isPublic = entity.isPublic,
                 createdAt = entity.createdAt,
                 updatedAt = entity.updatedAt,
-                itemCount = itemCount
+                itemsCount = itemCount
             )
         }
     }
@@ -102,7 +102,7 @@ class CollectionRepository(
                 isPublic = row[CollectionTable.isPublic],
                 createdAt = row[CollectionTable.createdAt],
                 updatedAt = row[CollectionTable.updatedAt],
-                itemCount = itemCount
+                itemsCount = itemCount
             )
         }
     }
