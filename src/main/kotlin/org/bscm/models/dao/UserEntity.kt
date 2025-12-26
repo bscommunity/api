@@ -2,6 +2,7 @@ package org.bscm.models.dao
 
 import org.bscm.models.tables.AccountTable
 import org.bscm.models.tables.UserBadgeTable
+import org.bscm.models.tables.UserFollowTable
 import org.bscm.models.tables.UserTable
 import org.jetbrains.exposed.dao.UUIDEntity
 import org.jetbrains.exposed.dao.UUIDEntityClass
@@ -33,5 +34,21 @@ class UserEntity(id: EntityID<UUID>) : UUIDEntity(id) {
         UserBadgeTable.userId,
         UserBadgeTable.badgeId
     )
+
     val accounts by AccountEntity referrersOn AccountTable.userId
+
+    // Users this user follows
+    val following by UserEntity.via(
+        UserFollowTable.follower,
+        UserFollowTable.followed
+    )
+
+    // Users that follow this user
+    val followers by UserEntity.via(
+        UserFollowTable.followed,
+        UserFollowTable.follower
+    )
+
+    val followerCount by UserFollowTable.followerCount
+    val followingCount by UserFollowTable.followingCount
 }

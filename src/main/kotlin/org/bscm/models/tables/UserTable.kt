@@ -13,6 +13,8 @@ object UserTable : UUIDTable("users") {
     val accentColor = integer("accent_color").nullable() // e.g., "16711680"
     val bio = text("bio").nullable()
 
+    val isPublic = bool("is_public").default(true)
+
     val role = enumerationByName("role", 20, UserRole::class)
         .default(UserRole.USER)
 
