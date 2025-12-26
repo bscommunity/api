@@ -42,4 +42,11 @@ interface IUserRepository {
         requestingUserId: UUID?,
         limit: Int
     ): List<CatalogItem>
+
+    // Following/Followers methods
+    suspend fun followUser(followerId: UUID, followedId: UUID): Boolean
+    suspend fun unfollowUser(followerId: UUID, followedId: UUID): Boolean
+    suspend fun getFollowers(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser>
+    suspend fun getFollowing(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser>
+    suspend fun isFollowing(followerId: UUID, followedId: UUID): Boolean
 }

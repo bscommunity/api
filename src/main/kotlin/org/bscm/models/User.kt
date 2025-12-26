@@ -20,6 +20,7 @@ data class User(
     val avatarUrl: String?,
     val accentColor: Int?,
     val bio: String?,
+    val isPublic: Boolean,
 
     val role: UserRole,
 
@@ -28,5 +29,9 @@ data class User(
 
     val discordId: String,
     val createdAt: LocalDateTime,
+
+    val followerCount: Int,
+    val followingCount: Int,
+
     val badges: List<Badge>? = null,
 )

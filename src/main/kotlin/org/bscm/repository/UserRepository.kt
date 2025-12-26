@@ -36,6 +36,7 @@ class UserRepository(
             avatarUrl = entity.avatarUrl,
             accentColor = entity.accentColor,
             bio = entity.bio,
+            isPublic = entity.isPublic,
 
             role = entity.role,
             isVerified = entity.isVerified,
@@ -43,12 +44,21 @@ class UserRepository(
 
             discordId = entity.discordId,
             createdAt = entity.createdAt,
+
+            followerCount = entity.followerCount,
+            followingCount = entity.followingCount,
         )
 
         fun userEntityToSimplifiedUser(entity: UserEntity): SimplifiedUser = SimplifiedUser(
             id = entity.id.value,
             username = entity.username,
             imageUrl = entity.imageUrl,
+            avatarUrl = entity.avatarUrl,
+            bannerUrl = entity.bannerUrl,
+            isVerified = entity.isVerified,
+            isPublic = entity.isPublic,
+            followerCount = entity.followerCount,
+            followingCount = entity.followingCount,
             createdAt = entity.createdAt
         )
 
@@ -110,6 +120,7 @@ class UserRepository(
             bannerUrl = user.bannerUrl.let { if (it.isNullOrBlank()) bannerUrl else it }
             accentColor = user.accentColor ?: accentColor
             bio = user.bio.let { if (it.isNullOrBlank()) bio else it }
+            isPublic = user.isPublic ?: isPublic
         }
         userEntityToUser(existingUser)
     }
@@ -309,6 +320,81 @@ class UserRepository(
             limit = limit,
             offset = 0
         )
+    }
+
+    override suspend fun followUser(followerId: UUID, followedId: UUID): Boolean = newSuspendedTransaction {
+        // Verify both users exist
+        UserEntity.findById(followerId) ?: throw NotFoundException("Follower user not found")
+        UserEntity.findById(followedId) ?: throw NotFoundException("User to follow not found")
+
+        // Cannot follow yourself
+        if (followerId == followedId) {
+            return@newSuspendedTransaction false
+        }
+
+        // Check if already following
+        val alreadyFollowing = UserFollowTable.selectAll().where {
+            (UserFollowTable.follower eq followerId) and (UserFollowTable.followed eq followedId)
+        }.empty().not()
+
+        if (alreadyFollowing) {
+            return@newSuspendedTransaction false // Already following
+        }
+
+        // Insert follow relationship
+        UserFollowTable.insert {
+            it[follower] = followerId
+            it[followed] = followedId
+            it[createdAt] = java.time.LocalDateTime.now()
+        }
+
+        true
+    }
+
+    override suspend fun unfollowUser(followerId: UUID, followedId: UUID): Boolean = newSuspendedTransaction {
+        val deletedCount = UserFollowTable.deleteWhere {
+            (UserFollowTable.follower eq followerId) and (UserFollowTable.followed eq followedId)
+        }
+
+        deletedCount > 0
+    }
+
+    override suspend fun getFollowers(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser> = newSuspendedTransaction {
+        UserFollowTable
+            .innerJoin(UserTable, { UserFollowTable.follower }, { UserTable.id })
+            .selectAll()
+            .where { UserFollowTable.followed eq userId }
+            .orderBy(UserFollowTable.createdAt to SortOrder.DESC)
+            .limit(limit)
+            .offset(offset.toLong())
+            .map { row ->
+                val followerUserId = row[UserFollowTable.follower]
+                val followerEntity = UserEntity.findById(followerUserId) ?: return@map null
+                userEntityToSimplifiedUser(followerEntity)
+            }
+            .filterNotNull()
+    }
+
+    override suspend fun getFollowing(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser> = newSuspendedTransaction {
+        UserFollowTable
+            .innerJoin(UserTable, { UserFollowTable.followed }, { UserTable.id })
+            .selectAll()
+            .where { UserFollowTable.follower eq userId }
+            .orderBy(UserFollowTable.createdAt to SortOrder.DESC)
+            .limit(limit)
+            .offset(offset.toLong())
+            .map { row ->
+                val followedUserId = row[UserFollowTable.followed]
+                val followedEntity = UserEntity.findById(followedUserId) ?: return@map null
+                userEntityToSimplifiedUser(followedEntity)
+            }
+            .filterNotNull()
+    }
+
+    override suspend fun isFollowing(followerId: UUID, followedId: UUID): Boolean = newSuspendedTransaction {
+        UserFollowTable.selectAll().where {
+            (UserFollowTable.follower eq followerId) and (UserFollowTable.followed eq followedId)
+        }.empty().not()
     }
 }
 

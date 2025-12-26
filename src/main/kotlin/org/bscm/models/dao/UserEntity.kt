@@ -20,12 +20,11 @@ class UserEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var avatarUrl by UserTable.avatarUrl
     var accentColor by UserTable.accentColor
     var bio by UserTable.bio
+    var isPublic by UserTable.isPublic
 
     var role by UserTable.role
     var isVerified by UserTable.isVerified
     var verifiedAt by UserTable.verifiedAt
-
-    var verifiedBy by UserEntity optionalReferencedOn UserTable.verifiedBy
 
     var discordId by UserTable.discordId
     val createdAt by UserTable.createdAt

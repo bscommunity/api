@@ -138,6 +138,11 @@ fun Route.userRoutes(
                 // Determine if the requesting user is viewing their own profile
                 val isOwner = requestingUserId == targetUser.id
 
+                // Check privacy settings (non-owners cannot view private profiles)
+                if (!isOwner && !targetUser.isPublic) {
+                    throw NotFoundException("User profile is private")
+                }
+
                 // Parse query parameters
                 val contentType = call.request.queryParameters["contentType"]?.let {
                     try {
@@ -158,6 +163,7 @@ fun Route.userRoutes(
                 }
                 val collectionsLimit = if (isOwner) 10 else 0
                 val likesBookmarksLimit = if (isOwner) 50 else 20
+                // val followersFollowingLimit = if (isOwner) 20 else 10
 
                 // Fetch user's charts
                 val charts = userRepository.getUserCharts(
@@ -179,6 +185,27 @@ fun Route.userRoutes(
                 } else {
                     null
                 }
+
+                // Fetch badges
+                val badges = userRepository.getUserBadges(targetUser.id)
+
+                // Fetch followers (only for owner, or if user's profile is public)
+                /*val followers = if (isOwner || targetUser.isPublic) {
+                    userRepository.getFollowers(
+                        userId = targetUser.id,
+                        limit = followersFollowingLimit,
+                        offset = 0
+                    )
+                } else {
+                    null
+                }
+
+                // Fetch following list
+                val following = userRepository.getFollowing(
+                    userId = targetUser.id,
+                    limit = followersFollowingLimit,
+                    offset = 0
+                )*/
 
                 // Fetch likes from system collection
                 val likes = userRepository.getSystemCollectionItems(
@@ -202,6 +229,11 @@ fun Route.userRoutes(
                 // Build response
                 val response = UserProfileResponse(
                     user = targetUser,
+                    badges = badges,
+                    followerCount = targetUser.followerCount,
+                    followingCount = targetUser.followingCount,
+                    isPublic = targetUser.isPublic,
+                    isVerified = targetUser.isVerified,
                     charts = charts,
                     collections = collections,
                     likes = likes,
@@ -266,6 +298,129 @@ fun Route.userRoutes(
                 } else {
                     throw NotFoundException("User not found")
                 }
+            }
+
+            /**
+             * POST /users/{id}/follow
+             *
+             * Follows a user (adds them to your following list).
+             *
+             * Path parameters:
+             * - id: UUID of the user to follow (required).
+             *
+             * Security:
+             * - Requires authentication (JWT principal).
+             *
+             * Responses:
+             * - 200 OK with success message if follow succeeds.
+             * - 400 Bad Request if already following or cannot follow self.
+             * - 404 Not Found if the target user does not exist.
+             */
+            post("{id}/follow") {
+                val principal = call.principal<JWTPrincipal>()
+                val followerId = principal?.subject?.let { UUID.fromString(it) }
+                    ?: throw IllegalArgumentException("Authentication required")
+
+                val followedId = call.parameters["id"]?.let { UUID.fromString(it) }
+                    ?: throw IllegalArgumentException("Invalid or missing ID")
+
+                val success = userRepository.followUser(followerId, followedId)
+                if (success) {
+                    call.respond(HttpStatusCode.OK, "User followed successfully")
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, "Cannot follow this user (already following or invalid)")
+                }
+            }
+
+            /**
+             * DELETE /users/{id}/follow
+             *
+             * Unfollows a user (removes them from your following list).
+             *
+             * Path parameters:
+             * - id: UUID of the user to unfollow (required).
+             *
+             * Security:
+             * - Requires authentication (JWT principal).
+             *
+             * Responses:
+             * - 200 OK with success message if unfollow succeeds.
+             * - 404 Not Found if the follow relationship does not exist.
+             */
+            delete("{id}/follow") {
+                val principal = call.principal<JWTPrincipal>()
+                val followerId = principal?.subject?.let { UUID.fromString(it) }
+                    ?: throw IllegalArgumentException("Authentication required")
+
+                val followedId = call.parameters["id"]?.let { UUID.fromString(it) }
+                    ?: throw IllegalArgumentException("Invalid or missing ID")
+
+                val success = userRepository.unfollowUser(followerId, followedId)
+                if (success) {
+                    call.respond(HttpStatusCode.OK, "User unfollowed successfully")
+                } else {
+                    throw NotFoundException("Follow relationship not found")
+                }
+            }
+
+            /**
+             * GET /users/{id}/followers
+             *
+             * Retrieves a list of users who follow the specified user.
+             *
+             * Path parameters:
+             * - id: UUID of the user (required).
+             *
+             * Query parameters:
+             * - limit: Optional limit for results (default 10, max 20).
+             * - offset: Optional pagination offset (defaults to 0).
+             *
+             * Responses:
+             * - 200 OK with list of SimplifiedUser objects.
+             * - 404 Not Found if the user does not exist.
+             */
+            get("{id}/followers") {
+                val userId = call.parameters["id"]?.let { UUID.fromString(it) }
+                    ?: throw IllegalArgumentException("Invalid or missing ID")
+
+                // Verify user exists
+                userRepository.getUserById(userId) ?: throw NotFoundException("User not found")
+
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceAtMost(20) ?: 10
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+
+                val followers = userRepository.getFollowers(userId, limit, offset)
+                call.respond(followers)
+            }
+
+            /**
+             * GET /users/{id}/following
+             *
+             * Retrieves a list of users that the specified user follows.
+             *
+             * Path parameters:
+             * - id: UUID of the user (required).
+             *
+             * Query parameters:
+             * - limit: Optional limit for results (default 10, max 20).
+             * - offset: Optional pagination offset (defaults to 0).
+             *
+             * Responses:
+             * - 200 OK with list of SimplifiedUser objects.
+             * - 404 Not Found if the user does not exist.
+             */
+            get("{id}/following") {
+                val userId = call.parameters["id"]?.let { UUID.fromString(it) }
+                    ?: throw IllegalArgumentException("Invalid or missing ID")
+
+                // Verify user exists
+                userRepository.getUserById(userId) ?: throw NotFoundException("User not found")
+
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceAtMost(20) ?: 10
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+
+                val following = userRepository.getFollowing(userId, limit, offset)
+                call.respond(following)
             }
         }
     }

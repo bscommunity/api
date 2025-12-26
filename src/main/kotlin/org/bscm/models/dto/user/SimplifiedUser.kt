@@ -12,6 +12,12 @@ data class SimplifiedUser(
     val id: UUID,
     val username: String,
     val imageUrl: String? = null,
+    val avatarUrl: String? = null,
+    val bannerUrl: String? = null,
+    val isVerified: Boolean,
+    val isPublic: Boolean,
+    val followerCount: Int,
+    val followingCount: Int,
     @Serializable (with = LocalDateTimeSerializer::class)
     val createdAt: LocalDateTime
 )
