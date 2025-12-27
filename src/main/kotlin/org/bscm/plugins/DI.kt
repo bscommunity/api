@@ -5,6 +5,7 @@ import io.ktor.server.config.*
 import org.bscm.models.repository.*
 import org.bscm.repository.*
 import org.bscm.services.*
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
@@ -59,7 +60,7 @@ fun mainModule(config: ApplicationConfig) = module {
             channelId = config.property("workshop.channelId").getString(),
         )
     }
-    single(qualifier = org.koin.core.qualifier.named("support")) {
+    single(qualifier = named("support")) {
         UploadService(
             webhookId = config.property("support.webhookId").getString(),
             webhookToken = config.property("support.webhookToken").getString(),
@@ -71,7 +72,7 @@ fun mainModule(config: ApplicationConfig) = module {
         ChartPublishService(
             chartRepository = get(),
             uploadService = get(),
-            supportUploadService = get(qualifier = org.koin.core.qualifier.named("support")),
+            // supportUploadService = get(qualifier = named("support")),
             mediaInfoService = get(),
         )
     }

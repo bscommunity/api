@@ -18,7 +18,6 @@ import org.bscm.utils.NanoIdUtils
 class ChartPublishService(
     private val chartRepository: IChartRepository,
     private val uploadService: UploadService,
-    private val supportUploadService: UploadService,
     private val mediaInfoService: MediaInfoService
 ) {
     data class Overrides(

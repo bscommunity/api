@@ -48,6 +48,6 @@ class UserEntity(id: EntityID<UUID>) : UUIDEntity(id) {
         UserFollowTable.follower
     )
 
-    val followerCount by UserFollowTable.followerCount
-    val followingCount by UserFollowTable.followingCount
+    val followerCount by UserTable.followerCount
+    val followingCount by UserTable.followingCount
 }

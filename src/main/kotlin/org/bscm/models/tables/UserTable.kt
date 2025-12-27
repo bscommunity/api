@@ -26,6 +26,9 @@ object UserTable : UUIDTable("users") {
         UserTable
     ).nullable()
 
+    val followerCount = integer("follower_count").default(0)
+    val followingCount = integer("following_count").default(0)
+
     val discordId = varchar("discord_id", 255).uniqueIndex()
     val createdAt = datetime("created_at").clientDefault { java.time.LocalDateTime.now() }
 }

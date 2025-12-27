@@ -237,7 +237,6 @@ class MediaInfoService(lastfmApiKey: String) {
                     artist = first.artist?.name,
                     genre = null,
                     trackUrls = listOf(StreamingLink(StreamingPlatform.DEEZER, first.link)),
-                    trackPreviewUrl = first.preview,
                     isExplicit = first.explicitLyrics == true
                 )
             }
