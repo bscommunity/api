@@ -7,7 +7,7 @@ import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.enums.ContributorRole
-import org.bscm.models.repository.IContributorRepository
+import org.bscm.models.interfaces.IContributorRepository
 import org.bscm.models.tables.ContributorTable
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction

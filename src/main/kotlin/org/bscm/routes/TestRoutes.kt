@@ -28,11 +28,9 @@ fun Route.testRoutes(mediaInfoService: MediaInfoService) {
 
             // Streaming links resolution
             val streamingLinks = try {
-                if (mediaInfo.trackUrls.isNotEmpty()) {
-                    mediaInfoService.getTrackStreamingLinks(mediaInfo.trackUrls.first().url, cleanedTrackName, cleanedArtistName)
-                } else mediaInfo.trackUrls
+                mediaInfoService.getTrackStreamingLinks(mediaInfo.link.url, cleanedTrackName, cleanedArtistName)
             } catch (_: Exception) {
-                mediaInfo.trackUrls
+                listOf(mediaInfo.link)
             }
 
             println("Resolved streaming links: $streamingLinks")

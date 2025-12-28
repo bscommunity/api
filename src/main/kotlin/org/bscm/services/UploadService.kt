@@ -12,6 +12,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.bscm.clients.applicationHttpClient
+import org.bscm.clients.jsonClient
 import org.bscm.interactions.*
 import org.bscm.models.Chart
 import org.bscm.models.StreamingLink
@@ -21,8 +23,6 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
-import org.bscm.plugins.applicationHttpClient
-import org.bscm.plugins.jsonClient
 import java.util.*
 
 class UploadService(

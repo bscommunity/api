@@ -4,7 +4,7 @@ import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
 import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.enums.ContentType
-import org.bscm.models.repository.ICollectionRepository
+import org.bscm.models.interfaces.ICollectionRepository
 import java.util.*
 
 class CollectionService(

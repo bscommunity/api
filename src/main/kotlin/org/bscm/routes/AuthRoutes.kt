@@ -13,10 +13,10 @@ import org.bscm.models.User
 import org.bscm.models.dto.account.CreateAccountRequest
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
-import org.bscm.models.repository.IUserRepository
-import org.bscm.services.DiscordOAuthService
-import org.bscm.services.GoogleOAuthService
-import org.bscm.services.JWTService
+import org.bscm.models.interfaces.IUserRepository
+import org.bscm.services.auth.DiscordOAuthService
+import org.bscm.services.auth.GoogleOAuthService
+import org.bscm.services.auth.JWTService
 import java.time.LocalDateTime
 import java.util.*
 

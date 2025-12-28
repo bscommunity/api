@@ -1,4 +1,4 @@
-package org.bscm.services
+package org.bscm.services.auth
 
 import java.util.*
 import javax.crypto.Mac

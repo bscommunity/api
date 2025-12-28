@@ -7,12 +7,12 @@ import io.ktor.server.response.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
+import org.bscm.clients.applicationHttpClient
 import org.bscm.interactions.Button
 import org.bscm.interactions.CommandHandler.immediateEphemeralResponse
 import org.bscm.interactions.I18n
 import org.bscm.interactions.message
-import org.bscm.models.repository.IUserRepository
-import org.bscm.plugins.applicationHttpClient
+import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.ChartPublishService
 import org.bscm.services.InteractionResponseService
 import org.koin.ktor.ext.getKoin

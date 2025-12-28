@@ -1,4 +1,4 @@
-package org.bscm.models.repository
+package org.bscm.models.interfaces
 
 import org.bscm.models.Badge
 import org.bscm.models.CatalogItem

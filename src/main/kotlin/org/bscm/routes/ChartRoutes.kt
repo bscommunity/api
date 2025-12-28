@@ -10,21 +10,22 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
+import org.bscm.clients.jsonClient
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.OperationOption
 import org.bscm.models.enums.SortOption
-import org.bscm.models.repository.IChartRepository
-import org.bscm.models.repository.IUserRepository
-import org.bscm.models.repository.IVersionRepository
+import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.IUserRepository
+import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
-import org.bscm.plugins.jsonClient
 import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
+import org.bscm.services.preview.PreviewService
 import org.koin.ktor.ext.getKoin
 import java.util.*
 
@@ -33,6 +34,7 @@ fun Route.chartRoutes(
     userRepository: IUserRepository,
     versionRepository: IVersionRepository,
     uploadService: UploadService,
+    previewService: PreviewService
 ) {
     route("/charts") {
         // Routes that accept either JWT or HMAC authentication
@@ -45,8 +47,10 @@ fun Route.chartRoutes(
 
                     val difficulties =
                         call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
-                    val genres = call.request.queryParameters.getAll("genres")?.flatMap { it.split(",") }?.map { Genre.valueOf(it) }
-                    val isDeluxe =  call.request.queryParameters.getAll("versions")?.any { it.equals("DELUXE", ignoreCase = true) }
+                    val genres = call.request.queryParameters.getAll("genres")?.flatMap { it.split(",") }
+                        ?.map { Genre.valueOf(it) }
+                    val isDeluxe =
+                        call.request.queryParameters.getAll("versions")?.any { it.equals("DELUXE", ignoreCase = true) }
 
                     val isDashboard = call.request.queryParameters["isDashboard"]?.toBoolean()
 
@@ -229,7 +233,9 @@ fun Route.chartRoutes(
                     multipart.forEachPart { part ->
                         when (part) {
                             is PartData.FormItem -> if (part.name == "chart") chartJson = part.value
-                            is PartData.FileItem -> if (part.name == "bundle") bundleFileBytes = part.provider().toByteArray()
+                            is PartData.FileItem -> if (part.name == "bundle") bundleFileBytes =
+                                part.provider().toByteArray()
+
                             else -> {}
                         }
                         part.dispose()
@@ -242,7 +248,11 @@ fun Route.chartRoutes(
 
                     // Optional client overrides
                     val clientRequest: CreateChartRequest? = chartJson?.let {
-                        try { jsonClient.decodeFromString<CreateChartRequest>(it) } catch (_: Exception) { null }
+                        try {
+                            jsonClient.decodeFromString<CreateChartRequest>(it)
+                        } catch (_: Exception) {
+                            null
+                        }
                     }
 
                     val publishService = call.application.getKoin().get<ChartPublishService>()
@@ -310,6 +320,19 @@ fun Route.chartRoutes(
                     } else {
                         call.respond(HttpStatusCode.NotFound, "Chart not found")
                     }
+                }
+
+                // Get preview for a chart
+                get("/charts/{id}/preview") {
+                    /*val chartId = call.parameters["id"]!!.toLong()
+                    val preview = previewService.getPreviewForChart(chartId)
+
+                    if (preview == null) {
+                        call.respond(HttpStatusCode.NoContent)
+                    } else {
+                        call.respond(preview)
+                    }*/
+                    call.respond(HttpStatusCode.NotImplemented, "Preview service is not implemented yet")
                 }
             }
         }

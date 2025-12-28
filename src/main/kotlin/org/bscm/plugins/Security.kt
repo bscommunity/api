@@ -8,8 +8,8 @@ import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.config.*
 import io.ktor.server.response.*
-import org.bscm.services.HMACService
-import org.bscm.services.JWTService
+import org.bscm.services.auth.HMACService
+import org.bscm.services.auth.JWTService
 import org.koin.ktor.ext.inject
 import java.util.*
 import kotlin.math.abs

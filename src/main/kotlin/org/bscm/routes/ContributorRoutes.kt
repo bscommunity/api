@@ -7,7 +7,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
-import org.bscm.models.repository.IContributorRepository
+import org.bscm.models.interfaces.IContributorRepository
 import java.util.*
 
 fun Route.contributorRoutes(contributorRepository: IContributorRepository) {

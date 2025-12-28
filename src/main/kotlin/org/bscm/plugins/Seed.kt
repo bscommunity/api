@@ -13,7 +13,7 @@ import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
-import org.bscm.models.repository.*
+import org.bscm.models.interfaces.*
 import org.bscm.utils.NanoIdUtils
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory

@@ -3,7 +3,7 @@ kotlin = "2.1.0"
 ktor = "3.2.1"
 koin = "4.1.0-Beta5"
 exposed = "0.61.0"
-postgres = "42.7.5"
+postgres = "42.7.8"
 h2 = "2.3.232"
 logback = "1.5.20"
 flyway = "11.8.1"
@@ -12,6 +12,7 @@ bouncycastle = "1.78.1"
 unitykt="main-SNAPSHOT"
 compress="1.28.0"
 classgraph="4.8.184"
+lettuce="7.2.1.RELEASE"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -64,3 +65,4 @@ bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "boun
 unitykt = { module = "com.github.theduardomaciel:UnityKt", version.ref = "unitykt" }
 compress = { module = "org.apache.commons:commons-compress", version.ref = "compress" }
 classgraph = { module = "io.github.classgraph:classgraph", version.ref = "classgraph" }
+lettuce-core = { module = "io.lettuce:lettuce-core", version.ref = "lettuce" }

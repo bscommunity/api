@@ -1,4 +1,4 @@
-package org.bscm.services
+package org.bscm.services.auth
 
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -7,7 +7,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.bscm.plugins.applicationHttpClient
+import org.bscm.clients.applicationHttpClient
 
 class GoogleOAuthService(
     private val clientId: String,

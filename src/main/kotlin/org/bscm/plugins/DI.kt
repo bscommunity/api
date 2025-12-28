@@ -2,9 +2,21 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
-import org.bscm.models.repository.*
+import io.lettuce.core.RedisClient
+import io.lettuce.core.RedisURI
+import org.bscm.clients.*
+import org.bscm.models.dto.PreviewResponse
+import org.bscm.models.interfaces.*
 import org.bscm.repository.*
 import org.bscm.services.*
+import org.bscm.services.auth.DiscordOAuthService
+import org.bscm.services.auth.GoogleOAuthService
+import org.bscm.services.auth.HMACService
+import org.bscm.services.auth.JWTService
+import org.bscm.services.preview.PreviewService
+import org.bscm.services.preview.resolvers.DeezerPreviewResolver
+import org.bscm.services.preview.resolvers.ItunesPreviewResolver
+import org.bscm.services.preview.resolvers.PreviewResolverRegistry
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
@@ -19,6 +31,43 @@ fun Application.configureDI() {
 }
 
 fun mainModule(config: ApplicationConfig) = module {
+    // HTTP Client & JSON
+    single { applicationHttpClient }
+    single { jsonClient }
+
+    val uri = RedisURI.Builder
+        .redis(config.property("redis.host").getString(), config.property("redis.port").getString().toInt())
+        .withAuthentication("default", config.property("redis.password").getString())
+        .build()
+
+    // Redis
+    single {
+        RedisClient.create(uri)
+    }
+
+    // Cache Repository for PreviewResponse
+    single<CacheRepository<PreviewResponse>> {
+        RedisCacheRepository(
+            redisClient = get(),
+            json = get(),
+            serializer = PreviewResponse.serializer()
+        )
+    }
+
+    // API Clients
+    single { DeezerClient(client = get(), json = get()) }
+    single { ItunesClient(client = get(), json = get()) }
+    single {
+        LastFmClient(
+            apiKey = config.property("lastfm.apiKey").getString(),
+            client = get(),
+            json = get()
+        )
+    }
+    single { OdesliClient(client = get(), json = get()) }
+    single { MusicbrainzClient(client = get(), json = get()) }
+
+    // Repositories
     single<IChartRepository> { ChartRepository() }
     single<IContributorRepository> { ContributorRepository() }
     single<IKnownIssueRepository> { KnownIssueRepository() }
@@ -78,7 +127,22 @@ fun mainModule(config: ApplicationConfig) = module {
     }
     single {
         MediaInfoService(
-            lastfmApiKey = config.property("lastfm.apiKey").getString()
+            itunes = get(),
+            deezer = get(),
+            lastFm = get(),
+            odesli = get(),
+            musicbrainz = get()
+        )
+    }
+    single {
+        PreviewResolverRegistry(
+            resolvers = listOf(DeezerPreviewResolver(get()), ItunesPreviewResolver(get()))
+        )
+    }
+    single {
+        PreviewService(
+            registry = get(),
+            cache = get(),
         )
     }
     single {

@@ -1,4 +1,4 @@
-package org.bscm.models.repository
+package org.bscm.models.interfaces
 
 import org.bscm.models.TourPass
 import java.util.*

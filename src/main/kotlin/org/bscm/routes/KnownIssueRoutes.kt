@@ -6,7 +6,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.KnownIssue
-import org.bscm.models.repository.IKnownIssueRepository
+import org.bscm.models.interfaces.IKnownIssueRepository
 import java.util.*
 
 fun Route.knownIssuesRoutes(knownIssueRepository: IKnownIssueRepository) {

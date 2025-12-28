@@ -6,7 +6,7 @@ import org.bscm.models.Version
 import org.bscm.models.dao.ChartEntity
 import org.bscm.models.dao.VersionEntity
 import org.bscm.models.dto.version.CreateVersionRequest
-import org.bscm.models.repository.IVersionRepository
+import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.VersionTable
 import org.jetbrains.exposed.dao.with

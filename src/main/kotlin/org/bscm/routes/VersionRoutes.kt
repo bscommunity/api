@@ -10,12 +10,12 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
+import org.bscm.clients.jsonClient
 import org.bscm.models.dto.version.CreateVersionRequest
-import org.bscm.models.repository.IChartRepository
-import org.bscm.models.repository.IUserRepository
-import org.bscm.models.repository.IVersionRepository
+import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.IUserRepository
+import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.UnauthorizedException
-import org.bscm.plugins.jsonClient
 import org.bscm.services.UploadService
 import org.bscm.utils.QueryUtils.getNormalizedQuery
 import org.bscm.utils.QueryUtils.similarity

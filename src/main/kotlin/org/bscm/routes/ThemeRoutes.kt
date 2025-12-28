@@ -9,7 +9,7 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.repository.IThemeRepository
+import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.plugins.UnauthorizedException
 import java.util.*
 

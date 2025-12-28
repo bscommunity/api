@@ -3,6 +3,7 @@ package org.bscm.services
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import org.bscm.clients.applicationHttpClient
 import org.bscm.models.Chart
 import org.bscm.models.StreamingLink
 import org.bscm.models.User
@@ -10,9 +11,10 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.SimplifiedVersion
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
-import org.bscm.models.repository.IChartRepository
+import org.bscm.models.interfaces.IChartRepository
 import org.bscm.protobuf.ChartParser
 import org.bscm.utils.NanoIdUtils
+import org.bscm.utils.StreamingPlatformUtils
 
 /** Centralized pipeline for publishing a chart (Discord upload + DB persist). */
 class ChartPublishService(
@@ -41,23 +43,11 @@ class ChartPublishService(
     )
 
     private suspend fun downloadAudioFile(url: String): ByteArray {
-        val response: HttpResponse = org.bscm.plugins.applicationHttpClient.get(url)
+        val response: HttpResponse = applicationHttpClient.get(url)
         if (!response.status.isSuccess()) {
             throw Exception("Failed to download audio file: ${response.status}")
         }
         return response.readRawBytes()
-    }
-
-    private fun getNormalizedTrackName(track: String): String {
-        val normalized = track.trim()
-            .lowercase(java.util.Locale.getDefault())
-            .replace(Regex("\\s*\\([^)]*\\)"), "")   // remove (...)
-            .replace(Regex("\\s*\\[.*?]"), "")       // remove [...]
-            .replace(Regex("\\s*[Ff]eat\\..*"), "")  // remove feat...
-            .replace(Regex("[^a-zA-Z0-9 ]"), " ")    // replace non-alfa numeric with space
-            .replace(Regex("\\s+"), "_")             // collapse whitespace → underscore
-            .trim('_')                               // trim leading/trailing underscores
-        return normalized
     }
 
     suspend fun publish(user: User, bundleBytes: ByteArray, overrides: Overrides = Overrides()): Result {
@@ -98,16 +88,16 @@ class ChartPublishService(
         }
 
         // Cover final decision (blank placeholder if we'll attach coverBytes)
-        val coverUrlPlaceholder = if (coverBytes != null) "" else overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
+        val coverUrlPlaceholder = overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
 
         // Streaming links resolution
         val streamingLinks = overrides.trackUrls ?: run {
             try {
-                if (!mediaInfo?.trackUrls.isNullOrEmpty()) {
-                    mediaInfoService.getTrackStreamingLinks(mediaInfo.trackUrls.first().url, trackName, artistName)
-                } else mediaInfo?.trackUrls ?: emptyList()
+                if (mediaInfo?.link != null) {
+                    mediaInfoService.getTrackStreamingLinks(mediaInfo.link.url, trackName, artistName)
+                } else emptyList()
             } catch (_: Exception) {
-                mediaInfo?.trackUrls ?: emptyList()
+                listOfNotNull(mediaInfo?.link)
             }
         }
 
@@ -116,7 +106,6 @@ class ChartPublishService(
         val bpm = overrides.bpm ?: bundleInfo?.bpm ?: 0
         val isDeluxe = overrides.isDeluxe ?: (bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false)
         val isExplicit = overrides.isExplicit ?: mediaInfo?.isExplicit ?: false
-        val previewUrl = overrides.previewUrl
 
         // 4. Inject metadata back into the bundle (append computed/enhanced info to info.json)
         val infoToInject = mutableMapOf(
@@ -124,22 +113,22 @@ class ChartPublishService(
             "duration" to computedStats.duration,
             "notes" to computedStats.notesAmount,
             "effects" to computedStats.effectsAmount,
-            "contributors" to "${user.username}#author",
+            "contributors" to "${user.username}|author",
+            "cover" to coverUrlPlaceholder,
             "publishedAt" to System.currentTimeMillis(),
         )
 
         // Optional fields
-        if (!previewUrl.isNullOrBlank() || mediaInfo?.trackPreviewUrl != null) {
-            infoToInject["previewUrl"] = previewUrl ?: mediaInfo?.trackPreviewUrl!!
+        if (overrides.previewUrl != null) {
+            infoToInject["gameplay"] = overrides.previewUrl
         }
 
         if (isExplicit) {
-            infoToInject["isExplicit"] = true
+            infoToInject["explicit"] = true
         }
 
         if (streamingLinks.isNotEmpty()) {
-            val linksForInfo = streamingLinks.map { "${it.platform}#${it.url}" }
-            infoToInject["streamingLinks"] = linksForInfo.joinToString(";")
+            infoToInject["streaming"] = StreamingPlatformUtils.serializeLinks(streamingLinks)
         }
 
         val enhancedBundleBytes = DecodingService.injectInfoToBundle(bundleBytes, infoToInject)
@@ -149,7 +138,7 @@ class ChartPublishService(
             track = mediaInfo?.track ?: trackName,
             album = overrides.album ?: mediaInfo?.album,
             trackUrls = streamingLinks,
-            trackPreviewUrl = mediaInfo?.trackPreviewUrl,
+            // trackPreviewUrl = mediaInfo?.trackPreviewUrl,
             coverUrl = coverUrlPlaceholder,
             genre = overrides.genre ?: mediaInfo?.genre,
             isExplicit = isExplicit,
@@ -160,7 +149,7 @@ class ChartPublishService(
             difficulty = difficultyEnum,
             isDeluxe = isDeluxe,
             bundleUrl = "",
-            previewUrl = previewUrl,
+            previewUrl = overrides.previewUrl,
             contentId = contentId,
         )
 

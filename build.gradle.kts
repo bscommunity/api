@@ -79,4 +79,7 @@ dependencies {
     // Decoding
     implementation(libs.unitykt)
     implementation(libs.compress)
+
+    // Caching
+    implementation(libs.lettuce.core)
 }

@@ -5,7 +5,7 @@ import org.bscm.models.Theme
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.ThemeEntity
 import org.bscm.models.enums.ContentType
-import org.bscm.models.repository.IThemeRepository
+import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.ThemeTable
 import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.or

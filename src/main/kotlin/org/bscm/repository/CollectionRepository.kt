@@ -9,10 +9,10 @@ import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.enums.ActionOption
 import org.bscm.models.enums.ContentType
-import org.bscm.models.repository.IChartRepository
-import org.bscm.models.repository.ICollectionRepository
-import org.bscm.models.repository.IThemeRepository
-import org.bscm.models.repository.ITourPassRepository
+import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.ICollectionRepository
+import org.bscm.models.interfaces.IThemeRepository
+import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.CollectionItemTable
 import org.bscm.models.tables.CollectionTable
 import org.bscm.models.tables.ContentTable

@@ -6,8 +6,8 @@ import org.bscm.models.TourPass
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.TourPassEntity
 import org.bscm.models.enums.ContentType
-import org.bscm.models.repository.IChartRepository
-import org.bscm.models.repository.ITourPassRepository
+import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.TourPassChartTable
 import org.bscm.models.tables.TourPassTable
 import org.jetbrains.exposed.sql.*

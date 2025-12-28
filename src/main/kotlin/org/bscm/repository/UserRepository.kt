@@ -13,7 +13,7 @@ import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserStats
 import org.bscm.models.enums.ContentType
-import org.bscm.models.repository.*
+import org.bscm.models.interfaces.*
 import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq

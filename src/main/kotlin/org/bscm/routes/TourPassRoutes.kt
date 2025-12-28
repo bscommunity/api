@@ -8,7 +8,7 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.repository.ITourPassRepository
+import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.plugins.UnauthorizedException
 import java.util.*
 

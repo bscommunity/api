@@ -11,7 +11,7 @@ import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileResponse
 import org.bscm.models.enums.ContentType
-import org.bscm.models.repository.IUserRepository
+import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.CollectionService
 import java.util.*
 

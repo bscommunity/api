@@ -9,7 +9,7 @@ import org.bscm.models.dao.*
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.enums.*
-import org.bscm.models.repository.IChartRepository
+import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.tables.*
 import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
 import org.bscm.repository.VersionRepository.Companion.versionEntityToVersion
