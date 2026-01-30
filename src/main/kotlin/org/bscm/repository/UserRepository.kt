@@ -12,6 +12,7 @@ import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileCounts
+import org.bscm.models.enums.CollectionKind
 import org.bscm.models.interfaces.*
 import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.*
@@ -310,22 +311,22 @@ class UserRepository(
             .count()
             .toInt()
 
-        // Count collections (excluding system collections)
+        // Count collections (only USER kind collections)
         val totalCollections = CollectionTable
             .select(CollectionTable.id)
             .where {
                 (CollectionTable.userId eq userId) and
-                (CollectionTable.name notInList listOf("likes", "favorites"))
+                (CollectionTable.kind eq CollectionKind.USER)
             }
             .count()
             .toInt()
 
-        // Count likes (from likes system collection)
+        // Count likes (from LIKES system collection)
         val likesCollection = CollectionTable
             .select(CollectionTable.id)
             .where {
                 (CollectionTable.userId eq userId) and
-                (CollectionTable.name eq "likes")
+                (CollectionTable.kind eq CollectionKind.LIKES)
             }
             .singleOrNull()
 
@@ -337,16 +338,16 @@ class UserRepository(
                 .toInt()
         } ?: 0
 
-        // Count bookmarks (from favorites system collection)
-        val favoritesCollection = CollectionTable
+        // Count bookmarks (from BOOKMARKS system collection)
+        val bookmarksCollection = CollectionTable
             .select(CollectionTable.id)
             .where {
                 (CollectionTable.userId eq userId) and
-                (CollectionTable.name eq "favorites")
+                (CollectionTable.kind eq CollectionKind.BOOKMARKS)
             }
             .singleOrNull()
 
-        val totalBookmarks = favoritesCollection?.let {
+        val totalBookmarks = bookmarksCollection?.let {
             CollectionItemTable
                 .select(CollectionItemTable.id)
                 .where { CollectionItemTable.collectionId eq it[CollectionTable.id] }
@@ -364,16 +365,20 @@ class UserRepository(
 
     override suspend fun getSystemCollectionItems(
         userId: UUID,
-        collectionName: String,
+        collectionKind: CollectionKind,
         requestingUserId: UUID?,
         limit: Int
     ): List<CatalogItem> = newSuspendedTransaction {
-        // Find the system collection for the user
+        require(collectionKind != CollectionKind.USER) {
+            "Cannot get system collection items for USER kind"
+        }
+
+        // Find the system collection for the user by kind
         val collection = CollectionTable
             .select(CollectionTable.id)
             .where {
                 (CollectionTable.userId eq userId) and
-                (CollectionTable.name eq collectionName)
+                (CollectionTable.kind eq collectionKind)
             }
             .singleOrNull()
             ?: return@newSuspendedTransaction emptyList()

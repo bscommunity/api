@@ -10,6 +10,7 @@ import io.ktor.server.routing.*
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileResponse
+import org.bscm.models.enums.CollectionKind
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.CollectionService
 import java.util.*
@@ -201,15 +202,15 @@ fun Route.userRoutes(
                 // Fetch likes from system collection
                 val likes = userRepository.getSystemCollectionItems(
                     userId = targetUser.id,
-                    collectionName = "likes",
+                    collectionKind = CollectionKind.LIKES,
                     requestingUserId = requestingUserId,
                     limit = likesBookmarksLimit
                 )
 
-                // Fetch bookmarks from system collection (favorites)
+                // Fetch bookmarks from system collection
                 val bookmarks = userRepository.getSystemCollectionItems(
                     userId = targetUser.id,
-                    collectionName = "favorites",
+                    collectionKind = CollectionKind.BOOKMARKS,
                     requestingUserId = requestingUserId,
                     limit = likesBookmarksLimit
                 )

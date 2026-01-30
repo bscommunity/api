@@ -8,6 +8,7 @@ import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileCounts
+import org.bscm.models.enums.CollectionKind
 import java.util.*
 
 interface IUserRepository {
@@ -52,7 +53,7 @@ interface IUserRepository {
 
     suspend fun getSystemCollectionItems(
         userId: UUID,
-        collectionName: String,
+        collectionKind: CollectionKind,
         requestingUserId: UUID?,
         limit: Int
     ): List<CatalogItem>

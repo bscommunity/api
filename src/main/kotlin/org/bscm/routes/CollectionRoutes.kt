@@ -31,7 +31,16 @@ private fun ApplicationCall.getContentTypeOrNull(): ContentType? {
     }
 }
 
-private fun ApplicationCall.getId(paramName: String = "id"): String {
+private fun ApplicationCall.getId(paramName: String = "id"): UUID {
+    val idString = parameters[paramName] ?: throw IllegalArgumentException("Invalid or missing $paramName")
+    return try {
+        UUID.fromString(idString)
+    } catch (e: IllegalArgumentException) {
+        throw IllegalArgumentException("$paramName must be a valid UUID")
+    }
+}
+
+private fun ApplicationCall.getContentId(paramName: String = "itemId"): String {
     return parameters[paramName] ?: throw IllegalArgumentException("Invalid or missing $paramName")
 }
 
@@ -124,7 +133,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     delete("{itemId}") {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
-                        val contentId = call.getId("itemId")
+                        val contentId = call.getContentId("itemId")
                         val removed = collectionService.removeItemFromCollection(collectionId, userId, contentId)
                         if (removed) {
                             call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from collection"))
@@ -132,20 +141,6 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                             call.respond(HttpStatusCode.NotFound, "Item not found in collection")
                         }
                     }
-                }
-            }
-
-            // Batch process items (add/remove) in collection
-            post("/batch") {
-                val userId = call.getUserId()
-
-                val request = call.receive<List<UpdateCollectionItemRequest>>()
-
-                try {
-                    collectionService.batchProcessInteractions(userId, request)
-                    call.respond(HttpStatusCode.OK)
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
                 }
             }
         }

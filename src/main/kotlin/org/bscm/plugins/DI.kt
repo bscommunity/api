@@ -76,7 +76,7 @@ fun mainModule(config: ApplicationConfig) = module {
     single<IThemeRepository> { ThemeRepository() }
     single<ICollectionRepository> { CollectionRepository(get(), get(), get()) }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
-    single { CollectionService(get()) }
+    single { CollectionService(get<CollectionRepository>()) }
     single {
         JWTService(
             secret = config.property("jwt.secret").getString()

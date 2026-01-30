@@ -11,6 +11,7 @@ class CollectionEntity(id: EntityID<UUID>) : Entity<UUID>(id) {
     companion object : EntityClass<UUID, CollectionEntity>(CollectionTable)
 
     var user by UserEntity referencedOn CollectionTable.userId
+    var kind by CollectionTable.kind
     var name by CollectionTable.name
     var isPublic by CollectionTable.isPublic
     var createdAt by CollectionTable.createdAt
