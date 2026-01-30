@@ -107,7 +107,12 @@ class CollectionRepository(
         }
     }
 
-    override suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String?, isPublic: Boolean?): Boolean = newSuspendedTransaction {
+    override suspend fun updateCollection(
+        collectionId: UUID,
+        userId: UUID,
+        name: String?,
+        isPublic: Boolean?
+    ): Boolean = newSuspendedTransaction {
         val entity = CollectionEntity.find {
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@newSuspendedTransaction false
@@ -127,49 +132,57 @@ class CollectionRepository(
         true
     }
 
-    override suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean = newSuspendedTransaction {
-        // Verify if the collection exists and belongs to the user
-        val collection = CollectionEntity.find {
-            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-        }.firstOrNull() ?: return@newSuspendedTransaction false
+    override suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
+        newSuspendedTransaction {
+            // Verify if the collection exists and belongs to the user
+            val collection = CollectionEntity.find {
+                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
+            }.firstOrNull() ?: return@newSuspendedTransaction false
 
-        // Verify if the item already exists in the collection
-        val existingFilter = (CollectionItemTable.collectionId eq collectionId) and
-                Op.TRUE
+            // Verify if the item already exists in the collection
+            val existingFilter = (CollectionItemTable.collectionId eq collectionId) and
+                    Op.TRUE
 
-        val existing = CollectionItemTable.selectAll().where { existingFilter }.firstOrNull()
-        if (existing != null) return@newSuspendedTransaction false
+            val existing = CollectionItemTable.selectAll().where { existingFilter }.firstOrNull()
+            if (existing != null) return@newSuspendedTransaction false
 
-        // Add item to collection
-        CollectionItemEntity.new {
-            this.collection = collection
-            this.content = ContentEntity[contentId]
-            this.addedAt = LocalDateTime.now()
+            // Add item to collection
+            CollectionItemEntity.new {
+                this.collection = collection
+                this.content = ContentEntity[contentId]
+                this.addedAt = LocalDateTime.now()
+            }
+
+            // Update collection's updatedAt
+            collection.updatedAt = LocalDateTime.now()
+            true
         }
 
-        // Update collection's updatedAt
-        collection.updatedAt = LocalDateTime.now()
-        true
-    }
+    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
+        newSuspendedTransaction {
+            // Verify if the collection belongs to the user
+            val collection = CollectionEntity.find {
+                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
+            }.firstOrNull() ?: return@newSuspendedTransaction false
 
-    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean = newSuspendedTransaction {
-        // Verify if the collection belongs to the user
-        val collection = CollectionEntity.find {
-            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-        }.firstOrNull() ?: return@newSuspendedTransaction false
+            val filter = (CollectionItemTable.collectionId eq collectionId) and
+                    Op.TRUE
 
-        val filter = (CollectionItemTable.collectionId eq collectionId) and
-                Op.TRUE
+            val item = CollectionItemEntity.find { filter }.firstOrNull()
+                ?: return@newSuspendedTransaction false
 
-        val item = CollectionItemEntity.find { filter }.firstOrNull()
-            ?: return@newSuspendedTransaction false
+            item.delete()
+            collection.updatedAt = LocalDateTime.now()
+            true
+        }
 
-        item.delete()
-        collection.updatedAt = LocalDateTime.now()
-        true
-    }
-
-    override suspend fun getCollectionItems(collectionId: UUID, userId: UUID?, category: ContentType?, limit: Int?, offset: Int?): List<CatalogItem> = newSuspendedTransaction {
+    override suspend fun getCollectionItems(
+        collectionId: UUID,
+        userId: UUID?,
+        category: ContentType?,
+        limit: Int?,
+        offset: Int?
+    ): List<CatalogItem> = newSuspendedTransaction {
         // Verify access to the collection
         val hasAccess = if (userId != null) {
             CollectionTable.selectAll().where {
@@ -246,7 +259,7 @@ class CollectionRepository(
         }
 
         // Restore original order from collection (by addedAt)
-        val orderMap = items.mapIndexed { index, item -> 
+        val orderMap = items.mapIndexed { index, item ->
             item[CollectionItemTable.contentId].value to index
         }.toMap()
 
@@ -263,58 +276,60 @@ class CollectionRepository(
         CollectionItemTable.selectAll().where { filter }.count() > 0
     }
 
-    override suspend fun batchProcessInteractions(userId: UUID, request: List<UpdateCollectionItemRequest>): Int = newSuspendedTransaction {
-        // Group requests by collectionId and action to minimize DB queries
-        val grouped = request.groupBy { Pair(it.collectionId, it.action) }
-        var processedCount = 0
-        for ((key, group) in grouped) {
-            val (collectionIdStr, action) = key
-            val contentIds = group.map { it.contentId }
-            val isSystemCollection = collectionIdStr == "likes" || collectionIdStr == "favorites"
-            val collectionId: UUID = if (isSystemCollection) {
-                // Find or create the special collection for the user
-                val existing = CollectionEntity.find {
-                    (CollectionTable.userId eq userId) and (CollectionTable.name eq collectionIdStr)
-                }.firstOrNull()
-                existing?.id?.value ?: CollectionEntity.new {
-                    user = UserEntity[userId]
-                    name = collectionIdStr
-                    isPublic = false
-                    createdAt = LocalDateTime.now()
-                    updatedAt = LocalDateTime.now()
-                }.id.value
-            } else {
-                UUID.fromString(collectionIdStr)
-            }
-            when (action) {
-                ActionOption.ADD -> {
-                    // Find existing items to avoid duplicates
-                    val existingIds = CollectionItemEntity.find {
-                        (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId inList contentIds)
-                    }.map { it.content.id.value }.toSet()
-                    val toAdd = contentIds.filterNot { it in existingIds }
-                    if (toAdd.isNotEmpty()) {
-                        val now = LocalDateTime.now()
-                        CollectionItemTable.batchInsert(toAdd) { contentId ->
-                            this[CollectionItemTable.collectionId] = collectionId
-                            this[CollectionItemTable.contentId] = contentId
-                            this[CollectionItemTable.addedAt] = now
+    override suspend fun batchProcessInteractions(userId: UUID, request: List<UpdateCollectionItemRequest>): Int =
+        newSuspendedTransaction {
+            // Group requests by collectionId and action to minimize DB queries
+            val grouped = request.groupBy { Pair(it.collectionId, it.action) }
+            var processedCount = 0
+            for ((key, group) in grouped) {
+                val (collectionIdStr, action) = key
+                val contentIds = group.map { it.contentId }
+                val isSystemCollection = collectionIdStr == "likes" || collectionIdStr == "favorites"
+                val collectionId: UUID = if (isSystemCollection) {
+                    // Find or create the special collection for the user
+                    val existing = CollectionEntity.find {
+                        (CollectionTable.userId eq userId) and (CollectionTable.name eq collectionIdStr)
+                    }.firstOrNull()
+                    existing?.id?.value ?: CollectionEntity.new {
+                        user = UserEntity[userId]
+                        name = collectionIdStr
+                        isPublic = false
+                        createdAt = LocalDateTime.now()
+                        updatedAt = LocalDateTime.now()
+                    }.id.value
+                } else {
+                    UUID.fromString(collectionIdStr)
+                }
+                when (action) {
+                    ActionOption.ADD -> {
+                        // Find existing items to avoid duplicates
+                        val existingIds = CollectionItemEntity.find {
+                            (CollectionItemTable.collectionId eq collectionId) and
+                                    (CollectionItemTable.contentId inList contentIds)
+                        }.map { it.content.id.value }.toSet()
+                        val toAdd = contentIds.filterNot { it in existingIds }
+                        if (toAdd.isNotEmpty()) {
+                            val now = LocalDateTime.now()
+                            CollectionItemTable.batchInsert(toAdd) { contentId ->
+                                this[CollectionItemTable.collectionId] = collectionId
+                                this[CollectionItemTable.contentId] = contentId
+                                this[CollectionItemTable.addedAt] = now
+                            }
+                            processedCount += toAdd.size
                         }
-                        processedCount += toAdd.size
                     }
-                }
-                ActionOption.REMOVE -> {
-                    // Batch delete using a single query
-                    val deleted = CollectionItemTable.deleteWhere {
-                        (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId inList contentIds)
+
+                    ActionOption.REMOVE -> {
+                        // Batch delete using a single query
+                        val deleted = CollectionItemTable.deleteWhere {
+                            (CollectionItemTable.collectionId eq collectionId) and
+                                    (CollectionItemTable.contentId inList contentIds)
+                        }
+                        processedCount += deleted
                     }
-                    processedCount += deleted
                 }
             }
-        }
 
-        processedCount
-    }
+            processedCount
+        }
 }

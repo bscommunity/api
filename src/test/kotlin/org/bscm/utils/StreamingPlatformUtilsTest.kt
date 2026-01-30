@@ -4,6 +4,7 @@ import org.bscm.models.StreamingLink
 import org.bscm.models.enums.StreamingPlatform
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class StreamingPlatformUtilsTest {
@@ -32,8 +33,8 @@ class StreamingPlatformUtilsTest {
         val result = StreamingPlatformUtils.processLinksWithPrioritization(links, useKeyForDetection = true)
 
         assertEquals(1, result.size)
-        // Should prefer shorter URL with platform keyword
-        assertEquals("https://amazon.com/dp/B09XN9HY1K", result[0].url)
+        // Should prefer music.amazon.com (has "music" keyword) even if longer
+        assertTrue(result[0].url.contains("music.amazon.com"))
     }
 
     @Test
@@ -74,21 +75,39 @@ class StreamingPlatformUtilsTest {
         val links = listOf(
             StreamingLink(StreamingPlatform.SPOTIFY, "https://open.spotify.com/track/6Xoe3jKnSFKSzsQ8kdDT7I"),
             StreamingLink(StreamingPlatform.YOUTUBE_MUSIC, "https://music.youtube.com/watch?v=yOoaNE6xo4Q"),
-            StreamingLink(StreamingPlatform.DEEZER, "https://www.deezer.com/track/1693211037")
+            StreamingLink(StreamingPlatform.DEEZER, "https://www.deezer.com/track/1693211037"),
+            StreamingLink(StreamingPlatform.APPLE_MUSIC, "https://geo.music.apple.com/us/album/_/1612879515?i=1612879518&mt=1&app=music"),
+            StreamingLink(StreamingPlatform.SOUNDCLOUD, "https://soundcloud.com/the-sarcastic-ashole/disappointment-feat-rxseboy?utm_medium=api&utm_campaign=social_sharing&utm_source=id_314547")
         )
 
         val serialized = StreamingPlatformUtils.serializeLinks(links)
         println("Serialized: $serialized")
 
+        // Verify no domain names leak into serialized format
+        assertFalse(serialized.contains("spotify.com"), "Serialized should not contain domain")
+        assertFalse(serialized.contains("youtube.com"), "Serialized should not contain domain")
+        assertFalse(serialized.contains("apple.com"), "Serialized should not contain domain")
+        assertFalse(serialized.contains("soundcloud.com"), "Serialized should not contain domain")
+        assertFalse(serialized.contains("utm_"), "Serialized should not contain tracking params")
+
         val deserialized = StreamingPlatformUtils.deserializeLinks(serialized)
 
         assertEquals(links.size, deserialized.size)
+
+        // Verify platforms match
         assertEquals(links[0].platform, deserialized[0].platform)
-        assertEquals(links[0].url, deserialized[0].url)
         assertEquals(links[1].platform, deserialized[1].platform)
-        assertEquals(links[1].url, deserialized[1].url)
         assertEquals(links[2].platform, deserialized[2].platform)
-        assertEquals(links[2].url, deserialized[2].url)
+        assertEquals(links[3].platform, deserialized[3].platform)
+        assertEquals(links[4].platform, deserialized[4].platform)
+
+        // Verify URLs are reconstructed properly (with tracking params removed)
+        assertTrue(deserialized[0].url.contains("spotify.com/track"))
+        assertTrue(deserialized[1].url.contains("music.youtube.com/watch"))
+        assertTrue(deserialized[2].url.contains("deezer.com/track"))
+        assertTrue(deserialized[3].url.contains("music.apple.com/us/album"))
+        assertTrue(deserialized[4].url.contains("soundcloud.com/the-sarcastic-ashole"))
+        assertFalse(deserialized[4].url.contains("utm_"), "Deserialized URL should not have tracking params")
     }
 
     @Test

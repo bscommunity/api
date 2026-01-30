@@ -37,6 +37,20 @@ object StreamingPlatformUtils {
     private val PLATFORM_TO_BASE_DOMAIN = PLATFORM_GROUPS.associate { it.platform to it.baseDomain }
 
     /**
+     * Map platform to all possible domain variations for proper URL stripping
+     */
+    private val PLATFORM_DOMAIN_VARIATIONS = mapOf(
+        StreamingPlatform.YOUTUBE_MUSIC to listOf("music.youtube.com/", "www.youtube.com/", "youtube.com/", "youtu.be/"),
+        StreamingPlatform.APPLE_MUSIC to listOf("geo.music.apple.com/", "music.apple.com/", "itunes.apple.com/"),
+        StreamingPlatform.AMAZON_MUSIC to listOf("music.amazon.com/", "amazon.com/"),
+        StreamingPlatform.SPOTIFY to listOf("open.spotify.com/", "play.spotify.com/", "spotify.com/"),
+        StreamingPlatform.DEEZER to listOf("www.deezer.com/", "deezer.com/"),
+        StreamingPlatform.TIDAL to listOf("listen.tidal.com/", "tidal.com/"),
+        StreamingPlatform.SOUNDCLOUD to listOf("soundcloud.com/", "m.soundcloud.com/"),
+        StreamingPlatform.LAST_FM to listOf("www.last.fm/", "last.fm/", "lastfm.com/", "www.lastfm.com/")
+    )
+
+    /**
      * Detects the platform from a key or URL string
      */
     private fun detectPlatform(keyOrUrl: String): StreamingPlatform? {
@@ -76,15 +90,8 @@ object StreamingPlatformUtils {
     /**
      * Legacy method for Odesli keys
      */
-    fun fromKey(key: String): StreamingPlatform {
-        return detectPlatform(key) ?: StreamingPlatform.SPOTIFY
-    }
-
-    /**
-     * Legacy method for URL-based detection
-     */
-    fun fromUrl(url: String): StreamingPlatform {
-        return detectPlatform(url) ?: StreamingPlatform.SPOTIFY
+    fun fromKey(key: String): StreamingPlatform? {
+        return detectPlatform(key)
     }
 
     /**
@@ -223,11 +230,17 @@ object StreamingPlatformUtils {
      */
     fun serializeLinks(links: List<StreamingLink>): String {
         return links.joinToString("||") { link ->
-            val baseDomain = PLATFORM_TO_BASE_DOMAIN[link.platform] ?: ""
             val cleanedUrl = stripTrackingParams(link.url)
-            val path = cleanedUrl
-                .removePrefix("https://")
-                .removePrefix(baseDomain)
+            var path = cleanedUrl.removePrefix("https://").removePrefix("http://")
+
+            // Try to remove any known domain variation for this platform
+            val domainVariations = PLATFORM_DOMAIN_VARIATIONS[link.platform] ?: emptyList()
+            for (domain in domainVariations) {
+                if (path.startsWith(domain)) {
+                    path = path.removePrefix(domain)
+                    break
+                }
+            }
 
             "${link.platform.id}|$path"
         }

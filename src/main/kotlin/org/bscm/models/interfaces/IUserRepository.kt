@@ -7,8 +7,7 @@ import org.bscm.models.dto.account.CreateAccountRequest
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
-import org.bscm.models.dto.user.UserStats
-import org.bscm.models.enums.ContentType
+import org.bscm.models.dto.user.UserProfileCounts
 import java.util.*
 
 interface IUserRepository {
@@ -28,13 +27,28 @@ interface IUserRepository {
     suspend fun getUserCharts(
         userId: UUID,
         requestingUserId: UUID?,
-        contentType: ContentType?,
         query: String?,
         limit: Int,
         offset: Int
     ): List<CatalogItem>
 
-    suspend fun getUserStats(userId: UUID): UserStats
+    suspend fun getUserTourPasses(
+        userId: UUID,
+        requestingUserId: UUID?,
+        query: String?,
+        limit: Int,
+        offset: Int
+    ): List<CatalogItem>
+
+    suspend fun getUserThemes(
+        userId: UUID,
+        requestingUserId: UUID?,
+        query: String?,
+        limit: Int,
+        offset: Int
+    ): List<CatalogItem>
+
+    suspend fun getProfileCounts(userId: UUID): UserProfileCounts
 
     suspend fun getSystemCollectionItems(
         userId: UUID,

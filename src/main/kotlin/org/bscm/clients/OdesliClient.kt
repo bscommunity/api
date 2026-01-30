@@ -30,7 +30,9 @@ class OdesliClient(
         )
 
         return data.linksByPlatform.mapNotNull { (key, value) ->
-            StreamingLink(StreamingPlatformUtils.fromKey(key), value.url)
+            StreamingPlatformUtils.fromKey(key)?.let { platform ->
+                StreamingLink(platform, value.url)
+            }
         }
     }
 }

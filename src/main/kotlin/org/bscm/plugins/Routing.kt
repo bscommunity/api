@@ -17,7 +17,6 @@ import org.bscm.services.UploadService
 import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.JWTService
-import org.bscm.services.preview.PreviewService
 import org.koin.ktor.ext.inject
 
 // Disclaimer: Dependency Injection can't be made inside 'routing { }' block
@@ -40,7 +39,7 @@ fun Application.configureRouting() {
     val collectionService by inject<CollectionService>()
 
     val mediaInfoService by inject<MediaInfoService>()
-    val previewService by inject<PreviewService>()
+    // val previewService by inject<PreviewService>()
 
     routing {
         swaggerUI(path = "docs", swaggerFile = "openapi/documentation.yaml")
@@ -69,7 +68,7 @@ fun Application.configureRouting() {
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
         userRoutes(userRepository, collectionService)
 
-        chartRoutes(chartRepository, userRepository, versionRepository, uploadService, previewService)
+        chartRoutes(chartRepository, userRepository, versionRepository, uploadService, /*previewService*/)
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService, supportUploadService)
         contributorRoutes(contributorRepository)
         knownIssuesRoutes(knownIssueRepository)

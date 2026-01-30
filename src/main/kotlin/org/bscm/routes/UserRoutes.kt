@@ -10,7 +10,6 @@ import io.ktor.server.routing.*
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileResponse
-import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.CollectionService
 import java.util.*
@@ -144,13 +143,6 @@ fun Route.userRoutes(
                 }
 
                 // Parse query parameters
-                val contentType = call.request.queryParameters["contentType"]?.let {
-                    try {
-                        ContentType.valueOf(it.uppercase())
-                    } catch (_: IllegalArgumentException) {
-                        null
-                    }
-                }
                 val query = call.request.queryParameters["query"]
                 val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                 val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
@@ -169,7 +161,6 @@ fun Route.userRoutes(
                 val charts = userRepository.getUserCharts(
                     userId = targetUser.id,
                     requestingUserId = requestingUserId,
-                    contentType = contentType,
                     query = query,
                     limit = chartsLimit,
                     offset = offset
@@ -224,7 +215,7 @@ fun Route.userRoutes(
                 )
 
                 // Get user stats
-                val stats = userRepository.getUserStats(targetUser.id)
+                val counts = userRepository.getProfileCounts(targetUser.id)
 
                 // Build response
                 val response = UserProfileResponse(
@@ -234,11 +225,7 @@ fun Route.userRoutes(
                     followingCount = targetUser.followingCount,
                     isPublic = targetUser.isPublic,
                     isVerified = targetUser.isVerified,
-                    charts = charts,
-                    collections = collections,
-                    likes = likes,
-                    bookmarks = bookmarks,
-                    stats = stats
+                    counts = counts
                 )
 
                 call.respond(response)
@@ -421,6 +408,24 @@ fun Route.userRoutes(
 
                 val following = userRepository.getFollowing(userId, limit, offset)
                 call.respond(following)
+            }
+
+            get("{id}/charts") {
+                val userId = UUID.fromString(call.parameters["id"]!!)
+                val requester = call.principal<JWTPrincipal>()?.subject?.let(UUID::fromString)
+
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+
+                val charts = userRepository.getUserCharts(
+                    userId = userId,
+                    requestingUserId = requester,
+                    query = null,
+                    limit = limit,
+                    offset = offset
+                )
+
+                call.respond(charts)
             }
         }
     }

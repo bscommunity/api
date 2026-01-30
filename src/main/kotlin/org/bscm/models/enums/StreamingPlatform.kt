@@ -11,5 +11,9 @@ enum class StreamingPlatform(val id: Int) {
     TIDAL(4),
     AMAZON_MUSIC(5),
     SOUNDCLOUD(6),
-    LAST_FM(7)
+    LAST_FM(7);
+
+    companion object {
+        fun fromId(id: Int) = entries.first { it.id == id }
+    }
 }

@@ -11,8 +11,7 @@ import org.bscm.models.dto.account.CreateAccountRequest
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
-import org.bscm.models.dto.user.UserStats
-import org.bscm.models.enums.ContentType
+import org.bscm.models.dto.user.UserProfileCounts
 import org.bscm.models.interfaces.*
 import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.*
@@ -174,21 +173,15 @@ class UserRepository(
     override suspend fun getUserCharts(
         userId: UUID,
         requestingUserId: UUID?,
-        contentType: ContentType?,
         query: String?,
         limit: Int,
         offset: Int
     ): List<CatalogItem> = newSuspendedTransaction {
-        // Get content IDs for the user's charts filtered by content type
+        // Get content IDs for the user's charts
         val contentQuery = ContentTable
             .innerJoin(ChartTable, { ContentTable.id }, { ChartTable.contentId })
             .select(ContentTable.id, ContentTable.type)
             .where { ChartTable.authorId eq userId }
-
-        // Apply content type filter if specified
-        contentType?.let {
-            contentQuery.andWhere { ContentTable.type eq it }
-        }
 
         // Apply text search on chart metadata if query is provided
         query?.let { searchQuery ->
@@ -209,52 +202,107 @@ class UserRepository(
 
         if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
 
-        // Group by content type and fetch accordingly
-        val contentsByType = paginatedQuery.groupBy { it[ContentTable.type] }
-
-        val results = mutableListOf<CatalogItem>()
-
         // Fetch Charts
-        contentsByType[ContentType.CHART]?.let {
-            val chartContentIds = it.map { row -> row[ContentTable.id].value }
-            val (charts, _) = chartRepository.getCharts(
-                userId = requestingUserId,
-                contentIds = chartContentIds
-            )
-            results.addAll(charts)
-        }
-
-        // Future: Fetch TourPasses
-        contentsByType[ContentType.TOUR_PASS]?.let {
-            val tourPassContentIds = it.map { row -> row[ContentTable.id].value }
-            val tourPasses = tourPassRepository.getTourPasses(
-                userId = requestingUserId,
-                contentIds = tourPassContentIds,
-                search = null,
-                limit = null,
-                offset = null
-            )
-            results.addAll(tourPasses)
-        }
-
-        // Future: Fetch Themes
-        contentsByType[ContentType.THEME]?.let {
-            val themeContentIds = it.map { row -> row[ContentTable.id].value }
-            val themes = themeRepository.getThemes(
-                contentIds = themeContentIds,
-                search = null,
-                limit = null,
-                offset = null
-            )
-            results.addAll(themes)
-        }
+        val (charts, _) = chartRepository.getCharts(
+            userId = requestingUserId,
+            contentIds = contentIds
+        )
 
         // Return in order of original query
         val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
-        results.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
+        charts.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
     }
 
-    override suspend fun getUserStats(userId: UUID): UserStats = newSuspendedTransaction {
+    override suspend fun getUserTourPasses(
+        userId: UUID,
+        requestingUserId: UUID?,
+        query: String?,
+        limit: Int,
+        offset: Int
+    ): List<CatalogItem> = newSuspendedTransaction {
+        // Get content IDs for the user's tour passes
+        val contentQuery = ContentTable
+            .innerJoin(TourPassTable, { ContentTable.id }, { TourPassTable.contentId })
+            .select(ContentTable.id, ContentTable.type)
+            .where { TourPassTable.authorId eq userId }
+
+        // Apply text search on tour pass metadata if query is provided
+        query?.let { searchQuery ->
+            contentQuery.andWhere {
+                (TourPassTable.name like "%$searchQuery%") or
+                (TourPassTable.artist like "%$searchQuery%")
+            }
+        }
+
+        // Order by latest updated at
+        contentQuery.orderBy(TourPassTable.latestUpdatedAt to SortOrder.DESC)
+
+        // Apply limit and offset
+        val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
+
+        val contentIds = paginatedQuery.map { it[ContentTable.id].value }
+
+        if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
+
+        // Fetch TourPasses
+        val tourPasses = tourPassRepository.getTourPasses(
+            userId = requestingUserId,
+            contentIds = contentIds,
+            search = null,
+            limit = null,
+            offset = null
+        )
+
+        // Return in order of original query
+        val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
+        tourPasses.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
+    }
+
+    override suspend fun getUserThemes(
+        userId: UUID,
+        requestingUserId: UUID?,
+        query: String?,
+        limit: Int,
+        offset: Int
+    ): List<CatalogItem> = newSuspendedTransaction {
+        // Get content IDs for the user's themes
+        val contentQuery = ContentTable
+            .innerJoin(ThemeTable, { ContentTable.id }, { ThemeTable.contentId })
+            .select(ContentTable.id, ContentTable.type)
+            .where { ThemeTable.authorId eq userId }
+
+        // Apply text search on theme metadata if query is provided
+        query?.let { searchQuery ->
+            contentQuery.andWhere {
+                (ThemeTable.name like "%$searchQuery%") or
+                (ThemeTable.replaces like "%$searchQuery%")
+            }
+        }
+
+        // Order by latest updated at
+        contentQuery.orderBy(ThemeTable.latestUpdatedAt to SortOrder.DESC)
+
+        // Apply limit and offset
+        val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
+
+        val contentIds = paginatedQuery.map { it[ContentTable.id].value }
+
+        if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
+
+        // Fetch Themes
+        val themes = themeRepository.getThemes(
+            contentIds = contentIds,
+            search = null,
+            limit = null,
+            offset = null
+        )
+
+        // Return in order of original query
+        val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
+        themes.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
+    }
+
+    override suspend fun getProfileCounts(userId: UUID): UserProfileCounts = newSuspendedTransaction {
         // Count charts
         val totalCharts = ChartTable
             .select(ChartTable.id)
@@ -272,25 +320,45 @@ class UserRepository(
             .count()
             .toInt()
 
-        // Count tour passes (future)
-        val totalTourpasses = TourPassTable
-            .select(TourPassTable.id)
-            .where { TourPassTable.authorId eq userId }
-            .count()
-            .toInt()
+        // Count likes (from likes system collection)
+        val likesCollection = CollectionTable
+            .select(CollectionTable.id)
+            .where {
+                (CollectionTable.userId eq userId) and
+                (CollectionTable.name eq "likes")
+            }
+            .singleOrNull()
 
-        // Count themes (future)
-        val totalThemes = ThemeTable
-            .select(ThemeTable.id)
-            .where { ThemeTable.authorId eq userId }
-            .count()
-            .toInt()
+        val totalLikes = likesCollection?.let {
+            CollectionItemTable
+                .select(CollectionItemTable.id)
+                .where { CollectionItemTable.collectionId eq it[CollectionTable.id] }
+                .count()
+                .toInt()
+        } ?: 0
 
-        UserStats(
-            totalCharts = totalCharts,
-            totalCollections = totalCollections,
-            totalTourpasses = totalTourpasses,
-            totalThemes = totalThemes
+        // Count bookmarks (from favorites system collection)
+        val favoritesCollection = CollectionTable
+            .select(CollectionTable.id)
+            .where {
+                (CollectionTable.userId eq userId) and
+                (CollectionTable.name eq "favorites")
+            }
+            .singleOrNull()
+
+        val totalBookmarks = favoritesCollection?.let {
+            CollectionItemTable
+                .select(CollectionItemTable.id)
+                .where { CollectionItemTable.collectionId eq it[CollectionTable.id] }
+                .count()
+                .toInt()
+        } ?: 0
+
+        UserProfileCounts(
+            charts = totalCharts,
+            likes = totalLikes,
+            bookmarks = totalBookmarks,
+            collections = totalCollections
         )
     }
 

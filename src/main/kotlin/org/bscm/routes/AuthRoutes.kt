@@ -72,7 +72,7 @@ fun Route.authRoutes(
                         )
                     )
 
-                println("User authenticated via Discord: ${user.id}")
+                println("User authenticated via Discord: $user")
 
                 call.respond(user.toAuthResult(jwtService))
             } catch (e: Exception) {

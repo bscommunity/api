@@ -25,7 +25,6 @@ import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
-import org.bscm.services.preview.PreviewService
 import org.koin.ktor.ext.getKoin
 import java.util.*
 
@@ -34,7 +33,7 @@ fun Route.chartRoutes(
     userRepository: IUserRepository,
     versionRepository: IVersionRepository,
     uploadService: UploadService,
-    previewService: PreviewService
+    // previewService: PreviewService
 ) {
     route("/charts") {
         // Routes that accept either JWT or HMAC authentication

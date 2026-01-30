@@ -1,12 +1,14 @@
 
 package org.bscm.models.tables
 
+import org.bscm.models.enums.CollectionKind
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.datetime
 
 object CollectionTable : UUIDTable("collections") {
     val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)
+    val kind = enumerationByName("kind", 20, CollectionKind::class)
 
     val name = varchar("name", 30)
     val isPublic = bool("is_public").default(false)
@@ -16,6 +18,7 @@ object CollectionTable : UUIDTable("collections") {
 
     init {
         uniqueIndex(userId, name)
+        uniqueIndex(userId, kind)
 
         index(false, userId)
         index(false, userId, name)

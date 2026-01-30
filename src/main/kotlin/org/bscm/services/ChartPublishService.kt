@@ -113,7 +113,9 @@ class ChartPublishService(
             "duration" to computedStats.duration,
             "notes" to computedStats.notesAmount,
             "effects" to computedStats.effectsAmount,
-            "contributors" to "${user.username}|author",
+            // Structure: username|hostId|path|roleId
+            "contributors" to "${user.username}|${user.avatarUrl}|0",
+            // Structure: host|url
             "cover" to coverUrlPlaceholder,
             "publishedAt" to System.currentTimeMillis(),
         )

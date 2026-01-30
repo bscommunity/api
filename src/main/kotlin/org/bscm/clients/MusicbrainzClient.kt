@@ -59,8 +59,9 @@ class MusicbrainzClient(
             val relations = fetchMusicBrainzRelations(recordingId)
             relations.forEach { relation ->
                 relation.url?.resource?.let { url ->
-                    val platform = StreamingPlatformUtils.fromKey(relation.type ?: "unknown")
-                    streamingLinks.add(StreamingLink(platform, url))
+                    StreamingPlatformUtils.fromKey(relation.type ?: "unknown")?.let { platform ->
+                        streamingLinks.add(StreamingLink(platform, url))
+                    }
                 }
             }
         }
