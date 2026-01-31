@@ -22,17 +22,6 @@ class CollectionService(
         return collectionRepository.getUserCollections(userId, limit, offset)
     }
 
-    suspend fun getCollection(collectionId: UUID, userId: UUID? = null): Collection? {
-        return collectionRepository.getCollection(collectionId, userId)
-    }
-
-    /**
-     * Get or create a system collection for a user
-     */
-    suspend fun getOrCreateSystemCollection(userId: UUID, kind: CollectionKind): Collection {
-        return collectionRepository.getOrCreateSystemCollection(userId, kind)
-    }
-
     /**
      * Get system collection items
      */
