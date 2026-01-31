@@ -2,13 +2,16 @@ package org.bscm.services
 
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
+import org.bscm.models.enums.ActivityType
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.enums.ContentType
+import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.repository.CollectionRepository
 import java.util.*
 
 class CollectionService(
-    private val collectionRepository: CollectionRepository
+    private val collectionRepository: CollectionRepository,
+    private val activityRepository: IActivityRepository
 ) {
 
     suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean = false): Collection {
@@ -40,7 +43,19 @@ class CollectionService(
      */
     suspend fun addToSystemCollection(userId: UUID, kind: CollectionKind, contentId: String): Boolean {
         val collection = collectionRepository.getOrCreateSystemCollection(userId, kind)
-        return collectionRepository.addItemToCollection(collection.id, userId, contentId)
+        val added = collectionRepository.addItemToCollection(collection.id, userId, contentId)
+
+        if (added) {
+            val type = when (kind) {
+                CollectionKind.LIKES -> ActivityType.LIKED_CONTENT
+                CollectionKind.BOOKMARKS -> ActivityType.BOOKMARKED_CONTENT
+                CollectionKind.USER -> null
+            }
+
+            type?.let { activityRepository.logActivity(userId, it, contentId) }
+        }
+
+        return added
     }
 
     /**
@@ -92,5 +107,31 @@ class CollectionService(
 
     suspend fun getCollectionItems(collectionId: UUID, userId: UUID? = null, category: ContentType? = null, limit: Int? = null, offset: Int? = null): List<CatalogItem> {
         return collectionRepository.getCollectionItems(collectionId, userId, category, limit, offset)
+    }
+
+    suspend fun getSystemCollectionItemsForProfile(
+        userId: UUID,
+        kind: CollectionKind,
+        viewerId: UUID?,
+        allowPublic: Boolean,
+        limit: Int
+    ): List<CatalogItem> {
+        require(kind != CollectionKind.USER) { "Cannot use USER kind as system collection" }
+
+        val collection = collectionRepository.getOrCreateSystemCollection(userId, kind)
+
+        val accessUserId = when {
+            viewerId == userId -> viewerId
+            allowPublic -> userId
+            else -> null
+        }
+
+        return collectionRepository.getCollectionItems(
+            collectionId = collection.id,
+            userId = accessUserId,
+            category = null,
+            limit = limit,
+            offset = 0
+        )
     }
 }

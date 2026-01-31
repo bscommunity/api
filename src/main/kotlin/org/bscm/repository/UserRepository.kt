@@ -85,10 +85,8 @@ class UserRepository(
         }
     }
 
-    override suspend fun getUserById(id: UUID): User = newSuspendedTransaction {
-        UserEntity.findById(id).let {
-            it?.let { userEntityToUser(it) }
-        } ?: throw NotFoundException("User not found with ID: $id")
+    override suspend fun getUserById(id: UUID): User? = newSuspendedTransaction {
+        UserEntity.findById(id)?.let { userEntityToUser(it) }
     }
 
     override suspend fun getUserByDiscordId(discordId: String): User? = newSuspendedTransaction {
@@ -355,11 +353,25 @@ class UserRepository(
                 .toInt()
         } ?: 0
 
+        val followerCount = UserFollowTable
+            .select(UserFollowTable.follower)
+            .where { UserFollowTable.followed eq userId }
+            .count()
+            .toInt()
+
+        val followingCount = UserFollowTable
+            .select(UserFollowTable.followed)
+            .where { UserFollowTable.follower eq userId }
+            .count()
+            .toInt()
+
         UserProfileCounts(
             charts = totalCharts,
             likes = totalLikes,
             bookmarks = totalBookmarks,
-            collections = totalCollections
+            collections = totalCollections,
+            followers = followerCount,
+            following = followingCount
         )
     }
 

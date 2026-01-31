@@ -13,6 +13,7 @@ import org.bscm.models.interfaces.*
 import org.bscm.routes.*
 import org.bscm.services.CollectionService
 import org.bscm.services.MediaInfoService
+import org.bscm.services.ProfileService
 import org.bscm.services.UploadService
 import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
@@ -37,6 +38,8 @@ fun Application.configureRouting() {
     val tourPassRepository by inject<ITourPassRepository>()
     val themeRepository by inject<IThemeRepository>()
     val collectionService by inject<CollectionService>()
+    val activityRepository by inject<IActivityRepository>()
+    val profileService by inject<ProfileService>()
 
     val mediaInfoService by inject<MediaInfoService>()
     // val previewService by inject<PreviewService>()
@@ -66,8 +69,8 @@ fun Application.configureRouting() {
         }
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
-        userRoutes(userRepository, collectionService)
-        meRoutes(collectionService)
+        userRoutes(userRepository, profileService, activityRepository)
+        meRoutes(collectionService, profileService)
 
         chartRoutes(chartRepository, userRepository, versionRepository, uploadService, /*previewService*/)
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService, supportUploadService)

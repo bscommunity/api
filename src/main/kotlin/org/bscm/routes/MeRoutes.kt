@@ -9,6 +9,7 @@ import io.ktor.server.routing.*
 import org.bscm.models.enums.CollectionKind
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.services.CollectionService
+import org.bscm.services.ProfileService
 import java.util.*
 
 private fun ApplicationCall.getUserId(): UUID {
@@ -22,9 +23,32 @@ private fun ApplicationCall.getPagination(): Pair<Int?, Int?> {
     return limit to offset
 }
 
-fun Route.meRoutes(collectionService: CollectionService) {
+fun Route.meRoutes(collectionService: CollectionService, profileService: ProfileService) {
     route("/me") {
         authenticate("auth-bearer") {
+            // ==================== PROFILE ====================
+
+            get("/profile") {
+                val userId = call.getUserId()
+                val response = profileService.getProfileHeader(userId, userId)
+                call.respond(response)
+            }
+
+            get("/overview") {
+                val userId = call.getUserId()
+                val overview = profileService.getOverview(userId, userId)
+                call.respond(overview)
+            }
+
+            get("/activity") {
+                val userId = call.getUserId()
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceAtMost(50) ?: 20
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+
+                val activity = profileService.getActivity(userId, userId, limit, offset)
+                call.respond(activity)
+            }
+
             // ==================== LIKES ====================
 
             // Get authenticated user's likes

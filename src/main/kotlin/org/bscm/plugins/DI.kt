@@ -75,8 +75,9 @@ fun mainModule(config: ApplicationConfig) = module {
     single<ITourPassRepository> { TourPassRepository(get()) }
     single<IThemeRepository> { ThemeRepository() }
     single<ICollectionRepository> { CollectionRepository(get(), get(), get()) }
+    single<IActivityRepository> { ActivityRepository() }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
-    single { CollectionService(get<CollectionRepository>()) }
+    single { CollectionService(get<CollectionRepository>(), get()) }
     single {
         JWTService(
             secret = config.property("jwt.secret").getString()
@@ -123,6 +124,14 @@ fun mainModule(config: ApplicationConfig) = module {
             uploadService = get(),
             // supportUploadService = get(qualifier = named("support")),
             mediaInfoService = get(),
+            activityRepository = get()
+        )
+    }
+    single {
+        ProfileService(
+            userRepository = get(),
+            collectionService = get(),
+            activityRepository = get()
         )
     }
     single {

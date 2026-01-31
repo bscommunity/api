@@ -9,8 +9,10 @@ import org.bscm.models.StreamingLink
 import org.bscm.models.User
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.SimplifiedVersion
+import org.bscm.models.enums.ActivityType
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
+import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.protobuf.ChartParser
 import org.bscm.utils.NanoIdUtils
@@ -20,7 +22,8 @@ import org.bscm.utils.StreamingPlatformUtils
 class ChartPublishService(
     private val chartRepository: IChartRepository,
     private val uploadService: UploadService,
-    private val mediaInfoService: MediaInfoService
+    private val mediaInfoService: MediaInfoService,
+    private val activityRepository: IActivityRepository
 ) {
     data class Overrides(
         val track: String? = null,
@@ -169,7 +172,7 @@ class ChartPublishService(
 
         val createdChart = chartRepository.createChart(user.id, finalCreate)
 
-        return Result(
+        val result = Result(
             chart = createdChart,
             initialVersion = SimplifiedVersion(
                 difficulty = finalCreate.difficulty,
@@ -182,5 +185,13 @@ class ChartPublishService(
             discordMessageId = discordResponse.id,
             versionAttachmentId = bundleAttachment.id,
         )
+
+        activityRepository.logActivity(
+            userId = user.id,
+            type = ActivityType.CHART_CREATED,
+            targetId = createdChart.contentId
+        )
+
+        return result
     }
 }

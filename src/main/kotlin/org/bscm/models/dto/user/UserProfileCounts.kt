@@ -7,5 +7,7 @@ data class UserProfileCounts(
     val charts: Int,
     val likes: Int,
     val bookmarks: Int,
-    val collections: Int
+    val collections: Int,
+    val followers: Int,
+    val following: Int
 )

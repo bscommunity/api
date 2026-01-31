@@ -9,15 +9,16 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
-import org.bscm.models.dto.user.UserProfileResponse
-import org.bscm.models.enums.CollectionKind
+import org.bscm.models.enums.ActivityType
+import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IUserRepository
-import org.bscm.services.CollectionService
+import org.bscm.services.ProfileService
 import java.util.*
 
 fun Route.userRoutes(
     userRepository: IUserRepository,
-    collectionService: CollectionService
+    profileService: ProfileService,
+    activityRepository: IActivityRepository
 ) {
     route("/users") {
         // Create a new user
@@ -71,25 +72,23 @@ fun Route.userRoutes(
             /**
              * GET /users/{id}
              *
-             * Retrieves a single user by their Discord ID.
+             * Retrieves a user's public profile header.
              *
              * Path parameters:
-             * - id: Discord ID (required).
+             * - id: User UUID (required).
              *
              * Responses:
-             * - 200 OK with the user when found.
+             * - 200 OK with the profile header when found.
              * - 404 Not Found if the user does not exist.
              * - 400 Bad Request (IllegalArgumentException) if the id parameter is missing/invalid.
              */
             get("{id}") {
-                val id = call.parameters["id"] ?: throw IllegalArgumentException("Invalid or missing Discord ID")
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    ?: throw IllegalArgumentException("Invalid or missing ID")
 
-                val user = userRepository.getUserByDiscordId(id)
-                if (user != null) {
-                    call.respond(user)
-                } else {
-                    throw NotFoundException("User not found")
-                }
+                val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
+                val response = profileService.getProfileHeader(id, requesterId)
+                call.respond(response)
             }
 
             /**
@@ -127,109 +126,43 @@ fun Route.userRoutes(
                 val username = call.parameters["username"]
                     ?: throw IllegalArgumentException("Invalid or missing username")
 
-                // Get the requesting user ID from JWT (if authenticated)
-                val principal = call.principal<JWTPrincipal>()
-                val requestingUserId = principal?.subject?.let { UUID.fromString(it) }
-
-                // Get the target user
+                val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
                 val targetUser = userRepository.getUserByUsername(username)
                     ?: throw NotFoundException("User not found")
 
-                // Determine if the requesting user is viewing their own profile
-                val isOwner = requestingUserId == targetUser.id
+                val response = profileService.getProfileHeader(targetUser.id, requesterId)
+                call.respond(response)
+            }
 
-                // Check privacy settings (non-owners cannot view private profiles)
-                if (!isOwner && !targetUser.isPublic) {
-                    throw NotFoundException("User profile is private")
-                }
+            /**
+             * GET /users/{id}/overview
+             *
+             * Retrieves a curated snapshot of recent content/activity for a user.
+             */
+            get("{id}/overview") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    ?: throw IllegalArgumentException("Invalid or missing ID")
+                val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
 
-                // Parse query parameters
-                val query = call.request.queryParameters["query"]
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                val overview = profileService.getOverview(id, requesterId)
+                call.respond(overview)
+            }
+
+            /**
+             * GET /users/{id}/activity
+             *
+             * Retrieves a paginated chronological feed of user activity.
+             */
+            get("{id}/activity") {
+                val id = call.parameters["id"]?.let { UUID.fromString(it) }
+                    ?: throw IllegalArgumentException("Invalid or missing ID")
+                val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
+
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceAtMost(50) ?: 20
                 val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
 
-                // Set limits based on ownership
-                val chartsLimit = if (isOwner) {
-                    limit?.coerceAtMost(50) ?: 50
-                } else {
-                    limit?.coerceAtMost(20) ?: 20
-                }
-                val collectionsLimit = if (isOwner) 10 else 0
-                val likesBookmarksLimit = if (isOwner) 50 else 20
-                // val followersFollowingLimit = if (isOwner) 20 else 10
-
-                // Fetch user's charts
-                val charts = userRepository.getUserCharts(
-                    userId = targetUser.id,
-                    requestingUserId = requestingUserId,
-                    query = query,
-                    limit = chartsLimit,
-                    offset = offset
-                )
-
-                // Fetch collections (only for owner)
-                val collections = if (isOwner) {
-                    collectionService.getUserCollections(
-                        userId = targetUser.id,
-                        limit = collectionsLimit,
-                        offset = 0
-                    )
-                } else {
-                    null
-                }
-
-                // Fetch badges
-                val badges = userRepository.getUserBadges(targetUser.id)
-
-                // Fetch followers (only for owner, or if user's profile is public)
-                /*val followers = if (isOwner || targetUser.isPublic) {
-                    userRepository.getFollowers(
-                        userId = targetUser.id,
-                        limit = followersFollowingLimit,
-                        offset = 0
-                    )
-                } else {
-                    null
-                }
-
-                // Fetch following list
-                val following = userRepository.getFollowing(
-                    userId = targetUser.id,
-                    limit = followersFollowingLimit,
-                    offset = 0
-                )*/
-
-                // Fetch likes from system collection
-                val likes = userRepository.getSystemCollectionItems(
-                    userId = targetUser.id,
-                    collectionKind = CollectionKind.LIKES,
-                    requestingUserId = requestingUserId,
-                    limit = likesBookmarksLimit
-                )
-
-                // Fetch bookmarks from system collection
-                val bookmarks = userRepository.getSystemCollectionItems(
-                    userId = targetUser.id,
-                    collectionKind = CollectionKind.BOOKMARKS,
-                    requestingUserId = requestingUserId,
-                    limit = likesBookmarksLimit
-                )
-
-                // Get user stats
-                val counts = userRepository.getProfileCounts(targetUser.id)
-
-                // Build response
-                val response = UserProfileResponse(
-                    user = targetUser,
-                    badges = badges,
-                    followerCount = targetUser.followerCount,
-                    followingCount = targetUser.followingCount,
-                    isPublic = targetUser.isPublic,
-                    isVerified = targetUser.isVerified,
-                    counts = counts
-                )
-
-                call.respond(response)
+                val activity = profileService.getActivity(id, requesterId, limit, offset)
+                call.respond(activity)
             }
 
             /**
@@ -314,6 +247,11 @@ fun Route.userRoutes(
 
                 val success = userRepository.followUser(followerId, followedId)
                 if (success) {
+                    activityRepository.logActivity(
+                        userId = followerId,
+                        type = ActivityType.FOLLOWED_USER,
+                        targetId = followedId.toString()
+                    )
                     call.respond(HttpStatusCode.OK, "User followed successfully")
                 } else {
                     call.respond(HttpStatusCode.BadRequest, "Cannot follow this user (already following or invalid)")
