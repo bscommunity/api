@@ -17,9 +17,15 @@ private fun ApplicationCall.getUserId(): UUID {
     return principal?.subject?.let { UUID.fromString(it) } ?: throw UnauthorizedException("User not authenticated")
 }
 
-private fun ApplicationCall.getPagination(): Pair<Int?, Int?> {
-    val limit = request.queryParameters["limit"]?.toIntOrNull()
-    val offset = request.queryParameters["offset"]?.toIntOrNull()
+private fun ApplicationCall.getPagination(coerceLimit: Int? = null): Pair<Int?, Int> {
+    val limit = request.queryParameters["limit"]?.toIntOrNull().let {
+        if (coerceLimit != null) {
+            it?.coerceAtMost(coerceLimit)
+        } else {
+            it
+        }
+    }
+    val offset = request.queryParameters["offset"]?.toIntOrNull() ?: 0
     return limit to offset
 }
 
@@ -34,18 +40,11 @@ fun Route.meRoutes(collectionService: CollectionService, profileService: Profile
                 call.respond(response)
             }
 
-            get("/overview") {
-                val userId = call.getUserId()
-                val overview = profileService.getOverview(userId, userId)
-                call.respond(overview)
-            }
-
             get("/activity") {
                 val userId = call.getUserId()
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceAtMost(50) ?: 20
-                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+                val (limit, offset) = call.getPagination(50)
 
-                val activity = profileService.getActivity(userId, userId, limit, offset)
+                val activity = profileService.getActivity(userId, userId, limit ?: 20, offset)
                 call.respond(activity)
             }
 

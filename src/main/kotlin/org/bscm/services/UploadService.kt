@@ -224,7 +224,7 @@ class UploadService(
 
         val payload = message {
             username(author.username)
-            avatar(author.imageUrl)
+            avatar(author.avatarUrl)
             attachments(attachments)
             embed {
                 this.title = title

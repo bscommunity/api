@@ -80,12 +80,11 @@ private suspend fun generateRandomCharts(
             users.add(SimplifiedUser(
                 id = newUser.id,
                 username = newUser.username,
-                imageUrl = newUser.imageUrl,
-                createdAt = newUser.createdAt,
+                avatarUrl = newUser.avatarUrl,
+                bannerUrl = newUser.bannerUrl,
                 isVerified = newUser.isVerified,
-                isPublic = newUser.isPublic,
-                followingCount = 0,
-                followerCount = 0,
+                bio = newUser.bio,
+                accentColor = newUser.accentColor,
             ))
             logger.info("Created new user: ${newUser.username}")
         } catch (e: Exception) {

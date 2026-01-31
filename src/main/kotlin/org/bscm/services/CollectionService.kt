@@ -6,11 +6,11 @@ import org.bscm.models.enums.ActivityType
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IActivityRepository
-import org.bscm.repository.CollectionRepository
+import org.bscm.models.interfaces.ICollectionRepository
 import java.util.*
 
 class CollectionService(
-    private val collectionRepository: CollectionRepository,
+    private val collectionRepository: ICollectionRepository,
     private val activityRepository: IActivityRepository
 ) {
 

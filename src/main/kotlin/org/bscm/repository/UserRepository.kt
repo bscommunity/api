@@ -31,9 +31,8 @@ class UserRepository(
             id = entity.id.value,
             username = entity.username,
             email = entity.email,
-            imageUrl = entity.imageUrl,
-            bannerUrl = entity.bannerUrl,
             avatarUrl = entity.avatarUrl,
+            bannerUrl = entity.bannerUrl,
             accentColor = entity.accentColor,
             bio = entity.bio,
             isPublic = entity.isPublic,
@@ -52,14 +51,11 @@ class UserRepository(
         fun userEntityToSimplifiedUser(entity: UserEntity): SimplifiedUser = SimplifiedUser(
             id = entity.id.value,
             username = entity.username,
-            imageUrl = entity.imageUrl,
             avatarUrl = entity.avatarUrl,
             bannerUrl = entity.bannerUrl,
             isVerified = entity.isVerified,
-            isPublic = entity.isPublic,
-            followerCount = entity.followerCount,
-            followingCount = entity.followingCount,
-            createdAt = entity.createdAt
+            bio = entity.bio,
+            accentColor = entity.accentColor
         )
 
         fun accountEntityToAccount(entity: AccountEntity): Account = Account(

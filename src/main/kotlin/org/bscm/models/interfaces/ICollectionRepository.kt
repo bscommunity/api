@@ -2,11 +2,14 @@ package org.bscm.models.interfaces
 
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
+import org.bscm.models.enums.CollectionKind
 import org.bscm.models.enums.ContentType
 import java.util.*
 
 interface ICollectionRepository {
     // Collection Management
+    suspend fun getOrCreateSystemCollection(userId: UUID, kind: CollectionKind): Collection
+
     suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection
     suspend fun getCollection(collectionId: UUID, userId: UUID? = null): Collection?
     suspend fun getUserCollections(userId: UUID, limit: Int? = null, offset: Int? = null): List<Collection>

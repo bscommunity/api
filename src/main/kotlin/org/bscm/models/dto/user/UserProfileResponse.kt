@@ -9,8 +9,7 @@ import org.bscm.serialization.UUIDSerializer
 
 @Serializable
 data class UserProfileResponse(
-    val user: ProfileUser,
+    val user: SimplifiedUser,
     val counts: UserProfileCounts,
-    val overview: ProfileOverview? = null
 )
 

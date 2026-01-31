@@ -31,7 +31,7 @@ class CollectionRepository(
     /**
      * Get or create a system collection for a user based on CollectionKind
      */
-    suspend fun getOrCreateSystemCollection(userId: UUID, kind: CollectionKind): Collection = newSuspendedTransaction {
+    override suspend fun getOrCreateSystemCollection(userId: UUID, kind: CollectionKind): Collection = newSuspendedTransaction {
         require(kind != CollectionKind.USER) { "Cannot create USER kind as system collection" }
 
         // Try to find existing system collection

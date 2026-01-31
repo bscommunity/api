@@ -51,25 +51,6 @@ fun Route.userRoutes(
             }
 
             /**
-             * GET /users/hello
-             *
-             * Test endpoint that reads JWT principal information and returns a simple
-             * greeting including the username and token expiry time (in milliseconds).
-             *
-             * Security:
-             * - Requires authentication (JWT principal).
-             *
-             * Response:
-             * - 200 OK with a plain text greeting.
-             */
-            get("/hello") {
-                val principal = call.principal<JWTPrincipal>()
-                val username = principal!!.payload.getClaim("username").asString()
-                val expiresAt = principal.expiresAt?.time?.minus(System.currentTimeMillis())
-                call.respondText("Hello, $username! Token is expired at $expiresAt ms.")
-            }
-
-            /**
              * GET /users/{id}
              *
              * Retrieves a user's public profile header.
@@ -94,33 +75,15 @@ fun Route.userRoutes(
             /**
              * GET /users/by-username/{username}
              *
-             * Retrieves a user's profile by username, including related data such as
-             * charts, collections (only if the requester is the owner), likes, bookmarks,
-             * and aggregated statistics.
+             * Retrieves a user's public profile header by username.
              *
              * Path parameters:
-             * - username: Target user's username (required).
-             *
-             * Authentication:
-             * - Reads JWT principal when present to identify the requesting user and
-             *   determine ownership (affects limits and visible data).
-             *
-             * Query parameters:
-             * - contentType: Optional filter for chart content type (case-insensitive).
-             * - query: Optional search/query string for charts.
-             * - limit: Optional limit for charts result set (owner and non-owner caps apply).
-             * - offset: Optional pagination offset for charts (defaults to 0).
-             *
-             * Limits:
-             * - charts limit: owner -> max 50 (default 50); non-owner -> max 20 (default 20).
-             * - collections: only returned for owner (limit 10).
-             * - likes/bookmarks: owner -> 50, non-owner -> 20.
+             * - username: User's username (required).
              *
              * Responses:
-             * - 200 OK with UserProfileResponse containing user, charts, collections,
-             *   likes, bookmarks and stats.
+             * - 200 OK with the profile header when found.
              * - 404 Not Found if the user does not exist.
-             * - 400 Bad Request (IllegalArgumentException) if required parameters are missing/invalid.
+             * - 400 Bad Request (IllegalArgumentException) if the username parameter is missing/invalid.
              */
             get("username/{username}") {
                 val username = call.parameters["username"]
@@ -132,20 +95,6 @@ fun Route.userRoutes(
 
                 val response = profileService.getProfileHeader(targetUser.id, requesterId)
                 call.respond(response)
-            }
-
-            /**
-             * GET /users/{id}/overview
-             *
-             * Retrieves a curated snapshot of recent content/activity for a user.
-             */
-            get("{id}/overview") {
-                val id = call.parameters["id"]?.let { UUID.fromString(it) }
-                    ?: throw IllegalArgumentException("Invalid or missing ID")
-                val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
-
-                val overview = profileService.getOverview(id, requesterId)
-                call.respond(overview)
             }
 
             /**

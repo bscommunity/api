@@ -7,8 +7,8 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionRequest
-import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
 import org.bscm.models.enums.ContentType
 import org.bscm.plugins.UnauthorizedException
@@ -119,7 +119,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
 
-                        val request = call.receive<UpdateCollectionItemRequest>()
+                        val request = call.receive<CreateCollectionItemRequest>()
 
                         val added = collectionService.addItemToCollection(collectionId, userId, request.contentId)
                         if (added) {

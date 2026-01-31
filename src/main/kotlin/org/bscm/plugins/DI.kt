@@ -77,7 +77,6 @@ fun mainModule(config: ApplicationConfig) = module {
     single<ICollectionRepository> { CollectionRepository(get(), get(), get()) }
     single<IActivityRepository> { ActivityRepository() }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
-    single { CollectionService(get<CollectionRepository>(), get()) }
     single {
         JWTService(
             secret = config.property("jwt.secret").getString()
@@ -128,9 +127,14 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
     single {
+        CollectionService(
+            collectionRepository = get(),
+            activityRepository = get()
+        )
+    }
+    single {
         ProfileService(
             userRepository = get(),
-            collectionService = get(),
             activityRepository = get()
         )
     }
