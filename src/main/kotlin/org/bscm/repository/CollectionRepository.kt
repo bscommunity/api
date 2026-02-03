@@ -288,8 +288,8 @@ class CollectionRepository(
         itemsByType[ContentType.CHART]?.let { chartItems ->
             val contentIds = chartItems.map { it[CollectionItemTable.contentId].value }
             val chartResults = chartRepository.getCharts(
-                userId = userId,
-                contentIds = contentIds,
+                filters = ChartRepository.ChartFilters(contentIds = contentIds),
+                addons = ChartRepository.ChartAddons(allVersions = true),
             )
             catalogItems.addAll(chartResults.first)
         }

@@ -36,11 +36,36 @@ fun Route.chartRoutes(
     uploadService: UploadService,
     // previewService: PreviewService
 ) {
+    /*
+     * CHART ROUTES - CLIENT SCENARIOS
+     *
+     * 1. MOBILE APP (Workshop Mode):
+     *    - Authentication: HMAC (API) + Optional JWT (User)
+     *    - Route: GET /charts
+     *    - Returns: Public charts + Latest version only + Streaming links
+     *    - User Stats: If JWT present → isLiked (CollectionKind.LIKES) & isBookmarked (CollectionKind.BOOKMARKS or USER)
+     *
+     * 2. WEB APP - WORKSHOP MODE:
+     *    - Authentication: JWT (User)
+     *    - Route: GET /charts
+     *    - Returns: Public charts + Latest version only + NO streaming links
+     *    - User Stats: isLiked (CollectionKind.LIKES) & isBookmarked (CollectionKind.BOOKMARKS or USER)
+     *
+     * 3. WEB APP - DASHBOARD MODE:
+     *    - Authentication: JWT (User) required
+     *    - Route: GET /me/charts
+     *    - Returns: User's charts only (public + private) + All versions + NO streaming links
+     *    - User Stats: isLiked (CollectionKind.LIKES) & isBookmarked (CollectionKind.BOOKMARKS or USER)
+     *
+     * Note: UserContext plugin automatically captures authenticated userId from JWT for populating user stats
+     */
     route("/charts") {
         // Routes that accept either JWT or HMAC authentication
         authenticate("auth-public") {
             rateLimit(RateLimitName("restricted")) {
-                // Get all charts - handles both mobile app and dashboard
+                // Get all charts - Workshop mode (all public charts + authenticated user stats)
+                // Mobile App: HMAC or HMAC+JWT → includes streaming links, latest version only
+                // Web Workshop: JWT only → no streaming links, latest version only
                 get {
                     val query = call.request.queryParameters["query"]
                     val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
@@ -52,45 +77,41 @@ fun Route.chartRoutes(
                     val isDeluxe =
                         call.request.queryParameters.getAll("versions")?.any { it.equals("DELUXE", ignoreCase = true) }
 
-                    val isDashboard = call.request.queryParameters["isDashboard"]?.toBoolean()
-
                     val sortBy = call.request.queryParameters["sortBy"]?.let { SortOption.valueOf(it) }
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
                     val count = call.request.queryParameters["count"]?.toBoolean() ?: false
 
-                    // Try to get both principals
+                    // Detect client type from authentication principals
                     val jwtPrincipal = call.principal<JWTPrincipal>()
                     val hmacPrincipal = call.principal<HMACPrincipal>()
                     val combinedPrincipal = call.principal<CombinedPrincipal>()
 
-                    // Determine userId and whether to filter by user
-                    val userId = when {
-                        combinedPrincipal != null -> UUID.fromString(combinedPrincipal.jwtPrincipal.subject)
-                        jwtPrincipal != null -> jwtPrincipal.subject?.let { UUID.fromString(it) }
-                        else -> null
-                    }
+                    println("jwtPrincipal: ${jwtPrincipal?.subject}, hmacPrincipal: $hmacPrincipal, combinedPrincipal: $combinedPrincipal")
 
-                    // For app requests (HMAC or combined), include streaming links and only latest version
-                    // For dashboard requests (JWT), include all versions but no streaming links
-                    val isAppRequest = hmacPrincipal != null || combinedPrincipal != null
+                    // Mobile app includes HMAC authentication and gets streaming links
+                    val isMobileApp = hmacPrincipal != null || combinedPrincipal != null
 
-                    val result = if ((offset ?: 0) / (limit ?: 20) >= 5 && userId == null) {
+                    val result = if ((offset ?: 0) / (limit ?: 20) >= 5 && jwtPrincipal == null && combinedPrincipal == null) {
                         // Unauthenticated users limited to first 4 pages
                         Pair(emptyList(), null)
                     } else {
                         chartRepository.getCharts(
                             sortBy = sortBy,
                             filters = ChartRepository.ChartFilters(
-                                userId = if (isDashboard == true) userId else null,
+                                // Workshop mode: userId is null → returns all public charts
+                                // UserContext automatically captures authenticated userId for user stats
+                                userId = null,
                                 search = sanitizedQuery,
                                 difficulties = difficulties,
                                 genres = genres,
                                 isDeluxe = isDeluxe,
                             ),
                             addons = ChartRepository.ChartAddons(
-                                allVersions = !isAppRequest,
-                                streamingLinks = isAppRequest,
+                                // Workshop mode: only latest version
+                                allVersions = false,
+                                // Only mobile app gets streaming links
+                                streamingLinks = isMobileApp,
                                 count = count,
                             ),
                             limit = limit,

@@ -7,6 +7,7 @@ import org.bscm.models.dao.ThemeEntity
 import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.ThemeTable
+import org.bscm.utils.UserStatsUtils
 import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
@@ -14,9 +15,13 @@ import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransacti
 import java.time.LocalDateTime
 import java.util.*
 
-class ThemeRepository : IThemeRepository {
+class ThemeRepository : BaseRepository(), IThemeRepository {
 
-    private fun daoToTheme(entity: ThemeEntity): Theme {
+    private fun daoToTheme(
+        entity: ThemeEntity,
+        isLiked: Boolean = false,
+        isBookmarked: Boolean = false
+    ): Theme {
         return Theme(
             id = entity.id.value.toString(),
             contentId = ContentEntity[entity.contentId].id.value,
@@ -26,8 +31,8 @@ class ThemeRepository : IThemeRepository {
             previewUrl = entity.previewUrl,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
-            isLiked = false, // Placeholder, logic to be implemented
-            isBookmarked = false, // Placeholder, logic to be implemented
+            isLiked = isLiked,
+            isBookmarked = isBookmarked,
             downloadsSum = entity.downloadsSum,
             latestPublishedAt = entity.latestPublishedAt ?: LocalDateTime.now()
         )
@@ -58,7 +63,16 @@ class ThemeRepository : IThemeRepository {
         }
 
         val themeEntities = ThemeEntity.wrapRows(query).toList()
-        themeEntities.map { daoToTheme(it) }
+
+        // Fetch user stats for all themes in one query
+        val themeContentIds = themeEntities.map { ContentEntity[it.contentId].id.value }
+        val userStats = UserStatsUtils.fetchUserStats(getUserContext()?.userId, themeContentIds)
+
+        themeEntities.map { entity ->
+            val contentId = ContentEntity[entity.contentId].id.value
+            val stats = userStats[contentId] ?: Pair(false, false)
+            daoToTheme(entity, stats.first, stats.second)
+        }
     }
 
     override suspend fun getThemeById(id: ULong): Theme? = newSuspendedTransaction {

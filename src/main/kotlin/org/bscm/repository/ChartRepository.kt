@@ -1,7 +1,10 @@
 package org.bscm.repository
 
 import io.ktor.server.plugins.*
-import org.bscm.models.*
+import org.bscm.models.Chart
+import org.bscm.models.Contributor
+import org.bscm.models.StreamingLink
+import org.bscm.models.Version
 import org.bscm.models.dao.*
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
@@ -11,6 +14,7 @@ import org.bscm.models.tables.*
 import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
 import org.bscm.repository.VersionRepository.Companion.versionEntityToVersion
 import org.bscm.utils.QueryUtils
+import org.bscm.utils.UserStatsUtils
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.*
@@ -21,20 +25,7 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.*
 import kotlin.math.max
 
-class ChartRepository : IChartRepository {
-    companion object {
-        private val userContext = ThreadLocal<UserContext>()
-
-        fun setUserContext(context: UserContext) {
-            userContext.set(context)
-        }
-
-        fun getUserContext(): UserContext? = userContext.get()
-
-        fun clearUserContext() {
-            userContext.remove()
-        }
-    }
+class ChartRepository : BaseRepository(), IChartRepository {
 
     private class ChartResult(
         val chart: ChartEntity,
@@ -192,8 +183,9 @@ class ChartRepository : IChartRepository {
         val results = fullQuery.toList()
 
         // Process results to group related entities (versions, contributors, etc.)
+        // Use UserContext for user stats (independent of filtering)
         val processedResults = processResultsInMemory(
-            requestingUserId = filters?.userId,
+            requestingUserId = getUserContext()?.userId,
             results = results,
             includeStreamingLinks = addons?.streamingLinks == true
         )
@@ -378,31 +370,23 @@ class ChartRepository : IChartRepository {
         }
     }
 
-    private fun fetchUserStats(userId: UUID?, groupedByChartId: Map<ULong, List<ResultRow>>): Map<String, Pair<Boolean, Boolean>> = transaction {
-        val userStats = if (userId != null) {
-            // Pre-fetch user stats for all charts in this batch
-            val contentIds = groupedByChartId.values.map { rows -> rows.first()[ChartTable.contentId].value }
-            val statsQuery = CollectionItemTable.select(CollectionItemTable.contentId, CollectionItemTable.collectionId)
-            statsQuery.adjustColumnSet {
-                leftJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            }
-            statsQuery.adjustSelect {
-                select(CollectionItemTable.contentId, CollectionTable.name)
-            }
-            statsQuery.andWhere {
-                (CollectionTable.userId eq userId) and
-                        (CollectionItemTable.contentId inList contentIds)
-            }
-            statsQuery.groupBy { it[CollectionItemTable.contentId].value }
-                .mapValues { it.value.map { row -> row[CollectionTable.name] } }
-                .mapValues { (_, collections) ->
-                    val isLiked = collections.contains("likes")
-                    val isBookmarked = !isLiked && collections.isNotEmpty() || collections.size > 1
-                    Pair(isLiked, isBookmarked)
-                }
-        } else emptyMap()
+    /**
+     * Fetches user interaction stats (likes and bookmarks) for a batch of charts.
+     * Returns a map of contentId -> (isLiked, isBookmarked)
+     */
+    private fun fetchUserStats(userId: UUID?, groupedByChartId: Map<ULong, List<ResultRow>>): Map<String, Pair<Boolean, Boolean>> {
+        if (userId == null || groupedByChartId.isEmpty()) {
+            return emptyMap()
+        }
 
-        userStats
+        // Extract all contentIds from the grouped charts
+        val contentIds = groupedByChartId.values.map { rows -> rows.first()[ChartTable.contentId].value }
+
+        if (contentIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        return UserStatsUtils.fetchUserStats(userId, contentIds)
     }
 
     private fun processResultsInMemory(
@@ -448,6 +432,7 @@ class ChartRepository : IChartRepository {
                 }
             }.distinctBy { it.first.id.value }
 
+
             ChartResult(
                 chart = chartEntity,
                 streamingLinks = streamingLinks,
@@ -465,14 +450,11 @@ class ChartRepository : IChartRepository {
         limit: Int?,
         offset: Int?,
     ): Pair<List<Chart>, Int?> = newSuspendedTransaction {
-        // Use UserContext if no userId is provided in filters
-        val effectiveFilters = filters?.copy(
-            userId = filters.userId ?: getUserContext()?.userId
-        ) ?: ChartFilters(userId = getUserContext()?.userId)
-
+        // Don't modify filters - userId in filters is for filtering charts (dashboard mode)
+        // UserContext userId is separate and used only for fetching user stats
         val (results, total) = fetchChartEntities(
             sortBy = sortBy,
-            filters = effectiveFilters,
+            filters = filters,
             addons = addons,
             limit = limit,
             offset = offset,

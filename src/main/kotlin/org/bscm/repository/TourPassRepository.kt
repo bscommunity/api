@@ -10,6 +10,7 @@ import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.TourPassChartTable
 import org.bscm.models.tables.TourPassTable
+import org.bscm.utils.UserStatsUtils
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -18,9 +19,14 @@ import java.util.*
 
 class TourPassRepository(
     private val chartRepository: IChartRepository
-) : ITourPassRepository {
+) : BaseRepository(), ITourPassRepository {
 
-    private fun daoToTourPass(entity: TourPassEntity, charts: List<Chart>): TourPass {
+    private fun daoToTourPass(
+        entity: TourPassEntity,
+        charts: List<Chart>,
+        isLiked: Boolean = false,
+        isBookmarked: Boolean = false
+    ): TourPass {
         return TourPass(
             id = entity.id.value.toString(),
             contentId = entity.content.id.value,
@@ -30,8 +36,8 @@ class TourPassRepository(
             charts = charts,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
-            isLiked = false, // Placeholder, logic to be implemented
-            isBookmarked = false, // Placeholder, logic to be implemented
+            isLiked = isLiked,
+            isBookmarked = isBookmarked,
             downloadsSum = entity.downloadsSum,
             latestPublishedAt = entity.latestPublishedAt ?: LocalDateTime.now()
         )
@@ -71,9 +77,15 @@ class TourPassRepository(
 
         val tourPassEntities = TourPassEntity.wrapRows(query).toList()
 
+        // Fetch user stats for all tour passes in one query
+        val tourPassContentIds = tourPassEntities.map { it.content.id.value }
+        val userStats = UserStatsUtils.fetchUserStats(getUserContext()?.userId, tourPassContentIds)
+
         tourPassEntities.map { tourPassEntity ->
             val charts = getChartsForTourPass(tourPassEntity.id.value, userId)
-            daoToTourPass(tourPassEntity, charts)
+            val contentId = tourPassEntity.content.id.value
+            val stats = userStats[contentId] ?: Pair(false, false)
+            daoToTourPass(tourPassEntity, charts, stats.first, stats.second)
         }
     }
 
@@ -146,8 +158,14 @@ class TourPassRepository(
 
         // Use the real ChartRepository to get full chart details with versions, contributors, etc.
         return chartRepository.getCharts(
-            userId = userId,
-            chartIds = chartIds,
+            filters = ChartRepository.ChartFilters(
+                chartIds = chartIds,
+                userId = userId
+            ),
+            addons = ChartRepository.ChartAddons(
+                allVersions = true,
+                streamingLinks = true,
+            )
         ).first
     }
 

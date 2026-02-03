@@ -199,8 +199,7 @@ class UserRepository(
 
         // Fetch Charts
         val (charts, _) = chartRepository.getCharts(
-            userId = requestingUserId,
-            contentIds = contentIds
+            filters = ChartRepository.ChartFilters(contentIds = contentIds, userId = requestingUserId)
         )
 
         // Return in order of original query

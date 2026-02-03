@@ -7,6 +7,7 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.enums.CollectionKind
+import org.bscm.models.interfaces.IChartRepository
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
 import org.bscm.services.CollectionService
@@ -33,7 +34,7 @@ private fun ApplicationCall.getPagination(coerceLimit: Int? = null): Pair<Int?, 
 fun Route.meRoutes(
     collectionService: CollectionService,
     profileService: ProfileService,
-    chartRepository: ChartRepository
+    chartRepository: IChartRepository
 ) {
     route("/me") {
         authenticate("auth-bearer") {
