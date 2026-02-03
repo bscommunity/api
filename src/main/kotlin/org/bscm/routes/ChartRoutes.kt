@@ -23,6 +23,7 @@ import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
+import org.bscm.repository.ChartRepository
 import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
 import org.koin.ktor.ext.getKoin
@@ -63,75 +64,38 @@ fun Route.chartRoutes(
                     val hmacPrincipal = call.principal<HMACPrincipal>()
                     val combinedPrincipal = call.principal<CombinedPrincipal>()
 
-                    // println("JWT Principal: $jwtPrincipal, HMAC Principal: $hmacPrincipal, Combined Principal: $combinedPrincipal")
+                    // Determine userId and whether to filter by user
+                    val userId = when {
+                        combinedPrincipal != null -> UUID.fromString(combinedPrincipal.jwtPrincipal.subject)
+                        jwtPrincipal != null -> jwtPrincipal.subject?.let { UUID.fromString(it) }
+                        else -> null
+                    }
 
-                    val result = when {
-                        // Combined auth (HMAC with JWT for user-specific data)
-                        combinedPrincipal != null -> {
-                            val userId = UUID.fromString(combinedPrincipal.jwtPrincipal.subject)
-                            chartRepository.getAppCharts(
+                    // For app requests (HMAC or combined), include streaming links and only latest version
+                    // For dashboard requests (JWT), include all versions but no streaming links
+                    val isAppRequest = hmacPrincipal != null || combinedPrincipal != null
+
+                    val result = if ((offset ?: 0) / (limit ?: 20) >= 5 && userId == null) {
+                        // Unauthenticated users limited to first 4 pages
+                        Pair(emptyList(), null)
+                    } else {
+                        chartRepository.getCharts(
+                            sortBy = sortBy,
+                            filters = ChartRepository.ChartFilters(
                                 userId = if (isDashboard == true) userId else null,
                                 search = sanitizedQuery,
-                                sortBy = sortBy,
                                 difficulties = difficulties,
                                 genres = genres,
                                 isDeluxe = isDeluxe,
-                                limit = limit,
-                                offset = offset,
+                            ),
+                            addons = ChartRepository.ChartAddons(
+                                allVersions = !isAppRequest,
+                                streamingLinks = isAppRequest,
                                 count = count,
-                            )
-                        }
-                        // Mobile app (HMAC only, no user context)
-                        hmacPrincipal != null -> {
-                            chartRepository.getAppCharts(
-                                userId = null,
-                                search = sanitizedQuery,
-                                sortBy = sortBy,
-                                difficulties = difficulties,
-                                genres = genres,
-                                isDeluxe = isDeluxe,
-                                limit = limit,
-                                offset = offset,
-                                count = count,
-                            )
-                        }
-                        // JWT authentication (dashboard user)
-                        jwtPrincipal != null -> {
-                            val userId = jwtPrincipal.subject?.let { UUID.fromString(it) }
-                            chartRepository.getFullCharts(
-                                userId = if (isDashboard == true) userId else null,
-                                search = sanitizedQuery,
-                                sortBy = sortBy,
-                                difficulties = difficulties,
-                                genres = genres,
-                                isDeluxe = isDeluxe,
-                                limit = limit,
-                                offset = offset,
-                                count = count,
-                            )
-                        }
-
-                        // No authentication - limit to first 4 pages of app charts
-                        else -> {
-                            val page = (offset ?: 0) / (limit ?: 20) + 1
-                            if (page < 5) {
-                                chartRepository.getAppCharts(
-                                    userId = null,
-                                    search = sanitizedQuery,
-                                    sortBy = sortBy,
-                                    difficulties = difficulties,
-                                    genres = genres,
-                                    isDeluxe = isDeluxe,
-                                    limit = limit,
-                                    offset = offset,
-                                    count = count,
-                                )
-                            } else {
-                                // Return empty response with 0 total
-                                // ChartListResponse(emptyList())
-                                Pair(emptyList(), null)
-                            }
-                        }
+                            ),
+                            limit = limit,
+                            offset = offset,
+                        )
                     }
 
                     call.respond(result)
@@ -150,14 +114,15 @@ fun Route.chartRoutes(
 
                     val jwtPrincipal = call.principal<JWTPrincipal>()
                     val hmacPrincipal = call.principal<HMACPrincipal>()
+                    val combinedPrincipal = call.principal<CombinedPrincipal>()
 
                     val chart = when {
-                        jwtPrincipal != null -> {
+                        jwtPrincipal != null || combinedPrincipal != null -> {
                             chartRepository.getChartById(id.toULong())
                                 ?: throw BadRequestException("Invalid or missing ID")
                         }
 
-                        hmacPrincipal != null -> chartRepository.getAppChartById(id)
+                        hmacPrincipal != null -> chartRepository.getChartByContentId(id)
                         else -> {
                             call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
                             return@get

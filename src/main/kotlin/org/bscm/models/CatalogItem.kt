@@ -15,7 +15,7 @@ sealed interface CatalogItem {
     // Aggregated/derived fields useful for queries
     val downloadsSum: Int
     val isLiked: Boolean
-    val isFavorited: Boolean
+    val isBookmarked: Boolean
 
     val contributors: List<Contributor>
 

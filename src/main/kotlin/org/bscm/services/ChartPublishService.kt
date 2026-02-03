@@ -188,7 +188,7 @@ class ChartPublishService(
 
         activityRepository.logActivity(
             userId = user.id,
-            type = ActivityType.CHART_CREATED,
+            type = ActivityType.CREATED_CHART,
             targetId = createdChart.contentId
         )
 

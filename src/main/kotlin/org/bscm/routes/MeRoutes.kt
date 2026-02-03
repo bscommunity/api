@@ -8,6 +8,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.enums.CollectionKind
 import org.bscm.plugins.UnauthorizedException
+import org.bscm.repository.ChartRepository
 import org.bscm.services.CollectionService
 import org.bscm.services.ProfileService
 import java.util.*
@@ -29,9 +30,29 @@ private fun ApplicationCall.getPagination(coerceLimit: Int? = null): Pair<Int?, 
     return limit to offset
 }
 
-fun Route.meRoutes(collectionService: CollectionService, profileService: ProfileService) {
+fun Route.meRoutes(
+    collectionService: CollectionService,
+    profileService: ProfileService,
+    chartRepository: ChartRepository
+) {
     route("/me") {
         authenticate("auth-bearer") {
+            // ===================== CHARTS ======================
+
+            get("/charts") {
+                val userId = call.getUserId()
+                val (limit, offset) = call.getPagination(50)
+
+                val (charts, _) = chartRepository.getCharts(
+                    filters = ChartRepository.ChartFilters(userId = userId),
+                    addons = ChartRepository.ChartAddons(allVersions = true),
+                    limit = limit,
+                    offset = offset,
+                )
+
+                call.respond(charts)
+            }
+
             // ==================== PROFILE ====================
 
             get("/profile") {

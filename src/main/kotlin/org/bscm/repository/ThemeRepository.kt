@@ -27,7 +27,7 @@ class ThemeRepository : IThemeRepository {
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
             isLiked = false, // Placeholder, logic to be implemented
-            isFavorited = false, // Placeholder, logic to be implemented
+            isBookmarked = false, // Placeholder, logic to be implemented
             downloadsSum = entity.downloadsSum,
             latestPublishedAt = entity.latestPublishedAt ?: LocalDateTime.now()
         )

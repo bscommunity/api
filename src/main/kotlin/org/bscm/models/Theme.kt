@@ -18,7 +18,7 @@ data class Theme(
     override val contributors: List<Contributor> = emptyList(),
 
     override val isLiked: Boolean, // SS
-    override val isFavorited: Boolean, // SS
+    override val isBookmarked: Boolean, // SS
     override val downloadsSum: Int, // SS
     override val latestPublishedAt: LocalDateTime, // SS
 

@@ -320,13 +320,12 @@ class CollectionRepository(
         }
 
         // Restore original order from collection (by addedAt)
-        val orderMap = items.mapIndexed { index, item ->
-            item[CollectionItemTable.contentId].value to index
-        }.toMap()
+        val orderMap = items.associate {
+            it[CollectionItemTable.contentId].value to it[CollectionItemTable.addedAt]
+        }
 
-        catalogItems.sortedBy { item ->
-            val contentId = item.id
-            contentId.let { orderMap[it] } ?: Int.MAX_VALUE
+        catalogItems.sortedByDescending { item ->
+            orderMap[item.id]
         }
     }
 

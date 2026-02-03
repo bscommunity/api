@@ -135,7 +135,8 @@ fun mainModule(config: ApplicationConfig) = module {
     single {
         ProfileService(
             userRepository = get(),
-            activityRepository = get()
+            activityRepository = get(),
+            chartRepository = get()
         )
     }
     single {

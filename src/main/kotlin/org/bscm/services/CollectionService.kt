@@ -47,8 +47,8 @@ class CollectionService(
 
         if (added) {
             val type = when (kind) {
-                CollectionKind.LIKES -> ActivityType.LIKED_CONTENT
-                CollectionKind.BOOKMARKS -> ActivityType.BOOKMARKED_CONTENT
+                CollectionKind.LIKES -> ActivityType.LIKED_CHART
+                CollectionKind.BOOKMARKS -> ActivityType.BOOKMARKED_CHART
                 CollectionKind.USER -> null
             }
 
