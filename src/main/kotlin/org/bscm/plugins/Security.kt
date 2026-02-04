@@ -2,6 +2,7 @@ package org.bscm.plugins
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import io.klogging.logger
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -9,10 +10,10 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.config.*
 import io.ktor.server.response.*
 import org.bscm.services.auth.HMACService
-import org.bscm.services.auth.JWTService
 import org.koin.ktor.ext.inject
 import java.util.*
-import kotlin.math.abs
+
+private val log = logger("Security")
 
 // Custom principal for HMAC authentication
 data class HMACPrincipal(val appId: String, val timestamp: String)
@@ -33,12 +34,12 @@ class HMACAuthenticationProvider internal constructor(
 
     internal val authenticationFunction = configuration.authenticationFunction
     private val hmacService = configuration.hmacService
-    private val hmacSecret = configuration.hmacSecret
+    private val expectedCertificate = configuration.expectedCertificate
 
     class Config internal constructor(name: String?) : AuthenticationProvider.Config(name) {
         internal var authenticationFunction: AuthenticationFunction<HMACCredential> = { null }
         internal lateinit var hmacService: HMACService
-        internal lateinit var hmacSecret: String
+        internal lateinit var expectedCertificate: String
 
         fun validate(body: suspend ApplicationCall.(HMACCredential) -> Any?) {
             authenticationFunction = body
@@ -48,41 +49,39 @@ class HMACAuthenticationProvider internal constructor(
     override suspend fun onAuthenticate(context: AuthenticationContext) {
         val call = context.call
 
-        // Extract HMAC headers
-        val timestamp = call.request.headers["X-App-Timestamp"]
-        val signature = call.request.headers["X-App-Signature"]
+        // Extract HMAC headers (matching Android app)
+        val timestamp = call.request.headers["X-Timestamp"]
+        val appSignature = call.request.headers["X-App-Signature"]
+        val hmacSignature = call.request.headers["X-HMAC"]
 
-        if (timestamp == null || signature == null) {
+        if (timestamp == null || appSignature == null || hmacSignature == null) {
             context.challenge("HMACChallenge", AuthenticationFailedCause.NoCredentials) { challenge, call ->
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Missing HMAC headers"))
+                call.respond(
+                    HttpStatusCode.Unauthorized,
+                    mapOf("error" to "Missing HMAC headers (X-Timestamp, X-App-Signature, X-HMAC)")
+                )
                 challenge.complete()
             }
             return
         }
 
-        // Verify timestamp is recent (within 5 minutes)
-        val currentTime = System.currentTimeMillis()
-        val requestTime = timestamp.toLongOrNull()
-
-        if (requestTime == null) {
+        // Verify using certificate-based verification (validates certificate match + HMAC + timestamp)
+        if (!hmacService.verifyAppSignatureWithCertificate(
+                appSignature,
+                timestamp,
+                hmacSignature,
+                expectedCertificate
+            )
+        ) {
             context.challenge("HMACChallenge", AuthenticationFailedCause.InvalidCredentials) { challenge, call ->
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid timestamp format"))
-                challenge.complete()
-            }
-            return
-        }
-
-        val timeDifference = abs(currentTime - requestTime)
-        if (timeDifference > 300_000) { // 5 minutes in milliseconds
-            context.challenge("HMACChallenge", AuthenticationFailedCause.InvalidCredentials) { challenge, call ->
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Request timestamp too old"))
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid app certificate or HMAC signature"))
                 challenge.complete()
             }
             return
         }
 
         // Create credential and validate
-        val credential = HMACCredential(timestamp, signature)
+        val credential = HMACCredential(timestamp, appSignature)
         val principal = call.authenticationFunction(credential)
 
         if (principal != null) {
@@ -104,6 +103,7 @@ class CombinedAuthenticationProvider internal constructor(
     private val jwtVerifier = configuration.jwtVerifier
     private val jwtRealm = configuration.jwtRealm
     private val hmacService = configuration.hmacService
+    private val expectedCertificate = configuration.expectedCertificate
     private val jwtRequired = configuration.jwtRequired
     private val hmacRequired = configuration.hmacRequired
 
@@ -111,6 +111,7 @@ class CombinedAuthenticationProvider internal constructor(
         lateinit var jwtVerifier: com.auth0.jwt.interfaces.JWTVerifier
         var jwtRealm: String = "Ktor Server"
         lateinit var hmacService: HMACService
+        lateinit var expectedCertificate: String
         var jwtRequired: Boolean = true
         var hmacRequired: Boolean = true
     }
@@ -144,40 +145,29 @@ class CombinedAuthenticationProvider internal constructor(
             }
         }
 
-        // 2. Validate HMAC headers
-        val timestamp = call.request.headers["X-App-Timestamp"]
-        val signature = call.request.headers["X-App-Signature"]
+        // 2. Validate HMAC headers (from mobile app certificate verification)
+        val timestamp = call.request.headers["X-Timestamp"]
+        val appSignature = call.request.headers["X-App-Signature"]
+        val hmacSignature = call.request.headers["X-HMAC"]
 
-        val hmacPrincipal = if (timestamp == null || signature == null) {
+        val hmacPrincipal = if (timestamp == null || appSignature == null || hmacSignature == null) {
             if (hmacRequired) {
-                errors.add("Missing HMAC headers")
+                errors.add("Missing HMAC headers (X-Timestamp, X-App-Signature, X-HMAC)")
             }
             null
         } else {
-            // Verify timestamp is recent (within 5 minutes)
-            val currentTime = System.currentTimeMillis()
-            val requestTime = timestamp.toLongOrNull()
-
-            if (requestTime == null) {
-                errors.add("Invalid timestamp format")
-                null
+            // Verify app signature with certificate validation
+            if (hmacService.verifyAppSignatureWithCertificate(
+                    appSignature,
+                    timestamp,
+                    hmacSignature,
+                    expectedCertificate
+                )
+            ) {
+                HMACPrincipal("mobile-app", timestamp)
             } else {
-                val timeDifference = abs(currentTime - requestTime)
-                if (timeDifference > 300_000) { // 5 minutes
-                    errors.add("Request timestamp too old")
-                    null
-                } else {
-                    // Verify HMAC signature
-                    val payload = "$timestamp:"
-                    val expectedSignature = hmacService.calculateSignature(payload)
-
-                    if (hmacService.verifySignature(signature, expectedSignature)) {
-                        HMACPrincipal("mobile-app", timestamp)
-                    } else {
-                        errors.add("Invalid HMAC signature")
-                        null
-                    }
-                }
+                errors.add("Invalid app certificate or HMAC signature")
+                null
             }
         }
 
@@ -246,13 +236,11 @@ fun AuthenticationConfig.combinedAuth(
 fun Application.configureSecurity(
     config: ApplicationConfig
 ) {
-    val jwtService by inject<JWTService>()
     val hmacService by inject<HMACService>()
 
     val secret = config.property("jwt.secret").getString()
     val jwtRealm = config.property("jwt.realm").getString()
-
-    val hmacSecret = config.property("hmac.secret").getString()
+    val expectedCertificate = config.property("hmac.secret").getString()
 
     install(Authentication) {
         jwt("auth-bearer") {
@@ -277,22 +265,13 @@ fun Application.configureSecurity(
 
         hmac("auth-hmac") {
             this.hmacService = hmacService
-            this.hmacSecret = hmacSecret
+            this.expectedCertificate = expectedCertificate
 
             validate { credential ->
-                // Recreate the payload that should have been signed
-                val payload = "${credential.timestamp}:"
-
-                // Calculate expected signature
-                val expectedSignature = hmacService.calculateSignature(payload)
-                // println("Expected Signature: $expectedSignature")
-
-                // Compare signatures securely
-                if (hmacService.verifySignature(credential.signature, expectedSignature)) {
-                    HMACPrincipal("mobile-app", credential.timestamp)
-                } else {
-                    null
-                }
+                // The credential contains timestamp and appSignature
+                // Verification is already done in HMACAuthenticationProvider.onAuthenticate()
+                // This is just for backward compatibility - return principal if we got here
+                HMACPrincipal("mobile-app", credential.timestamp)
             }
         }
 
@@ -303,6 +282,7 @@ fun Application.configureSecurity(
                 .build()
             this.jwtRealm = jwtRealm
             this.hmacService = hmacService
+            this.expectedCertificate = expectedCertificate
             this.jwtRequired = true
             this.hmacRequired = true
         }
@@ -314,6 +294,7 @@ fun Application.configureSecurity(
                 .build()
             this.jwtRealm = jwtRealm
             this.hmacService = hmacService
+            this.expectedCertificate = expectedCertificate
             this.jwtRequired = false
             this.hmacRequired = false
         }
@@ -325,6 +306,7 @@ fun Application.configureSecurity(
                 .build()
             this.jwtRealm = jwtRealm
             this.hmacService = hmacService
+            this.expectedCertificate = expectedCertificate
             this.jwtRequired = false
             this.hmacRequired = false
         }

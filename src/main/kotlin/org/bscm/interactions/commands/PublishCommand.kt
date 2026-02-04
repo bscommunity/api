@@ -1,5 +1,6 @@
 package org.bscm.interactions.commands
 
+import io.klogging.logger
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.server.application.*
@@ -16,6 +17,8 @@ import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.ChartPublishService
 import org.bscm.services.InteractionResponseService
 import org.koin.ktor.ext.getKoin
+
+private val log = logger(PublishCommand::class)
 
 object PublishCommand {
     suspend fun ApplicationCall.respondJson(json: JsonObject) = respond(json)
@@ -93,18 +96,13 @@ object PublishCommand {
         val bundleName = attachmentLabel(bundleOpt)
         val gameplayUrl = gameplayOpt?.get("value")?.jsonPrimitive?.contentOrNull
 
-        /*println("Publish command received:")
-        println(" - Bundle: $bundleName")
-        println(" - Gameplay URL: ${gameplayUrl ?: "N/A"}")
-        println(" - Explicit: $explicitVal")*/
-
         // ====== Step 1: Send deferred response (acknowledges interaction immediately) ======
         call.respondJson(interactionService.deferredResponse(ephemeral = true))
 
         // Extract interaction token for follow-ups
         val interactionToken = payload["token"]?.jsonPrimitive?.contentOrNull
         if (interactionToken == null) {
-            println("ERROR: Missing interaction token")
+            log.error("Missing interaction token")
             return
         }
 
@@ -139,7 +137,7 @@ object PublishCommand {
                     val resp: HttpResponse = applicationHttpClient.get(bundleUrl)
                     resp.bodyAsChannel().toByteArray()
                 } catch (e: Exception) {
-                    println("Failed to download bundle: ${e.message}")
+                    log.error("Failed to download bundle: ${e.message}")
                     interactionService.editOriginalResponse(interactionToken, message {
                         embed {
                             title = "❌ ${I18n.t(locale, "error")}"
@@ -171,7 +169,7 @@ object PublishCommand {
                         )
                     )
                 } catch (e: Exception) {
-                    println("Failed to publish chart: ${e.message}")
+                    log.error("Failed to publish chart: ${e.message}")
                     e.printStackTrace()
                     interactionService.editOriginalResponse(interactionToken, message {
                         embed {
@@ -215,8 +213,8 @@ object PublishCommand {
                     )
                 })
             } catch (e: Exception) {
-                println("Unexpected error in publish command: ${e.message}")
-                e.printStackTrace()
+                log.error("Unexpected error in publish command: ${e.message}")
+                // e.printStackTrace()
                 interactionService.editOriginalResponse(interactionToken, message {
                     embed {
                         title = "❌ ${I18n.t(locale, "error")}"

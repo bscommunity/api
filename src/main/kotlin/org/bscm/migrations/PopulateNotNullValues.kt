@@ -1,5 +1,6 @@
 package org.bscm.migrations
 
+import io.klogging.noCoLogger
 import org.bscm.models.enums.ContentType
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContentTable
@@ -8,9 +9,11 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDateTime
 
+private val log = noCoLogger("PopulateNotNullValuesCLI")
+
 fun main(args: Array<String>) {
     if (args.size < 2) {
-        println("Usage: <jdbcUrl> <user> <password>")
+        log.info("Usage: <jdbcUrl> <user> <password>")
         return
     }
 
@@ -32,7 +35,7 @@ fun main(args: Array<String>) {
             .where { ChartTable.contentId.isNull() or ChartTable.authorId.isNull() }
             .toList()
 
-        println("Found ${chartsWithoutContent.size} charts missing content or author.")
+        log.info("Found ${chartsWithoutContent.size} charts missing content or author.")
 
         chartsWithoutContent.forEach { chartRow ->
             val chartId = chartRow[ChartTable.id]
@@ -44,7 +47,7 @@ fun main(args: Array<String>) {
                 .singleOrNull()
 
             if (contributor == null) {
-                println("⚠️ Chart $chartId has no contributor; skipping.")
+                log.warn("Chart $chartId has no contributor; skipping.")
                 return@forEach
             }
 
@@ -63,9 +66,9 @@ fun main(args: Array<String>) {
                 it[ChartTable.latestUpdatedAt] = LocalDateTime.now()
             }
 
-            println("✅ Updated chart $chartId with content $contentId and author $userId")
+            log.info("✅ Updated chart $chartId with content $contentId and author $userId")
         }
     }
 
-    println("🎉 populateNotNullValues() finished.")
+    log.info("🎉 populateNotNullValues() finished.")
 }

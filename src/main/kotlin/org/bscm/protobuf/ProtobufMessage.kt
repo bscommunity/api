@@ -1,7 +1,7 @@
 package org.bscm.protobuf
 
 /**
- * Representa uma mensagem Protobuf durante o processo de parsing.
+ * Represents a Protobuf message during the parsing process.
  */
 class ProtobufMessage {
     private val data = mutableMapOf<String, Any?>()

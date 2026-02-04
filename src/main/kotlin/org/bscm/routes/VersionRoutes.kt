@@ -1,5 +1,6 @@
 package org.bscm.routes
 
+import io.klogging.noCoLogger
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.auth.*
@@ -28,6 +29,8 @@ fun Route.versionRoutes(
     uploadService: UploadService,
     supportUploadService: UploadService
 ) {
+    val logger = noCoLogger("VersionRoutes")
+
     // Routes that require JWT authentication only (dashboard operations)
     authenticate("auth-bearer") {
         rateLimit(RateLimitName("restricted")) {
@@ -43,7 +46,7 @@ fun Route.versionRoutes(
 
                     val user = userRepository.getUserById(userId) ?: throw UnauthorizedException("User not found")
 
-                    println("Received request to add version to chart with ID: $chartId")
+                    logger.info("Received request to add version to chart with ID: $chartId")
 
                     val chart = chartRepository.getChartById(chartId) ?: throw NotFoundException("Chart not found")
 
@@ -103,7 +106,7 @@ fun Route.versionRoutes(
 
                     if (trackSimilarity < 0.3 || artistSimilarity < 0.3) throw BadRequestException("Track or artist does not match the chart")
 
-                    println("Creating version with request: $createRequest")
+                    logger.info("Creating version with request: $createRequest")
 
                     // Upload the chart bundle
                     val discordResponse = uploadService.uploadVersion(
@@ -113,7 +116,7 @@ fun Route.versionRoutes(
                         user,
                         bundleFileBytes
                     )
-                    println("Successfully uploaded bundle with ${discordResponse.id}")
+                    logger.info("Successfully uploaded bundle with ${discordResponse.id}")
 
                     val attachment = discordResponse.attachments.lastOrNull()
 
@@ -152,7 +155,7 @@ fun Route.versionRoutes(
 
                     versionRepository.removeVersion(chart.latestVersion!!, versionIdULong)
 
-                    println("Removing version with ID: $versionIdULong from chart with ID: ${chart.id}")
+                    logger.info("Removing version with ID: $versionIdULong from chart with ID: ${chart.id}")
 
                     // Delete the version bundle from Discord
                     uploadService.deleteVersion(

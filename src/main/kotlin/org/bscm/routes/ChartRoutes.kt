@@ -1,5 +1,6 @@
 package org.bscm.routes
 
+import io.klogging.logger
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.auth.*
@@ -28,6 +29,8 @@ import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
 import org.koin.ktor.ext.getKoin
 import java.util.*
+
+private val log = logger("ChartRoutes")
 
 fun Route.chartRoutes(
     chartRepository: IChartRepository,
@@ -62,6 +65,7 @@ fun Route.chartRoutes(
     route("/charts") {
         // Routes that accept either JWT or HMAC authentication
         authenticate("auth-public") {
+            install(org.bscm.plugins.UserContext)
             rateLimit(RateLimitName("restricted")) {
                 // Get all charts - Workshop mode (all public charts + authenticated user stats)
                 // Mobile App: HMAC or HMAC+JWT → includes streaming links, latest version only
@@ -193,7 +197,7 @@ fun Route.chartRoutes(
                         ?.split(",")
                         ?.map { it.toULong() } ?: emptyList()
                     val versions = versionRepository.getLatestVersionsByChartIds(chartIds)
-                    println("Returning latest versions for chart IDs: $chartIds")
+                    log.info("Returning latest versions for chart IDs: $chartIds")
                     call.respond(versions)
                 }
             }

@@ -1,5 +1,6 @@
 package org.bscm.plugins
 
+import io.klogging.logger
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
@@ -7,30 +8,32 @@ import org.bscm.models.UserContext
 import org.bscm.repository.BaseRepository
 import java.util.*
 
+private val log = logger("UserContextPlugin")
+
 /**
  * Plugin that captures authenticated user context from JWT tokens for use in repositories.
- * This must be installed AFTER authentication to properly extract the principal.
+ * Install this inside authenticate { } so it runs after authentication.
  */
-val UserContextPlugin = createRouteScopedPlugin(name = "UserContextPlugin") {
-    onCall { call ->
+val UserContext = createRouteScopedPlugin(name = "UserContextPlugin") {
+    on(AuthenticationChecked) { call ->
         try {
-            // Try to extract userId from JWT (runs after authentication)
+            // Try to extract userId from JWT after authentication completes
             val jwtPrincipal = call.principal<JWTPrincipal>()
             val combinedPrincipal = call.principal<CombinedPrincipal>()
 
             val userId = when {
                 combinedPrincipal != null -> {
                     val id = UUID.fromString(combinedPrincipal.jwtPrincipal.subject)
-                    println("[UserContextPlugin] Extracted userId from CombinedPrincipal: $id from ${call.request.local.uri}")
+                    log.info("Extracted userId from CombinedPrincipal: $id from ${call.request.local.uri}")
                     id
                 }
                 jwtPrincipal != null -> {
                     val id = jwtPrincipal.subject?.let { UUID.fromString(it) }
-                    println("[UserContextPlugin] Extracted userId from JWTPrincipal: $id from ${call.request.local.uri}")
+                    log.info("Extracted userId from JWTPrincipal: $id from ${call.request.local.uri}")
                     id
                 }
                 else -> {
-                    println("[UserContextPlugin] No principal found, userId is null from ${call.request.local.uri}")
+                    log.warn("No principal found, userId is null from ${call.request.local.uri}")
                     null
                 }
             }
@@ -38,13 +41,13 @@ val UserContextPlugin = createRouteScopedPlugin(name = "UserContextPlugin") {
             BaseRepository.setUserContext(UserContext(userId))
         } catch (e: Exception) {
             // If parsing fails, set anonymous context
-            println("[UserContextPlugin] Exception parsing userId: ${e.message}, setting anonymous context")
+            log.error("Exception parsing userId: ${e.message}, setting anonymous context")
             BaseRepository.setUserContext(UserContext(null))
         }
     }
 
     onCallRespond { _, _ ->
-        println("[UserContextPlugin] Clearing UserContext")
+        log.info("Clearing UserContext")
         BaseRepository.clearUserContext()
     }
 }

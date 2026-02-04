@@ -53,6 +53,7 @@ private fun ApplicationCall.getPagination(): Pair<Int?, Int?> {
 fun Route.collectionRoutes(collectionService: CollectionService) {
     route("/collections") {
         authenticate("auth-bearer") {
+            install(org.bscm.plugins.UserContext)
             // Get user's custom collections
             get {
                 val userId = call.getUserId()
@@ -146,4 +147,3 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
         }
     }
 }
-

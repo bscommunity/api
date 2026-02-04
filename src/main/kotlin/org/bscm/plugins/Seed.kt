@@ -1,5 +1,6 @@
 package org.bscm.plugins
 
+import io.klogging.logger
 import io.ktor.server.application.*
 import kotlinx.coroutines.*
 import org.bscm.models.KnownIssue
@@ -16,11 +17,10 @@ import org.bscm.models.enums.StreamingPlatform
 import org.bscm.models.interfaces.*
 import org.bscm.utils.NanoIdUtils
 import org.koin.ktor.ext.inject
-import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.random.Random
 
-private val logger = LoggerFactory.getLogger("SeedScript")
+private val log = logger("Seed")
 
 fun Application.seedDatabase() {
     val chartRepository by inject<IChartRepository>()
@@ -63,7 +63,7 @@ private suspend fun generateRandomCharts(
         val user = userRepository.getUserByUsername("user$i")
         if (user != null) {
             users.add(user)
-            logger.info("Found existing user: ${user.username}")
+            log.info("Found existing user: ${user.username}")
             continue
         }
 
@@ -86,15 +86,15 @@ private suspend fun generateRandomCharts(
                 bio = newUser.bio,
                 accentColor = newUser.accentColor,
             ))
-            logger.info("Created new user: ${newUser.username}")
+            log.info("Created new user: ${newUser.username}")
         } catch (e: Exception) {
-            logger.error("Failed to create user$i: ${e.message}", e)
+            log.error("Failed to create user$i: ${e.message}", e)
         }
     }
 
     // Make sure we have enough users
     if (users.isEmpty()) {
-        logger.error("No users available for chart creation. Aborting.")
+        log.error("No users available for chart creation. Aborting.")
         return@coroutineScope
     }
 
@@ -150,7 +150,7 @@ private suspend fun generateRandomCharts(
                         ),
                     )
 
-                    logger.info("Created chart with ID: ${chart.id}")
+                    log.info("Created chart with ID: ${chart.id}")
 
                     // Process additional data for this chart in parallel
                     coroutineScope {
@@ -176,7 +176,7 @@ private suspend fun generateRandomCharts(
                                         )
                                     )
                                 }
-                                logger.info("Added additional versions for chart ID: ${chart.id}")
+                                log.info("Added additional versions for chart ID: ${chart.id}")
                             }
                         }
 
@@ -188,7 +188,7 @@ private suspend fun generateRandomCharts(
                                 chart.id.toULong(),
                                 contributors.map { SimplifiedContributor(it, listOf(contributorRoles.random())) }
                             )
-                            logger.info("Added contributors for chart ID: ${chart.id}")
+                            log.info("Added contributors for chart ID: ${chart.id}")
                         }
 
                         // Add known issues randomly
@@ -204,7 +204,7 @@ private suspend fun generateRandomCharts(
                                         )
                                     )
                                 }
-                                logger.info("Added known issues for chart ID: ${chart.id}")
+                                log.info("Added known issues for chart ID: ${chart.id}")
                             }
                         }
 
@@ -215,13 +215,13 @@ private suspend fun generateRandomCharts(
                     }
 
                 } catch (e: Exception) {
-                    logger.error("Error generating chart $i: ${e.message}", e)
+                    log.error("Error generating chart $i: ${e.message}", e)
                 }
             }
         }
     }.awaitAll() // Wait for all batches to complete
 
-    logger.info("Database seeding completed: Generated $count charts")
+    log.info("Database seeding completed: Generated $count charts")
 }
 
 private fun getRandomId(): String = UUID.randomUUID().toString().replace("-", "").substring(0, 10)

@@ -1,5 +1,6 @@
 package org.bscm.repository
 
+import io.klogging.noCoLogger
 import io.ktor.server.plugins.*
 import org.bscm.models.Chart
 import org.bscm.models.Version
@@ -18,6 +19,8 @@ import org.jetbrains.exposed.sql.update
 
 class VersionRepository : IVersionRepository {
     companion object {
+        private val logger = noCoLogger(VersionRepository::class)
+
         fun versionEntityToVersion(entity: VersionEntity): Version = Version(
             id = entity.id.value.toString(),
             index = entity.index,
@@ -112,7 +115,7 @@ class VersionRepository : IVersionRepository {
 
         // Ensure that the version being removed is the latest version
         if (latestVersion.id != versionId.toString()) {
-            println("Removing version with ID: $versionId from chart with latest version ID: ${latestVersion.id}")
+            logger.warn("Removing version with ID: $versionId from chart with latest version ID: ${latestVersion.id}")
             throw IllegalArgumentException("You can only remove the latest version of a chart")
         }
 

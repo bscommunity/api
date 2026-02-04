@@ -1,5 +1,6 @@
 package org.bscm.services
 
+import io.klogging.noCoLogger
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -15,8 +16,11 @@ import org.bscm.models.enums.Genre
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.protobuf.ChartParser
+import org.bscm.utils.DecodingUtils
 import org.bscm.utils.NanoIdUtils
 import org.bscm.utils.StreamingPlatformUtils
+
+private val log = noCoLogger("ChartPublishService")
 
 /** Centralized pipeline for publishing a chart (Discord upload + DB persist). */
 class ChartPublishService(
@@ -62,16 +66,16 @@ class ChartPublishService(
         )
 
         // 1. Extract info.json metadata
-        val bundleInfo = DecodingService.extractBundleInfo(bundleBytes)
+        val bundleInfo = DecodingUtils.extractBundleInfo(bundleBytes)
 
         // 2. Extract cover image (raw bytes) if any
-        val coverBytes = DecodingService.extractCoverImage(bundleBytes)
+        val coverBytes = DecodingUtils.extractCoverImage(bundleBytes)
 
         // 3. Extract chart.bytes and parse
-        val chartBytes = DecodingService.extractChartFileFromBundle(bundleBytes)
+        val chartBytes = DecodingUtils.extractChartFileFromBundle(bundleBytes)
             ?: throw IllegalStateException("Failed to extract chart.bytes from bundle")
         val parsedProto = ChartParser.parse(chartBytes)
-        val computedStats = DecodingService.computeChartStats(parsedProto, bundleInfo?.bpm)
+        val computedStats = DecodingUtils.computeChartStats(parsedProto, bundleInfo?.bpm)
 
         val difficultyEnum = when (bundleInfo?.difficulty) {
             4 -> Difficulty.NORMAL
@@ -86,7 +90,7 @@ class ChartPublishService(
 
         // 6. Media info enrichment
         val mediaInfo = try { mediaInfoService.getMediaInfo(trackName, artistName) } catch (e: Exception) {
-            println("Media info fetch failed: ${e.message}")
+            log.error("Media info fetch failed: ${e.message}")
             null
         }
 
@@ -104,7 +108,7 @@ class ChartPublishService(
             }
         }
 
-        println("Resolved streaming links: $streamingLinks")
+        log.info("Resolved streaming links: $streamingLinks")
 
         val bpm = overrides.bpm ?: bundleInfo?.bpm ?: 0
         val isDeluxe = overrides.isDeluxe ?: (bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false)
@@ -136,7 +140,7 @@ class ChartPublishService(
             infoToInject["streaming"] = StreamingPlatformUtils.serializeLinks(streamingLinks)
         }
 
-        val enhancedBundleBytes = DecodingService.injectInfoToBundle(bundleBytes, infoToInject)
+        val enhancedBundleBytes = DecodingUtils.injectInfoToBundle(bundleBytes, infoToInject)
 
         val createForUpload = CreateChartRequest(
             artist = mediaInfo?.artist ?: artistName,

@@ -18,7 +18,6 @@ fun Application.module() {
     configureHTTP()
     configureStatusPages()
     configureSecurity(environment.config)
-    install(UserContextPlugin)
     configureRateLimit()
     configureRouting() // Routing should be the last plugin to be configured
 

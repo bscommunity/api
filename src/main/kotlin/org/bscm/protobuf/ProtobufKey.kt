@@ -1,7 +1,7 @@
 package org.bscm.protobuf
 
 /**
- * Representa uma chave Protobuf com tipo de wire e número de field.
+ * Represents a Protobuf key with wire type and field number.
  */
 data class ProtobufKey(
     val wire: Int,

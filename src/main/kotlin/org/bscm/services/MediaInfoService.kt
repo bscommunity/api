@@ -1,5 +1,6 @@
 package org.bscm.services
 
+import io.klogging.noCoLogger
 import org.bscm.clients.*
 import org.bscm.models.StreamingLink
 import org.bscm.models.enums.PreviewProvider
@@ -15,6 +16,7 @@ class MediaInfoService(
     private val odesli: OdesliClient,
     private val musicbrainz: MusicbrainzClient
 ) {
+    private val logger = noCoLogger(MediaInfoService::class)
 
     data class TrackMatchContext(
         val track: String,
@@ -116,7 +118,7 @@ class MediaInfoService(
         try {
             val odesliLinks = odesli.resolve(url)
             if (odesliLinks.isNotEmpty()) {
-                println("Raw Odesli links: $odesliLinks")
+                logger.info("Raw Odesli links: $odesliLinks")
                 return StreamingPlatformUtils.processLinksWithPrioritization(odesliLinks, true)
             }
         } catch (error: Exception) {
@@ -127,7 +129,7 @@ class MediaInfoService(
         try {
             val musicbrainzLinks = musicbrainz.resolve("recording:\"$cleanedTrack\" AND artist:\"$cleanedArtist\"")
             if (musicbrainzLinks.isNotEmpty()) {
-                println("Raw MusicBrainz links: $musicbrainzLinks")
+                logger.info("Raw MusicBrainz links: $musicbrainzLinks")
                 return StreamingPlatformUtils.processLinksWithPrioritization(musicbrainzLinks, false)
             }
         } catch (error: Exception) {

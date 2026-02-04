@@ -1,5 +1,6 @@
 package org.bscm.utils
 
+import io.klogging.noCoLogger
 import org.bscm.models.StreamingLink
 import org.bscm.models.enums.StreamingPlatform
 import kotlin.test.Test
@@ -8,6 +9,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class StreamingPlatformUtilsTest {
+
+    private val logger = noCoLogger(StreamingPlatformUtilsTest::class)
 
     @Test
     fun `test link prioritization with music subdomain`() {
@@ -81,7 +84,7 @@ class StreamingPlatformUtilsTest {
         )
 
         val serialized = StreamingPlatformUtils.serializeLinks(links)
-        println("Serialized: $serialized")
+        logger.info("Serialized: $serialized")
 
         // Verify no domain names leak into serialized format
         assertFalse(serialized.contains("spotify.com"), "Serialized should not contain domain")
@@ -124,9 +127,9 @@ class StreamingPlatformUtilsTest {
 
         val (originalSize, serializedSize) = StreamingPlatformUtils.calculateSerializationSavings(links)
 
-        println("Original size: $originalSize bytes")
-        println("Serialized size: $serializedSize bytes")
-        println("Space saved: ${originalSize - serializedSize} bytes (${100 - (serializedSize * 100 / originalSize)}%)")
+        logger.info("Original size: $originalSize bytes")
+        logger.info("Serialized size: $serializedSize bytes")
+        logger.info("Space saved: ${originalSize - serializedSize} bytes (${100 - (serializedSize * 100 / originalSize)}%)")
 
         // Should save significant space
         assertTrue(serializedSize < originalSize)
@@ -156,8 +159,8 @@ class StreamingPlatformUtilsTest {
 
         val result = StreamingPlatformUtils.processLinksWithPrioritization(links, useKeyForDetection = true)
 
-        println("Resolved links:")
-        result.forEach { println("  ${it.platform}: ${it.url}") }
+        logger.info("Resolved links:")
+        result.forEach { logger.info("  ${it.platform}: ${it.url}") }
 
         // Should have one link per actual platform (not the fake Spotify assignments)
         assertTrue(result.any { it.platform == StreamingPlatform.SPOTIFY && it.url.contains("spotify.com") })
@@ -169,4 +172,3 @@ class StreamingPlatformUtilsTest {
         assertTrue(result.any { it.platform == StreamingPlatform.AMAZON_MUSIC && it.url.contains("amazon.com") })
     }
 }
-

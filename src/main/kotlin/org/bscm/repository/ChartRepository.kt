@@ -1,5 +1,6 @@
 package org.bscm.repository
 
+import io.klogging.noCoLogger
 import io.ktor.server.plugins.*
 import org.bscm.models.Chart
 import org.bscm.models.Contributor
@@ -26,6 +27,8 @@ import java.util.*
 import kotlin.math.max
 
 class ChartRepository : BaseRepository(), IChartRepository {
+
+    private val log = noCoLogger(ChartRepository::class)
 
     private class ChartResult(
         val chart: ChartEntity,
@@ -198,7 +201,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
         val sortedResults = paginatedIds.mapNotNull { id -> chartMap[id] }
 
         val endTime = System.currentTimeMillis()
-        println("Charts fetch completed in ${endTime - startTime}ms with ${sortedResults.size} charts")
+        log.info("Charts fetch completed in ${endTime - startTime}ms with ${sortedResults.size} charts")
 
         return if (addons?.count == true) {
             Pair(sortedResults, baseQuery.count().toInt())
@@ -487,7 +490,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
 
         val endTime = System.currentTimeMillis()
 
-        println("Suggestions returned in ${endTime - startTime}ms with ${result.size} results")
+        log.info("Suggestions returned in ${endTime - startTime}ms with ${result.size} results")
         result
     }
 
@@ -645,7 +648,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
                         version.downloadsAmount += 1
                     }
                 }
-                println("Download analytics recorded for chart $chartId")
+                log.info("Download analytics recorded for chart $chartId")
                 true
             }
 
@@ -689,9 +692,9 @@ class ChartRepository : BaseRepository(), IChartRepository {
                     exec(coverSql)
                 }
 
-                println("Successfully refreshed bundle URLs for ${messages.size} charts")
+                log.info("Successfully refreshed bundle URLs for ${messages.size} charts")
                 if (withCovers.isNotEmpty()) {
-                    println("Successfully refreshed cover URLs for ${withCovers.size} charts (only where coverUrl contains 'cdn.discordapp.com')")
+                    log.info("Successfully refreshed cover URLs for ${withCovers.size} charts (only where coverUrl contains 'cdn.discordapp.com')")
                 }
                 true
             }

@@ -83,9 +83,7 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
     single {
-        HMACService(
-            secret = config.property("hmac.secret").getString()
-        )
+        HMACService()
     }
     single {
         DiscordOAuthService(

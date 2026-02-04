@@ -1,5 +1,6 @@
 package org.bscm.routes
 
+import io.klogging.logger
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -20,6 +21,8 @@ import org.bscm.services.auth.JWTService
 import java.time.LocalDateTime
 import java.util.*
 
+private val log = logger("AuthRoutes")
+
 fun Route.authRoutes(
     userRepository: IUserRepository,
     discordOAuthService: DiscordOAuthService,
@@ -31,7 +34,7 @@ fun Route.authRoutes(
             val authRequest = call.receiveOrNull<AuthRequest>()
                 ?: return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
 
-            // println("authRequest: $authRequest")
+            // log.info("authRequest: $authRequest")
 
             try {
                 val accessToken = discordOAuthService.getAccessToken(authRequest)
@@ -72,11 +75,11 @@ fun Route.authRoutes(
                         )
                     )
 
-                println("User authenticated via Discord: $user")
+                log.info("User authenticated via Discord: $user")
 
                 call.respond(user.toAuthResult(jwtService))
             } catch (e: Exception) {
-                println("Error during Discord authentication: ${e.message}")
+                log.error("Error during Discord authentication: ${e.message}")
                 call.respondError(HttpStatusCode.InternalServerError, "Authentication failed: ${e.message}")
             }
         }

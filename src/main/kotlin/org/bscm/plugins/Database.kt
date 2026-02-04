@@ -5,7 +5,7 @@ import io.ktor.server.config.*
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.StdOutSqlLogger
+import org.jetbrains.exposed.sql.Slf4jSqlDebugLogger
 import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.transaction
 
@@ -37,7 +37,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
             password = password
         )
         transaction {
-            addLogger(StdOutSqlLogger)
+            addLogger(Slf4jSqlDebugLogger)
             SchemaUtils.create(
                 org.bscm.models.tables.AccountTable,
                 org.bscm.models.tables.ChartStreamingLinkTable,

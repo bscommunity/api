@@ -1,9 +1,12 @@
 package org.bscm.utils
 
+import io.klogging.noCoLogger
 import org.bscm.models.StreamingLink
 import org.bscm.models.enums.StreamingPlatform
 import java.net.URI
 import java.net.URISyntaxException
+
+private val log = noCoLogger("StreamingPlatformUtils")
 
 /**
  * Utility object for handling streaming platform detection and prioritization
@@ -164,13 +167,13 @@ object StreamingPlatformUtils {
 
                 // Skip if URL doesn't contain platform keywords (wrong platform assignment by API)
                 if (platformFromUrl == null || groupKeyFromUrl != groupKeyFromPlatform) {
-                    println("Skipping mismatched platform: ${link.platform} doesn't match URL: ${link.url}")
+                    log.warn("Skipping mismatched platform: ${link.platform} doesn't match URL: ${link.url}")
                     continue
                 }
             }
 
             if (platformFromUrl == null || cleanedUrl.isBlank() || groupKeyFromUrl == null) {
-                println("Skipping unknown platform or missing data: ${link.platform} - ${link.url}")
+                log.warn("Skipping unknown platform or missing data: ${link.platform} - ${link.url}")
                 continue
             }
 
@@ -259,7 +262,7 @@ object StreamingPlatformUtils {
         return serialized.split("||").mapNotNull { entry ->
             val parts = entry.split("|", limit = 2)
             if (parts.size != 2) {
-                println("Invalid serialized link format: $entry")
+                log.warn("Invalid serialized link format: $entry")
                 return@mapNotNull null
             }
 
@@ -267,13 +270,13 @@ object StreamingPlatformUtils {
             val path = parts[1]
 
             if (platformId == null) {
-                println("Invalid platform ID: ${parts[0]}")
+                log.warn("Invalid platform ID: ${parts[0]}")
                 return@mapNotNull null
             }
 
             val platform = StreamingPlatform.entries.find { it.id == platformId }
             if (platform == null) {
-                println("Unknown platform ID: $platformId")
+                log.warn("Unknown platform ID: $platformId")
                 return@mapNotNull null
             }
 

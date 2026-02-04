@@ -1,0 +1,32 @@
+{
+  "sinks": {
+    "stdout": {
+      "renderWith": "RENDER_ANSI",
+      "sendTo": "STDOUT"
+    }
+  },
+  "logging": [
+    {
+      "name": "Exposed",
+      "levelRanges": [
+        {
+          "fromMinLevel": "DEBUG",
+          "toSinks": [
+            "stdout"
+          ]
+        }
+      ]
+    },
+    {
+      "levelRanges": [
+        {
+          "fromMinLevel": "INFO",
+          "stopOnMatch": true,
+          "toSinks": [
+            "stdout"
+          ]
+        }
+      ]
+    }
+  ]
+}

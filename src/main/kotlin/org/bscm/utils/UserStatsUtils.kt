@@ -1,11 +1,14 @@
 package org.bscm.utils
 
+import io.klogging.noCoLogger
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.tables.CollectionItemTable
 import org.bscm.models.tables.CollectionTable
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.innerJoin
 import java.util.*
+
+private val log = noCoLogger(UserStatsUtils::class)
 
 /**
  * Utility object for fetching user interaction stats (likes and bookmarks) for catalog items.
@@ -17,19 +20,19 @@ object UserStatsUtils {
      * Returns a map of contentId -> (isLiked, isBookmarked)
      */
     fun fetchUserStats(userId: UUID?, contentIds: List<String>): Map<String, Pair<Boolean, Boolean>> {
-        println("[UserStatsUtils] fetchUserStats called with userId=$userId, contentIds=${contentIds.joinToString()}")
+        log.info("fetchUserStats called with userId=$userId, contentIds=${contentIds.joinToString()}")
 
         if (userId == null) {
-            println("[UserStatsUtils] userId is null, returning empty map")
+            log.warn("userId is null, returning empty map")
             return emptyMap()
         }
 
         if (contentIds.isEmpty()) {
-            println("[UserStatsUtils] contentIds is empty, returning empty map")
+            log.warn("contentIds is empty, returning empty map")
             return emptyMap()
         }
 
-        println("[UserStatsUtils] Querying database for user stats...")
+        log.info("Querying database for user stats...")
 
         // Fetch all collection items for the user and the given content IDs in a single query
         val statsRows = CollectionItemTable
@@ -41,11 +44,11 @@ object UserStatsUtils {
             }
             .toList() // Execute the query immediately
 
-        println("[UserStatsUtils] Query returned ${statsRows.size} rows")
+        log.info("Query returned ${statsRows.size} rows")
 
         if (statsRows.isNotEmpty()) {
             statsRows.forEach { row ->
-                println("[UserStatsUtils] Row: contentId=${row[CollectionItemTable.contentId].value}, kind=${row[CollectionTable.kind]}")
+                log.info("Row: contentId=${row[CollectionItemTable.contentId].value}, kind=${row[CollectionTable.kind]}")
             }
         }
 
@@ -56,7 +59,7 @@ object UserStatsUtils {
                 rows.map { row -> row[CollectionTable.kind] }.toSet()
             }
 
-        println("[UserStatsUtils] Grouped by contentId: ${contentIdToKinds.keys.joinToString()}")
+        log.info("Grouped by contentId: ${contentIdToKinds.keys.joinToString()}")
 
         // Map each contentId to (isLiked, isBookmarked)
         val result = contentIds.associateWith { contentId ->
@@ -66,12 +69,12 @@ object UserStatsUtils {
             // Item is bookmarked if in BOOKMARKS collection or any USER collection
             val isBookmarked = kinds.contains(CollectionKind.BOOKMARKS) || kinds.contains(CollectionKind.USER)
 
-            println("[UserStatsUtils] ContentId=$contentId: kinds=$kinds, isLiked=$isLiked, isBookmarked=$isBookmarked")
+            log.info("ContentId=$contentId: kinds=$kinds, isLiked=$isLiked, isBookmarked=$isBookmarked")
 
             Pair(isLiked, isBookmarked)
         }
 
-        println("[UserStatsUtils] Final result map size: ${result.size}")
+        log.info("Final result map size: ${result.size}")
         return result
     }
 }

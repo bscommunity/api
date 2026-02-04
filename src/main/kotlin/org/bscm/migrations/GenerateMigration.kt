@@ -2,15 +2,18 @@ package org.bscm.migrations
 
 import MigrationUtils
 import io.github.classgraph.ClassGraph
+import io.klogging.noCoLogger
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ExperimentalDatabaseMigrationApi
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.nio.file.Path
 
+private val log = noCoLogger("GenerateMigrationCLI")
+
 fun main(args: Array<String>) {
     if (args.size < 4) {
-        println("Usage: <jdbcUrl> <user> <password> <migration_name>")
+        log.info("Usage: <jdbcUrl> <user> <password> <migration_name>")
         return
     }
 
@@ -22,7 +25,7 @@ fun main(args: Array<String>) {
     val tables = loadAllExposedTables().values.toTypedArray()
 
     if (tables.isEmpty()) {
-        println("No Exposed tables found in org.bscm.models.tables")
+        log.info("No Exposed tables found in org.bscm.models.tables")
         return
     }
 
@@ -66,7 +69,7 @@ fun generateExposedMigrationScript(
         )
     }
 
-    println("Migration generated: ${scriptDirectory.resolve(scriptName)}")
+    log.info("Migration generated: ${scriptDirectory.resolve(scriptName)}")
 }
 
 fun loadAllExposedTables(): Map<String, Table> {

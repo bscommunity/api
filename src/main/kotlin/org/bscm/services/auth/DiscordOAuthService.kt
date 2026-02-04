@@ -68,8 +68,6 @@ class DiscordOAuthService(
             }
         }.body<DiscordUser>()
 
-        println("Discord User Info: $response")
-
         return response
     }
 

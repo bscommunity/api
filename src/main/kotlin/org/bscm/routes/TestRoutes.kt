@@ -1,8 +1,11 @@
 package org.bscm.routes
 
+import io.klogging.logger
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.services.MediaInfoService
+
+private val log = logger("TestRoutes")
 
 fun Route.testRoutes(mediaInfoService: MediaInfoService) {
     route("/test") {
@@ -19,10 +22,10 @@ fun Route.testRoutes(mediaInfoService: MediaInfoService) {
             val cleanedTrackName = mediaInfoService.cleanTrackName(trackName)
             val cleanedArtistName = mediaInfoService.cleanArtistName(artistName)
 
-            println("Fetching media info for track: '$cleanedTrackName', artist: '$cleanedArtistName'")
+            log.info("Fetching media info for track: '$cleanedTrackName', artist: '$cleanedArtistName'")
 
             val mediaInfo = try { mediaInfoService.getMediaInfo(cleanedTrackName, cleanedArtistName) } catch (e: Exception) {
-                println("Media info fetch failed: ${e.message}")
+                log.info("Media info fetch failed: ${e.message}")
                 throw e
             }
 
@@ -33,7 +36,7 @@ fun Route.testRoutes(mediaInfoService: MediaInfoService) {
                 listOf(mediaInfo.link)
             }
 
-            println("Resolved streaming links: $streamingLinks")
+            log.info("Resolved streaming links: $streamingLinks")
 
             call.respond(mediaInfo)
         }

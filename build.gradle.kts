@@ -44,6 +44,7 @@ dependencies {
     implementation(libs.ktor.server.auth.jwt.jvm)
     implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.rate.limit)
+    implementation(libs.ktor.server.config.yaml)
 
     testImplementation(libs.ktor.server.test.host.jvm)
     testImplementation(libs.kotlin.test.junit)
@@ -68,9 +69,11 @@ dependencies {
     runtimeOnly(libs.flyway.database.postgresql)
 
     // Utils
-    implementation(libs.logback)
+    implementation(libs.klogging)
+    implementation(libs.klogging.slf4j)
+
+    // Kotlin
     implementation(libs.kotlinx.datetime)
-    implementation(libs.ktor.server.config.yaml)
 
     // Utils
     implementation(libs.bouncycastle) // For cryptographic operations (e.g., NanoId)

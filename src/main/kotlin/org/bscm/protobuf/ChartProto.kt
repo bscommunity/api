@@ -1,7 +1,7 @@
 package org.bscm.protobuf
 
 /**
- * Definição do protocolo para Chart (beatmaps).
+ * Protocol definition for Chart (beatmaps).
  */
 object ChartProto {
     val proto = mapOf(

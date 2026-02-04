@@ -1,5 +1,6 @@
 package org.bscm.services
 
+import io.klogging.noCoLogger
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
@@ -24,6 +25,8 @@ import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
 import java.util.*
+
+private val logger = noCoLogger(UploadService::class)
 
 class UploadService(
     private val webhookId: String,
@@ -255,7 +258,7 @@ class UploadService(
         )
         val normalizedTrack = getNormalizedTrackName(chart.track)
 
-        println("Uploading chart: cover=${coverImage != null} (${coverImage?.size ?: 0} bytes), bundle=${chartBundle.size} bytes")
+        logger.info("Uploading chart: cover=${coverImage != null} (${coverImage?.size ?: 0} bytes), bundle=${chartBundle.size} bytes")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?with_components=true",
@@ -356,7 +359,7 @@ class UploadService(
             throw Exception("Failed to send: ${response.status}, ${response.bodyAsText()}")
         }
 
-        println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
+        logger.info(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
 
         return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }
@@ -376,7 +379,7 @@ class UploadService(
             )
         )
 
-        println("Current message attachments after deletion: $payloadJson")
+        logger.info("Current message attachments after deletion: $payloadJson")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${editWebhookUrl}/${messageId}?with_components=true",
@@ -431,7 +434,7 @@ class UploadService(
                     header(HttpHeaders.Authorization, "Bot $botToken")
                 }
             } catch (e: Exception) {
-                println("Exception fetching messages: ${e.message}")
+                logger.warn(e, "Exception fetching messages")
                 consecutiveErrors++
                 if (consecutiveErrors >= maxConsecutiveErrors) break
                 delay(1000)
@@ -450,7 +453,7 @@ class UploadService(
 
                     // Only apply delay for user-scoped limits (shared limits don't count against us)
                     if (rateLimitScope != "shared" && rateLimitRemaining == 0) {
-                        println("Rate limit exhausted, waiting ${rateLimitResetAfter}s before continuing")
+                        logger.warn("Rate limit exhausted, waiting ${rateLimitResetAfter}s before continuing")
                         delay((rateLimitResetAfter * 1000 + 100).toLong()) // +100ms buffer
                     }
 
@@ -477,7 +480,7 @@ class UploadService(
                                 ?.get("image")?.jsonObject
                                 ?.get("url")?.jsonPrimitive?.content
 
-                            println("Refreshing message ID=${id}: bundleUrl=$bundleUrl, coverUrl=$coverUrl")
+                            logger.info("Refreshing message ID=${id}: bundleUrl=$bundleUrl, coverUrl=$coverUrl")
 
                             if (id != null && versionId != null && bundleUrl != null) {
                                 refreshData[id] = RefreshData(versionId, bundleUrl, coverUrl)
@@ -492,19 +495,19 @@ class UploadService(
 
                 401 -> {
                     // Invalid token - stop immediately to avoid ban
-                    println("ERROR: Invalid authorization token (401). Stopping message fetch.")
+                    logger.error("Invalid authorization token (401). Stopping message fetch.")
                     break
                 }
 
                 403 -> {
                     // Forbidden - likely permission issue, stop to avoid ban
-                    println("ERROR: Forbidden (403) - no permission to read channel. Stopping message fetch.")
+                    logger.error("Forbidden (403) - no permission to read channel. Stopping message fetch.")
                     break
                 }
 
                 404 -> {
                     // Not found - don't retry, would count as invalid requests
-                    println("ERROR: Channel not found (404). Stopping message fetch.")
+                    logger.error("Channel not found (404). Stopping message fetch.")
                     break
                 }
 
@@ -515,11 +518,11 @@ class UploadService(
 
                     if (rateLimitScope == "shared") {
                         // Shared limit - doesn't count against us, can retry immediately
-                        println("Shared rate limit, retrying immediately")
+                        logger.warn("Shared rate limit, retrying immediately")
                         delay(100)
                     } else {
                         // User limit - wait and retry
-                        println("Rate limited (429), waiting ${retryAfter}s before retry")
+                        logger.warn("Rate limited (429), waiting ${retryAfter}s before retry")
                         delay((retryAfter * 1000 + 100).toLong())
                     }
                     continue
@@ -527,7 +530,7 @@ class UploadService(
 
                 else -> {
                     // Unexpected status - log and continue
-                    println("Unexpected status ${response.status.value} fetching messages, attempt ${consecutiveErrors + 1}/$maxConsecutiveErrors")
+                    logger.warn("Unexpected status ${response.status.value} fetching messages, attempt ${consecutiveErrors + 1}/$maxConsecutiveErrors")
                     consecutiveErrors++
                     if (consecutiveErrors < maxConsecutiveErrors) {
                         delay((1000 * consecutiveErrors).toLong()) // Exponential backoff
@@ -536,7 +539,7 @@ class UploadService(
             }
         }
 
-        println("Finished fetching messages. Total refreshed: ${refreshData.size}")
+        logger.info("Finished fetching messages. Total refreshed: ${refreshData.size}")
         return refreshData
     }
 
@@ -561,7 +564,7 @@ class UploadService(
                     header(HttpHeaders.Authorization, "Bot $botToken")
                 }
             } catch (e: Exception) {
-                println("Exception fetching audio messages: ${e.message}")
+                logger.warn(e, "Exception fetching audio messages")
                 consecutiveErrors++
                 if (consecutiveErrors >= maxConsecutiveErrors) break
                 delay(1000)
@@ -580,7 +583,7 @@ class UploadService(
 
                     // Only apply delay for user-scoped limits (shared limits don't count against us)
                     if (rateLimitScope != "shared" && rateLimitRemaining == 0) {
-                        println("Rate limit exhausted, waiting ${rateLimitResetAfter}s before continuing")
+                        logger.warn("Rate limit exhausted, waiting ${rateLimitResetAfter}s before continuing")
                         delay((rateLimitResetAfter * 1000 + 100).toLong()) // +100ms buffer
                     }
 
@@ -603,7 +606,7 @@ class UploadService(
                                 // Extract the original URL to use as key for matching
                                 val originalUrl = content.substringAfter("Original: ").trim()
                                 audioData[originalUrl] = audioUrl
-                                println("Found audio URL for original: $originalUrl -> $audioUrl")
+                                logger.info("Found audio URL for original: $originalUrl -> $audioUrl")
                             }
                         }
                     }
@@ -615,19 +618,19 @@ class UploadService(
 
                 401 -> {
                     // Invalid token - stop immediately to avoid ban
-                    println("ERROR: Invalid authorization token (401). Stopping audio message fetch.")
+                    logger.error("Invalid authorization token (401). Stopping audio message fetch.")
                     break
                 }
 
                 403 -> {
                     // Forbidden - likely permission issue, stop to avoid ban
-                    println("ERROR: Forbidden (403) - no permission to read channel. Stopping audio message fetch.")
+                    logger.error("Forbidden (403) - no permission to read channel. Stopping audio message fetch.")
                     break
                 }
 
                 404 -> {
                     // Not found - don't retry, would count as invalid requests
-                    println("ERROR: Channel not found (404). Stopping audio message fetch.")
+                    logger.error("Channel not found (404). Stopping audio message fetch.")
                     break
                 }
 
@@ -638,11 +641,11 @@ class UploadService(
 
                     if (rateLimitScope == "shared") {
                         // Shared limit - doesn't count against us, can retry immediately
-                        println("Shared rate limit, retrying immediately")
+                        logger.warn("Shared rate limit, retrying immediately")
                         delay(100)
                     } else {
                         // User limit - wait and retry
-                        println("Rate limited (429), waiting ${retryAfter}s before retry")
+                        logger.warn("Rate limited (429), waiting ${retryAfter}s before retry")
                         delay((retryAfter * 1000 + 100).toLong())
                     }
                     continue
@@ -650,7 +653,7 @@ class UploadService(
 
                 else -> {
                     // Unexpected status - log and continue
-                    println("Unexpected status ${response.status.value} fetching audio messages, attempt ${consecutiveErrors + 1}/$maxConsecutiveErrors")
+                    logger.warn("Unexpected status ${response.status.value} fetching audio messages, attempt ${consecutiveErrors + 1}/$maxConsecutiveErrors")
                     consecutiveErrors++
                     if (consecutiveErrors < maxConsecutiveErrors) {
                         delay((1000 * consecutiveErrors).toLong()) // Exponential backoff
@@ -659,7 +662,7 @@ class UploadService(
             }
         }
 
-        println("Finished fetching audio messages. Total found: ${audioData.size}")
+        logger.info("Finished fetching audio messages. Total found: ${audioData.size}")
         return audioData
     }
 

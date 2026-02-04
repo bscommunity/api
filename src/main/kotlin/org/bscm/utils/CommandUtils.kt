@@ -1,5 +1,6 @@
 package org.bscm.utils
 
+import io.klogging.logger
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -9,6 +10,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
+
 
 @Serializable
 private data class CommandOption(
@@ -24,6 +26,8 @@ private data class ApplicationCommand(
     val description: String,
     val options: List<CommandOption>? = null
 )
+
+private val log = logger(CommandUtils::class)
 
 object CommandUtils {
     fun registerDiscordCommands(botToken: String, appId: String, guildId: String? = null) {
@@ -54,10 +58,10 @@ object CommandUtils {
                     contentType(ContentType.Application.Json)
                     setBody(commands)
                 }
-                println("[DiscordCmd][$scope] Status: ${response.status}")
-                println("[DiscordCmd][$scope] Body: ${response.bodyAsText()}")
+                log.info("[DiscordCmd][$scope] Status: ${response.status}")
+                log.info("[DiscordCmd][$scope] Body: ${response.bodyAsText()}")
             } catch (e: Exception) {
-                println("[DiscordCmd][$scope] Erro: $e")
+                log.error("[DiscordCmd][$scope] Error: $e")
             }
         }
     }
@@ -80,10 +84,10 @@ object CommandUtils {
                 val response = client.get(url) {
                     header(HttpHeaders.Authorization, "Bot $botToken")
                 }
-                println("[DiscordCmd][CLEAR][$scope] Status: ${response.status}")
-                println("[DiscordCmd][CLEAR][$scope] Body: ${response.bodyAsText()}")
+                log.info("[$scope] Status: ${response.status}")
+                log.info("[$scope] Body: ${response.bodyAsText()}")
             } catch (e: Exception) {
-                println("[DiscordCmd][CLEAR][$scope] Erro: $e")
+                log.error("[$scope] Error: $e")
             }
         }
     }
