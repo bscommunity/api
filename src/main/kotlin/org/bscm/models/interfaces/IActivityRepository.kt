@@ -1,6 +1,6 @@
 package org.bscm.models.interfaces
 
-import org.bscm.models.dto.activity.ActivityEntry
+import org.bscm.models.ActivityEntry
 import org.bscm.models.enums.ActivityType
 import java.time.LocalDateTime
 import java.util.*

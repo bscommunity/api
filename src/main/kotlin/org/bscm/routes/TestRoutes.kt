@@ -9,6 +9,19 @@ private val log = logger("TestRoutes")
 
 fun Route.testRoutes(mediaInfoService: MediaInfoService) {
     route("/test") {
+        /**
+         * Get media information and streaming links for a track.
+         *
+         * Tag: Tests
+         *
+         * Query: track [String] Track name (required).
+         * Query: artist [String] Artist name (required).
+         *
+         * Responses:
+         *   - 400 Missing required query parameters.
+         *   - 500 Failed to fetch media information.
+         *   - 200 Media information with streaming links.
+         */
         // Add an issue to a chart
         get("/media-info") {
             val trackName = call.request.queryParameters["track"] ?: return@get call.respond(

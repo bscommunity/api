@@ -17,14 +17,15 @@ data class Theme(
 
     override val contributors: List<Contributor> = emptyList(),
 
-    override val isLiked: Boolean, // SS
-    override val isBookmarked: Boolean, // SS
-    override val downloadsSum: Int, // SS
-    override val latestPublishedAt: LocalDateTime, // SS
+    override val createdAt: LocalDateTime,
+    override val updatedAt: LocalDateTime, // SS
+    override val likedAt: LocalDateTime?, // SS
+    override val bookmarkedAt: LocalDateTime?, // SS
 
     override val id: String,
     override val contentId: String,
     override val coverUrl: String,
     override val isPublic: Boolean,
     override val isFeatured: Boolean,
+    override val downloadsSum: Int, // SS
 ) : CatalogItem

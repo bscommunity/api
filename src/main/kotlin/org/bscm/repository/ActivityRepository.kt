@@ -1,6 +1,6 @@
 package org.bscm.repository
 
-import org.bscm.models.dto.activity.ActivityEntry
+import org.bscm.models.ActivityEntry
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.tables.UserActivityTable

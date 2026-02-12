@@ -3,6 +3,7 @@ package org.bscm.models.tables
 import org.bscm.models.enums.UserRole
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.javatime.datetime
+import java.time.LocalDateTime
 
 object UserTable : UUIDTable("users") {
     val username = varchar("username", 255).uniqueIndex()
@@ -30,5 +31,5 @@ object UserTable : UUIDTable("users") {
     val followingCount = integer("following_count").default(0)
 
     val discordId = varchar("discord_id", 255).uniqueIndex()
-    val createdAt = datetime("created_at").clientDefault { java.time.LocalDateTime.now() }
+    val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
 }

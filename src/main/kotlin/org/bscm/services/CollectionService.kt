@@ -13,7 +13,6 @@ class CollectionService(
     private val collectionRepository: ICollectionRepository,
     private val activityRepository: IActivityRepository
 ) {
-
     suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean = false): Collection {
         require(name.isNotBlank()) { "Collection name cannot be blank" }
         require(name.length <= 30) { "Collection name must be 30 characters or less" }

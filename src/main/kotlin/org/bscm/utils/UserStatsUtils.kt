@@ -6,6 +6,7 @@ import org.bscm.models.tables.CollectionItemTable
 import org.bscm.models.tables.CollectionTable
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.innerJoin
+import java.time.LocalDateTime
 import java.util.*
 
 private val log = noCoLogger(UserStatsUtils::class)
@@ -19,7 +20,7 @@ object UserStatsUtils {
      * Fetches user interaction stats for a batch of content items.
      * Returns a map of contentId -> (isLiked, isBookmarked)
      */
-    fun fetchUserStats(userId: UUID?, contentIds: List<String>): Map<String, Pair<Boolean, Boolean>> {
+    fun fetchUserStats(userId: UUID?, contentIds: List<String>): Map<String, Pair<LocalDateTime, LocalDateTime>> {
         log.info("fetchUserStats called with userId=$userId, contentIds=${contentIds.joinToString()}")
 
         if (userId == null) {
@@ -37,10 +38,9 @@ object UserStatsUtils {
         // Fetch all collection items for the user and the given content IDs in a single query
         val statsRows = CollectionItemTable
             .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .select(CollectionItemTable.contentId, CollectionTable.kind)
+            .select(CollectionItemTable.contentId, CollectionTable.kind, CollectionItemTable.addedAt)
             .where {
-                (CollectionTable.userId eq userId) and
-                        (CollectionItemTable.contentId inList contentIds)
+                (CollectionTable.userId eq userId) and (CollectionItemTable.contentId inList contentIds)
             }
             .toList() // Execute the query immediately
 
@@ -53,25 +53,30 @@ object UserStatsUtils {
         }
 
         // Group results by contentId and collect all collection kinds
-        val contentIdToKinds = statsRows
-            .groupBy { it[CollectionItemTable.contentId].value }
+        val contentIdToTimes = statsRows.groupBy { it[CollectionItemTable.contentId].value }
             .mapValues { (_, rows) ->
-                rows.map { row -> row[CollectionTable.kind] }.toSet()
+                val likedAt = rows.filter { it[CollectionTable.kind] == CollectionKind.LIKES }
+                    .maxOfOrNull { it[CollectionItemTable.addedAt] }
+                    ?: LocalDateTime.MIN
+
+                val bookmarkedAt = rows.filter {
+                    val kind = it[CollectionTable.kind]
+                    kind == CollectionKind.BOOKMARKS || kind == CollectionKind.USER
+                }
+                    .maxOfOrNull { it[CollectionItemTable.addedAt] }
+                    ?: LocalDateTime.MIN
+
+                Pair (likedAt, bookmarkedAt)
             }
 
-        log.info("Grouped by contentId: ${contentIdToKinds.keys.joinToString()}")
+        log.info("Grouped by contentId: ${contentIdToTimes.keys.joinToString()}")
 
-        // Map each contentId to (isLiked, isBookmarked)
         val result = contentIds.associateWith { contentId ->
-            val kinds = contentIdToKinds[contentId] ?: emptySet()
+            val times = contentIdToTimes[contentId] ?: Pair(LocalDateTime.MIN, LocalDateTime.MIN)
 
-            val isLiked = kinds.contains(CollectionKind.LIKES)
-            // Item is bookmarked if in BOOKMARKS collection or any USER collection
-            val isBookmarked = kinds.contains(CollectionKind.BOOKMARKS) || kinds.contains(CollectionKind.USER)
+            log.info("ContentId=$contentId: likedAt=${times.first}, bookmarkedAt=${times.second}")
 
-            log.info("ContentId=$contentId: kinds=$kinds, isLiked=$isLiked, isBookmarked=$isBookmarked")
-
-            Pair(isLiked, isBookmarked)
+            times
         }
 
         log.info("Final result map size: ${result.size}")

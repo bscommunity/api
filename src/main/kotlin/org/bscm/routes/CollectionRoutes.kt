@@ -1,18 +1,13 @@
 package org.bscm.routes
 
-import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
 import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
 import org.bscm.models.enums.ContentType
 import org.bscm.plugins.UnauthorizedException
-import org.bscm.services.CollectionService
 import java.util.*
 
 private fun ApplicationCall.getUserId(): UUID {
@@ -50,10 +45,25 @@ private fun ApplicationCall.getPagination(): Pair<Int?, Int?> {
     return limit to offset
 }
 
+/*
 fun Route.collectionRoutes(collectionService: CollectionService) {
     route("/collections") {
         authenticate("auth-bearer") {
             install(org.bscm.plugins.UserContext)
+            */
+/**
+             * Get authenticated user's custom collections.
+             *
+             * Tag: Collections
+             *
+             * Query: limit [Integer] Optional limit for results.
+             * Query: offset [Integer] Optional pagination offset.
+             *
+             * Responses:
+             *   - 401 User not authenticated.
+             *   - 200 List of user's collections.
+             *//*
+
             // Get user's custom collections
             get {
                 val userId = call.getUserId()
@@ -61,6 +71,20 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 val response = collectionService.getUserCollections(userId, limit, offset)
                 call.respond(response)
             }
+
+            */
+/**
+             * Create a new collection.
+             *
+             * Tag: Collections
+             *
+             * Body: application/json Collection name and visibility settings [CreateCollectionRequest].
+             *
+             * Responses:
+             *   - 400 Invalid request parameters.
+             *   - 401 User not authenticated.
+             *   - 201 Created collection.
+             *//*
 
             // Create new collection
             post {
@@ -76,6 +100,22 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
 
             // Generalized routes with id
             route("/{id}") {
+                */
+/**
+                 * Update collection metadata.
+                 *
+                 * Tag: Collections
+                 *
+                 * Path: id [UUID] Collection ID.
+                 * Body: application/json Updated collection information [UpdateCollectionRequest].
+                 *
+                 * Responses:
+                 *   - 400 Invalid request parameters.
+                 *   - 401 User not authenticated.
+                 *   - 404 Collection not found or no permission.
+                 *   - 200 Success message.
+                 *//*
+
                 // Update collection
                 put {
                     val userId = call.getUserId()
@@ -93,6 +133,20 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     }
                 }
 
+                */
+/**
+                 * Delete a collection.
+                 *
+                 * Tag: Collections
+                 *
+                 * Path: id [UUID] Collection ID.
+                 *
+                 * Responses:
+                 *   - 401 User not authenticated.
+                 *   - 404 Collection not found or no permission.
+                 *   - 200 Success message.
+                 *//*
+
                 // Delete collection
                 delete {
                     val userId = call.getUserId()
@@ -106,6 +160,23 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 }
 
                 route("/items") {
+                    */
+/**
+                     * Get collection items.
+                     *
+                     * Tag: Collections
+                     *
+                     * Path: id [UUID] Collection ID.
+                     * Query: contentType [String] Optional content type filter.
+                     * Query: limit [Integer] Optional limit for results.
+                     * Query: offset [Integer] Optional pagination offset.
+                     *
+                     * Responses:
+                     *   - 401 User not authenticated.
+                     *   - 404 Collection not found.
+                     *   - 200 List of collection items.
+                     *//*
+
                     get {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
@@ -114,6 +185,22 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                         val items = collectionService.getCollectionItems(collectionId, userId, category, limit, offset)
                         call.respond(items)
                     }
+
+                    */
+/**
+                     * Add item to collection.
+                     *
+                     * Tag: Collections
+                     *
+                     * Path: id [UUID] Collection ID.
+                     * Body: application/json Content ID to add [CreateCollectionItemRequest].
+                     *
+                     * Responses:
+                     *   - 400 Failed to add item (may already exist).
+                     *   - 401 User not authenticated.
+                     *   - 404 Collection not found.
+                     *   - 200 Success message.
+                     *//*
 
                     // Add item to collection
                     post {
@@ -129,6 +216,21 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                             call.respond(HttpStatusCode.BadRequest, "Failed to add item (may already exist or collection not found)")
                         }
                     }
+
+                    */
+/**
+                     * Remove item from collection.
+                     *
+                     * Tag: Collections
+                     *
+                     * Path: id [UUID] Collection ID.
+                     * Path: itemId [String] Content ID to remove.
+                     *
+                     * Responses:
+                     *   - 401 User not authenticated.
+                     *   - 404 Item not found in collection.
+                     *   - 200 Success message.
+                     *//*
 
                     // Remove item from collection
                     delete("{itemId}") {
@@ -146,4 +248,4 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
             }
         }
     }
-}
+}*/

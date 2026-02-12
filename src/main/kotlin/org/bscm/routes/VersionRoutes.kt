@@ -35,7 +35,22 @@ fun Route.versionRoutes(
     authenticate("auth-bearer") {
         rateLimit(RateLimitName("restricted")) {
             route("/charts") {
-                // Add a version to a chart
+                /**
+                 * Add new version to a chart.
+                 *
+                 * Tag: Versions
+                 *
+                 * Path: chartId [ULong] Chart ID.
+                 * Body: multipart/form-data Version JSON and chart bundle file.
+                 *   - version: Version metadata as JSON (CreateVersionRequest).
+                 *   - bundle: Chart bundle file (max 10MB).
+                 *
+                 * Responses:
+                 *   - 400 Invalid chart ID or missing version/bundle data.
+                 *   - 401 User not authenticated or not authorized.
+                 *   - 404 Chart not found.
+                 *   - 201 Created version.
+                 */
                 post("{chartId}/versions") {
                     val chartId = call.parameters["chartId"]?.toULong()
                         ?: throw BadRequestException("Invalid or missing chart ID")
@@ -54,7 +69,7 @@ fun Route.versionRoutes(
                         throw Exception("Chart does not have a latest version")
                     }
 
-                    // Parse the multipart form data
+                    // ...existing code...
                     val multipart = call.receiveMultipart()
                     var versionJson: String? = null
                     var bundleFileBytes: ByteArray? = null
@@ -136,6 +151,19 @@ fun Route.versionRoutes(
                     call.respond(HttpStatusCode.Created, createdVersion)
                 }
 
+                /**
+                 * Delete a version from a chart.
+                 *
+                 * Tag: Versions
+                 *
+                 * Path: versionId [ULong] Version ID.
+                 *
+                 * Responses:
+                 *   - 400 Invalid or missing version ID.
+                 *   - 401 User not authenticated.
+                 *   - 404 Version or chart not found.
+                 *   - 204 Version deleted successfully.
+                 */
                 // Remove a version from a chart (with id)
                 delete("versions/{versionId}") {
                     val versionId = call.parameters["versionId"]
@@ -171,6 +199,18 @@ fun Route.versionRoutes(
         }
     }
 
+    /**
+     * Refresh bundle URLs for all charts' latest versions.
+     *
+     * Tag: Versions
+     *
+     * Query: verify [String] Verification token (must match JWT secret).
+     *
+     * Responses:
+     *   - 401 Invalid verification token.
+     *   - 500 Failed to refresh bundle URLs.
+     *   - 200 Success message with count of refreshed URLs.
+     */
     // Refreshes bundle URLs for all charts latest versions
     route("/refresh") {
         post {

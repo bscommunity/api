@@ -23,6 +23,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.time.LocalDateTime
 import java.util.*
 import kotlin.math.max
 
@@ -35,7 +36,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
         val streamingLinks: List<StreamingLinkEntity>?,
         val versions: List<VersionEntity>,
         val contributors: List<Pair<ContributorEntity, UserEntity>>,
-        var userStats: Pair<Boolean, Boolean> // (isLiked, isBookmarked)
+        var userStats: Pair<LocalDateTime?, LocalDateTime?> // (isLiked, isBookmarked)
     )
 
     data class ChartFilters(
@@ -66,8 +67,8 @@ class ChartRepository : BaseRepository(), IChartRepository {
         versions: List<Version>,
         contributors: List<Contributor>? = null,
         streamingLinks: List<StreamingLink>? = null,
-        isLiked: Boolean = false,
-        isBookmarked: Boolean = false,
+        likedAt: LocalDateTime? = null,
+        bookmarkedAt: LocalDateTime? = null,
     ): Chart {
         // We always expect at least one version to be present
         val latestVersion = versions.maxBy { it.publishedAt }
@@ -86,13 +87,14 @@ class ChartRepository : BaseRepository(), IChartRepository {
             genre = entity.genre,
             versions = versions,
             contributors = contributors ?: emptyList(),
-            latestPublishedAt = latestVersion.publishedAt,
+            updatedAt = latestVersion.publishedAt,
+            createdAt = entity.createdAt,
 
             // Server-side computed fields
             downloadsSum = versions.sumOf { it.downloadsAmount },
             latestVersion = latestVersion,
-            isLiked = isLiked,
-            isBookmarked = isBookmarked
+            likedAt = likedAt,
+            bookmarkedAt = bookmarkedAt,
         )
     }
 
@@ -122,8 +124,8 @@ class ChartRepository : BaseRepository(), IChartRepository {
             contributors = chartResult.contributors.map {
                 contributorEntityToContributor(it.component1(), it.component2())
             },
-            isLiked = chartResult.userStats.first,
-            isBookmarked = chartResult.userStats.second
+            likedAt = chartResult.userStats.first,
+            bookmarkedAt = chartResult.userStats.second
         )
     }
 
@@ -377,7 +379,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
      * Fetches user interaction stats (likes and bookmarks) for a batch of charts.
      * Returns a map of contentId -> (isLiked, isBookmarked)
      */
-    private fun fetchUserStats(userId: UUID?, groupedByChartId: Map<ULong, List<ResultRow>>): Map<String, Pair<Boolean, Boolean>> {
+    private fun fetchUserStats(userId: UUID?, groupedByChartId: Map<ULong, List<ResultRow>>): Map<String, Pair<LocalDateTime, LocalDateTime>> {
         if (userId == null || groupedByChartId.isEmpty()) {
             return emptyMap()
         }
@@ -441,7 +443,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
                 streamingLinks = streamingLinks,
                 versions = versions,
                 contributors = contributors,
-                userStats = userStats[chartEntity.contentId.value] ?: Pair(false, false)
+                userStats = userStats[chartEntity.contentId.value] ?: Pair(null, null)
             )
         }
     }
@@ -473,8 +475,8 @@ class ChartRepository : BaseRepository(), IChartRepository {
                 contributors = chartResult.contributors.map {
                     contributorEntityToContributor(it.component1(), it.component2())
                 },
-                isLiked = chartResult.userStats.first,
-                isBookmarked = chartResult.userStats.second
+                likedAt = chartResult.userStats.first,
+                bookmarkedAt = chartResult.userStats.second
             )
         }
 

@@ -28,9 +28,10 @@ class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var coverUrl by ChartTable.coverUrl
     var isPublic by ChartTable.isPublic
     var isFeatured by ChartTable.isFeatured
-
     var downloadsSum by ChartTable.downloadsSum
-    var latestPublishedAt by ChartTable.latestUpdatedAt
+
+    var createdAt by ChartTable.createdAt
+    var latestUpdatedAt by ChartTable.latestUpdatedAt
 
     // Updated: Many-to-many relationship through junction table
     val trackUrls by StreamingLinkEntity.via(ChartStreamingLinkTable.chartId, ChartStreamingLinkTable.streamingLinkId)

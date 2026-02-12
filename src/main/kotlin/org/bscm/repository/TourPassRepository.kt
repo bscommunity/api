@@ -24,8 +24,8 @@ class TourPassRepository(
     private fun daoToTourPass(
         entity: TourPassEntity,
         charts: List<Chart>,
-        isLiked: Boolean = false,
-        isBookmarked: Boolean = false
+        likedAt: LocalDateTime? = null,
+        bookmarkedAt: LocalDateTime? = null
     ): TourPass {
         return TourPass(
             id = entity.id.value.toString(),
@@ -36,10 +36,11 @@ class TourPassRepository(
             charts = charts,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
-            isLiked = isLiked,
-            isBookmarked = isBookmarked,
+            likedAt = likedAt,
+            bookmarkedAt = bookmarkedAt,
             downloadsSum = entity.downloadsSum,
-            latestPublishedAt = entity.latestPublishedAt ?: LocalDateTime.now()
+            createdAt = entity.createdAt,
+            updatedAt = entity.latestPublishedAt ?: LocalDateTime.now()
         )
     }
 
@@ -84,7 +85,7 @@ class TourPassRepository(
         tourPassEntities.map { tourPassEntity ->
             val charts = getChartsForTourPass(tourPassEntity.id.value, userId)
             val contentId = tourPassEntity.content.id.value
-            val stats = userStats[contentId] ?: Pair(false, false)
+            val stats = userStats[contentId] ?: Pair(null, null)
             daoToTourPass(tourPassEntity, charts, stats.first, stats.second)
         }
     }
@@ -210,7 +211,7 @@ class TourPassRepository(
 
         TourPassEntity.findByIdAndUpdate(tourPassId) { entity ->
             entity.downloadsSum = charts.sumOf { it.downloadsSum }
-            entity.latestPublishedAt = charts.maxOfOrNull { it.latestPublishedAt } ?: LocalDateTime.now()
+            entity.latestPublishedAt = charts.maxOfOrNull { it.updatedAt } ?: LocalDateTime.now()
         }
     }
 }

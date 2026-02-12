@@ -40,6 +40,20 @@ fun Route.meRoutes(
         authenticate("auth-bearer") {
             // ===================== CHARTS ======================
 
+            /**
+             * Get authenticated user's charts.
+             *
+             * Tag: Me
+             *
+             * Query: limit [Integer] Optional limit for results (max 50).
+             * Query: offset [Integer] Optional pagination offset (default 0).
+             *
+             * Responses:
+             *   - 200 application/json [Array] List of user's charts.
+             *   - 401 application/json [Error] User not authenticated.
+             *
+             * Security: auth-bearer
+             */
             get("/charts") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination(50)
@@ -56,12 +70,37 @@ fun Route.meRoutes(
 
             // ==================== PROFILE ====================
 
+            /**
+             * Get authenticated user's profile header.
+             *
+             * Tag: Me
+             *
+             * Responses:
+             *   - 200 application/json [Object] User's profile header.
+             *   - 401 application/json [Error] User not authenticated.
+             *
+             * Security: auth-bearer
+             */
             get("/profile") {
                 val userId = call.getUserId()
                 val response = profileService.getProfileHeader(userId, userId)
                 call.respond(response)
             }
 
+            /**
+             * Get authenticated user's activity feed.
+             *
+             * Tag: Me
+             *
+             * Query: limit [Integer] Optional limit for results (max 50).
+             * Query: offset [Integer] Optional pagination offset (default 0).
+             *
+             * Responses:
+             *   - 200 application/json [Array] Paginated list of activities.
+             *   - 401 application/json [Error] User not authenticated.
+             *
+             * Security: auth-bearer
+             */
             get("/activity") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination(50)
@@ -72,7 +111,20 @@ fun Route.meRoutes(
 
             // ==================== LIKES ====================
 
-            // Get authenticated user's likes
+            /**
+             * Get authenticated user's liked items.
+             *
+             * Tag: Me
+             *
+             * Query: limit [Integer] Optional limit for results.
+             * Query: offset [Integer] Optional pagination offset (default 0).
+             *
+             * Responses:
+             *   - 200 application/json [Array] List of liked items.
+             *   - 401 application/json [Error] User not authenticated.
+             *
+             * Security: auth-bearer
+             */
             get("/likes") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
@@ -87,7 +139,20 @@ fun Route.meRoutes(
                 call.respond(items)
             }
 
-            // Add item to likes
+            /**
+             * Add item to user's likes.
+             *
+             * Tag: Me
+             *
+             * Path: contentId [String] ID of the content to like.
+             *
+             * Responses:
+             *   - 200 application/json [Object] Success message.
+             *   - 400 application/json [Error] Failed to add item (may already exist).
+             *   - 401 application/json [Error] User not authenticated.
+             *
+             * Security: auth-bearer
+             */
             post("/likes/{contentId}") {
                 val userId = call.getUserId()
                 val contentId = call.parameters["contentId"]
@@ -101,7 +166,20 @@ fun Route.meRoutes(
                 }
             }
 
-            // Remove item from likes
+            /**
+             * Remove item from user's likes.
+             *
+             * Tag: Me
+             *
+             * Path: contentId [String] ID of the content to unlike.
+             *
+             * Responses:
+             *   - 200 application/json [Object] Success message.
+             *   - 401 application/json [Error] User not authenticated.
+             *   - 404 application/json [Error] Item not found in likes.
+             *
+             * Security: auth-bearer
+             */
             delete("/likes/{contentId}") {
                 val userId = call.getUserId()
                 val contentId = call.parameters["contentId"]
@@ -117,7 +195,20 @@ fun Route.meRoutes(
 
             // ==================== BOOKMARKS ====================
 
-            // Get authenticated user's bookmarks
+            /**
+             * Get authenticated user's bookmarked items.
+             *
+             * Tag: Me
+             *
+             * Query: limit [Integer] Optional limit for results.
+             * Query: offset [Integer] Optional pagination offset (default 0).
+             *
+             * Responses:
+             *   - 200 application/json [Array] List of bookmarked items.
+             *   - 401 application/json [Error] User not authenticated.
+             *
+             * Security: auth-bearer
+             */
             get("/bookmarks") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
@@ -132,7 +223,20 @@ fun Route.meRoutes(
                 call.respond(items)
             }
 
-            // Add item to bookmarks
+            /**
+             * Add item to user's bookmarks.
+             *
+             * Tag: Me
+             *
+             * Path: contentId [String] ID of the content to bookmark.
+             *
+             * Responses:
+             *   - 200 application/json [Object] Success message.
+             *   - 400 application/json [Error] Failed to add item (may already exist).
+             *   - 401 application/json [Error] User not authenticated.
+             *
+             * Security: auth-bearer
+             */
             post("/bookmarks/{contentId}") {
                 val userId = call.getUserId()
                 val contentId = call.parameters["contentId"]
@@ -146,7 +250,20 @@ fun Route.meRoutes(
                 }
             }
 
-            // Remove item from bookmarks
+            /**
+             * Remove item from user's bookmarks.
+             *
+             * Tag: Me
+             *
+             * Path: contentId [String] ID of the content to remove from bookmarks.
+             *
+             * Responses:
+             *   - 200 application/json [Object] Success message.
+             *   - 401 application/json [Error] User not authenticated.
+             *   - 404 application/json [Error] Item not found in bookmarks.
+             *
+             * Security: auth-bearer
+             */
             delete("/bookmarks/{contentId}") {
                 val userId = call.getUserId()
                 val contentId = call.parameters["contentId"]

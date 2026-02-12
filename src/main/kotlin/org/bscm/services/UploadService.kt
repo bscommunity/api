@@ -212,7 +212,7 @@ class UploadService(
             if (chart.isExplicit) append(" $explicitIcon")
         }
 
-        val title = "${chart.track} – ${chart.artist}$titleIcons"
+        val title = "${chart.track} - ${chart.artist}$titleIcons"
 
         val fields = listOf(
             EmbedField("Duration", "$durationIcon $durationFormatted", true),
@@ -685,7 +685,7 @@ class UploadService(
         val payload = jsonClient.encodeToString(
             WebhookPayload.serializer(),
             WebhookPayload(
-                content = "**$trackName – $artistName**\nOriginal: $originalUrl",
+                content = "**$trackName - $artistName**\nOriginal: $originalUrl",
                 attachments = emptyList()
             )
         )

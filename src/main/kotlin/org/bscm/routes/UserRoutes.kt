@@ -21,7 +21,16 @@ fun Route.userRoutes(
     activityRepository: IActivityRepository
 ) {
     route("/users") {
-        // Create a new user
+        /**
+         * Create a new user.
+         *
+         * Tag: Users
+         *
+         * Body: application/json User information to create [CreateUserRequest].
+         *
+         * Response: 201 application/json Newly created user [User].
+         * Response: 400 application/json Invalid request body.
+         */
         post {
             val createRequest = call.receive<CreateUserRequest>()
             val createdUser = userRepository.createUser(createRequest)
@@ -30,16 +39,14 @@ fun Route.userRoutes(
 
         authenticate("auth-bearer", optional = true) {
             /**
-             * GET /users
+             * List users with optional search filter.
              *
-             * Retrieves a list of users. Supports an optional `search` query parameter
-             * to filter users by name/username.
+             * Tag: Users
              *
-             * Query parameters:
-             * - search: Optional search string to filter users.
+             * Query: search [String] Optional search string to filter users by name/username.
              *
-             * Response:
-             * - 200 OK with the list of users.
+             * Response: 200 application/json List of users matching search criteria.
+             * Response: 400 application/json Invalid query parameters.
              */
             get {
                 // Get query parameters (search)
@@ -51,17 +58,16 @@ fun Route.userRoutes(
             }
 
             /**
-             * GET /users/{id}
+             * Get user profile header by ID.
              *
-             * Retrieves a user's public profile header.
+             * Tag: Users
              *
-             * Path parameters:
-             * - id: User UUID (required).
+             * Path: id [UUID] User UUID.
              *
              * Responses:
-             * - 200 OK with the profile header when found.
-             * - 404 Not Found if the user does not exist.
-             * - 400 Bad Request (IllegalArgumentException) if the id parameter is missing/invalid.
+             *   - 400 ID parameter is malformatted or missing.
+             *   - 404 User not found.
+             *   - 200 User profile header.
              */
             get("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
@@ -73,17 +79,16 @@ fun Route.userRoutes(
             }
 
             /**
-             * GET /users/by-username/{username}
+             * Get user profile header by username.
              *
-             * Retrieves a user's public profile header by username.
+             * Tag: Users
              *
-             * Path parameters:
-             * - username: User's username (required).
+             * Path: username [String] User's username.
              *
              * Responses:
-             * - 200 OK with the profile header when found.
-             * - 404 Not Found if the user does not exist.
-             * - 400 Bad Request (IllegalArgumentException) if the username parameter is missing/invalid.
+             *   - 400 Username parameter is malformatted or missing.
+             *   - 404 User not found.
+             *   - 200 User profile header.
              */
             get("username/{username}") {
                 val username = call.parameters["username"]
@@ -98,9 +103,18 @@ fun Route.userRoutes(
             }
 
             /**
-             * GET /users/{id}/activity
+             * Get user activity feed.
              *
-             * Retrieves a paginated chronological feed of user activity.
+             * Tag: Users
+             *
+             * Path: id [UUID] User UUID.
+             * Query: limit [Integer] Optional limit for results (default 20, max 50).
+             * Query: offset [Integer] Optional pagination offset (default 0).
+             *
+             * Responses:
+             *   - 400 ID parameter is malformatted or missing.
+             *   - 404 User not found.
+             *   - 200 Paginated list of user activities.
              */
             get("{id}/activity") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
@@ -115,20 +129,17 @@ fun Route.userRoutes(
             }
 
             /**
-             * PUT /users/{id}
+             * Update existing user.
              *
-             * Updates an existing user's mutable fields.
+             * Tag: Users
              *
-             * Path parameters:
-             * - id: UUID of the user to update (required).
-             *
-             * Request body:
-             * - UpdateUserRequest DTO with fields to update.
+             * Path: id [UUID] UUID of the user to update.
+             * Body: application/json Fields to update [UpdateUserRequest].
              *
              * Responses:
-             * - 200 OK (implicitly) if update succeeds.
-             * - 404 Not Found if the user does not exist.
-             * - 400 Bad Request (IllegalArgumentException) if the id parameter is missing/invalid.
+             *   - 400 ID parameter is malformatted or missing.
+             *   - 404 User not found.
+             *   - 200 [User] Updated user.
              */
             put("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
@@ -145,17 +156,16 @@ fun Route.userRoutes(
             }
 
             /**
-             * DELETE /users/{id}
+             * Delete user by ID.
              *
-             * Deletes a user by UUID.
+             * Tag: Users
              *
-             * Path parameters:
-             * - id: UUID of the user to delete (required).
+             * Path: id [UUID] UUID of the user to delete.
              *
              * Responses:
-             * - 200 OK with a success message if deletion succeeded.
-             * - 404 Not Found if the user does not exist.
-             * - 400 Bad Request (IllegalArgumentException) if the id parameter is missing/invalid.
+             *   - 400 ID parameter is malformatted or missing.
+             *   - 404 User not found.
+             *   - 200 Success message.
              */
             delete("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
@@ -171,20 +181,17 @@ fun Route.userRoutes(
             }
 
             /**
-             * POST /users/{id}/follow
+             * Follow a user.
              *
-             * Follows a user (adds them to your following list).
+             * Tag: Users
              *
-             * Path parameters:
-             * - id: UUID of the user to follow (required).
-             *
-             * Security:
-             * - Requires authentication (JWT principal).
+             * Path: id [UUID] UUID of the user to follow.
              *
              * Responses:
-             * - 200 OK with success message if follow succeeds.
-             * - 400 Bad Request if already following or cannot follow self.
-             * - 404 Not Found if the target user does not exist.
+             *   - 400 Already following or cannot follow self.
+             *   - 401 Authentication required.
+             *   - 404 Target user not found.
+             *   - 200 Success message.
              */
             post("{id}/follow") {
                 val principal = call.principal<JWTPrincipal>()
@@ -208,19 +215,16 @@ fun Route.userRoutes(
             }
 
             /**
-             * DELETE /users/{id}/follow
+             * Unfollow a user.
              *
-             * Unfollows a user (removes them from your following list).
+             * Tag: Users
              *
-             * Path parameters:
-             * - id: UUID of the user to unfollow (required).
-             *
-             * Security:
-             * - Requires authentication (JWT principal).
+             * Path: id [UUID] UUID of the user to unfollow.
              *
              * Responses:
-             * - 200 OK with success message if unfollow succeeds.
-             * - 404 Not Found if the follow relationship does not exist.
+             *   - 401 Authentication required.
+             *   - 404 Follow relationship not found.
+             *   - 200 Success message.
              */
             delete("{id}/follow") {
                 val principal = call.principal<JWTPrincipal>()
@@ -239,20 +243,18 @@ fun Route.userRoutes(
             }
 
             /**
-             * GET /users/{id}/followers
+             * Get followers of a user.
              *
-             * Retrieves a list of users who follow the specified user.
+             * Tag: Users
              *
-             * Path parameters:
-             * - id: UUID of the user (required).
-             *
-             * Query parameters:
-             * - limit: Optional limit for results (default 10, max 20).
-             * - offset: Optional pagination offset (defaults to 0).
+             * Path: id [UUID] UUID of the user.
+             * Query: limit [Integer] Optional limit for results (default 10, max 20).
+             * Query: offset [Integer] Optional pagination offset (default 0).
              *
              * Responses:
-             * - 200 OK with list of SimplifiedUser objects.
-             * - 404 Not Found if the user does not exist.
+             *   - 400 ID parameter is malformatted or missing.
+             *   - 404 User not found.
+             *   - 200 List of users who follow the specified user.
              */
             get("{id}/followers") {
                 val userId = call.parameters["id"]?.let { UUID.fromString(it) }
@@ -269,20 +271,18 @@ fun Route.userRoutes(
             }
 
             /**
-             * GET /users/{id}/following
+             * Get users followed by a user.
              *
-             * Retrieves a list of users that the specified user follows.
+             * Tag: Users
              *
-             * Path parameters:
-             * - id: UUID of the user (required).
-             *
-             * Query parameters:
-             * - limit: Optional limit for results (default 10, max 20).
-             * - offset: Optional pagination offset (defaults to 0).
+             * Path: id [UUID] UUID of the user.
+             * Query: limit [Integer] Optional limit for results (default 10, max 20).
+             * Query: offset [Integer] Optional pagination offset (default 0).
              *
              * Responses:
-             * - 200 OK with list of SimplifiedUser objects.
-             * - 404 Not Found if the user does not exist.
+             *   - 400 ID parameter is malformatted or missing.
+             *   - 404 User not found.
+             *   - 200 List of users followed by the specified user.
              */
             get("{id}/following") {
                 val userId = call.parameters["id"]?.let { UUID.fromString(it) }
@@ -298,6 +298,20 @@ fun Route.userRoutes(
                 call.respond(following)
             }
 
+            /**
+             * Get charts by user.
+             *
+             * Tag: Users
+             *
+             * Path: id [UUID] UUID of the user.
+             * Query: limit [Integer] Optional limit for results (default 20).
+             * Query: offset [Integer] Optional pagination offset (default 0).
+             *
+             * Responses:
+             *   - 400 Invalid or missing ID parameter.
+             *   - 404 User not found.
+             *   - 200 List of user's charts.
+             */
             get("{id}/charts") {
                 val userId = UUID.fromString(call.parameters["id"]!!)
                 val requester = call.principal<JWTPrincipal>()?.subject?.let(UUID::fromString)

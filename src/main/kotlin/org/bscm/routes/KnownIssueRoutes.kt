@@ -11,6 +11,18 @@ import java.util.*
 
 fun Route.knownIssuesRoutes(knownIssueRepository: IKnownIssueRepository) {
     route("/charts") {
+        /**
+         * Add a known issue to a chart.
+         *
+         * Tag: Known Issues
+         *
+         * Path: id [ULong] Chart ID.
+         * Body: application/json Issue details to add [KnownIssue].
+         *
+         * Responses:
+         *   - 400 Invalid or missing chart ID.
+         *   - 201 Created issue.
+         */
         // Add an issue to a chart
         post("{id}/issues") {
             val id = call.parameters["id"]?.toULong()
@@ -25,6 +37,19 @@ fun Route.knownIssuesRoutes(knownIssueRepository: IKnownIssueRepository) {
             call.respond(HttpStatusCode.Created, createdIssue)
         }
 
+        /**
+         * Remove a known issue from a chart.
+         *
+         * Tag: Known Issues
+         *
+         * Path: id [ULong] Chart ID.
+         * Path: issueId [UUID] Issue ID.
+         *
+         * Responses:
+         *   - 400 Invalid or missing parameters.
+         *   - 404 Chart or issue not found.
+         *   - 204 Issue removed successfully.
+         */
         // Remove an issue from a chart
         delete("{id}/issues/{issueId}") {
             val id = call.parameters["id"]?.toULong()

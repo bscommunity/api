@@ -3,11 +3,13 @@ package org.bscm.plugins
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.openapi.*
 import io.ktor.server.application.*
 import io.ktor.server.http.content.*
 import io.ktor.server.plugins.swagger.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.routing.openapi.*
 import org.bscm.clients.applicationHttpClient
 import org.bscm.models.interfaces.*
 import org.bscm.routes.*
@@ -45,17 +47,35 @@ fun Application.configureRouting() {
     // val previewService by inject<PreviewService>()
 
     routing {
-        swaggerUI(path = "docs", swaggerFile = "openapi/documentation.yaml")
+        // openAPI(path = "docs", swaggerFile = "openapi/documentation.yaml")
+        /*openAPI(path = "docs") {
+            info = OpenApiInfo("bscm API", "1.0")
+            source = OpenApiDocSource.Routing {
+                routingRoot.descendants()
+            }
+        }*/
+
+        swaggerUI("/docs") {
+            info = OpenApiInfo("bscm API", "1.0")
+            source = OpenApiDocSource.Routing(ContentType.Application.Json) {
+                routingRoot.descendants()
+            }
+        }
+
+        // ignore!
         staticResources("/static", "static") // eg. `/static/index.html`
 
+        // ignore!
         get("/") {
             call.respondText("Hello to the bscm API!")
         }
 
+        // Health check endpoint
         get("/health") {
             call.respond(HttpStatusCode.OK)
         }
 
+        // Status endpoint that proxies to an external service (e.g. for uptime monitoring)
         get("/status") {
             val statusUrl = application.environment.config.propertyOrNull("status.url")?.getString()
 
@@ -78,7 +98,7 @@ fun Application.configureRouting() {
         knownIssuesRoutes(knownIssueRepository)
         tourPassRoutes(tourPassRepository)
         themeRoutes(themeRepository)
-        collectionRoutes(collectionService)
+        // collectionRoutes(collectionService)
         testRoutes(mediaInfoService)
 
         // Discord interactions (slash commands, buttons, etc.)

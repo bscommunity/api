@@ -19,8 +19,8 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
 
     private fun daoToTheme(
         entity: ThemeEntity,
-        isLiked: Boolean = false,
-        isBookmarked: Boolean = false
+        likedAt : LocalDateTime? = null,
+        bookmarkedAt : LocalDateTime? = null
     ): Theme {
         return Theme(
             id = entity.id.value.toString(),
@@ -31,10 +31,11 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
             previewUrl = entity.previewUrl,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
-            isLiked = isLiked,
-            isBookmarked = isBookmarked,
+            likedAt = likedAt,
+            bookmarkedAt = bookmarkedAt,
             downloadsSum = entity.downloadsSum,
-            latestPublishedAt = entity.latestPublishedAt ?: LocalDateTime.now()
+            createdAt = entity.createdAt,
+            updatedAt = entity.latestUpdatedAt ?: LocalDateTime.now()
         )
     }
 
@@ -70,7 +71,7 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
 
         themeEntities.map { entity ->
             val contentId = ContentEntity[entity.contentId].id.value
-            val stats = userStats[contentId] ?: Pair(false, false)
+            val stats = userStats[contentId] ?: Pair(null, null)
             daoToTheme(entity, stats.first, stats.second)
         }
     }
@@ -107,7 +108,7 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
             this.isPublic = true
             this.isFeatured = false
             this.downloadsSum = 0
-            this.latestPublishedAt = LocalDateTime.now()
+            this.latestUpdatedAt = LocalDateTime.now()
         }
         daoToTheme(entity)
     }

@@ -2,7 +2,7 @@ package org.bscm.services
 
 import io.ktor.server.plugins.*
 import org.bscm.models.User
-import org.bscm.models.dto.activity.ActivityEntry
+import org.bscm.models.dto.activity.ActivityItemResponse
 import org.bscm.models.dto.activity.ChartActivityItem
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UserProfileResponse
@@ -36,10 +36,10 @@ class ProfileService(
     }
 
     private fun filterActivityForViewer(
-        items: List<ActivityEntry>,
+        items: List<ActivityItemResponse>,
         isOwner: Boolean,
         isPublic: Boolean
-    ): List<ActivityEntry> {
+    ): List<ActivityItemResponse> {
         if (isOwner) return items
 
         return items.filter { entry ->
@@ -63,24 +63,34 @@ class ProfileService(
         )
     }
 
-    suspend fun getActivity(userId: UUID, requesterId: UUID?, limit: Int, offset: Int): List<ActivityEntry> {
+    suspend fun getActivity(userId: UUID, requesterId: UUID?, limit: Int, offset: Int): List<ActivityItemResponse> {
         val user = userRepository.getUserById(userId) ?: throw NotFoundException("User not found")
         ensureVisibility(user, requesterId)
 
         val isOwner = requesterId == user.id
-        val items = activityRepository.getUserActivity(user.id, limit, offset)
+        val entries = activityRepository.getUserActivity(user.id, limit, offset)
 
-        val contentIds = items
-            .filter { it.type == ActivityType.LIKED_CHART }
+        // Group entries by activity type and collect target IDs
+        val chartContentIds = entries
+            .filter { it.type == ActivityType.LIKED_CHART || it.type == ActivityType.CREATED_CHART || it.type == ActivityType.BOOKMARKED_CHART }
             .map { it.targetId }
+            .distinct()
 
-        val charts = chartRepository.getCharts(filters = ChartRepository.ChartFilters(contentIds = contentIds))
-            .first
-            .associateBy { it.contentId }
+        // Fetch all required content objects
+        val charts = if (chartContentIds.isNotEmpty()) {
+            chartRepository.getCharts(filters = ChartRepository.ChartFilters(contentIds = chartContentIds))
+                .first
+                .associateBy { it.contentId }
+        } else {
+            emptyMap()
+        }
 
-        items.mapNotNull { entry ->
+        // Transform entries to ActivityItemResponse with full content objects
+        val activityItems = entries.mapNotNull { entry ->
             when (entry.type) {
-                ActivityType.LIKED_CHART -> {
+                ActivityType.LIKED_CHART,
+                ActivityType.CREATED_CHART,
+                ActivityType.BOOKMARKED_CHART -> {
                     val chart = charts[entry.targetId] ?: return@mapNotNull null
                     ChartActivityItem(
                         id = entry.id,
@@ -89,10 +99,13 @@ class ProfileService(
                         chart = chart
                     )
                 }
-                else -> null
+                ActivityType.FOLLOWED_USER -> {
+                    // TODO: Implement UserActivityItem when needed
+                    null
+                }
             }
         }
 
-        return filterActivityForViewer(items, isOwner, user.isPublic)
+        return filterActivityForViewer(activityItems, isOwner, user.isPublic)
     }
 }
