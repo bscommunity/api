@@ -10,6 +10,7 @@ import org.bscm.models.dto.collection.CreateCollectionRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
 import org.bscm.services.CollectionService
 import org.bscm.utils.*
+import java.util.*
 
 fun Route.collectionRoutes(collectionService: CollectionService) {
     route("/collections") {
@@ -17,10 +18,11 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
             install(org.bscm.plugins.UserContext)
 
             /**
-             * Get authenticated user's custom collections.
+             * Get user's collections.
              *
              * Tag: Collections
              *
+             * Path: id [String] User ID (use "me" for current user).
              * Query: limit [Integer] Optional limit for results.
              * Query: offset [Integer] Optional pagination offset.
              *
@@ -28,10 +30,15 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
              *   - 401 User not authenticated.
              *   - 200 List of user's collections.
              */
-            get {
-                val userId = call.getUserId()
+            get("{userId}") {
+                val requesterUserId = call.getUserId()
+                val userId = call.pathParameters["userId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                    ?: throw IllegalArgumentException("Invalid user ID format")
+                val isMe = userId == requesterUserId
+
                 val (limit, offset) = call.getPagination()
-                val response = collectionService.getUserCollections(userId, limit, offset)
+
+                val response = collectionService.getUserCollections(userId, limit, offset, !isMe)
                 call.respond(response)
             }
 

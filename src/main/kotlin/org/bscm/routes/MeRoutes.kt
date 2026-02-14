@@ -258,6 +258,27 @@ fun Route.meRoutes(
                     call.respond(HttpStatusCode.NotFound, mapOf("error" to "Item not found in bookmarks"))
                 }
             }
+
+            // ==================== COLLECTIONS ====================
+
+            /**
+             * Get collections created by the authenticated user.
+             *
+             * Tag: Me
+             *
+             * Query: limit [Integer] Optional limit for results.
+             * Query: offset [Integer] Optional pagination offset.
+             *
+             * Responses:
+             *   - 401 User not authenticated.
+             *   - 200 List of user's collections.
+             */
+            get("/collections") {
+                val userId = call.getUserId()
+                val (limit, offset) = call.getPagination()
+                val response = collectionService.getUserCollections(userId, limit, offset, false)
+                call.respond(response)
+            }
         }
     }
 }

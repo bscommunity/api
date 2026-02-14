@@ -28,6 +28,32 @@ class CollectionRepository(
     private val tourPassRepository: ITourPassRepository
 ) : ICollectionRepository {
 
+    private fun ResultRow.toCollection(itemCount: Int): Collection {
+        return Collection(
+            id = this[CollectionTable.id].value,
+            userId = this[CollectionTable.userId].value,
+            kind = this[CollectionTable.kind],
+            name = this[CollectionTable.name],
+            isPublic = this[CollectionTable.isPublic],
+            createdAt = this[CollectionTable.createdAt],
+            updatedAt = this[CollectionTable.updatedAt],
+            itemsCount = itemCount
+        )
+    }
+
+    private fun CollectionEntity.toCollection(itemCount: Int): Collection {
+        return Collection(
+            id = id.value,
+            userId = user.id.value,
+            kind = kind,
+            name = name,
+            isPublic = isPublic,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            itemsCount = itemCount
+        )
+    }
+
     /**
      * Get or create a system collection for a user based on CollectionKind
      */
@@ -44,16 +70,7 @@ class CollectionRepository(
                 .where { CollectionItemTable.collectionId eq existing.id }
                 .count().toInt()
 
-            return@newSuspendedTransaction Collection(
-                id = existing.id.value,
-                userId = existing.user.id.value,
-                kind = existing.kind,
-                name = existing.name,
-                isPublic = existing.isPublic,
-                createdAt = existing.createdAt,
-                updatedAt = existing.updatedAt,
-                itemsCount = itemCount
-            )
+            return@newSuspendedTransaction existing.toCollection(itemCount)
         }
 
         // Create new system collection
@@ -73,16 +90,7 @@ class CollectionRepository(
             updatedAt = now
         }
 
-        Collection(
-            id = entity.id.value,
-            userId = userId,
-            kind = entity.kind,
-            name = entity.name,
-            isPublic = entity.isPublic,
-            createdAt = entity.createdAt,
-            updatedAt = entity.updatedAt,
-            itemsCount = 0
-        )
+        entity.toCollection(0)
     }
 
     override suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection =
@@ -97,48 +105,34 @@ class CollectionRepository(
                 updatedAt = now
             }
 
-            Collection(
-                id = entity.id.value,
-                userId = userId,
-                kind = entity.kind,
-                name = entity.name,
-                isPublic = entity.isPublic,
-                createdAt = entity.createdAt,
-                updatedAt = entity.updatedAt,
-                itemsCount = 0
-            )
+            entity.toCollection(0)
         }
 
     override suspend fun getUserCollections(
         userId: UUID,
         limit: Int?,
-        offset: Int?
+        offset: Int?,
+        onlyPublic: Boolean?
     ): List<Collection> = newSuspendedTransaction {
-        val query = CollectionEntity.find {
-            (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER)
-        }.orderBy(CollectionTable.updatedAt to SortOrder.DESC)
+        val baseQuery = CollectionTable.leftJoin(CollectionItemTable, { CollectionTable.id }, { CollectionItemTable.collectionId })
+            .select(CollectionTable.columns + CollectionItemTable.collectionId.count())
+            .where { (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER) }
+            .groupBy(CollectionTable.id)
+            .orderBy(CollectionTable.updatedAt, SortOrder.DESC)
 
-        val collections = if (limit != null) {
-            query.limit(limit).offset(offset?.toLong() ?: 0)
-        } else {
-            query
+        if (onlyPublic != null) {
+            baseQuery.andWhere { CollectionTable.isPublic eq onlyPublic }
         }
 
-        collections.map { entity ->
-            val itemCount = CollectionItemTable.selectAll()
-                .where { CollectionItemTable.collectionId eq entity.id }
-                .count().toInt()
+        val query = if (limit != null) {
+            baseQuery.limit(limit).offset(offset?.toLong() ?: 0)
+        } else {
+            baseQuery
+        }
 
-            Collection(
-                id = entity.id.value,
-                userId = entity.user.id.value,
-                kind = entity.kind,
-                name = entity.name,
-                isPublic = entity.isPublic,
-                createdAt = entity.createdAt,
-                updatedAt = entity.updatedAt,
-                itemsCount = itemCount
-            )
+        query.map { row ->
+            val itemCount = row[CollectionItemTable.collectionId.count()].toInt()
+            row.toCollection(itemCount)
         }
     }
 
@@ -150,21 +144,15 @@ class CollectionRepository(
             (CollectionTable.id eq collectionId) and (CollectionTable.isPublic eq true)
         }
 
-        CollectionTable.selectAll().where { filter }.firstOrNull()?.let { row ->
-            val itemCount = CollectionItemTable.selectAll()
-                .where { CollectionItemTable.collectionId eq collectionId }
-                .count().toInt()
+        val row = CollectionTable.leftJoin(CollectionItemTable, { CollectionTable.id }, { CollectionItemTable.collectionId })
+            .select(CollectionTable.columns + CollectionItemTable.collectionId.count())
+            .where { filter }
+            .groupBy(CollectionTable.id)
+            .firstOrNull()
 
-            Collection(
-                id = row[CollectionTable.id].value,
-                userId = row[CollectionTable.userId].value,
-                kind = row[CollectionTable.kind],
-                name = row[CollectionTable.name],
-                isPublic = row[CollectionTable.isPublic],
-                createdAt = row[CollectionTable.createdAt],
-                updatedAt = row[CollectionTable.updatedAt],
-                itemsCount = itemCount
-            )
+        row?.let {
+            val itemCount = it[CollectionItemTable.collectionId.count()].toInt()
+            it.toCollection(itemCount)
         }
     }
 
@@ -202,7 +190,7 @@ class CollectionRepository(
 
             // Verify if the item already exists in the collection
             val existingFilter = (CollectionItemTable.collectionId eq collectionId) and
-                    Op.TRUE
+                    (CollectionItemTable.contentId eq contentId)
 
             val existing = CollectionItemTable.selectAll().where { existingFilter }.firstOrNull()
             if (existing != null) return@newSuspendedTransaction false
@@ -227,7 +215,7 @@ class CollectionRepository(
             }.firstOrNull() ?: return@newSuspendedTransaction false
 
             val filter = (CollectionItemTable.collectionId eq collectionId) and
-                    Op.TRUE
+                    (CollectionItemTable.contentId eq contentId)
 
             val item = CollectionItemEntity.find { filter }.firstOrNull()
                 ?: return@newSuspendedTransaction false

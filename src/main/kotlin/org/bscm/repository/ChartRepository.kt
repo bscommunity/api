@@ -411,7 +411,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
      * Fetches user interaction stats (likes and bookmarks) for a batch of charts.
      * Returns a map of contentId -> (isLiked, isBookmarked)
      */
-    private fun fetchUserStats(userId: UUID?, groupedByChartId: Map<ULong, List<ResultRow>>): Map<String, Pair<LocalDateTime, LocalDateTime>> {
+    private fun fetchUserStats(userId: UUID?, groupedByChartId: Map<ULong, List<ResultRow>>): Map<String, Pair<LocalDateTime?, LocalDateTime?>> {
         if (userId == null || groupedByChartId.isEmpty()) {
             return emptyMap()
         }

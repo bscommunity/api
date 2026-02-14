@@ -20,7 +20,7 @@ object UserStatsUtils {
      * Fetches user interaction stats for a batch of content items.
      * Returns a map of contentId -> (isLiked, isBookmarked)
      */
-    fun fetchUserStats(userId: UUID?, contentIds: List<String>): Map<String, Pair<LocalDateTime, LocalDateTime>> {
+    fun fetchUserStats(userId: UUID?, contentIds: List<String>): Map<String, Pair<LocalDateTime?, LocalDateTime?>> {
         log.info("fetchUserStats called with userId=$userId, contentIds=${contentIds.joinToString()}")
 
         if (userId == null) {
@@ -57,14 +57,12 @@ object UserStatsUtils {
             .mapValues { (_, rows) ->
                 val likedAt = rows.filter { it[CollectionTable.kind] == CollectionKind.LIKES }
                     .maxOfOrNull { it[CollectionItemTable.addedAt] }
-                    ?: LocalDateTime.MIN
 
                 val bookmarkedAt = rows.filter {
                     val kind = it[CollectionTable.kind]
                     kind == CollectionKind.BOOKMARKS || kind == CollectionKind.USER
                 }
                     .maxOfOrNull { it[CollectionItemTable.addedAt] }
-                    ?: LocalDateTime.MIN
 
                 Pair (likedAt, bookmarkedAt)
             }
@@ -72,7 +70,7 @@ object UserStatsUtils {
         log.info("Grouped by contentId: ${contentIdToTimes.keys.joinToString()}")
 
         val result = contentIds.associateWith { contentId ->
-            val times = contentIdToTimes[contentId] ?: Pair(LocalDateTime.MIN, LocalDateTime.MIN)
+            val times = contentIdToTimes[contentId] ?: Pair(null, null)
 
             log.info("ContentId=$contentId: likedAt=${times.first}, bookmarkedAt=${times.second}")
 

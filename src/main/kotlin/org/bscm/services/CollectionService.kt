@@ -20,8 +20,8 @@ class CollectionService(
         return collectionRepository.createCollection(userId, name, isPublic)
     }
 
-    suspend fun getUserCollections(userId: UUID, limit: Int? = 20, offset: Int? = 0): List<Collection> {
-        return collectionRepository.getUserCollections(userId, limit, offset)
+    suspend fun getUserCollections(userId: UUID, limit: Int? = 20, offset: Int? = 0, onlyPublic: Boolean): List<Collection> {
+        return collectionRepository.getUserCollections(userId, limit, offset, onlyPublic)
     }
 
     /**
