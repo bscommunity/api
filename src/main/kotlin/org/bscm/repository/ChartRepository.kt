@@ -11,9 +11,9 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.mappers.VersionMapper.entityToVersion
 import org.bscm.models.tables.*
 import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
-import org.bscm.repository.VersionRepository.Companion.versionEntityToVersion
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.UserStatsUtils
 import org.jetbrains.exposed.dao.flushCache
@@ -30,6 +30,35 @@ import kotlin.math.max
 class ChartRepository : BaseRepository(), IChartRepository {
 
     private val log = noCoLogger(ChartRepository::class)
+
+    /**
+     * Calculates version indices for multiple versions efficiently using a window function.
+     * Returns a map of versionId -> index (1-based).
+     * This is much more efficient than calling calculateVersionIndex() for each version.
+     */
+    private suspend fun calculateVersionIndices(chartIds: List<ULong>): Map<ULong, Int> =
+        newSuspendedTransaction {
+            if (chartIds.isEmpty()) return@newSuspendedTransaction emptyMap()
+
+            // Use raw SQL with window function for optimal performance
+            val sql = """
+                SELECT 
+                    id,
+                    ROW_NUMBER() OVER (PARTITION BY chart_id ORDER BY created_at) as version_index
+                FROM ${VersionTable.tableName}
+                WHERE chart_id IN (${chartIds.joinToString { it.toString() }})
+            """.trimIndent()
+
+            val result = mutableMapOf<ULong, Int>()
+            exec(sql) { rs ->
+                while (rs.next()) {
+                    val versionId = rs.getLong("id").toULong()
+                    val index = rs.getInt("version_index")
+                    result[versionId] = index
+                }
+            }
+            result
+        }
 
     private class ChartResult(
         val chart: ChartEntity,
@@ -71,7 +100,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
         bookmarkedAt: LocalDateTime? = null,
     ): Chart {
         // We always expect at least one version to be present
-        val latestVersion = versions.maxBy { it.publishedAt }
+        val latestVersion = versions.maxBy { it.createdAt }
 
         return Chart(
             id = entity.id.value.toString(),
@@ -87,7 +116,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
             genre = entity.genre,
             versions = versions,
             contributors = contributors ?: emptyList(),
-            updatedAt = latestVersion.publishedAt,
+            updatedAt = latestVersion.createdAt,
             createdAt = entity.createdAt,
 
             // Server-side computed fields
@@ -98,7 +127,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
         )
     }
 
-    private fun getChart(query: Query, addons: ChartAddons? = null): Chart? {
+    private suspend fun getChart(query: Query, addons: ChartAddons? = null): Chart? {
         // Apply joins based on addons
         applyJoinsAndSelect(
             query,
@@ -117,10 +146,13 @@ class ChartRepository : BaseRepository(), IChartRepository {
 
         val chartResult = processedResults.first()
 
+        // Calculate version indices for this chart in a single query
+        val versionIndices = calculateVersionIndices(listOf(chartResult.chart.id.value))
+
         return toChart(
             entity = chartResult.chart,
             streamingLinks = chartResult.streamingLinks?.map { toStreamingLink(it) },
-            versions = chartResult.versions.map { versionEntityToVersion(it) },
+            versions = chartResult.versions.map { entityToVersion(it, versionIndices[it.id.value] ?: 0) },
             contributors = chartResult.contributors.map {
                 contributorEntityToContributor(it.component1(), it.component2())
             },
@@ -360,7 +392,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
                     .adjustColumnSet {
                         innerJoin(VersionTable, { ChartTable.latestVersionId }, { VersionTable.id })
                     }
-                    .orderBy(VersionTable.publishedAt to SortOrder.DESC)
+                    .orderBy(VersionTable.createdAt to SortOrder.DESC)
             }
 
             else -> { // Defaults to MOST_DOWNLOADED
@@ -465,14 +497,23 @@ class ChartRepository : BaseRepository(), IChartRepository {
             offset = offset,
         )
 
+        if (results.isEmpty()) {
+            return@newSuspendedTransaction Pair(emptyList(), if (addons?.count == true) total else null)
+        }
+
         val includeStreamingLinks = addons?.streamingLinks == true
+
+        // Calculate version indices for ALL charts in a single batch query
+        val chartIds = results.map { it.chart.id.value }
+        val versionIndices = calculateVersionIndices(chartIds)
 
         val charts = results.map { chartResult ->
             toChart(
                 entity = chartResult.chart,
                 streamingLinks = if (includeStreamingLinks) chartResult.streamingLinks?.map { toStreamingLink(it) } else null,
-                versions = chartResult.versions.map { versionEntityToVersion(it) },
+                versions = chartResult.versions.map { entityToVersion(it, versionIndices[it.id.value] ?: 0) },
                 contributors = chartResult.contributors.map {
+                    log.debug("Processing contributor for chart ${chartResult.chart.id.value}: userId=${it.second.id.value}, roles=${it.first.roles.joinToString()}")
                     contributorEntityToContributor(it.component1(), it.component2())
                 },
                 likedAt = chartResult.userStats.first,
@@ -606,7 +647,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
         // we need to return all the data to avoid inconsistencies
         toChart(
             entity = newChart,
-            versions = listOf(versionEntityToVersion(initialVersion)),
+            versions = listOf(entityToVersion(initialVersion, 1)), // Always index 1 for initial version
             contributors = listOf(contributorEntityToContributor(contributor)),
             streamingLinks = streamingLinks.map { toStreamingLink(it) },
         )
@@ -626,12 +667,15 @@ class ChartRepository : BaseRepository(), IChartRepository {
             throw NotFoundException("Chart with ID $id not found")
         }
 
+        // Calculate version indices in a single batch query
+        val versionIndices = calculateVersionIndices(listOf(id))
+
         // TODO: It's not performant quite performant, but it works with the dashboard for now
         toChart(
             entity = existingChart,
             streamingLinks = existingChart.trackUrls.map { toStreamingLink(it) },
             contributors = existingChart.contributors.map { contributorEntityToContributor(it) },
-            versions = existingChart.versions.map { versionEntityToVersion(it) }
+            versions = existingChart.versions.map { entityToVersion(it, versionIndices[it.id.value] ?: 0) }
         )
     }
 

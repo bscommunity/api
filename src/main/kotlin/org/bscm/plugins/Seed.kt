@@ -3,7 +3,7 @@ package org.bscm.plugins
 import io.klogging.logger
 import io.ktor.server.application.*
 import kotlinx.coroutines.*
-import org.bscm.models.KnownIssue
+import org.bscm.models.Changelog
 import org.bscm.models.StreamingLink
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
@@ -27,7 +27,7 @@ fun Application.seedDatabase() {
     val userRepository by inject<IUserRepository>()
     val versionRepository by inject<IVersionRepository>()
     val contributorRepository by inject<IContributorRepository>()
-    val knownIssueRepository by inject<IKnownIssueRepository>()
+    val knownIssueRepository by inject<IChangelogRepository>()
 
     runBlocking {
         generateRandomCharts(
@@ -51,7 +51,7 @@ private suspend fun generateRandomCharts(
     userRepository: IUserRepository,
     versionRepository: IVersionRepository,
     contributorRepository: IContributorRepository,
-    knownIssueRepository: IKnownIssueRepository
+    knownIssueRepository: IChangelogRepository
 ) = coroutineScope {
     // Create users first (sequentially since it's a small number)
     // Create or retrieve users
@@ -198,7 +198,7 @@ private suspend fun generateRandomCharts(
                                 repeat(issuesCount) {
                                     knownIssueRepository.addIssue(
                                         chart.id.toULong(),
-                                        KnownIssue(
+                                        Changelog(
                                             id = UUID.randomUUID(),
                                             description = getRandomIssue(),
                                         )

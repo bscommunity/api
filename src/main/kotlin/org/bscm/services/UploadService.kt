@@ -263,7 +263,10 @@ class UploadService(
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?with_components=true",
             formData = formData {
-                append("payload_json", payloadJson, Headers.build { append(HttpHeaders.ContentType, "application/json") })
+                append(
+                    "payload_json",
+                    payloadJson,
+                    Headers.build { append(HttpHeaders.ContentType, "application/json") })
                 // Attach cover image first so we can reliably identify it later
                 // Use unique field names (file0, file1) to avoid conflicts
                 coverImage?.let { bytes ->
@@ -273,7 +276,10 @@ class UploadService(
                     })
                 }
                 append("file1", chartBundle, Headers.build {
-                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file1\"; filename=\"${normalizedTrack}_v1.zip\"")
+                    append(
+                        HttpHeaders.ContentDisposition,
+                        "form-data; name=\"file1\"; filename=\"${normalizedTrack}_v1.zip\""
+                    )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
             }
@@ -297,32 +303,32 @@ class UploadService(
 
     @OptIn(InternalAPI::class)
     suspend fun uploadVersion(
-        messageId: String,
         chart: Chart,
-        newVersion: CreateVersionRequest,
+        version: CreateVersionRequest,
         author: User,
         chartBundle: ByteArray,
     ): DiscordMessageResponse {
-        val latestVersionIndex = chart.versions.maxOfOrNull { it.index } ?: 1
-        val newIndex = latestVersionIndex + 1
 
         val normalizedTrack = getNormalizedTrackName(chart.track)
+
+        // Calculate the next version index (current versions count + 1)
+        val nextIndex = chart.versions.size + 1
 
         // We need to update the displayed info with the new version data
         val payloadJson = buildWebhookPayload(
             CreateChartRequest(
-                track = newVersion.track,
-                artist = newVersion.artist,
-                duration = newVersion.duration,
-                notesAmount = newVersion.notesAmount,
-                effectsAmount = newVersion.effectsAmount,
-                difficulty = newVersion.difficulty,
-                isDeluxe = newVersion.isDeluxe,
-                isExplicit = newVersion.isExplicit,
+                track = version.track,
+                artist = version.artist,
+                duration = version.duration,
+                notesAmount = version.notesAmount,
+                effectsAmount = version.effectsAmount,
+                difficulty = version.difficulty,
+                isDeluxe = version.isDeluxe,
+                isExplicit = version.isExplicit,
                 trackPreviewUrl = chart.trackPreviewUrl,
-                bpm = newVersion.bpm,
-                bundleUrl = newVersion.bundleUrl,
-                previewUrl = newVersion.previewUrl,
+                bpm = version.bpm,
+                bundleUrl = version.bundleUrl,
+                previewUrl = version.previewUrl,
                 coverUrl = chart.coverUrl,
                 trackUrls = chart.trackUrls,
                 contentId = chart.contentId,
@@ -338,7 +344,7 @@ class UploadService(
         // println("Current message attachments: $payloadJson")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
-            url = "${editWebhookUrl}/${messageId}?with_components=true",
+            url = "${editWebhookUrl}/${chart.id}?with_components=true",
             formData = formData {
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
@@ -346,7 +352,7 @@ class UploadService(
                 append("file", chartBundle, Headers.build {
                     append(
                         HttpHeaders.ContentDisposition,
-                        "form-data; name=\"file\"; filename=\"${normalizedTrack}_v${newIndex}.zip\""
+                        "form-data; name=\"file\"; filename=\"${normalizedTrack}_v${nextIndex}.zip\""
                     )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
@@ -364,7 +370,12 @@ class UploadService(
         return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }
 
-    suspend fun deleteVersion(messageId: String, track: String, versions: List<Version>, versionId: String): Boolean {
+    suspend fun deleteVersion(
+        messageId: String,
+        track: String,
+        versions: List<Version>,
+        versionId: String
+    ): Boolean {
         val remainingVersions = versions.filter { it.id != versionId }
         val normalizedTrack = getNormalizedTrackName(track)
 

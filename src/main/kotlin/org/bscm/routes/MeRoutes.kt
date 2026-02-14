@@ -1,35 +1,17 @@
 package org.bscm.routes
 
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.interfaces.IChartRepository
-import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
 import org.bscm.services.CollectionService
 import org.bscm.services.ProfileService
-import java.util.*
+import org.bscm.utils.getPagination
+import org.bscm.utils.getUserId
 
-private fun ApplicationCall.getUserId(): UUID {
-    val principal = principal<JWTPrincipal>()
-    return principal?.subject?.let { UUID.fromString(it) } ?: throw UnauthorizedException("User not authenticated")
-}
-
-private fun ApplicationCall.getPagination(coerceLimit: Int? = null): Pair<Int?, Int> {
-    val limit = request.queryParameters["limit"]?.toIntOrNull().let {
-        if (coerceLimit != null) {
-            it?.coerceAtMost(coerceLimit)
-        } else {
-            it
-        }
-    }
-    val offset = request.queryParameters["offset"]?.toIntOrNull() ?: 0
-    return limit to offset
-}
 
 fun Route.meRoutes(
     collectionService: CollectionService,
@@ -56,7 +38,7 @@ fun Route.meRoutes(
              */
             get("/charts") {
                 val userId = call.getUserId()
-                val (limit, offset) = call.getPagination(50)
+                val (limit, offset) = call.getPagination(coerceLimit = 50, defaultOffset = 0)
 
                 val (charts, _) = chartRepository.getCharts(
                     filters = ChartRepository.ChartFilters(userId = userId),
@@ -103,9 +85,9 @@ fun Route.meRoutes(
              */
             get("/activity") {
                 val userId = call.getUserId()
-                val (limit, offset) = call.getPagination(50)
+                val (limit, offset) = call.getPagination(coerceLimit = 50, defaultOffset = 0)
 
-                val activity = profileService.getActivity(userId, userId, limit ?: 20, offset)
+                val activity = profileService.getActivity(userId, userId, limit ?: 20, offset ?: 0)
                 call.respond(activity)
             }
 

@@ -7,17 +7,6 @@
   },
   "logging": [
     {
-      "name": "Exposed",
-      "levelRanges": [
-        {
-          "fromMinLevel": "DEBUG",
-          "toSinks": [
-            "stdout"
-          ]
-        }
-      ]
-    },
-    {
       "levelRanges": [
         {
           "fromMinLevel": "INFO",

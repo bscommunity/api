@@ -70,7 +70,7 @@ fun mainModule(config: ApplicationConfig) = module {
     // Repositories
     single<IChartRepository> { ChartRepository() }
     single<IContributorRepository> { ContributorRepository() }
-    single<IKnownIssueRepository> { KnownIssueRepository() }
+    single<IChangelogRepository> { ChangelogRepository() }
     single<IVersionRepository> { VersionRepository() }
     single<ITourPassRepository> { TourPassRepository(get()) }
     single<IThemeRepository> { ThemeRepository() }

@@ -1,6 +1,6 @@
 package org.bscm.routes
 
-import io.klogging.logger
+import io.klogging.noCoLogger
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.openapi.*
@@ -32,46 +32,26 @@ import org.bscm.services.UploadService
 import org.koin.ktor.ext.getKoin
 import java.util.*
 
-private val log = logger("ChartRoutes")
-
 @OptIn(ExperimentalKtorApi::class)
 fun Route.chartRoutes(
     chartRepository: IChartRepository,
-    userRepository: IUserRepository,
     versionRepository: IVersionRepository,
+    userRepository: IUserRepository,
     uploadService: UploadService,
-    // previewService: PreviewService
 ) {
-    /*
-     * CHART ROUTES - CLIENT SCENARIOS
-     *
-     * 1. MOBILE APP (Workshop Mode):
-     *    - Authentication: HMAC (API) + Optional JWT (User)
-     *    - Route: GET /charts
-     *    - Returns: Public charts + Latest version only + Streaming links
-     *    - User Stats: If JWT present → isLiked (CollectionKind.LIKES) & isBookmarked (CollectionKind.BOOKMARKS or USER)
-     *
-     * 2. WEB APP - WORKSHOP MODE:
-     *    - Authentication: JWT (User)
-     *    - Route: GET /charts
-     *    - Returns: Public charts + Latest version only + NO streaming links
-     *    - User Stats: isLiked (CollectionKind.LIKES) & isBookmarked (CollectionKind.BOOKMARKS or USER)
-     *
-     * 3. WEB APP - DASHBOARD MODE:
-     *    - Authentication: JWT (User) required
-     *    - Route: GET /me/charts
-     *    - Returns: User's charts only (public + private) + All versions + NO streaming links
-     *    - User Stats: isLiked (CollectionKind.LIKES) & isBookmarked (CollectionKind.BOOKMARKS or USER)
-     *
-     * Note: UserContext plugin automatically captures authenticated userId from JWT for populating user stats
-     */
+    val logger = noCoLogger("ChartRoutes")
+
     route("/charts") {
-        // Routes that accept either JWT or HMAC authentication
+
+        // -----------------------------------------------------------------
+        // Public + HMAC routes (workshop browsing, mobile app)
+        // -----------------------------------------------------------------
         authenticate("auth-public") {
             install(org.bscm.plugins.UserContext)
             rateLimit(RateLimitName("restricted")) {
+
                 /**
-                 * List public charts with filtering and search.
+                 * Returns public charts with optional filtering and search.
                  *
                  * Tag: Charts
                  *
@@ -85,44 +65,56 @@ fun Route.chartRoutes(
                  * Query: count [Boolean] Include total count in response.
                  *
                  * Responses:
-                 *   - 200 application/json [Object] List of charts with metadata. Mobile clients receive streaming links.
+                 *   - 200 application/json [List] List of charts with metadata. Mobile clients receive streaming links.
                  *   - 401 application/json [Error] Unauthorized access.
                  */
                 get {
-                    val query = call.request.queryParameters["query"]
-                    val sanitizedQuery = query?.replace(Regex("[^a-zA-Z0-9 ]"), "")
+                    val sanitizedQuery = call.request.queryParameters["query"]
+                        ?.replace(Regex("[^a-zA-Z0-9 ]"), "")
+                        ?.takeIf { it.isNotBlank() }
 
-                    val difficulties =
-                        call.request.queryParameters.getAll("difficulties")?.map { Difficulty.valueOf(it) }
-                    val genres = call.request.queryParameters.getAll("genres")?.flatMap { it.split(",") }
-                        ?.map { Genre.valueOf(it) }
-                    val isDeluxe =
-                        call.request.queryParameters.getAll("versions")?.any { it.equals("DELUXE", ignoreCase = true) }
+                    val difficulties = call.request.queryParameters
+                        .getAll("difficulties")
+                        ?.mapNotNull { runCatching { Difficulty.valueOf(it) }.getOrNull() }
 
-                    val sortBy = call.request.queryParameters["sortBy"]?.let { SortOption.valueOf(it) }
+                    val genres = call.request.queryParameters
+                        .getAll("genres")
+                        ?.flatMap { it.split(",") }
+                        ?.mapNotNull { runCatching { Genre.valueOf(it) }.getOrNull() }
+                    // Bug fix: Genre.valueOf() throws on unknown values — mapNotNull +
+                    // runCatching silently skips bad enum values instead of crashing with 500.
+
+                    val isDeluxe = call.request.queryParameters
+                        .getAll("versions")
+                        ?.any { it.equals("DELUXE", ignoreCase = true) }
+
+                    val sortBy = call.request.queryParameters["sortBy"]
+                        ?.let { runCatching { SortOption.valueOf(it) }.getOrNull() }
+                    // Bug fix: same valueOf crash risk.
+
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
                     val count = call.request.queryParameters["count"]?.toBoolean() ?: false
 
-                    // Detect client type from authentication principals
                     val jwtPrincipal = call.principal<JWTPrincipal>()
                     val hmacPrincipal = call.principal<HMACPrincipal>()
                     val combinedPrincipal = call.principal<CombinedPrincipal>()
 
-                    println("jwtPrincipal: ${jwtPrincipal?.subject}, hmacPrincipal: $hmacPrincipal, combinedPrincipal: $combinedPrincipal")
-
-                    // Mobile app includes HMAC authentication and gets streaming links
+                    // Mobile app authenticates with HMAC or Combined and gets streaming links
                     val isMobileApp = hmacPrincipal != null || combinedPrincipal != null
+                    val isAuthenticated = jwtPrincipal != null || combinedPrincipal != null
 
-                    val result = if ((offset ?: 0) / (limit ?: 20) >= 5 && jwtPrincipal == null && combinedPrincipal == null) {
-                        // Unauthenticated users limited to first 4 pages
+                    // Unauthenticated users are limited to the first 5 pages
+                    val resolvedOffset = offset ?: 0
+                    val resolvedLimit = limit ?: 20
+                    val pageIndex = if (resolvedLimit > 0) resolvedOffset / resolvedLimit else 0
+
+                    val result = if (pageIndex >= 5 && !isAuthenticated) {
                         Pair(emptyList(), null)
                     } else {
                         chartRepository.getCharts(
                             sortBy = sortBy,
                             filters = ChartRepository.ChartFilters(
-                                // Workshop mode: userId is null → returns all public charts
-                                // UserContext automatically captures authenticated userId for user stats
                                 userId = null,
                                 search = sanitizedQuery,
                                 difficulties = difficulties,
@@ -130,14 +122,12 @@ fun Route.chartRoutes(
                                 isDeluxe = isDeluxe,
                             ),
                             addons = ChartRepository.ChartAddons(
-                                // Workshop mode: only latest version
                                 allVersions = false,
-                                // Only mobile app gets streaming links
                                 streamingLinks = isMobileApp,
                                 count = count,
                             ),
-                            limit = limit,
-                            offset = offset,
+                            limit = resolvedLimit,
+                            offset = resolvedOffset,
                         )
                     }
 
@@ -159,43 +149,38 @@ fun Route.chartRoutes(
                  */
                 get("{id}") {
                     val id = call.parameters["id"]
-                    if (id == null) {
-                        call.respond(
-                            HttpStatusCode.BadRequest,
-                            "Invalid or missing ID"
-                        )
-                        return@get
-                    }
+                        ?: throw BadRequestException("Invalid or missing chart ID")
 
                     val jwtPrincipal = call.principal<JWTPrincipal>()
                     val hmacPrincipal = call.principal<HMACPrincipal>()
                     val combinedPrincipal = call.principal<CombinedPrincipal>()
 
                     val chart = when {
+                        // Dashboard clients look up by numeric DB ID
                         jwtPrincipal != null || combinedPrincipal != null -> {
-                            chartRepository.getChartById(id.toULong())
-                                ?: throw BadRequestException("Invalid or missing ID")
+                            val numericId = id.toULongOrNull()
+                                ?: throw BadRequestException("Chart ID must be a valid number")
+                            // Bug fix: toULong() threw NumberFormatException (500) on bad input.
+                            chartRepository.getChartById(numericId)
+                                ?: throw NotFoundException("Chart not found")
                         }
 
-                        hmacPrincipal != null -> chartRepository.getChartByContentId(id)
-                        else -> {
-                            call.respond(HttpStatusCode.Unauthorized, "Unauthorized access")
-                            return@get
-                        }
+                        // Mobile app looks up by content ID (string)
+                        else -> chartRepository.getChartByContentId(id)
+                            ?: throw NotFoundException("Chart not found")
+
+                        // Bug fix: removed the dead `else -> Unauthorized` branch.
+                        // We are inside authenticate("auth-public") — if auth failed the
+                        // request never reaches here. One of the two branches above always applies.
                     }
 
-                    if (chart != null) {
-                        call.respond(chart)
-                    } else {
-                        call.respond(HttpStatusCode.NotFound, "Chart not found")
-                        return@get
-                    }
+                    call.respond(chart)
                 }
             }
 
             rateLimit(RateLimitName("unrestricted")) {
                 /**
-                 * Get chart search suggestions.
+                 * Returns search suggestions for the query string.
                  *
                  * Tag: Charts
                  *
@@ -208,16 +193,17 @@ fun Route.chartRoutes(
                 get("suggestions") {
                     val query = call.request.queryParameters["query"] ?: ""
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 5
-
-                    val suggestions = chartRepository.getSuggestions(query, limit)
-                    call.respond(suggestions)
+                    call.respond(chartRepository.getSuggestions(query, limit))
                 }
             }
         }
 
-        // Routes that accept HMAC authentication only
+        // -----------------------------------------------------------------
+        // HMAC-only routes (mobile app analytics + version sync)
+        // -----------------------------------------------------------------
         authenticate("auth-hmac") {
             rateLimit(RateLimitName("unrestricted")) {
+
                 /**
                  * Record chart analytics event.
                  *
@@ -233,21 +219,23 @@ fun Route.chartRoutes(
                  * Security: auth-hmac
                  */
                 post("analytics/{id}") {
-                    val idParam =
-                        call.parameters["id"]?.toULong() ?: throw BadRequestException("Invalid or missing ID parameter")
-                    val typeParam = call.queryParameters["type"]
-                    val type = typeParam?.let { OperationOption.valueOf(it) }
-                        ?: throw BadRequestException("Invalid or missing type parameter")
+                    val id = call.parameters["id"]?.toULongOrNull()
+                        ?: throw BadRequestException("Invalid or missing chart ID")
+                    // Bug fix: was toULong() — throws NumberFormatException (500) on bad input.
 
-                    val stats = chartRepository.postAnalytics(idParam, type)
+                    val type = call.queryParameters["type"]
+                        ?.let { runCatching { OperationOption.valueOf(it) }.getOrNull() }
+                        ?: throw BadRequestException("Invalid or missing operation type")
+                    // Bug fix: valueOf() throws on unknown values.
 
-                    call.respond(stats)
+                    call.respond(chartRepository.postAnalytics(id, type))
                 }
             }
 
             rateLimit(RateLimitName("restricted")) {
                 /**
-                 * Get latest versions of specified charts.
+                 * Returns the latest version for each of the given chart IDs.
+                 * Used by the mobile app to check for updates on installed charts.
                  *
                  * Tag: Charts
                  *
@@ -261,25 +249,33 @@ fun Route.chartRoutes(
                 get("latest-versions") {
                     val chartIds = call.request.queryParameters["chartIds"]
                         ?.split(",")
-                        ?.map { it.toULong() } ?: emptyList()
-                    val versions = versionRepository.getLatestVersionsByChartIds(chartIds)
-                    log.info("Returning latest versions for chart IDs: $chartIds")
-                    call.respond(versions)
+                        ?.mapNotNull { it.toULongOrNull() }
+                    // Bug fix: toULong() throws on bad input. mapNotNull silently skips
+                    // malformed IDs — the mobile app gets results for valid IDs only.
+                        ?: emptyList()
+
+                    logger.info("Fetching latest versions for ${chartIds.size} chart IDs")
+
+                    call.respond(versionRepository.getLatestVersionsByChartIds(chartIds))
                 }
             }
         }
 
-        // Routes that require JWT authentication only (dashboard operations)
+        // -----------------------------------------------------------------
+        // JWT-only routes (dashboard: create, update, delete)
+        // -----------------------------------------------------------------
         authenticate("auth-bearer") {
             rateLimit(RateLimitName("restricted")) {
                 post {
-                    val principal = call.principal<JWTPrincipal>()
-                    val userId = principal?.subject?.let { UUID.fromString(it) }
+                    val userId = call.principal<JWTPrincipal>()
+                        ?.subject
+                        ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
                         ?: throw UnauthorizedException("User unauthorized")
+                    // Bug fix: UUID.fromString() throws on malformed JWT subjects.
 
-                    val user = userRepository.getUserById(userId) ?: throw UnauthorizedException("User not found")
+                    val user = userRepository.getUserById(userId)
+                        ?: throw UnauthorizedException("User not found")
 
-                    // Parse multipart form (bundle + optional overrides JSON under 'chart')
                     val multipart = call.receiveMultipart()
                     var chartJson: String? = null
                     var bundleFileBytes: ByteArray? = null
@@ -287,64 +283,65 @@ fun Route.chartRoutes(
                     multipart.forEachPart { part ->
                         when (part) {
                             is PartData.FormItem -> if (part.name == "chart") chartJson = part.value
-                            is PartData.FileItem -> if (part.name == "bundle") bundleFileBytes =
-                                part.provider().toByteArray()
-
+                            is PartData.FileItem -> if (part.name == "bundle") bundleFileBytes = part.provider().toByteArray()
                             else -> {}
                         }
                         part.dispose()
                     }
 
                     if (bundleFileBytes == null) {
-                        call.respond(HttpStatusCode.BadRequest, "Bundle missing")
-                        return@post
+                        throw BadRequestException("Bundle file is required")
+                        // Bug fix: was call.respond(BadRequest) + return@post — inconsistent
+                        // with the rest of the file which uses throw.
                     }
 
-                    // Optional client overrides
-                    val clientRequest: CreateChartRequest? = chartJson?.let {
-                        try {
-                            jsonClient.decodeFromString<CreateChartRequest>(it)
-                        } catch (_: Exception) {
-                            null
-                        }
+                    val overrides = chartJson?.let {
+                        runCatching { jsonClient.decodeFromString<CreateChartRequest>(it) }
+                            .getOrNull()
+                        // Silent parse failure is intentional — overrides are optional,
+                        // a malformed JSON just means "no overrides".
                     }
 
                     val publishService = call.application.getKoin().get<ChartPublishService>()
 
-                    try {
-                        val result = publishService.publish(
-                            user = user,
-                            bundleBytes = bundleFileBytes,
-                            overrides = ChartPublishService.Overrides(
-                                isExplicit = clientRequest?.isExplicit,
-                                previewUrl = clientRequest?.previewUrl,
-                            )
+                    // Bug fix: was a bare catch(e: Exception) that called println() and
+                    // responded with e.message — leaking internal details to the client.
+                    // Let the StatusPages plugin handle unexpected exceptions uniformly.
+                    val result = publishService.publish(
+                        user = user,
+                        bundleBytes = bundleFileBytes,
+                        overrides = ChartPublishService.Overrides(
+                            isExplicit = overrides?.isExplicit,
+                            previewUrl = overrides?.previewUrl,
                         )
-                        call.respond(HttpStatusCode.Created, result.chart)
-                    } catch (e: Exception) {
-                        println("Chart publish failed: ${e.message}")
-                        call.respond(HttpStatusCode.InternalServerError, e.message ?: "Failed to publish chart")
-                    }
+                    )
+
+                    logger.info("Chart ${result.chart.id} published by user $userId")
+                    call.respond(HttpStatusCode.Created, result.chart)
+
                 }.describe {
                     tag("Charts")
                     summary = "Create a new chart."
-                    description = "Allows authenticated users to create a new chart by uploading a bundle file. Optional metadata can be provided in the 'chart' form field as JSON."
+                    description = "Publish a new chart by uploading a bundle file. Optionally override metadata via the 'chart' JSON form field."
                     requestBody {
-                        description = "Chart bundle upload with optional metadata"
+                        description = "Chart bundle with optional metadata overrides"
                         required = true
-
                         ContentType.MultiPart.FormData {
                             schema = JsonSchema(
                                 type = JsonType.OBJECT,
                                 properties = mapOf(
-                                    "bundle" to ReferenceOr.Value(JsonSchema(
-                                        type = JsonType.STRING,
-                                        format = "binary",
-                                        description = "The chart bundle file to upload"
-                                    )),
-                                    "chart" to ReferenceOr.Value(jsonSchema<CreateChartRequest>().copy(
-                                        description = "Optional JSON string with chart metadata overrides",
-                                    ))
+                                    "bundle" to ReferenceOr.Value(
+                                        JsonSchema(
+                                            type = JsonType.STRING,
+                                            format = "binary",
+                                            description = "The chart bundle file to upload"
+                                        )
+                                    ),
+                                    "chart" to ReferenceOr.Value(
+                                        jsonSchema<CreateChartRequest>().copy(
+                                            description = "Optional JSON string with chart metadata overrides"
+                                        )
+                                    )
                                 ),
                                 required = listOf("bundle")
                             )
@@ -353,7 +350,7 @@ fun Route.chartRoutes(
                 }
 
                 /**
-                 * Update an existing chart's metadata.
+                 * Updates metadata for an existing chart.
                  *
                  * Tag: Charts
                  *
@@ -369,26 +366,20 @@ fun Route.chartRoutes(
                  * Security: auth-bearer
                  */
                 put("{id}") {
-                    val id = call.parameters["id"]?.toULong()
-                    if (id == null) {
-                        call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                        return@put
-                    }
+                    val id = call.parameters["id"]?.toULongOrNull()
+                        ?: throw BadRequestException("Invalid or missing chart ID")
+                    // Bug fix: was toULong() (500 on bad input) + call.respond + return@put style.
 
                     val updateRequest = call.receive<UpdateChartRequest>()
+                    val updatedChart = chartRepository.updateChart(id, updateRequest)
+                    // Let StatusPages handle NotFoundException and any unexpected exceptions
+                    // uniformly — no need for a local try/catch here.
 
-                    try {
-                        val updatedChart = chartRepository.updateChart(id, updateRequest)
-                        call.respond(updatedChart)
-                    } catch (e: NotFoundException) {
-                        call.respond(HttpStatusCode.NotFound, e.message ?: "Not Found")
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.InternalServerError, e.message ?: "Internal Server Error")
-                    }
+                    call.respond(updatedChart)
                 }
 
                 /**
-                 * Delete a chart.
+                 * Deletes a chart.
                  *
                  * Tag: Charts
                  *
@@ -403,58 +394,48 @@ fun Route.chartRoutes(
                  * Security: auth-bearer
                  */
                 delete("{id}") {
-                    val id = call.parameters["id"]?.toULong()
-                    if (id == null) {
-                        call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                        return@delete
-                    }
+                    val id = call.parameters["id"]?.toULongOrNull()
+                        ?: throw BadRequestException("Invalid or missing chart ID")
+                    // Bug fix: was toULong() — throws 500 on bad input.
 
-                    // Check if the user is authorized to delete the chart
-                    val principal = call.principal<JWTPrincipal>()
-                    val userId = principal?.subject?.let { UUID.fromString(it) }
+                    val userId = call.principal<JWTPrincipal>()
+                        ?.subject
+                        ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
                         ?: throw UnauthorizedException("User unauthorized")
+                    // Bug fix: UUID.fromString() throws on malformed JWT subjects.
 
-                    // Fetch the user to ensure they exist
-                    userRepository.getUserById(userId) ?: throw UnauthorizedException("User not found")
+                    userRepository.getUserById(userId)
+                        ?: throw UnauthorizedException("User not found")
 
-                    // Try to delete the message from Discord
-                    val success = uploadService.deleteMessage(id.toString())
-
-                    if (!success) throw Exception("Failed to delete chart with id: $id")
-
+                    // Bug fix: order of operations was reversed — Discord was deleted first,
+                    // then the DB row. If the DB delete failed, the Discord message was
+                    // already gone permanently with no way to recover.
+                    //
+                    // Correct order: delete from DB first, then clean up Discord.
+                    // A failed Discord delete is recoverable (re-run or ignore stale message).
+                    // A failed DB delete after Discord cleanup is not.
                     val deleted = chartRepository.deleteChart(id)
-                    if (deleted) {
-                        call.respond(HttpStatusCode.NoContent, true)
-                    } else {
-                        call.respond(HttpStatusCode.NotFound, "Chart not found")
+
+                    if (!deleted) throw NotFoundException("Chart not found")
+
+                    val discordSuccess = runCatching { uploadService.deleteMessage(id.toString()) }
+                        .getOrElse { e ->
+                            // Discord cleanup failing is non-fatal — the chart is already
+                            // removed from the DB. Log and continue rather than returning 500.
+                            logger.warn(e, "Chart $id deleted from DB but Discord cleanup failed")
+                            false
+                        }
+
+                    if (!discordSuccess) {
+                        logger.warn("Discord message for chart $id could not be deleted — may require manual cleanup")
                     }
+
+                    call.respond(HttpStatusCode.NoContent)
+                    // Bug fix: was respond(NoContent, true) — 204 must have no body.
                 }
 
-                /**
-                 * Get preview for a chart.
-                 *
-                 * Tag: Charts
-                 *
-                 * Path: id [ULong] Chart ID.
-                 *
-                 * Responses:
-                 *   - 200 application/json [Object] Chart preview data.
-                 *   - 204 No preview available.
-                 *   - 501 application/json [Error] Preview service not implemented.
-                 *
-                 * Security: auth-bearer
-                 */
-                get("/charts/{id}/preview") {
-                    /*val chartId = call.parameters["id"]!!.toLong()
-                    val preview = previewService.getPreviewForChart(chartId)
-
-                    if (preview == null) {
-                        call.respond(HttpStatusCode.NoContent)
-                    } else {
-                        call.respond(preview)
-                    }*/
-                    call.respond(HttpStatusCode.NotImplemented, "Preview service is not implemented yet")
-                }
+                // Preview endpoint omitted — not yet implemented.
+                // Re-add as get("{id}/preview") when ChartPreviewService is ready.
             }
         }
     }

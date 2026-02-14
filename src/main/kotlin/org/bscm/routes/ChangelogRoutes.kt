@@ -5,19 +5,19 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.KnownIssue
-import org.bscm.models.interfaces.IKnownIssueRepository
+import org.bscm.models.Changelog
+import org.bscm.models.interfaces.IChangelogRepository
 import java.util.*
 
-fun Route.knownIssuesRoutes(knownIssueRepository: IKnownIssueRepository) {
+fun Route.changelogRoutes(knownIssueRepository: IChangelogRepository) {
     route("/charts") {
         /**
-         * Add a known issue to a chart.
+         * Add a changelog entry to a chart.
          *
-         * Tag: Known Issues
+         * Tag: Changelog
          *
          * Path: id [ULong] Chart ID.
-         * Body: application/json Issue details to add [KnownIssue].
+         * Body: application/json Issue details to add [Changelog].
          *
          * Responses:
          *   - 400 Invalid or missing chart ID.
@@ -31,16 +31,16 @@ fun Route.knownIssuesRoutes(knownIssueRepository: IKnownIssueRepository) {
                 return@post
             }
 
-            val receivedIssue = call.receive<KnownIssue>()
+            val receivedIssue = call.receive<Changelog>()
 
             val createdIssue = knownIssueRepository.addIssue(id, receivedIssue)
             call.respond(HttpStatusCode.Created, createdIssue)
         }
 
         /**
-         * Remove a known issue from a chart.
+         * Remove a changelog entry from a chart.
          *
-         * Tag: Known Issues
+         * Tag: Changelog
          *
          * Path: id [ULong] Chart ID.
          * Path: issueId [UUID] Issue ID.

@@ -9,7 +9,7 @@ import org.bscm.serialization.UUIDSerializer
 import java.util.*
 
 @Serializable
-data class KnownIssue(
+data class Changelog(
     val id: UUID,
     val description: String,
     // val createdAt: LocalDateTime

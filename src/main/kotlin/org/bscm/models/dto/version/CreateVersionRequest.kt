@@ -17,4 +17,5 @@ data class CreateVersionRequest(
     val isExplicit: Boolean,
     val bundleUrl: String,
     val previewUrl: String? = null,
+    val changelog: List<String> = emptyList(),
 )

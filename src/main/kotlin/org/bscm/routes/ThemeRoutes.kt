@@ -1,7 +1,6 @@
 package org.bscm.routes
 
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.*
@@ -11,6 +10,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.plugins.UnauthorizedException
+import org.bscm.utils.getUserId
 import java.util.*
 
 data class CreateThemeRequest(
@@ -27,10 +27,6 @@ data class UpdateThemeRequest(
     val previewUrl: String?
 )
 
-private fun ApplicationCall.getUserId(): UUID {
-    val principal = principal<JWTPrincipal>()
-    return principal?.subject?.let { UUID.fromString(it) } ?: throw UnauthorizedException("User not authenticated")
-}
 
 fun Route.themeRoutes(themeRepository: IThemeRepository, ) {
     route("/themes") {
@@ -80,7 +76,7 @@ fun Route.themeRoutes(themeRepository: IThemeRepository, ) {
                  *   - 404 Theme not found.
                  *   - 200 Theme details.
                  */
-                get("/{id}") {
+                get("{id}") {
                     val id = call.parameters["id"]?.toULongOrNull()
                         ?: throw BadRequestException("Invalid or missing ID parameter")
 
@@ -91,18 +87,18 @@ fun Route.themeRoutes(themeRepository: IThemeRepository, ) {
                 }
 
                 /**
-                 * Get theme by app content ID.
+                 * Get theme by content ID.
                  *
                  * Tag: Themes
                  *
-                 * Path: contentId [String] App content ID.
+                 * Path: contentId [String] Content ID.
                  *
                  * Responses:
                  *   - 400 Missing contentId parameter.
                  *   - 404 Theme not found.
                  *   - 200 Theme details.
                  */
-                get("/app/{contentId}") {
+                get("{contentId}") {
                     val contentId = call.parameters["contentId"]
                         ?: throw BadRequestException("Missing contentId parameter")
 

@@ -46,7 +46,7 @@ class ContributorRepository : IContributorRepository {
                     username = user.username,
                     avatarUrl = user.avatarUrl,
                     bannerUrl = user.bannerUrl,
-                    isVerified = entity.user.isVerified,
+                    isVerified = user.isVerified,
                     bio = user.bio,
                     accentColor = user.accentColor,
                 ),

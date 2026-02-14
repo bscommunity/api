@@ -22,7 +22,6 @@ fun Route.testRoutes(mediaInfoService: MediaInfoService) {
          *   - 500 Failed to fetch media information.
          *   - 200 Media information with streaming links.
          */
-        // Add an issue to a chart
         get("/media-info") {
             val trackName = call.request.queryParameters["track"] ?: return@get call.respond(
                 "Missing 'track' query parameter"

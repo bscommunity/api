@@ -35,7 +35,7 @@ fun Application.configureRouting() {
     val userRepository by inject<IUserRepository>()
     val chartRepository by inject<IChartRepository>()
     val contributorRepository by inject<IContributorRepository>()
-    val knownIssueRepository by inject<IKnownIssueRepository>()
+    val knownIssueRepository by inject<IChangelogRepository>()
     val versionRepository by inject<IVersionRepository>()
     val tourPassRepository by inject<ITourPassRepository>()
     val themeRepository by inject<IThemeRepository>()
@@ -67,7 +67,8 @@ fun Application.configureRouting() {
 
         // ignore!
         get("/") {
-            call.respondText("Hello to the bscm API!")
+            // call.respondText("Hello to the bscm API!")
+            call.respondRedirect("/docs")
         }
 
         // Health check endpoint
@@ -92,14 +93,14 @@ fun Application.configureRouting() {
         userRoutes(userRepository, profileService, activityRepository)
         meRoutes(collectionService, profileService, chartRepository)
 
-        chartRoutes(chartRepository, userRepository, versionRepository, uploadService, /*previewService*/)
+        chartRoutes(chartRepository, versionRepository, userRepository, uploadService)
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService, supportUploadService)
         contributorRoutes(contributorRepository)
-        knownIssuesRoutes(knownIssueRepository)
         tourPassRoutes(tourPassRepository)
         themeRoutes(themeRepository)
-        // collectionRoutes(collectionService)
         testRoutes(mediaInfoService)
+        collectionRoutes(collectionService)
+        // changelogRoutes(knownIssueRepository)
 
         // Discord interactions (slash commands, buttons, etc.)
         interactionsRoutes(
