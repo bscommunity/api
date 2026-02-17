@@ -102,16 +102,6 @@ fun Route.authRoutes(
             }
         }
 
-        // Returns user by Discord id for debugging purposes. Not documented in API spec and should be removed in production.
-        post("/debug") {
-            val id = call.receive<String>()
-
-            val user = userRepository.getUserByDiscordId(id)
-                ?: return@post call.respondError(HttpStatusCode.NotFound, "User not found")
-
-            call.respond(user.toAuthResult(jwtService))
-        }
-
         /**
          * Refresh access token using refresh token.
          *

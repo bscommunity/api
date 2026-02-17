@@ -12,7 +12,7 @@ interface ICollectionRepository {
 
     suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection
     suspend fun getCollection(collectionId: UUID, userId: UUID? = null): Collection?
-    suspend fun getUserCollections(userId: UUID, limit: Int? = null, offset: Int? = null, onlyPublic: Boolean?): List<Collection>
+    suspend fun getUserCollections(userId: UUID, limit: Int? = null, offset: Int? = null, onlyPublic: Boolean = false): List<Collection>
     suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String?, isPublic: Boolean?): Boolean
     suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean
 

@@ -13,10 +13,7 @@ import io.ktor.server.routing.openapi.*
 import org.bscm.clients.applicationHttpClient
 import org.bscm.models.interfaces.*
 import org.bscm.routes.*
-import org.bscm.services.CollectionService
-import org.bscm.services.MediaInfoService
-import org.bscm.services.ProfileService
-import org.bscm.services.UploadService
+import org.bscm.services.*
 import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.JWTService
@@ -28,6 +25,7 @@ fun Application.configureRouting() {
     val discordOAuthService: DiscordOAuthService by inject()
     val googleOAuthService: GoogleOAuthService by inject()
 
+    val refreshService by inject<RefreshService>()
     val uploadService by inject<UploadService>()
     val supportUploadService by inject<UploadService>(qualifier = org.koin.core.qualifier.named("support"))
     val jwtService by inject<JWTService>()
@@ -98,7 +96,7 @@ fun Application.configureRouting() {
         contributorRoutes(contributorRepository)
         tourPassRoutes(tourPassRepository)
         themeRoutes(themeRepository)
-        testRoutes(mediaInfoService)
+        debugRoutes(mediaInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)
         // changelogRoutes(knownIssueRepository)
 

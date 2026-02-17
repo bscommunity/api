@@ -277,6 +277,7 @@ fun Route.meRoutes(
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
                 val response = collectionService.getUserCollections(userId, limit, offset, false)
+                println("User $userId requested their collections with limit=$limit and offset=$offset, returning ${response.size} collections")
                 call.respond(response)
             }
         }

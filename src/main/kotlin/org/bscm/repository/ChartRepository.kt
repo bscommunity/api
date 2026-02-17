@@ -469,7 +469,6 @@ class ChartRepository : BaseRepository(), IChartRepository {
                 }
             }.distinctBy { it.first.id.value }
 
-
             ChartResult(
                 chart = chartEntity,
                 streamingLinks = streamingLinks,

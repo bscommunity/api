@@ -107,6 +107,12 @@ fun mainModule(config: ApplicationConfig) = module {
             channelId = config.property("workshop.channelId").getString(),
         )
     }
+    single {
+        RefreshService(
+            botToken = config.property("discord.botToken").getString(),
+            channelId = config.property("workshop.channelId").getString(),
+        )
+    }
     single(qualifier = named("support")) {
         UploadService(
             webhookId = config.property("support.webhookId").getString(),

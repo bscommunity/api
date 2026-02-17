@@ -112,7 +112,7 @@ class CollectionRepository(
         userId: UUID,
         limit: Int?,
         offset: Int?,
-        onlyPublic: Boolean?
+        onlyPublic: Boolean
     ): List<Collection> = newSuspendedTransaction {
         val baseQuery = CollectionTable.leftJoin(CollectionItemTable, { CollectionTable.id }, { CollectionItemTable.collectionId })
             .select(CollectionTable.columns + CollectionItemTable.collectionId.count())
@@ -120,7 +120,7 @@ class CollectionRepository(
             .groupBy(CollectionTable.id)
             .orderBy(CollectionTable.updatedAt, SortOrder.DESC)
 
-        if (onlyPublic != null) {
+        if (onlyPublic) {
             baseQuery.andWhere { CollectionTable.isPublic eq onlyPublic }
         }
 

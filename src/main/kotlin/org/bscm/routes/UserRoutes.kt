@@ -37,6 +37,30 @@ fun Route.userRoutes(
             call.respond(HttpStatusCode.Created, createdUser)
         }
 
+        /**
+         * Get user profile header by username.
+         *
+         * Tag: Users
+         *
+         * Path: username [String] User's username.
+         *
+         * Responses:
+         *   - 400 Username parameter is malformatted or missing.
+         *   - 404 User not found.
+         *   - 200 User profile header.
+         */
+        get("username/{username}") {
+            val username = call.parameters["username"]
+                ?: throw IllegalArgumentException("Invalid or missing username")
+
+            val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
+            val targetUser = userRepository.getUserByUsername(username)
+                ?: throw NotFoundException("User not found")
+
+            val response = profileService.getProfileHeader(targetUser.id, requesterId)
+            call.respond(response)
+        }
+
         authenticate("auth-bearer", optional = true) {
             /**
              * List users with optional search filter.
@@ -75,30 +99,6 @@ fun Route.userRoutes(
 
                 val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
                 val response = profileService.getProfileHeader(id, requesterId)
-                call.respond(response)
-            }
-
-            /**
-             * Get user profile header by username.
-             *
-             * Tag: Users
-             *
-             * Path: username [String] User's username.
-             *
-             * Responses:
-             *   - 400 Username parameter is malformatted or missing.
-             *   - 404 User not found.
-             *   - 200 User profile header.
-             */
-            get("username/{username}") {
-                val username = call.parameters["username"]
-                    ?: throw IllegalArgumentException("Invalid or missing username")
-
-                val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
-                val targetUser = userRepository.getUserByUsername(username)
-                    ?: throw NotFoundException("User not found")
-
-                val response = profileService.getProfileHeader(targetUser.id, requesterId)
                 call.respond(response)
             }
 

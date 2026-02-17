@@ -17,10 +17,7 @@ object CollectionTable : UUIDTable("collections") {
     val updatedAt = datetime("updated_at")
 
     init {
-        uniqueIndex(userId, name)
-        uniqueIndex(userId, kind)
-
-        index(false, userId)
-        index(false, userId, name)
+        // TODO: Add unique index for (userId, kind) when kind is not CollectionKind.USER
+        index(true, userId, name)
     }
 }

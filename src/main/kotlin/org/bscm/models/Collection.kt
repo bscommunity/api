@@ -21,7 +21,6 @@ data class Collection(
     val isPublic: Boolean,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,
-    val items: List<CatalogItem>? = null,
     val coverUrl: String? = null, // SS
     val itemsCount: Int = 0, // SS
 )

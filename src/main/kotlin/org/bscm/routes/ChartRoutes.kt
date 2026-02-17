@@ -135,11 +135,11 @@ fun Route.chartRoutes(
                 }
 
                 /**
-                 * Get chart by ID or content ID.
+                 * Get chart by internal ID.
                  *
                  * Tag: Charts
                  *
-                 * Path: id [String] Chart ID or content ID (depends on authentication method).
+                 * Path: id [ULong] Chart ID.
                  *
                  * Responses:
                  *   - 200 application/json [Object] Chart details.
@@ -155,24 +155,40 @@ fun Route.chartRoutes(
                     val hmacPrincipal = call.principal<HMACPrincipal>()
                     val combinedPrincipal = call.principal<CombinedPrincipal>()
 
-                    val chart = when {
-                        // Dashboard clients look up by numeric DB ID
-                        jwtPrincipal != null || combinedPrincipal != null -> {
-                            val numericId = id.toULongOrNull()
-                                ?: throw BadRequestException("Chart ID must be a valid number")
-                            // Bug fix: toULong() threw NumberFormatException (500) on bad input.
-                            chartRepository.getChartById(numericId)
-                                ?: throw NotFoundException("Chart not found")
-                        }
-
-                        // Mobile app looks up by content ID (string)
-                        else -> chartRepository.getChartByContentId(id)
-                            ?: throw NotFoundException("Chart not found")
-
-                        // Bug fix: removed the dead `else -> Unauthorized` branch.
-                        // We are inside authenticate("auth-public") — if auth failed the
-                        // request never reaches here. One of the two branches above always applies.
+                    if (jwtPrincipal == null && hmacPrincipal == null && combinedPrincipal == null) {
+                        throw UnauthorizedException("Unauthorized")
                     }
+
+                    val numericId = id.toULongOrNull()
+                        ?: throw BadRequestException("Chart ID must be a valid number")
+
+                    val chart = chartRepository.getChartById(numericId)
+                        ?: throw NotFoundException("Chart not found")
+
+                    call.respond(chart)
+                }
+
+                /**
+                 * Get chart by content ID.
+                 *
+                 * Tag: Charts
+                 *
+                 * Path: id [String] Content ID.
+                 *
+                 * Responses:
+                 *   - 200 application/json [Object] Chart details.
+                 *   - 401 application/json [Error] Unauthorized access.
+                 *   - 404 application/json [Error] Chart not found.
+                 */
+                get("content/{id}") {
+                    val id = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing content ID")
+
+                    call.principal<HMACPrincipal>() ?: throw UnauthorizedException("Unauthorized")
+
+                    val chart = chartRepository.getChartByContentId(id)
+                        ?: throw NotFoundException("Chart not found")
+
 
                     call.respond(chart)
                 }
