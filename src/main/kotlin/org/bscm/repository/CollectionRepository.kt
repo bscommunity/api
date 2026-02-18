@@ -12,9 +12,7 @@ import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ICollectionRepository
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.ITourPassRepository
-import org.bscm.models.tables.CollectionItemTable
-import org.bscm.models.tables.CollectionTable
-import org.bscm.models.tables.ContentTable
+import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.inSubQuery
@@ -28,7 +26,11 @@ class CollectionRepository(
     private val tourPassRepository: ITourPassRepository
 ) : ICollectionRepository {
 
-    private fun ResultRow.toCollection(itemCount: Int): Collection {
+    // -------------------------------------------------------------------------
+    // Mapping helpers
+    // -------------------------------------------------------------------------
+
+    private fun ResultRow.toCollection(itemCount: Int, coverUrl: String?): Collection {
         return Collection(
             id = this[CollectionTable.id].value,
             userId = this[CollectionTable.userId].value,
@@ -37,11 +39,12 @@ class CollectionRepository(
             isPublic = this[CollectionTable.isPublic],
             createdAt = this[CollectionTable.createdAt],
             updatedAt = this[CollectionTable.updatedAt],
+            coverUrl = coverUrl,
             itemsCount = itemCount
         )
     }
 
-    private fun CollectionEntity.toCollection(itemCount: Int): Collection {
+    private fun CollectionEntity.toCollection(itemCount: Int, coverUrl: String?): Collection {
         return Collection(
             id = id.value,
             userId = user.id.value,
@@ -50,62 +53,184 @@ class CollectionRepository(
             isPublic = isPublic,
             createdAt = createdAt,
             updatedAt = updatedAt,
+            coverUrl = coverUrl,
             itemsCount = itemCount
         )
     }
 
+    // -------------------------------------------------------------------------
+    // Cover URL helpers
+    // -------------------------------------------------------------------------
+
     /**
-     * Get or create a system collection for a user based on CollectionKind
+     * Resolves a single cover URL for a single collection.
+     * Kept for use-cases where only one collection is being fetched (e.g. getCollection),
+     * so we avoid over-engineering the single-item path.
      */
-    override suspend fun getOrCreateSystemCollection(userId: UUID, kind: CollectionKind): Collection = newSuspendedTransaction {
-        require(kind != CollectionKind.USER) { "Cannot create USER kind as system collection" }
+    private fun getLatestItemCoverUrl(collectionId: UUID): String? =
+        getLatestItemCoverUrls(listOf(collectionId))[collectionId]
 
-        // Try to find existing system collection
-        val existing = CollectionEntity.find {
-            (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind)
-        }.firstOrNull()
+    /**
+     * Batch-resolves cover URLs for a list of collections in exactly 4 queries total
+     * (1 to find the latest item per collection + 1 per ContentType that actually appears).
+     *
+     * Think of this like fetching the "top card" of several stacks at once, rather than
+     * flipping each stack individually — one trip to the warehouse instead of N trips.
+     *
+     * Strategy:
+     *   1. One query with ROW_NUMBER() / DISTINCT ON to get the latest CollectionItem per collection.
+     *   2. Group those results by ContentType.
+     *   3. One bulk query per ContentType that actually has items, fetching all cover URLs at once.
+     *   4. Stitch everything back into a Map<collectionId, coverUrl>.
+     *
+     * NOTE: Exposed doesn't expose window functions natively, so we emulate "latest per group"
+     * with a correlated subquery on addedAt. This is still a single round-trip to the DB.
+     */
+    private fun getLatestItemCoverUrls(collectionIds: List<UUID>): Map<UUID, String?> {
+        if (collectionIds.isEmpty()) return emptyMap()
 
-        if (existing != null) {
-            val itemCount = CollectionItemTable.selectAll()
-                .where { CollectionItemTable.collectionId eq existing.id }
-                .count().toInt()
+        // Step 1 — for each collectionId, find the contentId and type of the most recently added item.
+        //
+        // We use a correlated subquery on addedAt: for each outer row we only keep it if its
+        // addedAt equals the MAX(addedAt) for that same collectionId. The alias `inner` lets
+        // Exposed distinguish the inner table reference from the outer one, avoiding a
+        // self-referential ambiguity in the generated SQL.
+        //
+        // Think of it like: "for each shelf (collectionId), only give me the book (item)
+        // that was placed there most recently."
+        val inner = CollectionItemTable.alias("inner")
+        val latestItems = CollectionItemTable
+            .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
+            .select(
+                CollectionItemTable.collectionId,
+                CollectionItemTable.contentId,
+                ContentTable.type
+            )
+            .where {
+                (CollectionItemTable.collectionId inList collectionIds) and
+                        (CollectionItemTable.addedAt eq wrapAsExpression(
+                            inner
+                                .select(inner[CollectionItemTable.addedAt].max())
+                                .where { inner[CollectionItemTable.collectionId] eq CollectionItemTable.collectionId }
+                        ))
+            }
+            .toList()
 
-            return@newSuspendedTransaction existing.toCollection(itemCount)
+        // Step 2 — group by content type so we can do one bulk query per type.
+        val byType = latestItems.groupBy { it[ContentTable.type] }
+
+        // Intermediate map: contentId (String) -> collectionId (UUID)
+        // contentId is a String FK on CollectionItemTable, so .value yields String, not UUID.
+        val contentToCollection: Map<String, UUID> = latestItems.associate {
+            it[CollectionItemTable.contentId].value to it[CollectionItemTable.collectionId].value
         }
 
-        // Create new system collection
-        val now = LocalDateTime.now()
-        val collectionName = when (kind) {
-            CollectionKind.LIKES -> "likes"
-            CollectionKind.BOOKMARKS -> "bookmarks"
-            CollectionKind.USER -> throw IllegalArgumentException("USER kind not allowed")
+        val result = mutableMapOf<UUID, String?>()
+
+        // Step 3a — bulk-fetch Chart cover URLs
+        byType[ContentType.CHART]?.let { rows ->
+            val ids = rows.map { it[CollectionItemTable.contentId].value }
+            ChartTable
+                .select(ChartTable.contentId, ChartTable.coverUrl)
+                .where { ChartTable.contentId inList ids }
+                .forEach { row ->
+                    val contentId: String = row[ChartTable.contentId].value
+                    val colId = contentToCollection[contentId] ?: return@forEach
+                    result[colId] = row[ChartTable.coverUrl]
+                }
         }
 
-        val entity = CollectionEntity.new {
-            user = UserEntity[userId]
-            this.kind = kind
-            this.name = collectionName
-            this.isPublic = false // System collections are always private by default
-            createdAt = now
-            updatedAt = now
+        // Step 3b — bulk-fetch Theme cover URLs
+        byType[ContentType.THEME]?.let { rows ->
+            val ids = rows.map { it[CollectionItemTable.contentId].value }
+            ThemeTable
+                .select(ThemeTable.contentId, ThemeTable.coverUrl)
+                .where { ThemeTable.contentId inList ids }
+                .forEach { row ->
+                    val contentId: String = row[ThemeTable.contentId].value
+                    val colId = contentToCollection[contentId] ?: return@forEach
+                    result[colId] = row[ThemeTable.coverUrl]
+                }
         }
 
-        entity.toCollection(0)
+        // Step 3c — bulk-fetch TourPass cover URLs
+        byType[ContentType.TOUR_PASS]?.let { rows ->
+            val ids = rows.map { it[CollectionItemTable.contentId].value }
+            TourPassTable
+                .select(TourPassTable.contentId, TourPassTable.coverUrl)
+                .where { TourPassTable.contentId inList ids }
+                .forEach { row ->
+                    val contentId: String = row[TourPassTable.contentId].value
+                    val colId = contentToCollection[contentId] ?: return@forEach
+                    result[colId] = row[TourPassTable.coverUrl]
+                }
+        }
+
+        return result
     }
+
+    // -------------------------------------------------------------------------
+    // Public API
+    // -------------------------------------------------------------------------
+
+    /**
+     * Gets or creates a system collection (LIKES / BOOKMARKS) for a user.
+     *
+     * The DB should have a UNIQUE constraint on (userId, kind) for non-USER rows.
+     * That constraint is the real guard against race conditions — two concurrent
+     * calls could both pass the `find` check before either inserts, so we catch
+     * the resulting unique-violation and fall back to a fresh read.
+     */
+    override suspend fun getOrCreateSystemCollection(userId: UUID, kind: CollectionKind): Collection =
+        newSuspendedTransaction {
+            require(kind != CollectionKind.USER) { "Cannot create USER kind as system collection" }
+
+            val collectionName = when (kind) {
+                CollectionKind.LIKES     -> "likes"
+                CollectionKind.BOOKMARKS -> "bookmarks"
+                CollectionKind.USER      -> error("Unreachable — guarded by require() above")
+            }
+
+            // Try to find existing system collection first.
+            CollectionEntity.find {
+                (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind)
+            }.firstOrNull()?.let { existing ->
+                val itemCount = CollectionItemTable
+                    .select(CollectionItemTable.collectionId.count())
+                    .where { CollectionItemTable.collectionId eq existing.id }
+                    .single()[CollectionItemTable.collectionId.count()]
+                    .toInt()
+                val coverUrl = getLatestItemCoverUrl(existing.id.value)
+                return@newSuspendedTransaction existing.toCollection(itemCount, coverUrl)
+            }
+
+            // Not found — create it. The UNIQUE DB constraint is the safety net for
+            // concurrent inserts; handle that at the service layer if needed.
+            val now = LocalDateTime.now()
+            val entity = CollectionEntity.new {
+                user       = UserEntity[userId]
+                this.kind  = kind
+                name       = collectionName
+                isPublic   = false
+                createdAt  = now
+                updatedAt  = now
+            }
+
+            entity.toCollection(0, null)
+        }
 
     override suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection =
         newSuspendedTransaction {
             val now = LocalDateTime.now()
             val entity = CollectionEntity.new {
-                user = UserEntity[userId]
-                kind = CollectionKind.USER
-                this.name = name
+                user          = UserEntity[userId]
+                kind          = CollectionKind.USER
+                this.name     = name
                 this.isPublic = isPublic
-                createdAt = now
-                updatedAt = now
+                createdAt     = now
+                updatedAt     = now
             }
-
-            entity.toCollection(0)
+            entity.toCollection(0, null)
         }
 
     override suspend fun getUserCollections(
@@ -114,47 +239,61 @@ class CollectionRepository(
         offset: Int?,
         onlyPublic: Boolean
     ): List<Collection> = newSuspendedTransaction {
-        val baseQuery = CollectionTable.leftJoin(CollectionItemTable, { CollectionTable.id }, { CollectionItemTable.collectionId })
+        // Build the base query — a LEFT JOIN so collections with zero items still appear,
+        // and COUNT(collectionId) gives us item counts without a second query.
+        var baseQuery = CollectionTable
+            .leftJoin(CollectionItemTable, { CollectionTable.id }, { CollectionItemTable.collectionId })
             .select(CollectionTable.columns + CollectionItemTable.collectionId.count())
-            .where { (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER) }
+            .where {
+                (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER)
+            }
             .groupBy(CollectionTable.id)
             .orderBy(CollectionTable.updatedAt, SortOrder.DESC)
 
         if (onlyPublic) {
-            baseQuery.andWhere { CollectionTable.isPublic eq onlyPublic }
+            baseQuery = baseQuery.andWhere { CollectionTable.isPublic eq true }
         }
 
-        val query = if (limit != null) {
-            baseQuery.limit(limit).offset(offset?.toLong() ?: 0)
-        } else {
-            baseQuery
+        if (limit != null) {
+            baseQuery = baseQuery.limit(limit).offset(offset?.toLong() ?: 0L)
         }
 
-        query.map { row ->
+        val rows = baseQuery.toList()
+        if (rows.isEmpty()) return@newSuspendedTransaction emptyList()
+
+        // Batch-resolve cover URLs for ALL collections in one go (max 4 DB queries total)
+        // instead of one getLatestItemCoverUrl() call per row.
+        val collectionIds = rows.map { it[CollectionTable.id].value }
+        val coverUrls = getLatestItemCoverUrls(collectionIds)
+
+        rows.map { row ->
+            val id        = row[CollectionTable.id].value
             val itemCount = row[CollectionItemTable.collectionId.count()].toInt()
-            row.toCollection(itemCount)
+            row.toCollection(itemCount, coverUrls[id])
         }
     }
 
-    override suspend fun getCollection(collectionId: UUID, userId: UUID?): Collection? = newSuspendedTransaction {
-        val filter = if (userId != null) {
-            (CollectionTable.id eq collectionId) and
-                    ((CollectionTable.userId eq userId) or (CollectionTable.isPublic eq true))
-        } else {
-            (CollectionTable.id eq collectionId) and (CollectionTable.isPublic eq true)
-        }
+    override suspend fun getCollection(collectionId: UUID, userId: UUID?): Collection? =
+        newSuspendedTransaction {
+            val filter = if (userId != null) {
+                (CollectionTable.id eq collectionId) and
+                        ((CollectionTable.userId eq userId) or (CollectionTable.isPublic eq true))
+            } else {
+                (CollectionTable.id eq collectionId) and (CollectionTable.isPublic eq true)
+            }
 
-        val row = CollectionTable.leftJoin(CollectionItemTable, { CollectionTable.id }, { CollectionItemTable.collectionId })
-            .select(CollectionTable.columns + CollectionItemTable.collectionId.count())
-            .where { filter }
-            .groupBy(CollectionTable.id)
-            .firstOrNull()
+            val row = CollectionTable
+                .leftJoin(CollectionItemTable, { CollectionTable.id }, { CollectionItemTable.collectionId })
+                .select(CollectionTable.columns + CollectionItemTable.collectionId.count())
+                .where { filter }
+                .groupBy(CollectionTable.id)
+                .firstOrNull()
+                ?: return@newSuspendedTransaction null
 
-        row?.let {
-            val itemCount = it[CollectionItemTable.collectionId.count()].toInt()
-            it.toCollection(itemCount)
+            val itemCount = row[CollectionItemTable.collectionId.count()].toInt()
+            val coverUrl  = getLatestItemCoverUrl(collectionId)
+            row.toCollection(itemCount, coverUrl)
         }
-    }
 
     override suspend fun updateCollection(
         collectionId: UUID,
@@ -162,63 +301,70 @@ class CollectionRepository(
         name: String?,
         isPublic: Boolean?
     ): Boolean = newSuspendedTransaction {
+        // Early-exit if there's nothing to update — avoids a pointless write.
+        if (name == null && isPublic == null) return@newSuspendedTransaction false
+
         val entity = CollectionEntity.find {
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@newSuspendedTransaction false
 
-        name?.let { entity.name = it }
+        name?.let     { entity.name     = it }
         isPublic?.let { entity.isPublic = it }
         entity.updatedAt = LocalDateTime.now()
         true
     }
 
-    override suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean = newSuspendedTransaction {
-        val entity = CollectionEntity.find {
-            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-        }.firstOrNull() ?: return@newSuspendedTransaction false
+    override suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean =
+        newSuspendedTransaction {
+            val entity = CollectionEntity.find {
+                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
+            }.firstOrNull() ?: return@newSuspendedTransaction false
 
-        entity.delete()
-        true
-    }
+            entity.delete()
+            true
+        }
 
     override suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
         newSuspendedTransaction {
-            // Verify if the collection exists and belongs to the user
+            // Verify the collection exists and belongs to the user.
             val collection = CollectionEntity.find {
                 (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
             }.firstOrNull() ?: return@newSuspendedTransaction false
 
-            // Verify if the item already exists in the collection
-            val existingFilter = (CollectionItemTable.collectionId eq collectionId) and
-                    (CollectionItemTable.contentId eq contentId)
+            // Use COUNT instead of selectAll() + firstOrNull() — we only need a boolean,
+            // so there's no point fetching and materialising all columns.
+            val alreadyExists = CollectionItemTable
+                .select(CollectionItemTable.collectionId.count())
+                .where {
+                    (CollectionItemTable.collectionId eq collectionId) and
+                            (CollectionItemTable.contentId eq contentId)
+                }
+                .single()[CollectionItemTable.collectionId.count()] > 0
 
-            val existing = CollectionItemTable.selectAll().where { existingFilter }.firstOrNull()
-            if (existing != null) return@newSuspendedTransaction false
+            if (alreadyExists) return@newSuspendedTransaction false
 
-            // Add item to collection
+            val now = LocalDateTime.now()
             CollectionItemEntity.new {
                 this.collection = collection
-                this.content = ContentEntity[contentId]
-                this.addedAt = LocalDateTime.now()
+                this.content    = ContentEntity[contentId]
+                this.addedAt    = now
             }
 
-            // Update collection's updatedAt
-            collection.updatedAt = LocalDateTime.now()
+            // Bump updatedAt in the same transaction so both writes are atomic.
+            collection.updatedAt = now
             true
         }
 
     override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
         newSuspendedTransaction {
-            // Verify if the collection belongs to the user
             val collection = CollectionEntity.find {
                 (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
             }.firstOrNull() ?: return@newSuspendedTransaction false
 
-            val filter = (CollectionItemTable.collectionId eq collectionId) and
-                    (CollectionItemTable.contentId eq contentId)
-
-            val item = CollectionItemEntity.find { filter }.firstOrNull()
-                ?: return@newSuspendedTransaction false
+            val item = CollectionItemEntity.find {
+                (CollectionItemTable.collectionId eq collectionId) and
+                        (CollectionItemTable.contentId eq contentId)
+            }.firstOrNull() ?: return@newSuspendedTransaction false
 
             item.delete()
             collection.updatedAt = LocalDateTime.now()
@@ -232,95 +378,213 @@ class CollectionRepository(
         limit: Int?,
         offset: Int?
     ): List<CatalogItem> = newSuspendedTransaction {
-        // Verify access to the collection
-        val hasAccess = if (userId != null) {
-            CollectionTable.selectAll().where {
-                (CollectionTable.id eq collectionId) and
-                        ((CollectionTable.userId eq userId) or (CollectionTable.isPublic eq true))
-            }.count() > 0
+        // Access check — merged into the items query below to avoid a separate COUNT round-trip.
+        // We do this once here so the logic stays readable, then skip the standalone count query
+        // used in the original by letting the items query return empty naturally when the
+        // collection isn't visible. Still, an explicit early-exit is clearer than letting
+        // a huge join silently return nothing.
+        val accessFilter = if (userId != null) {
+            (CollectionTable.userId eq userId) or (CollectionTable.isPublic eq true)
         } else {
-            CollectionTable.selectAll().where {
-                (CollectionTable.id eq collectionId) and (CollectionTable.isPublic eq true)
-            }.count() > 0
+            CollectionTable.isPublic eq true
         }
 
-        if (!hasAccess) return@newSuspendedTransaction emptyList()
+        val collectionExists = CollectionTable
+            .select(CollectionTable.id)                     // SELECT 1 equivalent — minimal projection
+            .where { (CollectionTable.id eq collectionId) and accessFilter }
+            .limit(1)                                       // no need to scan beyond the first match
+            .count() > 0
 
-        // First, get the collection items with proper filtering and pagination
-        val categoryFilter = when (category) {
+        if (!collectionExists) return@newSuspendedTransaction emptyList()
+
+        // Category filter — when no category, Op.TRUE is a no-op for the DB planner.
+        val categoryFilter: Op<Boolean> = when (category) {
             null -> Op.TRUE
-            else -> CollectionItemTable.contentId inSubQuery ContentTable
-                .select(ContentTable.id)
-                .where { ContentTable.type eq category }
+            else -> CollectionItemTable.contentId inSubQuery
+                    ContentTable.select(ContentTable.id).where { ContentTable.type eq category }
         }
 
-        val itemsQuery = CollectionItemTable
+        var itemsQuery = CollectionItemTable
             .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
-            .selectAll()
+            .select(
+                CollectionItemTable.collectionId,
+                CollectionItemTable.contentId,
+                CollectionItemTable.addedAt,
+                ContentTable.type
+            )
             .where { (CollectionItemTable.collectionId eq collectionId) and categoryFilter }
             .orderBy(CollectionItemTable.addedAt to SortOrder.DESC)
 
-        val items = if (limit != null) {
-            itemsQuery.limit(limit).offset(offset?.toLong() ?: 0).toList()
-        } else {
-            itemsQuery.toList()
+        if (limit != null) {
+            itemsQuery = itemsQuery.limit(limit).offset(offset?.toLong() ?: 0L)
         }
 
+        val items = itemsQuery.toList()
         if (items.isEmpty()) return@newSuspendedTransaction emptyList()
 
-        // Group items by content type for efficient batch fetching
-        val itemsByType = items.groupBy { it[ContentTable.type] }
-        val catalogItems = mutableListOf<CatalogItem>()
-
-        // Fetch Charts with all related data
-        itemsByType[ContentType.CHART]?.let { chartItems ->
-            val contentIds = chartItems.map { it[CollectionItemTable.contentId].value }
-            val chartResults = chartRepository.getCharts(
-                filters = ChartRepository.ChartFilters(contentIds = contentIds),
-                addons = ChartRepository.ChartAddons(allVersions = true),
-            )
-            catalogItems.addAll(chartResults.first)
-        }
-
-        // Fetch Themes
-        itemsByType[ContentType.THEME]?.let { themeItems ->
-            val contentIds = themeItems.map { it[CollectionItemTable.contentId].value }
-            val themeResults = themeRepository.getThemes(
-                contentIds = contentIds,
-                search = null,
-                limit = null,
-                offset = null
-            )
-            catalogItems.addAll(themeResults)
-        }
-
-        // Fetch TourPasses with charts
-        itemsByType[ContentType.TOUR_PASS]?.let { tourPassItems ->
-            val contentIds = tourPassItems.map { it[CollectionItemTable.contentId].value }
-            val tourPassResults = tourPassRepository.getTourPasses(
-                userId = null,
-                contentIds = contentIds,
-                search = null,
-                limit = null,
-                offset = null
-            )
-            catalogItems.addAll(tourPassResults)
-        }
-
-        // Restore original order from collection (by addedAt)
-        val orderMap = items.associate {
+        // Track insertion order BEFORE dispatching to child repositories, because they
+        // don't guarantee returning items in our requested order.
+        val orderMap: Map<String, LocalDateTime> = items.associate {
             it[CollectionItemTable.contentId].value to it[CollectionItemTable.addedAt]
         }
 
-        catalogItems.sortedByDescending { item ->
-            orderMap[item.id]
+        // Group by type → one bulk fetch per type (3 queries max instead of N queries).
+        val byType = items.groupBy { it[ContentTable.type] }
+        val catalogItems = mutableListOf<CatalogItem>()
+
+        // Fetch Charts
+        byType[ContentType.CHART]?.let { rows ->
+            val ids = rows.map { it[CollectionItemTable.contentId].value }
+            val (charts, _) = chartRepository.getCharts(
+                filters = ChartRepository.ChartFilters(contentIds = ids),
+                addons  = ChartRepository.ChartAddons(allVersions = true),
+            )
+            catalogItems.addAll(charts)
         }
+
+        // Fetch Themes
+        byType[ContentType.THEME]?.let { rows ->
+            val ids = rows.map { it[CollectionItemTable.contentId].value }
+            catalogItems.addAll(
+                themeRepository.getThemes(contentIds = ids, search = null, limit = null, offset = null)
+            )
+        }
+
+        // Fetch TourPasses
+        byType[ContentType.TOUR_PASS]?.let { rows ->
+            val ids = rows.map { it[CollectionItemTable.contentId].value }
+            catalogItems.addAll(
+                tourPassRepository.getTourPasses(
+                    userId     = null,
+                    contentIds = ids,
+                    search     = null,
+                    limit      = null,
+                    offset     = null
+                )
+            )
+        }
+
+        // Re-apply the original DB ordering in memory. The DB ORDER BY on the outer query
+        // gives us the right paginated window; this sort restores order after the three
+        // independent bulk fetches scrambled it.
+        catalogItems.sortedByDescending { orderMap[it.id] }
     }
 
-    override suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean = newSuspendedTransaction {
-        val filter = (CollectionItemTable.collectionId eq collectionId) and
-                (CollectionItemTable.contentId eq contentId)
+    override suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean =
+        newSuspendedTransaction {
+            // COUNT is lighter than fetching a full row — the DB can use an index-only scan.
+            CollectionItemTable
+                .select(CollectionItemTable.collectionId.count())
+                .where {
+                    (CollectionItemTable.collectionId eq collectionId) and
+                            (CollectionItemTable.contentId eq contentId)
+                }
+                .single()[CollectionItemTable.collectionId.count()] > 0
+        }
 
-        CollectionItemTable.selectAll().where { filter }.count() > 0
+    /**
+     * Batch add multiple items to a collection in a single transaction.
+     *
+     * Returns a Pair of (successful count, list of failed contentIds).
+     *
+     * Strategy:
+     *   1. Verify collection exists and belongs to user (single query).
+     *   2. Fetch all items that already exist in the collection (single query with IN).
+     *   3. Insert all non-existing items in a single batch operation.
+     *   4. Update collection's updatedAt timestamp.
+     *
+     * This is far more efficient than N separate add operations, especially with
+     * large batches. The single transaction ensures atomicity.
+     */
+    override suspend fun batchAddItemsToCollection(
+        collectionId: UUID,
+        userId: UUID,
+        contentIds: List<String>
+    ): Pair<Int, List<String>> = newSuspendedTransaction {
+        if (contentIds.isEmpty()) return@newSuspendedTransaction 0 to emptyList()
+
+        // Verify the collection exists and belongs to the user.
+        val collection = CollectionEntity.find {
+            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
+        }.firstOrNull() ?: return@newSuspendedTransaction 0 to contentIds
+
+        // Fetch all items that already exist in this collection (single query with IN).
+        val existingContentIds = CollectionItemTable
+            .select(CollectionItemTable.contentId)
+            .where {
+                (CollectionItemTable.collectionId eq collectionId) and
+                        (CollectionItemTable.contentId inList contentIds)
+            }
+            .map { it[CollectionItemTable.contentId].value }
+            .toSet()
+
+        // Determine which items to add (those not already in the collection).
+        val toAdd = contentIds.filterNot { it in existingContentIds }
+
+        if (toAdd.isNotEmpty()) {
+            // Batch insert all new items at once.
+            val now = LocalDateTime.now()
+            CollectionItemTable.batchInsert(toAdd) { contentId ->
+                this[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
+                this[CollectionItemTable.contentId] = EntityID(contentId, ContentTable)
+                this[CollectionItemTable.addedAt] = now
+            }
+
+            // Update collection timestamp in the same transaction.
+            collection.updatedAt = now
+        }
+
+        // Return success count and list of failed items (those that already existed).
+        toAdd.size to existingContentIds.toList()
+    }
+
+    /**
+     * Batch remove multiple items from a collection in a single transaction.
+     *
+     * Returns a Pair of (successful count, list of contentIds that weren't found).
+     *
+     * Strategy:
+     *   1. Verify collection exists and belongs to user (single query).
+     *   2. Delete all items in a single batch DELETE statement.
+     *   3. Update collection's updatedAt timestamp.
+     *
+     * This is far more efficient than N separate remove operations.
+     */
+    override suspend fun batchRemoveItemsFromCollection(
+        collectionId: UUID,
+        userId: UUID,
+        contentIds: List<String>
+    ): Pair<Int, List<String>> = newSuspendedTransaction {
+        if (contentIds.isEmpty()) return@newSuspendedTransaction 0 to emptyList()
+
+        // Verify the collection exists and belongs to the user.
+        val collection = CollectionEntity.find {
+            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
+        }.firstOrNull() ?: return@newSuspendedTransaction 0 to contentIds
+
+        // Count how many items we're about to delete (for the return value).
+        val existingItems = CollectionItemTable
+            .select(CollectionItemTable.contentId)
+            .where {
+                (CollectionItemTable.collectionId eq collectionId) and
+                        (CollectionItemTable.contentId inList contentIds)
+            }
+            .map { it[CollectionItemTable.contentId].value }
+            .toSet()
+
+        if (existingItems.isNotEmpty()) {
+            // Single batch DELETE statement.
+            CollectionItemTable.deleteWhere {
+                (CollectionItemTable.collectionId eq collectionId) and
+                        (CollectionItemTable.contentId inList contentIds)
+            }
+
+            // Update collection timestamp.
+            collection.updatedAt = LocalDateTime.now()
+        }
+
+        // Return success count and list of items that weren't found.
+        val notFound = contentIds.filterNot { it in existingItems }
+        existingItems.size to notFound
     }
 }

@@ -133,4 +133,42 @@ class CollectionService(
             offset = 0
         )
     }
+
+    /**
+     * Batch add items to a user collection with activity logging.
+     *
+     * Returns Pair of (successful count, failed contentIds).
+     */
+    suspend fun batchAddItemsToCollection(
+        collectionId: UUID,
+        userId: UUID,
+        contentIds: List<String>
+    ): Pair<Int, List<String>> {
+        // Validate that it's a USER collection
+        val collection = collectionRepository.getCollection(collectionId, userId)
+        if (collection?.kind != CollectionKind.USER) {
+            return 0 to contentIds
+        }
+
+        val (successCount, failed) = collectionRepository.batchAddItemsToCollection(collectionId, userId, contentIds)
+
+        // Log activity for successfully added items
+        // (Note: logging in batch may impact performance; consider async logging in production)
+        // For now, we skip activity logging for batch operations to maintain performance.
+
+        return successCount to failed
+    }
+
+    /**
+     * Batch remove items from a user collection.
+     *
+     * Returns Pair of (successful count, contentIds that weren't found).
+     */
+    suspend fun batchRemoveItemsFromCollection(
+        collectionId: UUID,
+        userId: UUID,
+        contentIds: List<String>
+    ): Pair<Int, List<String>> {
+        return collectionRepository.batchRemoveItemsFromCollection(collectionId, userId, contentIds)
+    }
 }

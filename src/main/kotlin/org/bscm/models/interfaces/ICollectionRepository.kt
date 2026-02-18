@@ -21,4 +21,8 @@ interface ICollectionRepository {
     suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
     suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
     suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean
+
+    // Batch Operations
+    suspend fun batchAddItemsToCollection(collectionId: UUID, userId: UUID, contentIds: List<String>): Pair<Int, List<String>>
+    suspend fun batchRemoveItemsFromCollection(collectionId: UUID, userId: UUID, contentIds: List<String>): Pair<Int, List<String>>
 }
