@@ -26,7 +26,7 @@ repositories {
 ktor {
     openApi {
         enabled = true
-        codeInferenceEnabled = true
+        codeInferenceEnabled = false
         onlyCommented = false
     }
 }

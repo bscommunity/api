@@ -1,22 +1,17 @@
 package org.bscm.models.dto.collection
 
 import kotlinx.serialization.Serializable
+import org.bscm.models.enums.ActionType
+import org.bscm.models.enums.CollectionKind
+import org.bscm.serialization.LocalDateTimeSerializer
+import java.time.LocalDateTime
 
 @Serializable
 data class BatchCollectionItemRequest(
-    val items: List<CreateCollectionItemRequest>
-)
-
-@Serializable
-data class BatchCollectionItemResponse(
-    val successful: Int,
-    val failed: Int,
-    val errors: List<BatchItemError> = emptyList()
-)
-
-@Serializable
-data class BatchItemError(
     val contentId: String,
-    val reason: String
+    val collectionId: String?,
+    val collectionKind: CollectionKind,
+    val action: ActionType,
+    @Serializable(with = LocalDateTimeSerializer::class)
+    val enqueuedAt: LocalDateTime? = null
 )
-

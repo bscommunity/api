@@ -5,7 +5,10 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.dto.collection.*
+import org.bscm.models.dto.collection.BatchCollectionItemRequest
+import org.bscm.models.dto.collection.CreateCollectionItemRequest
+import org.bscm.models.dto.collection.CreateCollectionRequest
+import org.bscm.models.dto.collection.UpdateCollectionRequest
 import org.bscm.services.CollectionService
 import org.bscm.utils.*
 import java.util.*
@@ -61,6 +64,34 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 } catch (e: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                 }
+            }
+
+            /**
+             * Batch process multiple items (add or remove) in a single operation.
+             *
+             * Tag: Collections
+             *
+             * Body: application/json List of items with actions [BatchCollectionItemRequest].
+             *
+             * Responses:
+             *   - 400 Invalid request parameters.
+             *   - 401 User not authenticated.
+             *   - 200 Batch operation summary.
+             */
+            post("batch") {
+                val userId = call.getUserId()
+                val request = call.receive<List<BatchCollectionItemRequest>>()
+
+                if (request.isEmpty()) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Request must contain at least one item")
+                    )
+                    return@post
+                }
+
+                val response = collectionService.processBatchCollectionItems(userId, request)
+                call.respond(HttpStatusCode.OK, response)
             }
 
             // Generalized routes with id
@@ -202,76 +233,6 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                         } else {
                             call.respond(HttpStatusCode.NotFound, "Item not found in collection")
                         }
-                    }
-
-                    /**
-                     * Batch process multiple items (add or remove) in a single operation.
-                     *
-                     * Tag: Collections
-                     *
-                     * Path: id [UUID] Collection ID.
-                     * Body: application/json List of items with actions [BatchCollectionItemRequest].
-                     *
-                     * Responses:
-                     *   - 400 Invalid request parameters.
-                     *   - 401 User not authenticated.
-                     *   - 404 Collection not found.
-                     *   - 200 Batch operation summary with details.
-                     */
-                    post("batch") {
-                        val userId = call.getUserId()
-                        val collectionId = call.getId()
-                        val request = call.receive<BatchCollectionItemRequest>()
-
-                        if (request.items.isEmpty()) {
-                            call.respond(
-                                HttpStatusCode.BadRequest,
-                                mapOf("error" to "Request must contain at least one item")
-                            )
-                            return@post
-                        }
-
-                        // Separate items into ADD and REMOVE operations
-                        val itemsToAdd = request.items
-                            .filter { it.action.name == "ADD" }
-                            .map { it.contentId }
-                        val itemsToRemove = request.items
-                            .filter { it.action.name == "REMOVE" }
-                            .map { it.contentId }
-
-                        var successCount = 0
-                        val errors = mutableListOf<BatchItemError>()
-
-                        // Process ADD operations
-                        if (itemsToAdd.isNotEmpty()) {
-                            val (addedCount, failedAdd) = collectionService.batchAddItemsToCollection(
-                                collectionId, userId, itemsToAdd
-                            )
-                            successCount += addedCount
-                            failedAdd.forEach { contentId ->
-                                errors.add(BatchItemError(contentId, "Item already exists in collection"))
-                            }
-                        }
-
-                        // Process REMOVE operations
-                        if (itemsToRemove.isNotEmpty()) {
-                            val (removedCount, failedRemove) = collectionService.batchRemoveItemsFromCollection(
-                                collectionId, userId, itemsToRemove
-                            )
-                            successCount += removedCount
-                            failedRemove.forEach { contentId ->
-                                errors.add(BatchItemError(contentId, "Item not found in collection"))
-                            }
-                        }
-
-                        val failureCount = errors.size
-                        val response = BatchCollectionItemResponse(
-                            successful = successCount,
-                            failed = failureCount,
-                            errors = errors
-                        )
-
-                        call.respond(HttpStatusCode.OK, response)
                     }
                 }
             }

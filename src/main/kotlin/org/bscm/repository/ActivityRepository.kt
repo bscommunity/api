@@ -5,6 +5,7 @@ import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.tables.UserActivityTable
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.batchInsert
 import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -31,6 +32,29 @@ class ActivityRepository : IActivityRepository {
 			targetId = targetId,
 			createdAt = createdAt
 		)
+	}
+
+	/**
+	 * Batch-insert multiple activity entries for the same user and type in a single
+	 * transaction to improve performance. Returns the count of inserted rows.
+	 * Individual entries are not returned because [batchInsert] does not guarantee
+	 * the same ordering as the input list when fetching generated IDs,
+	 * and callers don't need them.
+	 */
+	override suspend fun batchLogActivity(
+		userId: UUID,
+		type: ActivityType,
+		targetIds: List<String>,
+		createdAt: LocalDateTime
+	): Int = newSuspendedTransaction {
+		if (targetIds.isEmpty()) return@newSuspendedTransaction 0
+
+		UserActivityTable.batchInsert(targetIds, ignore = true) { targetId ->
+			this[UserActivityTable.userId] = userId
+			this[UserActivityTable.type] = type
+			this[UserActivityTable.targetId] = targetId
+			this[UserActivityTable.createdAt] = createdAt
+		}.size
 	}
 
 	override suspend fun getUserActivity(userId: UUID, limit: Int, offset: Int): List<ActivityEntry> =

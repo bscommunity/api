@@ -13,8 +13,11 @@ import org.bscm.models.interfaces.ICollectionRepository
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.*
+import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.inSubQuery
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDateTime
@@ -176,10 +179,10 @@ class CollectionRepository(
     /**
      * Gets or creates a system collection (LIKES / BOOKMARKS) for a user.
      *
-     * The DB should have a UNIQUE constraint on (userId, kind) for non-USER rows.
-     * That constraint is the real guard against race conditions — two concurrent
-     * calls could both pass the `find` check before either inserts, so we catch
-     * the resulting unique-violation and fall back to a fresh read.
+     * The DB has a UNIQUE constraint on (userId, kind) for non-USER rows.
+     * Two concurrent calls could both pass the `find` check before either inserts,
+     * causing a unique-constraint violation on the second write. We catch that and
+     * fall back to a fresh read
      */
     override suspend fun getOrCreateSystemCollection(userId: UUID, kind: CollectionKind): Collection =
         newSuspendedTransaction {
@@ -191,32 +194,42 @@ class CollectionRepository(
                 CollectionKind.USER      -> error("Unreachable — guarded by require() above")
             }
 
-            // Try to find existing system collection first.
-            CollectionEntity.find {
-                (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind)
-            }.firstOrNull()?.let { existing ->
-                val itemCount = CollectionItemTable
-                    .select(CollectionItemTable.collectionId.count())
-                    .where { CollectionItemTable.collectionId eq existing.id }
-                    .single()[CollectionItemTable.collectionId.count()]
-                    .toInt()
-                val coverUrl = getLatestItemCoverUrl(existing.id.value)
-                return@newSuspendedTransaction existing.toCollection(itemCount, coverUrl)
-            }
+            fun findExisting(): Collection? =
+                CollectionEntity.find {
+                    (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind)
+                }.firstOrNull()?.let { existing ->
+                    val itemCount = CollectionItemTable
+                        .select(CollectionItemTable.collectionId.count())
+                        .where { CollectionItemTable.collectionId eq existing.id }
+                        .single()[CollectionItemTable.collectionId.count()]
+                        .toInt()
+                    val coverUrl = getLatestItemCoverUrl(existing.id.value)
+                    existing.toCollection(itemCount, coverUrl)
+                }
 
-            // Not found — create it. The UNIQUE DB constraint is the safety net for
-            // concurrent inserts; handle that at the service layer if needed.
-            val now = LocalDateTime.now()
-            val entity = CollectionEntity.new {
-                user       = UserEntity[userId]
-                this.kind  = kind
-                name       = collectionName
-                isPublic   = false
-                createdAt  = now
-                updatedAt  = now
-            }
+            // Fast path — collection already exists.
+            findExisting()?.let { return@newSuspendedTransaction it }
 
-            entity.toCollection(0, null)
+            // Slow path — attempt to create. Catch unique-constraint violations that
+            // arise from concurrent inserts and fall back to re-reading the now-existing row.
+            try {
+                val now = LocalDateTime.now()
+                val entity = CollectionEntity.new {
+                    user      = UserEntity[userId]
+                    this.kind = kind
+                    name      = collectionName
+                    isPublic  = false
+                    createdAt = now
+                    updatedAt = now
+                }
+                entity.toCollection(0, null)
+            } catch (e: ExposedSQLException) {
+                // Another concurrent request won the race — read what they inserted.
+                findExisting()
+                    ?: throw IllegalStateException(
+                        "Failed to create or find system collection ($kind) for user $userId", e
+                    )
+            }
         }
 
     override suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection =
