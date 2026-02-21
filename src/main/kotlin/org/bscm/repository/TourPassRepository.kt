@@ -11,6 +11,7 @@ import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.TourPassChartTable
 import org.bscm.models.tables.TourPassTable
 import org.bscm.utils.UserStatsUtils
+import org.bscm.utils.retryOnConflict
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -110,8 +111,10 @@ class TourPassRepository(
         coverUrl: String
     ): TourPass = newSuspendedTransaction {
         // Create new content entry
-        val content = ContentEntity.new {
-            this.type = ContentType.TOUR_PASS
+        val content = retryOnConflict {
+            ContentEntity.new {
+                this.type = ContentType.TOUR_PASS
+            }
         }
 
         val entity = TourPassEntity.new {
@@ -164,7 +167,7 @@ class TourPassRepository(
                 userId = userId
             ),
             addons = ChartRepository.ChartAddons(
-                allVersions = true,
+                versions = true,
                 streamingLinks = true,
             )
         ).first

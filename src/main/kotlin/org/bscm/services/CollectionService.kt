@@ -180,6 +180,14 @@ class CollectionService(
         return collectionRepository.getCollectionItems(collection.id, userId, null, limit, offset)
     }
 
+    suspend fun getCollection(collectionId: UUID, userId: UUID): Collection? {
+        return collectionRepository.getCollection(collectionId, userId)
+    }
+
+    suspend fun getCollectionBySlug(username: String, slug: String, viewerId: UUID?): Collection? {
+        return collectionRepository.getCollectionBySlug(username, slug, viewerId)
+    }
+
     suspend fun addToSystemCollection(userId: UUID, kind: CollectionKind, contentId: String): Boolean {
         val collection = collectionRepository.getOrCreateSystemCollection(userId, kind)
         val added = collectionRepository.addItemToCollection(collection.id, userId, contentId)

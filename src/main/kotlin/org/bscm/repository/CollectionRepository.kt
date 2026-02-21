@@ -33,7 +33,7 @@ class CollectionRepository(
     // Mapping helpers
     // -------------------------------------------------------------------------
 
-    private fun ResultRow.toCollection(itemCount: Int, coverUrl: String?): Collection {
+    private fun ResultRow.toCollection(itemsCount: Triple<Int, Int, Int>, coverUrl: String?): Collection {
         return Collection(
             id = this[CollectionTable.id].value,
             userId = this[CollectionTable.userId].value,
@@ -43,11 +43,11 @@ class CollectionRepository(
             createdAt = this[CollectionTable.createdAt],
             updatedAt = this[CollectionTable.updatedAt],
             coverUrl = coverUrl,
-            itemsCount = itemCount
+            itemsCount = itemsCount
         )
     }
 
-    private fun CollectionEntity.toCollection(itemCount: Int, coverUrl: String?): Collection {
+    private fun CollectionEntity.toCollection(itemsCount:  Triple<Int, Int, Int>, coverUrl: String?): Collection {
         return Collection(
             id = id.value,
             userId = user.id.value,
@@ -57,7 +57,7 @@ class CollectionRepository(
             createdAt = createdAt,
             updatedAt = updatedAt,
             coverUrl = coverUrl,
-            itemsCount = itemCount
+            itemsCount = itemsCount
         )
     }
 
@@ -172,6 +172,52 @@ class CollectionRepository(
         return result
     }
 
+    private fun getSlug(name: String): String =
+        name.lowercase(Locale.getDefault()).replace("\\s+".toRegex(), "-")
+
+    private fun getItemsCount(collectionId: UUID): Triple<Int, Int, Int> {
+        val query = CollectionItemTable
+            .innerJoin(ContentTable, { contentId }, { id })
+            .select(CollectionItemTable.collectionId, ContentTable.type)
+            .where { CollectionItemTable.collectionId eq collectionId }
+
+        val rows = query.toList()
+        val counts = rows.groupBy { it[ContentTable.type] }.mapValues { it.value.size }
+        return Triple(
+            counts[ContentType.CHART] ?: 0,
+            counts[ContentType.TOUR_PASS] ?: 0,
+            counts[ContentType.THEME] ?: 0
+        )
+    }
+
+    private fun getItemsCounts(collectionIds: List<UUID>): Map<UUID, Triple<Int, Int, Int>> {
+        if (collectionIds.isEmpty()) return emptyMap()
+
+        val query = CollectionItemTable
+            .innerJoin(ContentTable, { contentId }, { id })
+            .select(CollectionItemTable.collectionId, ContentTable.type)
+            .where { CollectionItemTable.collectionId inList collectionIds }
+
+        val rows = query.toList()
+        val grouped = rows.groupBy { it[CollectionItemTable.collectionId].value }
+        val result = mutableMapOf<UUID, Triple<Int, Int, Int>>()
+
+        for ((colId, rows) in grouped) {
+            val counts = rows.groupBy { it[ContentTable.type] }.mapValues { it.value.size }
+            val chart = counts[ContentType.CHART] ?: 0
+            val tour = counts[ContentType.TOUR_PASS] ?: 0
+            val theme = counts[ContentType.THEME] ?: 0
+            result[colId] = Triple(chart, tour, theme)
+        }
+
+        // For collections with no items, add Triple(0,0,0)
+        for (id in collectionIds) {
+            if (id !in result) result[id] = Triple(0, 0, 0)
+        }
+
+        return result
+    }
+
     // -------------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------------
@@ -189,22 +235,18 @@ class CollectionRepository(
             require(kind != CollectionKind.USER) { "Cannot create USER kind as system collection" }
 
             val collectionName = when (kind) {
-                CollectionKind.LIKES     -> "likes"
+                CollectionKind.LIKES -> "likes"
                 CollectionKind.BOOKMARKS -> "bookmarks"
-                CollectionKind.USER      -> error("Unreachable — guarded by require() above")
+                CollectionKind.USER -> error("Unreachable — guarded by require() above")
             }
 
             fun findExisting(): Collection? =
                 CollectionEntity.find {
                     (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind)
                 }.firstOrNull()?.let { existing ->
-                    val itemCount = CollectionItemTable
-                        .select(CollectionItemTable.collectionId.count())
-                        .where { CollectionItemTable.collectionId eq existing.id }
-                        .single()[CollectionItemTable.collectionId.count()]
-                        .toInt()
+                    val itemsCount = getItemsCount(existing.id.value)
                     val coverUrl = getLatestItemCoverUrl(existing.id.value)
-                    existing.toCollection(itemCount, coverUrl)
+                    existing.toCollection(itemsCount, coverUrl)
                 }
 
             // Fast path — collection already exists.
@@ -215,14 +257,14 @@ class CollectionRepository(
             try {
                 val now = LocalDateTime.now()
                 val entity = CollectionEntity.new {
-                    user      = UserEntity[userId]
+                    user = UserEntity[userId]
                     this.kind = kind
-                    name      = collectionName
-                    isPublic  = false
+                    name = collectionName
+                    isPublic = false
                     createdAt = now
                     updatedAt = now
                 }
-                entity.toCollection(0, null)
+                entity.toCollection(Triple(0,0,0), null)
             } catch (e: ExposedSQLException) {
                 // Another concurrent request won the race — read what they inserted.
                 findExisting()
@@ -236,14 +278,15 @@ class CollectionRepository(
         newSuspendedTransaction {
             val now = LocalDateTime.now()
             val entity = CollectionEntity.new {
-                user          = UserEntity[userId]
-                kind          = CollectionKind.USER
-                this.name     = name
+                user = UserEntity[userId]
+                kind = CollectionKind.USER
+                this.name = name
                 this.isPublic = isPublic
-                createdAt     = now
-                updatedAt     = now
+                slug = if (isPublic) getSlug(name) else null
+                createdAt = now
+                updatedAt = now
             }
-            entity.toCollection(0, null)
+            entity.toCollection(Triple(0,0,0), null)
         }
 
     override suspend fun getUserCollections(
@@ -255,12 +298,10 @@ class CollectionRepository(
         // Build the base query — a LEFT JOIN so collections with zero items still appear,
         // and COUNT(collectionId) gives us item counts without a second query.
         var baseQuery = CollectionTable
-            .leftJoin(CollectionItemTable, { CollectionTable.id }, { CollectionItemTable.collectionId })
-            .select(CollectionTable.columns + CollectionItemTable.collectionId.count())
+            .select(CollectionTable.columns)
             .where {
                 (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER)
             }
-            .groupBy(CollectionTable.id)
             .orderBy(CollectionTable.updatedAt, SortOrder.DESC)
 
         if (onlyPublic) {
@@ -278,11 +319,12 @@ class CollectionRepository(
         // instead of one getLatestItemCoverUrl() call per row.
         val collectionIds = rows.map { it[CollectionTable.id].value }
         val coverUrls = getLatestItemCoverUrls(collectionIds)
+        val countsMap = getItemsCounts(collectionIds)
 
         rows.map { row ->
-            val id        = row[CollectionTable.id].value
-            val itemCount = row[CollectionItemTable.collectionId.count()].toInt()
-            row.toCollection(itemCount, coverUrls[id])
+            val id = row[CollectionTable.id].value
+            val itemsCount = countsMap[id] ?: Triple(0, 0, 0)
+            row.toCollection(itemsCount, coverUrls[id])
         }
     }
 
@@ -296,17 +338,39 @@ class CollectionRepository(
             }
 
             val row = CollectionTable
-                .leftJoin(CollectionItemTable, { CollectionTable.id }, { CollectionItemTable.collectionId })
-                .select(CollectionTable.columns + CollectionItemTable.collectionId.count())
+                .select(CollectionTable.columns)
                 .where { filter }
-                .groupBy(CollectionTable.id)
                 .firstOrNull()
                 ?: return@newSuspendedTransaction null
 
-            val itemCount = row[CollectionItemTable.collectionId.count()].toInt()
-            val coverUrl  = getLatestItemCoverUrl(collectionId)
-            row.toCollection(itemCount, coverUrl)
+            val coverUrl = getLatestItemCoverUrl(collectionId)
+            val itemsCount = getItemsCount(collectionId)
+            row.toCollection(itemsCount, coverUrl)
         }
+
+    override suspend fun getCollectionBySlug(username: String, slug: String, userId: UUID?): Collection?  = newSuspendedTransaction {
+        val filter = if (userId != null) {
+            (CollectionTable.slug eq slug) and
+                    ((CollectionTable.userId eq UserTable.id).and(UserTable.username eq username) or
+                            (CollectionTable.isPublic eq true))
+        } else {
+            (CollectionTable.slug eq slug) and
+                    (CollectionTable.userId eq UserTable.id).and(UserTable.username eq username) and
+                    (CollectionTable.isPublic eq true)
+        }
+
+        val row = CollectionTable
+            .innerJoin(UserTable, { CollectionTable.userId }, { UserTable.id })
+            .select(CollectionTable.columns)
+            .where { filter }
+            .firstOrNull()
+            ?: return@newSuspendedTransaction null
+
+        val collectionId = row[CollectionTable.id].value
+        val coverUrl = getLatestItemCoverUrl(collectionId)
+        val itemsCount = getItemsCount(collectionId)
+        row.toCollection(itemsCount, coverUrl)
+    }
 
     override suspend fun updateCollection(
         collectionId: UUID,
@@ -321,8 +385,9 @@ class CollectionRepository(
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@newSuspendedTransaction false
 
-        name?.let     { entity.name     = it }
+        name?.let { entity.name = it }
         isPublic?.let { entity.isPublic = it }
+        entity.slug = if (entity.isPublic) getSlug(entity.name) else null
         entity.updatedAt = LocalDateTime.now()
         true
     }
@@ -359,8 +424,8 @@ class CollectionRepository(
             val now = LocalDateTime.now()
             CollectionItemEntity.new {
                 this.collection = collection
-                this.content    = ContentEntity[contentId]
-                this.addedAt    = now
+                this.content = ContentEntity[contentId]
+                this.addedAt = now
             }
 
             // Bump updatedAt in the same transaction so both writes are atomic.
@@ -450,7 +515,7 @@ class CollectionRepository(
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             val (charts, _) = chartRepository.getCharts(
                 filters = ChartRepository.ChartFilters(contentIds = ids),
-                addons  = ChartRepository.ChartAddons(allVersions = true),
+                addons = ChartRepository.ChartAddons(streamingLinks = true),
             )
             catalogItems.addAll(charts)
         }
@@ -468,11 +533,11 @@ class CollectionRepository(
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             catalogItems.addAll(
                 tourPassRepository.getTourPasses(
-                    userId     = null,
+                    userId = null,
                     contentIds = ids,
-                    search     = null,
-                    limit      = null,
-                    offset     = null
+                    search = null,
+                    limit = null,
+                    offset = null
                 )
             )
         }

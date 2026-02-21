@@ -8,6 +8,7 @@ import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.ThemeTable
 import org.bscm.utils.UserStatsUtils
+import org.bscm.utils.retryOnConflict
 import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
@@ -19,8 +20,8 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
 
     private fun daoToTheme(
         entity: ThemeEntity,
-        likedAt : LocalDateTime? = null,
-        bookmarkedAt : LocalDateTime? = null
+        likedAt: LocalDateTime? = null,
+        bookmarkedAt: LocalDateTime? = null
     ): Theme {
         return Theme(
             id = entity.id.value.toString(),
@@ -55,7 +56,7 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
         if (!search.isNullOrBlank()) {
             query.andWhere {
                 (ThemeTable.name like "%$search%") or
-                (ThemeTable.replaces like "%$search%")
+                        (ThemeTable.replaces like "%$search%")
             }
         }
 
@@ -95,8 +96,10 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
         previewUrl: String
     ): Theme = newSuspendedTransaction {
         // Generate a unique content entry
-        val content = ContentEntity.new {
-            this.type = ContentType.THEME
+        val content = retryOnConflict {
+            ContentEntity.new {
+                this.type = ContentType.THEME
+            }
         }
 
         val entity = ThemeEntity.new {

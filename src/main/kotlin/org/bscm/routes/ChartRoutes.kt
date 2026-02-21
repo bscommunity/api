@@ -48,6 +48,7 @@ fun Route.chartRoutes(
         // -----------------------------------------------------------------
         authenticate("auth-public") {
             install(org.bscm.plugins.UserContext)
+
             rateLimit(RateLimitName("restricted")) {
 
                 /**
@@ -122,7 +123,7 @@ fun Route.chartRoutes(
                                 isDeluxe = isDeluxe,
                             ),
                             addons = ChartRepository.ChartAddons(
-                                allVersions = false,
+                                versions = false,
                                 streamingLinks = isMobileApp,
                                 count = count,
                             ),

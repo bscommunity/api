@@ -7,7 +7,7 @@ import org.jetbrains.exposed.sql.javatime.datetime
 import java.time.LocalDateTime
 
 object ContentTable : IdTable<String>("contents") {
-    override val id = varchar("id", 16)
+    override val id = varchar("id", 10)
         .clientDefault { NanoIdUtils.generateOptimized(10, "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 63, 16) }
         .entityId()
         .uniqueIndex()

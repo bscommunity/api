@@ -13,6 +13,7 @@ class CollectionEntity(id: EntityID<UUID>) : Entity<UUID>(id) {
     var user by UserEntity referencedOn CollectionTable.userId
     var kind by CollectionTable.kind
     var name by CollectionTable.name
+    var slug by CollectionTable.slug
     var isPublic by CollectionTable.isPublic
     var createdAt by CollectionTable.createdAt
     var updatedAt by CollectionTable.updatedAt

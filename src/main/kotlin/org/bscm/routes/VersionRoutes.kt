@@ -54,7 +54,7 @@ fun Route.versionRoutes(
 
                     val chart = chartRepository.getChartById(
                         chartId,
-                        ChartRepository.ChartAddons(allVersions = true)
+                        ChartRepository.ChartAddons(versions = true)
                     ) ?: throw NotFoundException("Chart not found")
 
                     logger.info("Received request to add version to chart $chartId")
@@ -178,7 +178,7 @@ fun Route.versionRoutes(
 
                     val chart = chartRepository.getChartById(
                         version.chartId.toULong(),
-                        ChartRepository.ChartAddons(allVersions = true)
+                        ChartRepository.ChartAddons(versions = true)
                     ) ?: throw NotFoundException("Chart not found")
 
                     logger.info("Removing version $versionId from chart ${chart.id}")

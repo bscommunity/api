@@ -22,5 +22,5 @@ data class Collection(
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,
     val coverUrl: String? = null, // SS
-    val itemsCount: Int = 0, // SS
+    val itemsCount: Triple<Int, Int, Int> = Triple(0, 0, 0), // SS
 )

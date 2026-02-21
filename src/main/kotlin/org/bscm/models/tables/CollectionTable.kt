@@ -1,4 +1,3 @@
-
 package org.bscm.models.tables
 
 import org.bscm.models.enums.CollectionKind
@@ -9,6 +8,7 @@ import org.jetbrains.exposed.sql.javatime.datetime
 object CollectionTable : UUIDTable("collections") {
     val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)
     val kind = enumerationByName("kind", 20, CollectionKind::class).default(CollectionKind.USER)
+    val slug = varchar("slug", 30).uniqueIndex().nullable()
 
     val name = varchar("name", 30)
     val isPublic = bool("is_public").default(false)

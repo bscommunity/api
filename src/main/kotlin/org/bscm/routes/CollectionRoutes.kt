@@ -16,7 +16,7 @@ import java.util.*
 fun Route.collectionRoutes(collectionService: CollectionService) {
     route("/collections") {
         authenticate("auth-bearer") {
-            // install(org.bscm.plugins.UserContext)
+            install(org.bscm.plugins.UserContext)
 
             /**
              * Get user's collections.
@@ -94,8 +94,31 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 call.respond(HttpStatusCode.OK, response)
             }
 
+            get("/slug/{username}/{slug}") {
+                val requesterUserId = call.getUserId()
+                val username = call.pathParameters["username"] ?: throw IllegalArgumentException("Username is required")
+                val slug = call.pathParameters["slug"] ?: throw IllegalArgumentException("Slug is required")
+
+                val collection = collectionService.getCollectionBySlug(username, slug, requesterUserId)
+                if (collection != null) {
+                    call.respond(collection)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, "Collection not found or you don't have permission")
+                }
+            }
+
             // Generalized routes with id
             route("/{id}") {
+                get {
+                    val userId = call.getUserId()
+                    val collectionId = call.getId()
+                    val collection = collectionService.getCollection(collectionId, userId)
+                    if (collection != null) {
+                        call.respond(collection)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "Collection not found or you don't have permission")
+                    }
+                }
 
                 /**
                  * Update collection metadata.

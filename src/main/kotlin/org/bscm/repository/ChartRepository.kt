@@ -16,6 +16,7 @@ import org.bscm.models.tables.*
 import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.UserStatsUtils
+import org.bscm.utils.retryOnConflict
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.*
@@ -79,7 +80,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
     )
 
     data class ChartAddons(
-        val allVersions: Boolean = false,
+        val versions: Boolean = false,
         val streamingLinks: Boolean = false,
         val count: Boolean = false,
     )
@@ -131,7 +132,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
         // Apply joins based on addons
         applyJoinsAndSelect(
             query,
-            fetchAllVersions = addons?.allVersions == true,
+            fetchAllVersions = addons?.versions == true,
             fetchStreamingLinks = addons?.streamingLinks == true
         )
 
@@ -212,7 +213,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
         // Apply joins based on addons
         applyJoinsAndSelect(
             query = fullQuery,
-            fetchAllVersions = addons?.allVersions == true,
+            fetchAllVersions = addons?.versions == true,
             fetchStreamingLinks = addons?.streamingLinks == true
         )
 
@@ -411,7 +412,10 @@ class ChartRepository : BaseRepository(), IChartRepository {
      * Fetches user interaction stats (likes and bookmarks) for a batch of charts.
      * Returns a map of contentId -> (isLiked, isBookmarked)
      */
-    private fun fetchUserStats(userId: UUID?, groupedByChartId: Map<ULong, List<ResultRow>>): Map<String, Pair<LocalDateTime?, LocalDateTime?>> {
+    private fun fetchUserStats(
+        userId: UUID?,
+        groupedByChartId: Map<ULong, List<ResultRow>>
+    ): Map<String, Pair<LocalDateTime?, LocalDateTime?>> {
         if (userId == null || groupedByChartId.isEmpty()) {
             return emptyMap()
         }
@@ -547,8 +551,10 @@ class ChartRepository : BaseRepository(), IChartRepository {
         // exec("SET CONSTRAINTS chart_latest_version_id_fkey DEFERRED")
 
         // Create the content entry first
-        val content = ContentEntity.new(chart.contentId) {
-            this.type = ContentType.CHART
+        val content = retryOnConflict {
+            ContentEntity.new(chart.contentId) {
+                this.type = ContentType.CHART
+            }
         }
 
         // Create the chart

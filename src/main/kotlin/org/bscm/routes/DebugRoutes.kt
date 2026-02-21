@@ -110,7 +110,7 @@ fun Route.debugRoutes(
         *
         * Tag: Debug
         *
-        * Body: application/json Discord ID as a plain string.
+        * Body: [String] Discord ID of the user to retrieve (required).
         *
         * Responses:
         *   - 404 User not found for given Discord ID.

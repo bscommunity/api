@@ -5,6 +5,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import org.bscm.models.enums.ContentType
 import org.bscm.plugins.UnauthorizedException
+import org.jetbrains.exposed.exceptions.ExposedSQLException
 import java.util.*
 
 /**
@@ -74,3 +75,17 @@ fun ApplicationCall.getPagination(coerceLimit: Int? = null, defaultOffset: Int? 
     return limit to offset
 }
 
+suspend fun <T> retryOnConflict(
+    maxAttempts: Int = 3,
+    block: suspend () -> T
+): T {
+    repeat(maxAttempts - 1) {
+        try {
+            return block()
+        } catch (e: ExposedSQLException) {
+            if (!e.message.orEmpty().contains("unique constraint", ignoreCase = true)) throw e
+            // shareId collision, retry with a freshly generated one
+        }
+    }
+    return block() // last attempt, let it throw naturally
+}
