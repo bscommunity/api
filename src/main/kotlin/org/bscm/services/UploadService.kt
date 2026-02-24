@@ -1,10 +1,10 @@
 package org.bscm.services
 
-import io.klogging.noCoLogger
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -21,7 +21,7 @@ import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
 import java.util.*
 
-private val logger = noCoLogger(UploadService::class)
+private val logger = KtorSimpleLogger("UploadService")
 
 class UploadService(
     private val webhookId: String,
@@ -360,7 +360,7 @@ class UploadService(
             throw Exception("Failed to send: ${response.status}, ${response.bodyAsText()}")
         }
 
-        logger.info(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
+        logger.info(response.bodyAsText())
 
         return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }

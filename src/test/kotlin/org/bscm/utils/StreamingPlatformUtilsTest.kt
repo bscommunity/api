@@ -1,6 +1,6 @@
 package org.bscm.utils
 
-import io.klogging.noCoLogger
+
 import org.bscm.models.StreamingLink
 import org.bscm.models.enums.StreamingPlatform
 import kotlin.test.Test

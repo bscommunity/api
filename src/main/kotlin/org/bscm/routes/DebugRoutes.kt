@@ -1,10 +1,10 @@
 package org.bscm.routes
 
-import io.klogging.logger
 import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.util.logging.*
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.services.MediaInfoService
@@ -12,7 +12,7 @@ import org.bscm.services.RefreshService
 import org.bscm.services.auth.JWTService
 import java.util.*
 
-private val log = logger("DebugRoutes")
+private val log = KtorSimpleLogger("DebugRoutes")
 
 fun Route.debugRoutes(
     mediaInfoService: MediaInfoService,

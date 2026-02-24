@@ -1,6 +1,6 @@
 package org.bscm.migrations
 
-import io.klogging.noCoLogger
+import io.ktor.util.logging.*
 import org.bscm.models.enums.ContentType
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContentTable
@@ -9,7 +9,7 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDateTime
 
-private val log = noCoLogger("PopulateNotNullValuesCLI")
+private val log = KtorSimpleLogger("PopulateNotNullValuesCLI")
 
 fun main(args: Array<String>) {
     if (args.size < 2) {

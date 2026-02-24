@@ -34,20 +34,21 @@ class CollectionRepository(
     // Mapping helpers
     // -------------------------------------------------------------------------
 
+    private fun ResultRow.toSimplifiedUser(): SimplifiedUser = SimplifiedUser(
+        id = this[UserTable.id].value,
+        username = this[UserTable.username],
+        avatarUrl = this[UserTable.avatarUrl],
+        bannerUrl = this[UserTable.bannerUrl],
+        bio = this[UserTable.bio],
+        accentColor = this[UserTable.accentColor],
+        isVerified = this[UserTable.isVerified]
+    )
+
     private fun ResultRow.toCollection(
         itemsCount: Triple<Int, Int, Int>,
         coverUrl: String?,
-        user: SimplifiedUser? = null
+        owner: SimplifiedUser? = null
     ): Collection {
-        val owner = user ?: SimplifiedUser(
-            id = this[UserTable.id].value,
-            username = this[UserTable.username],
-            avatarUrl = this[UserTable.avatarUrl],
-            bannerUrl = this[UserTable.bannerUrl],
-            bio = this[UserTable.bio],
-            accentColor = this[UserTable.accentColor],
-            isVerified = this[UserTable.isVerified]
-        )
         return Collection(
             id = this[CollectionTable.id].value,
             userId = this[CollectionTable.userId].value,
@@ -376,7 +377,7 @@ class CollectionRepository(
 
             val coverUrl = getLatestItemCoverUrl(collectionId)
             val itemsCount = getItemsCount(collectionId)
-            row.toCollection(itemsCount, coverUrl)
+            row.toCollection(itemsCount, coverUrl, row.toSimplifiedUser())
         }
 
     override suspend fun getCollectionBySlug(username: String, slug: String, userId: UUID?): Collection? =
@@ -401,7 +402,7 @@ class CollectionRepository(
             val collectionId = row[CollectionTable.id].value
             val coverUrl = getLatestItemCoverUrl(collectionId)
             val itemsCount = getItemsCount(collectionId)
-            row.toCollection(itemsCount, coverUrl)
+            row.toCollection(itemsCount, coverUrl, row.toSimplifiedUser())
         }
 
     override suspend fun updateCollection(

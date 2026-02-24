@@ -1,9 +1,9 @@
 package org.bscm.services
 
-import io.klogging.noCoLogger
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.util.logging.*
 import org.bscm.clients.applicationHttpClient
 import org.bscm.models.Chart
 import org.bscm.models.StreamingLink
@@ -20,7 +20,7 @@ import org.bscm.utils.DecodingUtils
 import org.bscm.utils.NanoIdUtils
 import org.bscm.utils.StreamingPlatformUtils
 
-private val log = noCoLogger("ChartPublishService")
+private val log = KtorSimpleLogger("ChartPublishService")
 
 /** Centralized pipeline for publishing a chart (Discord upload + DB persist). */
 class ChartPublishService(

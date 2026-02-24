@@ -78,9 +78,8 @@ dependencies {
     implementation(libs.flyway.core)
     runtimeOnly(libs.flyway.database.postgresql)
 
-    // Utils
-    implementation(libs.klogging)
-    implementation(libs.klogging.slf4j)
+    // Logging
+    implementation(libs.logback.classic)
 
     // Kotlin
     implementation(libs.kotlinx.datetime)

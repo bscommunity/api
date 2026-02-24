@@ -1,7 +1,7 @@
 package org.bscm.repository
 
-import io.klogging.noCoLogger
 import io.ktor.server.plugins.*
+import io.ktor.util.logging.*
 import org.bscm.models.Chart
 import org.bscm.models.Contributor
 import org.bscm.models.StreamingLink
@@ -28,9 +28,10 @@ import java.time.LocalDateTime
 import java.util.*
 import kotlin.math.max
 
+private val log = KtorSimpleLogger("ChartRepository")
+
 class ChartRepository : BaseRepository(), IChartRepository {
 
-    private val log = noCoLogger(ChartRepository::class)
 
     /**
      * Calculates version indices for multiple versions efficiently using a window function.

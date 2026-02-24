@@ -5,7 +5,7 @@ import io.github.deficuet.unitykt.UnityAssetManager
 import io.github.deficuet.unitykt.classes.TextAsset
 import io.github.deficuet.unitykt.classes.Texture2D
 import io.github.deficuet.unitykt.firstObjectOf
-import io.klogging.noCoLogger
+import io.ktor.util.logging.*
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
@@ -15,8 +15,9 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
+private val logger = KtorSimpleLogger("DecodingUtils")
+
 object DecodingUtils {
-    private val logger = noCoLogger(DecodingUtils::class)
 
     data class BundleInfo(
         val title: String,
@@ -73,7 +74,7 @@ object DecodingUtils {
                 type = extract("type")
             )
         } catch (e: Exception) {
-            logger.warn(e, "Failed to parse info.json")
+            logger.error("Failed to parse info.json", e)
             null
         }
     }
@@ -129,7 +130,7 @@ object DecodingUtils {
                 out.toByteArray()
             }
         } catch (e: Exception) {
-            logger.warn(e, "Failed to extract Texture2D cover from bundle")
+            logger.error("Failed to extract Texture2D cover from bundle", e)
             null
         }
     }

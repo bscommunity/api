@@ -1,6 +1,6 @@
 package org.bscm.utils
 
-import io.klogging.noCoLogger
+import io.ktor.util.logging.*
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.tables.CollectionItemTable
 import org.bscm.models.tables.CollectionTable
@@ -9,7 +9,7 @@ import org.jetbrains.exposed.sql.innerJoin
 import java.time.LocalDateTime
 import java.util.*
 
-private val log = noCoLogger(UserStatsUtils::class)
+private val log = KtorSimpleLogger("UserStatsUtils")
 
 /**
  * Utility object for fetching user interaction stats (likes and bookmarks) for catalog items.

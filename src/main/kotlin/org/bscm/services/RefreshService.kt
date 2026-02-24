@@ -1,9 +1,9 @@
 package org.bscm.services
 
-import io.klogging.noCoLogger
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.util.logging.*
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonArray
@@ -15,7 +15,7 @@ import org.bscm.services.UploadService.RefreshData
 import kotlin.math.min
 import kotlin.math.pow
 
-private val logger = noCoLogger(RefreshService::class)
+private val logger = KtorSimpleLogger("RefreshService")
 
 // ---------------------------------------------------------------------------
 // Configuration constants — tweak these without touching logic
@@ -216,7 +216,7 @@ class RefreshService(
                     header(HttpHeaders.Authorization, "Bot $botToken")
                 }
             } catch (e: Exception) {
-                logger.warn(e, "Network exception on GET $url")
+                logger.warn("Network exception on GET $url", e)
                 return PageResult.TransientError(-1, e.message ?: "Unknown network error")
             }
 
@@ -230,7 +230,7 @@ class RefreshService(
                     val messages = runCatching {
                         jsonClient.decodeFromString(JsonArray.serializer(), response.bodyAsText())
                     }.getOrElse { e ->
-                        logger.error(e, "Failed to deserialize message JSON")
+                        logger.warn("Failed to deserialize message JSON", e)
                         return PageResult.TransientError(200, "JSON parse failure: ${e.message}")
                     }
 

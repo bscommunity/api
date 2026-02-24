@@ -1,10 +1,11 @@
 package org.bscm.interactions.commands
 
-import io.klogging.logger
+
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
+import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
@@ -18,7 +19,7 @@ import org.bscm.services.ChartPublishService
 import org.bscm.services.InteractionResponseService
 import org.koin.ktor.ext.getKoin
 
-private val log = logger(PublishCommand::class)
+private val log = KtorSimpleLogger("PublishCommand")
 
 object PublishCommand {
     suspend fun ApplicationCall.respondJson(json: JsonObject) = respond(json)

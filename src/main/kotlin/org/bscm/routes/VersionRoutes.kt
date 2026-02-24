@@ -1,6 +1,5 @@
 package org.bscm.routes
 
-import io.klogging.noCoLogger
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.openapi.*
@@ -12,6 +11,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
+import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import org.bscm.clients.jsonClient
 import org.bscm.models.dto.version.CreateVersionRequest
@@ -25,15 +25,16 @@ import org.bscm.utils.QueryUtils.getNormalizedQuery
 import org.bscm.utils.QueryUtils.similarity
 import java.util.*
 
+private val logger = KtorSimpleLogger("VersionRoutes")
+
 @OptIn(ExperimentalKtorApi::class)
 fun Route.versionRoutes(
     versionRepository: IVersionRepository,
     chartRepository: IChartRepository,
     userRepository: IUserRepository,
     uploadService: UploadService,
-    supportUploadService: UploadService
+    // supportUploadService: UploadService
 ) {
-    val logger = noCoLogger("VersionRoutes")
 
     authenticate("auth-bearer") {
         rateLimit(RateLimitName("restricted")) {

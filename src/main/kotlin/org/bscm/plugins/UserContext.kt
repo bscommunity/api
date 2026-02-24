@@ -1,14 +1,14 @@
 package org.bscm.plugins
 
-import io.klogging.logger
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
+import io.ktor.util.logging.*
 import org.bscm.models.UserContext
 import org.bscm.repository.BaseRepository
 import java.util.*
 
-private val log = logger("UserContextPlugin")
+private val log = KtorSimpleLogger("UserContextPlugin")
 
 /**
  * Plugin that captures authenticated user context from JWT tokens for use in repositories.

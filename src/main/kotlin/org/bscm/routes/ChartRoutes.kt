@@ -1,6 +1,5 @@
 package org.bscm.routes
 
-import io.klogging.noCoLogger
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.openapi.*
@@ -12,6 +11,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
+import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import org.bscm.clients.jsonClient
 import org.bscm.models.dto.chart.CreateChartRequest
@@ -32,6 +32,8 @@ import org.bscm.services.UploadService
 import org.koin.ktor.ext.getKoin
 import java.util.*
 
+private val logger = KtorSimpleLogger("ChartRoutes")
+
 @OptIn(ExperimentalKtorApi::class)
 fun Route.chartRoutes(
     chartRepository: IChartRepository,
@@ -39,7 +41,6 @@ fun Route.chartRoutes(
     userRepository: IUserRepository,
     uploadService: UploadService,
 ) {
-    val logger = noCoLogger("ChartRoutes")
 
     route("/charts") {
 
@@ -439,7 +440,7 @@ fun Route.chartRoutes(
                         .getOrElse { e ->
                             // Discord cleanup failing is non-fatal — the chart is already
                             // removed from the DB. Log and continue rather than returning 500.
-                            logger.warn(e, "Chart $id deleted from DB but Discord cleanup failed")
+                            logger.warn("Chart $id deleted from DB but Discord cleanup failed", e)
                             false
                         }
 

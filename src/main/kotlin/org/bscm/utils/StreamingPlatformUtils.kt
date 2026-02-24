@@ -1,12 +1,12 @@
 package org.bscm.utils
 
-import io.klogging.noCoLogger
+import io.ktor.util.logging.*
 import org.bscm.models.StreamingLink
 import org.bscm.models.enums.StreamingPlatform
 import java.net.URI
 import java.net.URISyntaxException
 
-private val log = noCoLogger("StreamingPlatformUtils")
+private val log = KtorSimpleLogger("StreamingPlatformUtils")
 
 /**
  * Utility object for handling streaming platform detection and prioritization

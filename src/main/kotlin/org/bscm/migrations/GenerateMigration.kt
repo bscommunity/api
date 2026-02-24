@@ -2,14 +2,14 @@ package org.bscm.migrations
 
 import MigrationUtils
 import io.github.classgraph.ClassGraph
-import io.klogging.noCoLogger
+import io.ktor.util.logging.*
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ExperimentalDatabaseMigrationApi
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.nio.file.Path
 
-private val log = noCoLogger("GenerateMigrationCLI")
+private val log = KtorSimpleLogger("GenerateMigrationCLI")
 
 fun main(args: Array<String>) {
     if (args.size < 4) {

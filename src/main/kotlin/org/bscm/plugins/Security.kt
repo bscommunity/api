@@ -2,18 +2,18 @@ package org.bscm.plugins
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import io.klogging.logger
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.config.*
 import io.ktor.server.response.*
+import io.ktor.util.logging.*
 import org.bscm.services.auth.HMACService
 import org.koin.ktor.ext.inject
 import java.util.*
 
-private val log = logger("Security")
+private val log = KtorSimpleLogger("Security")
 
 // Custom principal for HMAC authentication
 data class HMACPrincipal(val appId: String, val timestamp: String)

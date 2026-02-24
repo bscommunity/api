@@ -1,7 +1,7 @@
 package org.bscm.plugins
 
-import io.klogging.logger
 import io.ktor.server.application.*
+import io.ktor.util.logging.*
 import kotlinx.coroutines.*
 import org.bscm.models.Changelog
 import org.bscm.models.StreamingLink
@@ -20,7 +20,7 @@ import org.koin.ktor.ext.inject
 import java.util.*
 import kotlin.random.Random
 
-private val log = logger("Seed")
+private val log = KtorSimpleLogger("Seed")
 
 fun Application.seedDatabase() {
     val chartRepository by inject<IChartRepository>()

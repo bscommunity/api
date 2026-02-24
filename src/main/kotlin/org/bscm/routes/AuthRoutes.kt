@@ -1,6 +1,5 @@
 package org.bscm.routes
 
-import io.klogging.logger
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -9,6 +8,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.util.logging.*
 import kotlinx.serialization.Serializable
 import org.bscm.models.User
 import org.bscm.models.dto.account.CreateAccountRequest
@@ -21,7 +21,7 @@ import org.bscm.services.auth.JWTService
 import java.time.LocalDateTime
 import java.util.*
 
-private val log = logger("AuthRoutes")
+private val log = KtorSimpleLogger("AuthRoutes")
 
 fun Route.authRoutes(
     userRepository: IUserRepository,

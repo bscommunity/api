@@ -92,7 +92,7 @@ fun Application.configureRouting() {
         meRoutes(collectionService, profileService, chartRepository)
 
         chartRoutes(chartRepository, versionRepository, userRepository, uploadService)
-        versionRoutes(versionRepository, chartRepository, userRepository, uploadService, supportUploadService)
+        versionRoutes(versionRepository, chartRepository, userRepository, uploadService, /*supportUploadService*/)
         contributorRoutes(contributorRepository)
         tourPassRoutes(tourPassRepository)
         themeRoutes(themeRepository)

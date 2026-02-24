@@ -1,6 +1,5 @@
 package org.bscm.utils
 
-import io.klogging.logger
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -8,9 +7,9 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.util.logging.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
-
 
 @Serializable
 private data class CommandOption(
@@ -27,7 +26,7 @@ private data class ApplicationCommand(
     val options: List<CommandOption>? = null
 )
 
-private val log = logger(CommandUtils::class)
+private val log = KtorSimpleLogger("CommandUtils")
 
 object CommandUtils {
     fun registerDiscordCommands(botToken: String, appId: String, guildId: String? = null) {

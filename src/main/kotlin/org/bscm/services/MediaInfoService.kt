@@ -1,6 +1,6 @@
 package org.bscm.services
 
-import io.klogging.noCoLogger
+import io.ktor.util.logging.*
 import org.bscm.clients.*
 import org.bscm.models.StreamingLink
 import org.bscm.models.enums.PreviewProvider
@@ -9,6 +9,8 @@ import org.bscm.services.media.MediaInfoResult
 import org.bscm.utils.GenresUtils
 import org.bscm.utils.StreamingPlatformUtils
 
+private val logger = KtorSimpleLogger("MediaInfoService")
+
 class MediaInfoService(
     private val itunes: ItunesClient,
     private val deezer: DeezerClient,
@@ -16,7 +18,6 @@ class MediaInfoService(
     private val odesli: OdesliClient,
     private val musicbrainz: MusicbrainzClient
 ) {
-    private val logger = noCoLogger(MediaInfoService::class)
 
     data class TrackMatchContext(
         val track: String,
