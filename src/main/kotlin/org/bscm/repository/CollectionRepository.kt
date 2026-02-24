@@ -6,6 +6,7 @@ import org.bscm.models.dao.CollectionEntity
 import org.bscm.models.dao.CollectionItemEntity
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.UserEntity
+import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IChartRepository
@@ -33,7 +34,20 @@ class CollectionRepository(
     // Mapping helpers
     // -------------------------------------------------------------------------
 
-    private fun ResultRow.toCollection(itemsCount: Triple<Int, Int, Int>, coverUrl: String?): Collection {
+    private fun ResultRow.toCollection(
+        itemsCount: Triple<Int, Int, Int>,
+        coverUrl: String?,
+        user: SimplifiedUser? = null
+    ): Collection {
+        val owner = user ?: SimplifiedUser(
+            id = this[UserTable.id].value,
+            username = this[UserTable.username],
+            avatarUrl = this[UserTable.avatarUrl],
+            bannerUrl = this[UserTable.bannerUrl],
+            bio = this[UserTable.bio],
+            accentColor = this[UserTable.accentColor],
+            isVerified = this[UserTable.isVerified]
+        )
         return Collection(
             id = this[CollectionTable.id].value,
             userId = this[CollectionTable.userId].value,
@@ -43,11 +57,23 @@ class CollectionRepository(
             createdAt = this[CollectionTable.createdAt],
             updatedAt = this[CollectionTable.updatedAt],
             coverUrl = coverUrl,
-            itemsCount = itemsCount
+            chartCount = itemsCount.first,
+            tourPassCount = itemsCount.second,
+            themeCount = itemsCount.third,
+            owner = owner
         )
     }
 
-    private fun CollectionEntity.toCollection(itemsCount:  Triple<Int, Int, Int>, coverUrl: String?): Collection {
+    private fun CollectionEntity.toCollection(itemsCount: Triple<Int, Int, Int>, coverUrl: String?): Collection {
+        val owner = SimplifiedUser(
+            id = user.id.value,
+            username = user.username,
+            avatarUrl = user.avatarUrl,
+            bannerUrl = user.bannerUrl,
+            bio = user.bio,
+            accentColor = user.accentColor,
+            isVerified = user.isVerified
+        )
         return Collection(
             id = id.value,
             userId = user.id.value,
@@ -57,7 +83,10 @@ class CollectionRepository(
             createdAt = createdAt,
             updatedAt = updatedAt,
             coverUrl = coverUrl,
-            itemsCount = itemsCount
+            chartCount = itemsCount.first,
+            tourPassCount = itemsCount.second,
+            themeCount = itemsCount.third,
+            owner = owner
         )
     }
 
@@ -264,7 +293,7 @@ class CollectionRepository(
                     createdAt = now
                     updatedAt = now
                 }
-                entity.toCollection(Triple(0,0,0), null)
+                entity.toCollection(Triple(0, 0, 0), null)
             } catch (e: ExposedSQLException) {
                 // Another concurrent request won the race — read what they inserted.
                 findExisting()
@@ -286,7 +315,7 @@ class CollectionRepository(
                 createdAt = now
                 updatedAt = now
             }
-            entity.toCollection(Triple(0,0,0), null)
+            entity.toCollection(Triple(0, 0, 0), null)
         }
 
     override suspend fun getUserCollections(
@@ -298,7 +327,8 @@ class CollectionRepository(
         // Build the base query — a LEFT JOIN so collections with zero items still appear,
         // and COUNT(collectionId) gives us item counts without a second query.
         var baseQuery = CollectionTable
-            .select(CollectionTable.columns)
+            .innerJoin(UserTable, { CollectionTable.userId }, { UserTable.id })
+            .select(CollectionTable.columns + UserTable.id)
             .where {
                 (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER)
             }
@@ -324,7 +354,7 @@ class CollectionRepository(
         rows.map { row ->
             val id = row[CollectionTable.id].value
             val itemsCount = countsMap[id] ?: Triple(0, 0, 0)
-            row.toCollection(itemsCount, coverUrls[id])
+            row.toCollection(itemsCount, coverUrls[id], null)
         }
     }
 
@@ -338,7 +368,8 @@ class CollectionRepository(
             }
 
             val row = CollectionTable
-                .select(CollectionTable.columns)
+                .innerJoin(UserTable, { CollectionTable.userId }, { UserTable.id })
+                .select(CollectionTable.columns + UserTable.columns)
                 .where { filter }
                 .firstOrNull()
                 ?: return@newSuspendedTransaction null
@@ -348,29 +379,30 @@ class CollectionRepository(
             row.toCollection(itemsCount, coverUrl)
         }
 
-    override suspend fun getCollectionBySlug(username: String, slug: String, userId: UUID?): Collection?  = newSuspendedTransaction {
-        val filter = if (userId != null) {
-            (CollectionTable.slug eq slug) and
-                    ((CollectionTable.userId eq UserTable.id).and(UserTable.username eq username) or
-                            (CollectionTable.isPublic eq true))
-        } else {
-            (CollectionTable.slug eq slug) and
-                    (CollectionTable.userId eq UserTable.id).and(UserTable.username eq username) and
-                    (CollectionTable.isPublic eq true)
+    override suspend fun getCollectionBySlug(username: String, slug: String, userId: UUID?): Collection? =
+        newSuspendedTransaction {
+            val filter = if (userId != null) {
+                (CollectionTable.slug eq slug) and
+                        ((CollectionTable.userId eq UserTable.id).and(UserTable.username eq username) or
+                                (CollectionTable.isPublic eq true))
+            } else {
+                (CollectionTable.slug eq slug) and
+                        (CollectionTable.userId eq UserTable.id).and(UserTable.username eq username) and
+                        (CollectionTable.isPublic eq true)
+            }
+
+            val row = CollectionTable
+                .innerJoin(UserTable, { CollectionTable.userId }, { UserTable.id })
+                .select(CollectionTable.columns + UserTable.columns)
+                .where { filter }
+                .firstOrNull()
+                ?: return@newSuspendedTransaction null
+
+            val collectionId = row[CollectionTable.id].value
+            val coverUrl = getLatestItemCoverUrl(collectionId)
+            val itemsCount = getItemsCount(collectionId)
+            row.toCollection(itemsCount, coverUrl)
         }
-
-        val row = CollectionTable
-            .innerJoin(UserTable, { CollectionTable.userId }, { UserTable.id })
-            .select(CollectionTable.columns)
-            .where { filter }
-            .firstOrNull()
-            ?: return@newSuspendedTransaction null
-
-        val collectionId = row[CollectionTable.id].value
-        val coverUrl = getLatestItemCoverUrl(collectionId)
-        val itemsCount = getItemsCount(collectionId)
-        row.toCollection(itemsCount, coverUrl)
-    }
 
     override suspend fun updateCollection(
         collectionId: UUID,
