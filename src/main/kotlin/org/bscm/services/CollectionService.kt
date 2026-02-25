@@ -1,5 +1,6 @@
 package org.bscm.services
 
+import io.ktor.util.logging.*
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
 import org.bscm.models.dto.collection.BatchCollectionItemRequest
@@ -12,6 +13,8 @@ import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.ICollectionRepository
 import java.time.LocalDateTime
 import java.util.*
+
+private val log = KtorSimpleLogger("CollectionService")
 
 class CollectionService(
     private val collectionRepository: ICollectionRepository,
@@ -106,6 +109,8 @@ class CollectionService(
                         continue
                     }
                 }
+
+                log.debug("Processing batch: collectionId=$resolvedCollectionId, kind=$collectionKind, action=$action, contentIds=${contentIds.size}")
 
                 // Use the request's enqueuedAt if present, otherwise fall back to now.
                 // For a group, all items share the same Triple key so we pick the first

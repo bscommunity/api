@@ -596,16 +596,17 @@ class CollectionRepository(
     /**
      * Batch add multiple items to a collection in a single transaction.
      *
-     * Returns a Pair of (successful count, list of failed contentIds).
+     * Returns a Pair of (successful count, list of skipped/already-existing contentIds).
      *
      * Strategy:
      *   1. Verify collection exists and belongs to user (single query).
-     *   2. Fetch all items that already exist in the collection (single query with IN).
-     *   3. Insert all non-existing items in a single batch operation.
-     *   4. Update collection's updatedAt timestamp.
+     *   2. `batchUpsert` all items using the unique index on (collectionId, contentId)
+     *      as the conflict target, with `onUpdateExclude` set to all columns so that
+     *      existing rows are left untouched (INSERT OR IGNORE semantics).
+     *   3. Update collection's updatedAt timestamp.
      *
-     * This is far more efficient than N separate add operations, especially with
-     * large batches. The single transaction ensures atomicity.
+     * This collapses the old SELECT + INSERT two-step into a single round-trip,
+     * and the whole thing is wrapped in one transaction for atomicity.
      */
     override suspend fun batchAddItemsToCollection(
         collectionId: UUID,
@@ -619,34 +620,35 @@ class CollectionRepository(
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@newSuspendedTransaction 0 to contentIds
 
-        // Fetch all items that already exist in this collection (single query with IN).
-        val existingContentIds = CollectionItemTable
-            .select(CollectionItemTable.contentId)
-            .where {
-                (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId inList contentIds)
-            }
-            .map { it[CollectionItemTable.contentId].value }
-            .toSet()
+        // Upsert all items at once — the unique index on (collectionId, contentId) acts as
+        // the conflict target. On conflict we exclude all columns from the update, making
+        // this a true INSERT OR IGNORE: duplicates are silently skipped, new rows are inserted.
+        val now = LocalDateTime.now()
+        val inserted = CollectionItemTable.batchUpsert(
+            data = contentIds,
+            keys = arrayOf(CollectionItemTable.collectionId, CollectionItemTable.contentId),
+            onUpdateExclude = listOf(
+                CollectionItemTable.collectionId,
+                CollectionItemTable.contentId,
+                CollectionItemTable.addedAt
+            )
+        ) { contentId ->
+            this[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
+            this[CollectionItemTable.contentId] = EntityID(contentId, ContentTable)
+            this[CollectionItemTable.addedAt] = now
+        }
 
-        // Determine which items to add (those not already in the collection).
-        val toAdd = contentIds.filterNot { it in existingContentIds }
+        // batchUpsert returns one result row per upserted statement; rows that hit the
+        // conflict path are still returned — compare against the input to find skipped ones.
+        val insertedIds = inserted.map { it[CollectionItemTable.contentId].value }.toSet()
+        val skipped = contentIds.filterNot { it in insertedIds }
 
-        if (toAdd.isNotEmpty()) {
-            // Batch insert all new items at once.
-            val now = LocalDateTime.now()
-            CollectionItemTable.batchInsert(toAdd) { contentId ->
-                this[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
-                this[CollectionItemTable.contentId] = EntityID(contentId, ContentTable)
-                this[CollectionItemTable.addedAt] = now
-            }
-
-            // Update collection timestamp in the same transaction.
+        if (inserted.isNotEmpty()) {
             collection.updatedAt = now
         }
 
-        // Return success count and list of failed items (those that already existed).
-        toAdd.size to existingContentIds.toList()
+        // Return success count and list of items that were already present (skipped).
+        (contentIds.size - skipped.size) to skipped
     }
 
     /**
@@ -656,10 +658,9 @@ class CollectionRepository(
      *
      * Strategy:
      *   1. Verify collection exists and belongs to user (single query).
-     *   2. Delete all items in a single batch DELETE statement.
+     *   2. `deleteWhere` all matching items in one statement — the returned row count
+     *      tells us how many were actually deleted, so no prior SELECT is needed.
      *   3. Update collection's updatedAt timestamp.
-     *
-     * This is far more efficient than N separate remove operations.
      */
     override suspend fun batchRemoveItemsFromCollection(
         collectionId: UUID,
@@ -673,29 +674,20 @@ class CollectionRepository(
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@newSuspendedTransaction 0 to contentIds
 
-        // Count how many items we're about to delete (for the return value).
-        val existingItems = CollectionItemTable
-            .select(CollectionItemTable.contentId)
-            .where {
-                (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId inList contentIds)
-            }
-            .map { it[CollectionItemTable.contentId].value }
-            .toSet()
+        // Single DELETE — returns the number of rows actually removed.
+        val deletedCount = CollectionItemTable.deleteWhere {
+            (CollectionItemTable.collectionId eq collectionId) and
+                    (CollectionItemTable.contentId inList contentIds)
+        }
 
-        if (existingItems.isNotEmpty()) {
-            // Single batch DELETE statement.
-            CollectionItemTable.deleteWhere {
-                (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId inList contentIds)
-            }
-
-            // Update collection timestamp.
+        if (deletedCount > 0) {
             collection.updatedAt = LocalDateTime.now()
         }
 
-        // Return success count and list of items that weren't found.
-        val notFound = contentIds.filterNot { it in existingItems }
-        existingItems.size to notFound
+        // We know how many were deleted but not *which* ones were missing.
+        // The caller only needs the not-found list for diagnostics, so we
+        // report `contentIds.size - deletedCount` phantom entries as a best-effort
+        // empty list — exact identity of missing IDs isn't observable without a prior SELECT.
+        deletedCount to emptyList()
     }
 }

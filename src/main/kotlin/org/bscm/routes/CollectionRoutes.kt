@@ -197,6 +197,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                         val category = call.getContentTypeOrNull()
                         val (limit, offset) = call.getPagination()
                         val items = collectionService.getCollectionItems(collectionId, userId, category, limit, offset)
+                        println("Fetched ${items.size} items for collection $collectionId with category filter '$category'")
                         call.respond(items)
                     }
 
