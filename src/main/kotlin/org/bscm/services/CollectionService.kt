@@ -144,17 +144,21 @@ class CollectionService(
                             }
                         }
 
-                        result
+                        log.debug("Batch add result: success=${result.first}, failed=${result.second}")
+
+                        (result.first to result.second.size)
                     }
                     ActionType.REMOVE -> {
-                        collectionRepository.batchRemoveItemsFromCollection(
+                        val deletedCount = collectionRepository.batchRemoveItemsFromCollection(
                             resolvedCollectionId, userId, contentIds
                         )
+
+                        (deletedCount to contentIds.size - deletedCount)
                     }
                 }
 
                 successCount += success
-                failCount += failed.size
+                failCount += failed
             } catch (e: Exception) {
                 e.printStackTrace()
                 failCount += contentIds.size
@@ -216,7 +220,7 @@ class CollectionService(
 
     suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String? = null, isPublic: Boolean? = null): Boolean {
         val collection = collectionRepository.getCollection(collectionId, userId)
-        if (collection?.kind != CollectionKind.USER) return false
+        if (collection?.kind != CollectionKind.USER) throw IllegalArgumentException("Only user collections can be updated")
 
         name?.let {
             require(it.isNotBlank()) { "Collection name cannot be blank" }
@@ -228,14 +232,14 @@ class CollectionService(
 
     suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean {
         val collection = collectionRepository.getCollection(collectionId, userId)
-        if (collection?.kind != CollectionKind.USER) return false
+        if (collection?.kind != CollectionKind.USER) throw IllegalArgumentException("Only user collections can be deleted")
 
         return collectionRepository.deleteCollection(collectionId, userId)
     }
 
     suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean {
-        val collection = collectionRepository.getCollection(collectionId, userId)
-        if (collection?.kind != CollectionKind.USER) return false
+        // We avoid checking if the collection is a system collection here since
+        // it doesn't cause any harm to add items to a system collection via this method
 
         return collectionRepository.addItemToCollection(collectionId, userId, contentId)
     }
@@ -252,50 +256,5 @@ class CollectionService(
         offset: Int? = null
     ): List<CatalogItem> {
         return collectionRepository.getCollectionItems(collectionId, userId, category, limit, offset)
-    }
-
-    suspend fun getSystemCollectionItemsForProfile(
-        userId: UUID,
-        kind: CollectionKind,
-        viewerId: UUID?,
-        allowPublic: Boolean,
-        limit: Int
-    ): List<CatalogItem> {
-        require(kind != CollectionKind.USER) { "Cannot use USER kind as system collection" }
-
-        val collection = collectionRepository.getOrCreateSystemCollection(userId, kind)
-
-        val accessUserId = when {
-            viewerId == userId -> viewerId
-            allowPublic -> userId
-            else -> null
-        }
-
-        return collectionRepository.getCollectionItems(
-            collectionId = collection.id,
-            userId = accessUserId,
-            category = null,
-            limit = limit,
-            offset = 0
-        )
-    }
-
-    suspend fun batchAddItemsToCollection(
-        collectionId: UUID,
-        userId: UUID,
-        contentIds: List<String>
-    ): Pair<Int, List<String>> {
-        val collection = collectionRepository.getCollection(collectionId, userId)
-        if (collection?.kind != CollectionKind.USER) return 0 to contentIds
-
-        return collectionRepository.batchAddItemsToCollection(collectionId, userId, contentIds)
-    }
-
-    suspend fun batchRemoveItemsFromCollection(
-        collectionId: UUID,
-        userId: UUID,
-        contentIds: List<String>
-    ): Pair<Int, List<String>> {
-        return collectionRepository.batchRemoveItemsFromCollection(collectionId, userId, contentIds)
     }
 }

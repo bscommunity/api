@@ -25,5 +25,5 @@ interface ICollectionRepository {
 
     // Batch Operations
     suspend fun batchAddItemsToCollection(collectionId: UUID, userId: UUID, contentIds: List<String>): Pair<Int, List<String>>
-    suspend fun batchRemoveItemsFromCollection(collectionId: UUID, userId: UUID, contentIds: List<String>): Pair<Int, List<String>>
+    suspend fun batchRemoveItemsFromCollection(collectionId: UUID, userId: UUID, contentIds: List<String>): Int
 }

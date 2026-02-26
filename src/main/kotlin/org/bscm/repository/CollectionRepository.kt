@@ -428,7 +428,7 @@ class CollectionRepository(
     override suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean =
         newSuspendedTransaction {
             val entity = CollectionEntity.find {
-                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
+                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER)
             }.firstOrNull() ?: return@newSuspendedTransaction false
 
             entity.delete()
@@ -442,8 +442,52 @@ class CollectionRepository(
                 (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
             }.firstOrNull() ?: return@newSuspendedTransaction false
 
+            when (collection.kind) {
+                CollectionKind.BOOKMARKS -> {
+                    // Remove from all USER collections of this user
+                    val userCollectionIds = CollectionTable
+                        .select(CollectionTable.id)
+                        .where {
+                            (CollectionTable.userId eq userId) and
+                                    (CollectionTable.kind eq CollectionKind.USER)
+                        }
+                        .map { it[CollectionTable.id].value }
+
+                    if (userCollectionIds.isNotEmpty()) {
+                        CollectionItemTable.deleteWhere {
+                            (CollectionItemTable.collectionId inList userCollectionIds) and
+                                    (CollectionItemTable.contentId eq contentId)
+                        }
+                    }
+                }
+
+                CollectionKind.USER -> {
+                    // Remove from BOOKMARKS system collection
+                    val bookmarksId = CollectionTable
+                        .select(CollectionTable.id)
+                        .where {
+                            (CollectionTable.userId eq userId) and
+                                    (CollectionTable.kind eq CollectionKind.BOOKMARKS)
+                        }
+                        .firstOrNull()
+                        ?.get(CollectionTable.id)
+                        ?.value
+
+                    if (bookmarksId != null) {
+                        CollectionItemTable.deleteWhere {
+                            (CollectionItemTable.collectionId eq bookmarksId) and
+                                    (CollectionItemTable.contentId eq contentId)
+                        }
+                    }
+                }
+
+                CollectionKind.LIKES -> {
+                    // Do nothing — likes can coexist
+                }
+            }
+
             // Use COUNT instead of selectAll() + firstOrNull() — we only need a boolean,
-            // so there's no point fetching and materialising all columns.
+            // so there's no point fetching and materializing all columns.
             val alreadyExists = CollectionItemTable
                 .select(CollectionItemTable.collectionId.count())
                 .where {
@@ -620,6 +664,50 @@ class CollectionRepository(
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@newSuspendedTransaction 0 to contentIds
 
+        when (collection.kind) {
+            CollectionKind.BOOKMARKS -> {
+                // Remove all contentIds from every USER collection
+                val userCollectionIds = CollectionTable
+                    .select(CollectionTable.id)
+                    .where {
+                        (CollectionTable.userId eq userId) and
+                                (CollectionTable.kind eq CollectionKind.USER)
+                    }
+                    .map { it[CollectionTable.id].value }
+
+                if (userCollectionIds.isNotEmpty()) {
+                    CollectionItemTable.deleteWhere {
+                        (CollectionItemTable.collectionId inList userCollectionIds) and
+                                (CollectionItemTable.contentId inList contentIds)
+                    }
+                }
+            }
+
+            CollectionKind.USER -> {
+                // Remove from BOOKMARKS
+                val bookmarksId = CollectionTable
+                    .select(CollectionTable.id)
+                    .where {
+                        (CollectionTable.userId eq userId) and
+                                (CollectionTable.kind eq CollectionKind.BOOKMARKS)
+                    }
+                    .firstOrNull()
+                    ?.get(CollectionTable.id)
+                    ?.value
+
+                if (bookmarksId != null) {
+                    CollectionItemTable.deleteWhere {
+                        (CollectionItemTable.collectionId eq bookmarksId) and
+                                (CollectionItemTable.contentId inList contentIds)
+                    }
+                }
+            }
+
+            CollectionKind.LIKES -> {
+                // Nothing
+            }
+        }
+
         // Upsert all items at once — the unique index on (collectionId, contentId) acts as
         // the conflict target. On conflict we exclude all columns from the update, making
         // this a true INSERT OR IGNORE: duplicates are silently skipped, new rows are inserted.
@@ -666,13 +754,13 @@ class CollectionRepository(
         collectionId: UUID,
         userId: UUID,
         contentIds: List<String>
-    ): Pair<Int, List<String>> = newSuspendedTransaction {
-        if (contentIds.isEmpty()) return@newSuspendedTransaction 0 to emptyList()
+    ) = newSuspendedTransaction {
+        if (contentIds.isEmpty()) throw IllegalArgumentException("No contentIds provided for batch removal")
 
         // Verify the collection exists and belongs to the user.
         val collection = CollectionEntity.find {
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-        }.firstOrNull() ?: return@newSuspendedTransaction 0 to contentIds
+        }.firstOrNull() ?: throw NoSuchElementException("Collection not found or does not belong to user")
 
         // Single DELETE — returns the number of rows actually removed.
         val deletedCount = CollectionItemTable.deleteWhere {
@@ -684,10 +772,6 @@ class CollectionRepository(
             collection.updatedAt = LocalDateTime.now()
         }
 
-        // We know how many were deleted but not *which* ones were missing.
-        // The caller only needs the not-found list for diagnostics, so we
-        // report `contentIds.size - deletedCount` phantom entries as a best-effort
-        // empty list — exact identity of missing IDs isn't observable without a prior SELECT.
-        deletedCount to emptyList()
+        deletedCount
     }
 }
