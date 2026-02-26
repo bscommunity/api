@@ -52,6 +52,7 @@ class CollectionRepository(
             userId = this[CollectionTable.userId].value,
             kind = this[CollectionTable.kind],
             name = this[CollectionTable.name],
+            slug = this[CollectionTable.slug],
             isPublic = this[CollectionTable.isPublic],
             createdAt = this[CollectionTable.createdAt],
             updatedAt = this[CollectionTable.updatedAt],
@@ -78,6 +79,7 @@ class CollectionRepository(
             userId = user.id.value,
             kind = kind,
             name = name,
+            slug = slug,
             isPublic = isPublic,
             createdAt = createdAt,
             updatedAt = updatedAt,
@@ -390,19 +392,20 @@ class CollectionRepository(
         userId: UUID,
         name: String?,
         isPublic: Boolean?
-    ): Boolean = newSuspendedTransaction {
+    ): String? = newSuspendedTransaction {
         // Early-exit if there's nothing to update — avoids a pointless write.
-        if (name == null && isPublic == null) return@newSuspendedTransaction false
+        if (name == null && isPublic == null) return@newSuspendedTransaction null
 
         val entity = CollectionEntity.find {
-            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-        }.firstOrNull() ?: return@newSuspendedTransaction false
+            (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER)
+        }.firstOrNull() ?: return@newSuspendedTransaction null
 
         name?.let { entity.name = it }
         isPublic?.let { entity.isPublic = it }
         entity.slug = if (entity.isPublic) getSlug(entity.name) else null
         entity.updatedAt = LocalDateTime.now()
-        true
+
+        entity.slug
     }
 
     override suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean =

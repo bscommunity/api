@@ -160,9 +160,13 @@ class CollectionService(
         return collectionRepository.createCollection(userId, name, isPublic)
     }
 
-    suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String? = null, isPublic: Boolean? = null): Boolean {
-        val collection = collectionRepository.getCollection(collectionId, userId)
-        if (collection?.kind != CollectionKind.USER) throw IllegalArgumentException("Only user collections can be updated")
+    suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String? = null, isPublic: Boolean? = null): String? {
+        // TODO: For now, for optimization, we add a SELECT clause in the UPDATE query
+        //  to ensure the collection belongs to the user and is of kind USER.
+        //  This means we don't need to do a separate getCollection call here,
+        //  but it also means we can't validate the collection's existence or ownership before attempting the update.
+        // val collection = collectionRepository.getCollection(collectionId, userId)
+        // if (collection?.kind != CollectionKind.USER) throw IllegalArgumentException("Only user collections can be updated")
 
         name?.let {
             require(it.isNotBlank()) { "Collection name cannot be blank" }

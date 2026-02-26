@@ -19,6 +19,7 @@ data class Collection(
     val userId: UUID,
     val kind: CollectionKind,
     val name: String,
+    val slug: String? = null,
     val isPublic: Boolean,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,

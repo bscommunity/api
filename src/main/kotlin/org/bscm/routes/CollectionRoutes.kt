@@ -133,20 +133,15 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                  *   - 400 Invalid request parameters.
                  *   - 401 User not authenticated.
                  *   - 404 Collection not found or no permission.
-                 *   - 200 Success message.
+                 *   - 200 Updated collection slug (if name changed)
                  */
                 put {
                     val userId = call.getUserId()
                     val collectionId = call.getId()
                     val request = call.receive<UpdateCollectionRequest>()
                     try {
-                        val updated =
-                            collectionService.updateCollection(collectionId, userId, request.name, request.isPublic)
-                        if (updated) {
-                            call.respond(HttpStatusCode.OK, mapOf("message" to "Collection updated successfully"))
-                        } else {
-                            call.respond(HttpStatusCode.NotFound, "Collection not found or you don't have permission")
-                        }
+                        val slug = collectionService.updateCollection(collectionId, userId, request.name, request.isPublic)
+                        call.respond(HttpStatusCode.OK, mapOf("slug" to slug))
                     } catch (e: IllegalArgumentException) {
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
