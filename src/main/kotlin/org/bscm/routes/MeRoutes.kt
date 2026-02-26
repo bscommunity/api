@@ -112,15 +112,7 @@ fun Route.meRoutes(
             get("/likes") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
-
-                val items = collectionService.getSystemCollectionItems(
-                    userId = userId,
-                    kind = CollectionKind.LIKES,
-                    limit = limit,
-                    offset = offset
-                )
-
-                call.respond(items)
+                call.respond(collectionService.getCollectionItems(userId, CollectionKind.LIKES, limit = limit, offset = offset))
             }
 
             /**
@@ -139,15 +131,10 @@ fun Route.meRoutes(
              */
             post("/likes/{contentId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"]
-                    ?: throw IllegalArgumentException("Invalid or missing contentId")
-
-                val added = collectionService.addToSystemCollection(userId, CollectionKind.LIKES, contentId)
-                if (added) {
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to likes"))
-                } else {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Failed to add item (may already exist)"))
-                }
+                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
+                val added = collectionService.addItem(userId, contentId, CollectionKind.LIKES)
+                if (added) call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to likes"))
+                else call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Failed to add item (may already exist)"))
             }
 
             /**
@@ -166,15 +153,10 @@ fun Route.meRoutes(
              */
             delete("/likes/{contentId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"]
-                    ?: throw IllegalArgumentException("Invalid or missing contentId")
-
-                val removed = collectionService.removeFromSystemCollection(userId, CollectionKind.LIKES, contentId)
-                if (removed) {
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from likes"))
-                } else {
-                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Item not found in likes"))
-                }
+                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
+                val removed = collectionService.removeItem(userId, contentId, CollectionKind.LIKES)
+                if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from likes"))
+                else call.respond(HttpStatusCode.NotFound, mapOf("error" to "Item not found in likes"))
             }
 
             // ==================== BOOKMARKS ====================
@@ -196,15 +178,7 @@ fun Route.meRoutes(
             get("/bookmarks") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
-
-                val items = collectionService.getSystemCollectionItems(
-                    userId = userId,
-                    kind = CollectionKind.BOOKMARKS,
-                    limit = limit,
-                    offset = offset
-                )
-
-                call.respond(items)
+                call.respond(collectionService.getCollectionItems(userId, CollectionKind.BOOKMARKS, limit = limit, offset = offset))
             }
 
             /**
@@ -223,15 +197,10 @@ fun Route.meRoutes(
              */
             post("/bookmarks/{contentId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"]
-                    ?: throw IllegalArgumentException("Invalid or missing contentId")
-
-                val added = collectionService.addToSystemCollection(userId, CollectionKind.BOOKMARKS, contentId)
-                if (added) {
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to bookmarks"))
-                } else {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Failed to add item (may already exist)"))
-                }
+                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
+                val added = collectionService.addItem(userId, contentId, CollectionKind.BOOKMARKS)
+                if (added) call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to bookmarks"))
+                else call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Failed to add item (may already exist)"))
             }
 
             /**
@@ -250,15 +219,10 @@ fun Route.meRoutes(
              */
             delete("/bookmarks/{contentId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"]
-                    ?: throw IllegalArgumentException("Invalid or missing contentId")
-
-                val removed = collectionService.removeFromSystemCollection(userId, CollectionKind.BOOKMARKS, contentId)
-                if (removed) {
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from bookmarks"))
-                } else {
-                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Item not found in bookmarks"))
-                }
+                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
+                val removed = collectionService.removeItem(userId, contentId, CollectionKind.BOOKMARKS)
+                if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from bookmarks"))
+                else call.respond(HttpStatusCode.NotFound, mapOf("error" to "Item not found in bookmarks"))
             }
 
             // ==================== COLLECTIONS ====================

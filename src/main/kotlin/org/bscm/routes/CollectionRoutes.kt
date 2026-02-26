@@ -9,6 +9,7 @@ import org.bscm.models.dto.collection.BatchCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
+import org.bscm.models.enums.CollectionKind
 import org.bscm.services.CollectionService
 import org.bscm.utils.*
 import java.util.*
@@ -196,8 +197,16 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                         val collectionId = call.getId()
                         val category = call.getContentTypeOrNull()
                         val (limit, offset) = call.getPagination()
-                        val items = collectionService.getCollectionItems(collectionId, userId, category, limit, offset)
-                        println("Fetched ${items.size} items for collection $collectionId with category filter '$category'")
+
+                        val items = collectionService.getCollectionItems(
+                            userId = userId,
+                            kind = CollectionKind.USER,
+                            collectionId = collectionId,
+                            category = category,
+                            limit = limit,
+                            offset = offset
+                        )
+
                         call.respond(items)
                     }
 
@@ -219,18 +228,10 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     post {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
-
                         val request = call.receive<CreateCollectionItemRequest>()
-
-                        val added = collectionService.addItemToCollection(collectionId, userId, request.contentId)
-                        if (added) {
-                            call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to collection"))
-                        } else {
-                            call.respond(
-                                HttpStatusCode.BadRequest,
-                                "Failed to add item (may already exist or collection not found)"
-                            )
-                        }
+                        val added = collectionService.addItem(userId, request.contentId, CollectionKind.USER, collectionId)
+                        if (added) call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to collection"))
+                        else call.respond(HttpStatusCode.BadRequest, "Failed to add item (may already exist or collection not found)")
                     }
 
 
@@ -247,16 +248,13 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                      *   - 404 Item not found in collection.
                      *   - 200 Success message.
                      */
-                    delete("{itemId}") {
+                    delete("/{id}/items/{itemId}") {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
                         val contentId = call.getContentId("itemId")
-                        val removed = collectionService.removeItemFromCollection(collectionId, userId, contentId)
-                        if (removed) {
-                            call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from collection"))
-                        } else {
-                            call.respond(HttpStatusCode.NotFound, "Item not found in collection")
-                        }
+                        val removed = collectionService.removeItem(userId, contentId, CollectionKind.USER, collectionId)
+                        if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from collection"))
+                        else call.respond(HttpStatusCode.NotFound, "Item not found in collection")
                     }
                 }
             }

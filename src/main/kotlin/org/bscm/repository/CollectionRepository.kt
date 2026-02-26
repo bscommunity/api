@@ -3,8 +3,6 @@ package org.bscm.repository
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
 import org.bscm.models.dao.CollectionEntity
-import org.bscm.models.dao.CollectionItemEntity
-import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.enums.CollectionKind
@@ -260,48 +258,30 @@ class CollectionRepository(
      * causing a unique-constraint violation on the second write. We catch that and
      * fall back to a fresh read
      */
-    override suspend fun getOrCreateSystemCollection(userId: UUID, kind: CollectionKind): Collection =
+    override suspend fun getOrCreateSystemCollectionId(userId: UUID, kind: CollectionKind): UUID =
         newSuspendedTransaction {
-            require(kind != CollectionKind.USER) { "Cannot create USER kind as system collection" }
+            val existing = CollectionTable
+                .select(CollectionTable.id)
+                .where { (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind) }
+                .firstOrNull()
 
-            val collectionName = when (kind) {
-                CollectionKind.LIKES -> "likes"
-                CollectionKind.BOOKMARKS -> "bookmarks"
-                CollectionKind.USER -> error("Unreachable — guarded by require() above")
-            }
-
-            fun findExisting(): Collection? =
-                CollectionEntity.find {
-                    (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind)
-                }.firstOrNull()?.let { existing ->
-                    val itemsCount = getItemsCount(existing.id.value)
-                    val coverUrl = getLatestItemCoverUrl(existing.id.value)
-                    existing.toCollection(itemsCount, coverUrl)
+            existing?.get(CollectionTable.id)?.value
+                ?: try {
+                    val now = LocalDateTime.now()
+                    CollectionTable.insertAndGetId {
+                        it[CollectionTable.userId] = userId
+                        it[CollectionTable.kind] = kind
+                        it[CollectionTable.name] = kind.name.lowercase()
+                        it[CollectionTable.isPublic] = false
+                        it[CollectionTable.createdAt] = now
+                        it[CollectionTable.updatedAt] = now
+                    }.value
+                } catch (e: ExposedSQLException) {
+                    CollectionTable
+                        .select(CollectionTable.id)
+                        .where { (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind) }
+                        .single()[CollectionTable.id].value
                 }
-
-            // Fast path — collection already exists.
-            findExisting()?.let { return@newSuspendedTransaction it }
-
-            // Slow path — attempt to create. Catch unique-constraint violations that
-            // arise from concurrent inserts and fall back to re-reading the now-existing row.
-            try {
-                val now = LocalDateTime.now()
-                val entity = CollectionEntity.new {
-                    user = UserEntity[userId]
-                    this.kind = kind
-                    name = collectionName
-                    isPublic = false
-                    createdAt = now
-                    updatedAt = now
-                }
-                entity.toCollection(Triple(0, 0, 0), null)
-            } catch (e: ExposedSQLException) {
-                // Another concurrent request won the race — read what they inserted.
-                findExisting()
-                    ?: throw IllegalStateException(
-                        "Failed to create or find system collection ($kind) for user $userId", e
-                    )
-            }
         }
 
     override suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection =
@@ -435,96 +415,95 @@ class CollectionRepository(
             true
         }
 
-    override suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
-        newSuspendedTransaction {
-            // Verify the collection exists and belongs to the user.
-            val collection = CollectionEntity.find {
-                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-            }.firstOrNull() ?: return@newSuspendedTransaction false
+    override suspend fun addItemToCollection(
+        collectionId: UUID,
+        collectionKind: CollectionKind,
+        userId: UUID,
+        contentId: String
+    ): Boolean = newSuspendedTransaction {
+        when (collectionKind) {
+            CollectionKind.BOOKMARKS -> {
+                // Remove from all USER collections
+                val userCollectionIds = CollectionTable
+                    .select(CollectionTable.id)
+                    .where {
+                        (CollectionTable.userId eq userId) and
+                                (CollectionTable.kind eq CollectionKind.USER)
+                    }
+                    .map { it[CollectionTable.id].value }
 
-            when (collection.kind) {
-                CollectionKind.BOOKMARKS -> {
-                    // Remove from all USER collections of this user
-                    val userCollectionIds = CollectionTable
-                        .select(CollectionTable.id)
-                        .where {
-                            (CollectionTable.userId eq userId) and
-                                    (CollectionTable.kind eq CollectionKind.USER)
-                        }
-                        .map { it[CollectionTable.id].value }
-
-                    if (userCollectionIds.isNotEmpty()) {
-                        CollectionItemTable.deleteWhere {
-                            (CollectionItemTable.collectionId inList userCollectionIds) and
-                                    (CollectionItemTable.contentId eq contentId)
-                        }
+                if (userCollectionIds.isNotEmpty()) {
+                    CollectionItemTable.deleteWhere {
+                        (CollectionItemTable.collectionId inList userCollectionIds) and
+                                (CollectionItemTable.contentId eq contentId)
                     }
                 }
+            }
 
-                CollectionKind.USER -> {
-                    // Remove from BOOKMARKS system collection
-                    val bookmarksId = CollectionTable
-                        .select(CollectionTable.id)
-                        .where {
-                            (CollectionTable.userId eq userId) and
-                                    (CollectionTable.kind eq CollectionKind.BOOKMARKS)
-                        }
-                        .firstOrNull()
-                        ?.get(CollectionTable.id)
-                        ?.value
-
-                    if (bookmarksId != null) {
+            CollectionKind.USER -> {
+                // Remove from BOOKMARKS
+                CollectionTable
+                    .select(CollectionTable.id)
+                    .where {
+                        (CollectionTable.userId eq userId) and
+                                (CollectionTable.kind eq CollectionKind.BOOKMARKS)
+                    }
+                    .firstOrNull()
+                    ?.get(CollectionTable.id)
+                    ?.value
+                    ?.let { bookmarksId ->
                         CollectionItemTable.deleteWhere {
                             (CollectionItemTable.collectionId eq bookmarksId) and
                                     (CollectionItemTable.contentId eq contentId)
                         }
                     }
-                }
-
-                CollectionKind.LIKES -> {
-                    // Do nothing — likes can coexist
-                }
             }
 
-            // Use COUNT instead of selectAll() + firstOrNull() — we only need a boolean,
-            // so there's no point fetching and materializing all columns.
-            val alreadyExists = CollectionItemTable
-                .select(CollectionItemTable.collectionId.count())
-                .where {
-                    (CollectionItemTable.collectionId eq collectionId) and
-                            (CollectionItemTable.contentId eq contentId)
-                }
-                .single()[CollectionItemTable.collectionId.count()] > 0
+            CollectionKind.LIKES -> { /* coexist with everything */ }
+        }
 
-            if (alreadyExists) return@newSuspendedTransaction false
+        val now = LocalDateTime.now()
+        val result = CollectionItemTable.insertIgnore {
+            it[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
+            it[CollectionItemTable.contentId] = EntityID(contentId, ContentTable)
+            it[CollectionItemTable.addedAt] = now
+        }
 
-            val now = LocalDateTime.now()
-            CollectionItemEntity.new {
-                this.collection = collection
-                this.content = ContentEntity[contentId]
-                this.addedAt = now
+        val wasInserted = result.insertedCount > 0
+        if (wasInserted) {
+            CollectionTable.update({ CollectionTable.id eq collectionId }) {
+                it[updatedAt] = now
             }
+        }
+        wasInserted
+    }
 
-            // Bump updatedAt in the same transaction so both writes are atomic.
-            collection.updatedAt = now
-            true
+    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean = newSuspendedTransaction {
+        // Ownership check + existence guard in one query
+        val collectionExists = CollectionTable
+            .select(CollectionTable.id)
+            .where {
+                (CollectionTable.id eq collectionId) and
+                        (CollectionTable.userId eq userId)
+            }
+            .limit(1)
+            .count() > 0
+
+        if (!collectionExists) return@newSuspendedTransaction false
+
+        val deletedCount = CollectionItemTable.deleteWhere {
+            (CollectionItemTable.collectionId eq collectionId) and
+                    (CollectionItemTable.contentId eq contentId)
         }
 
-    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
-        newSuspendedTransaction {
-            val collection = CollectionEntity.find {
-                (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-            }.firstOrNull() ?: return@newSuspendedTransaction false
-
-            val item = CollectionItemEntity.find {
-                (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId eq contentId)
-            }.firstOrNull() ?: return@newSuspendedTransaction false
-
-            item.delete()
-            collection.updatedAt = LocalDateTime.now()
-            true
+        if (deletedCount > 0) {
+            CollectionTable.update({ CollectionTable.id eq collectionId }) {
+                it[updatedAt] = LocalDateTime.now()
+            }
         }
+
+        deletedCount > 0
+    }
 
     override suspend fun getCollectionItems(
         collectionId: UUID,
@@ -708,35 +687,31 @@ class CollectionRepository(
             }
         }
 
-        // Upsert all items at once — the unique index on (collectionId, contentId) acts as
-        // the conflict target. On conflict we exclude all columns from the update, making
-        // this a true INSERT OR IGNORE: duplicates are silently skipped, new rows are inserted.
         val now = LocalDateTime.now()
-        val inserted = CollectionItemTable.batchUpsert(
-            data = contentIds,
-            keys = arrayOf(CollectionItemTable.collectionId, CollectionItemTable.contentId),
-            onUpdateExclude = listOf(
-                CollectionItemTable.collectionId,
-                CollectionItemTable.contentId,
-                CollectionItemTable.addedAt
-            )
-        ) { contentId ->
-            this[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
-            this[CollectionItemTable.contentId] = EntityID(contentId, ContentTable)
-            this[CollectionItemTable.addedAt] = now
-        }
 
-        // batchUpsert returns one result row per upserted statement; rows that hit the
-        // conflict path are still returned — compare against the input to find skipped ones.
-        val insertedIds = inserted.map { it[CollectionItemTable.contentId].value }.toSet()
-        val skipped = contentIds.filterNot { it in insertedIds }
+        // Fetch which IDs already exist so we can report skipped ones accurately
+        val alreadyExisting = CollectionItemTable
+            .select(CollectionItemTable.contentId)
+            .where {
+                (CollectionItemTable.collectionId eq collectionId) and
+                        (CollectionItemTable.contentId inList contentIds)
+            }
+            .map { it[CollectionItemTable.contentId].value }
+            .toSet()
 
-        if (inserted.isNotEmpty()) {
+        val toInsert = contentIds.filterNot { it in alreadyExisting }
+
+        if (toInsert.isNotEmpty()) {
+            CollectionItemTable.batchInsert(data = toInsert, ignore = true) { id ->
+                this[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
+                this[CollectionItemTable.contentId] = EntityID(id, ContentTable)
+                this[CollectionItemTable.addedAt] = now
+            }
             collection.updatedAt = now
         }
 
-        // Return success count and list of items that were already present (skipped).
-        (contentIds.size - skipped.size) to skipped
+        val skipped = contentIds.filter { it in alreadyExisting }
+        toInsert.size to skipped
     }
 
     /**

@@ -8,7 +8,7 @@ import java.util.*
 
 interface ICollectionRepository {
     // Collection Management
-    suspend fun getOrCreateSystemCollection(userId: UUID, kind: CollectionKind): Collection
+    suspend fun getOrCreateSystemCollectionId(userId: UUID, kind: CollectionKind): UUID
 
     suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection
     suspend fun getCollection(collectionId: UUID, userId: UUID? = null): Collection?
@@ -19,7 +19,7 @@ interface ICollectionRepository {
 
     // Collection Item Management
     suspend fun getCollectionItems(collectionId: UUID, userId: UUID? = null, category: ContentType?, limit: Int? = null, offset: Int? = null): List<CatalogItem>
-    suspend fun addItemToCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
+    suspend fun addItemToCollection(collectionId: UUID, collectionKind: CollectionKind, userId: UUID, contentId: String): Boolean
     suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
     suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean
 
