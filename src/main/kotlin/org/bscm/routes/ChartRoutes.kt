@@ -65,6 +65,7 @@ fun Route.chartRoutes(
                  * Query: limit [Integer] Limit for results (default 20).
                  * Query: offset [Integer] Pagination offset (default 0).
                  * Query: count [Boolean] Include total count in response.
+                 * Query: myCharts [Boolean] When true, scope results to the requesting user's own charts (includes private). Requires JWT.
                  *
                  * Responses:
                  *   - 200 application/json [List] List of charts with metadata. Mobile clients receive streaming links.
@@ -97,6 +98,7 @@ fun Route.chartRoutes(
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
                     val count = call.request.queryParameters["count"]?.toBoolean() ?: false
+                    val myCharts = call.request.queryParameters["myCharts"]?.toBoolean() ?: false
 
                     val jwtPrincipal = call.principal<JWTPrincipal>()
                     val hmacPrincipal = call.principal<HMACPrincipal>()
@@ -105,6 +107,24 @@ fun Route.chartRoutes(
                     // Mobile app authenticates with HMAC or Combined and gets streaming links
                     val isMobileApp = hmacPrincipal != null || combinedPrincipal != null
                     val isAuthenticated = jwtPrincipal != null || combinedPrincipal != null
+
+                    // Resolve the requesting user's ID from JWT or Combined principal.
+                    // This is used both for user stats (via UserContext) and for private-chart
+                    // visibility: when myCharts=true, passing userId to ChartFilters tells the
+                    // repository to include the user's own private charts (isPublic = false)
+                    // and scope results to charts they contribute to — matching the same pattern
+                    // used in UserRoutes GET {id}/charts with requestingUserId.
+                    val requesterId = when {
+                        combinedPrincipal != null ->
+                            runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                        jwtPrincipal != null ->
+                            jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        else -> null
+                    }
+
+                    // userId filter: only scope to the requester's own charts when myCharts=true
+                    // and they are authenticated. Otherwise browse is public-only (userId=null).
+                    val filterUserId = requesterId?.takeIf { myCharts }
 
                     // Unauthenticated users are limited to the first 5 pages
                     val resolvedOffset = offset ?: 0
@@ -117,7 +137,7 @@ fun Route.chartRoutes(
                         chartRepository.getCharts(
                             sortBy = sortBy,
                             filters = ChartRepository.ChartFilters(
-                                userId = null,
+                                userId = filterUserId,
                                 search = sanitizedQuery,
                                 difficulties = difficulties,
                                 genres = genres,
@@ -166,6 +186,22 @@ fun Route.chartRoutes(
 
                     val chart = chartRepository.getChartById(numericId)
                         ?: throw NotFoundException("Chart not found")
+
+                    // Private charts are only visible to their contributors.
+                    // HMAC-only callers (mobile app without user context) cannot see private charts.
+                    if (!chart.isPublic) {
+                        val requesterId = when {
+                            combinedPrincipal != null ->
+                                runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                            jwtPrincipal != null ->
+                                jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                            else -> null
+                        }
+                        val isContributor = requesterId != null &&
+                                chart.contributors.any { contributor -> contributor.user.id == requesterId }
+                        if (!isContributor) throw NotFoundException("Chart not found")
+                        // Return 404 rather than 403 to avoid leaking chart existence to non-contributors.
+                    }
 
                     call.respond(chart)
                 }

@@ -78,6 +78,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
         val difficulties: List<Difficulty>? = null,
         val genres: List<Genre>? = null,
         val isDeluxe: Boolean? = null,
+        val includePrivate: Boolean = false,
     )
 
     data class ChartAddons(
@@ -295,8 +296,8 @@ class ChartRepository : BaseRepository(), IChartRepository {
     }
 
     private fun applyFilters(query: Query, filters: ChartFilters?) {
-        // Only return public charts if userId is null
-        if (filters?.userId == null) {
+        // Only return public charts if neither userId (contributor filter) nor includePrivate is set
+        if (filters?.userId == null && filters?.includePrivate != true) {
             query.andWhere {
                 ChartTable.isPublic eq true
             }

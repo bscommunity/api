@@ -16,6 +16,7 @@ interface IUserRepository {
     suspend fun getUserById(id: UUID): User?
     suspend fun getUserByDiscordId(discordId: String): User?
     suspend fun getUserByUsername(username: String): SimplifiedUser?
+    suspend fun getUserByUsernameAsFull(username: String): User?
     suspend fun createUser(user: CreateUserRequest): User
     suspend fun updateUser(id: UUID, user: UpdateUserRequest): User
     suspend fun deleteUser(id: UUID): Boolean
@@ -49,7 +50,7 @@ interface IUserRepository {
         offset: Int
     ): List<CatalogItem>
 
-    suspend fun getProfileCounts(userId: UUID): UserProfileCounts
+    suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int): UserProfileCounts
 
     suspend fun getSystemCollectionItems(
         userId: UUID,

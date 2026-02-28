@@ -93,6 +93,10 @@ class UserRepository(
         UserEntity.find { UserTable.username eq username }.singleOrNull()?.let(::userEntityToSimplifiedUser)
     }
 
+    override suspend fun getUserByUsernameAsFull(username: String): User? = newSuspendedTransaction {
+        UserEntity.find { UserTable.username eq username }.singleOrNull()?.let(::userEntityToUser)
+    }
+
     override suspend fun createUser(user: CreateUserRequest): User = newSuspendedTransaction {
         val newUser = UserEntity.new(UUID.randomUUID()) {
             this.username = user.username
@@ -199,7 +203,10 @@ class UserRepository(
 
         // Fetch Charts
         val (charts, _) = chartRepository.getCharts(
-            filters = ChartRepository.ChartFilters(contentIds = contentIds, userId = requestingUserId)
+            filters = ChartRepository.ChartFilters(
+                contentIds = contentIds,
+                includePrivate = requestingUserId == userId
+            )
         )
 
         // Return in order of original query
@@ -296,7 +303,7 @@ class UserRepository(
         themes.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
     }
 
-    override suspend fun getProfileCounts(userId: UUID): UserProfileCounts = newSuspendedTransaction {
+    override suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int): UserProfileCounts = newSuspendedTransaction {
         // Count charts
         val totalCharts = ChartTable
             .select(ChartTable.id)
@@ -314,49 +321,25 @@ class UserRepository(
             .count()
             .toInt()
 
-        // Count likes (from LIKES system collection)
-        val likesCollection = CollectionTable
-            .select(CollectionTable.id)
+        // Count likes: single JOIN query instead of find-collection + count-items
+        val totalLikes = CollectionItemTable
+            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+            .select(CollectionItemTable.id)
             .where {
                 (CollectionTable.userId eq userId) and
                 (CollectionTable.kind eq CollectionKind.LIKES)
             }
-            .singleOrNull()
+            .count()
+            .toInt()
 
-        val totalLikes = likesCollection?.let {
-            CollectionItemTable
-                .select(CollectionItemTable.id)
-                .where { CollectionItemTable.collectionId eq it[CollectionTable.id] }
-                .count()
-                .toInt()
-        } ?: 0
-
-        // Count bookmarks (from BOOKMARKS system collection)
-        val bookmarksCollection = CollectionTable
-            .select(CollectionTable.id)
+        // Count bookmarks: single JOIN query instead of find-collection + count-items
+        val totalBookmarks = CollectionItemTable
+            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+            .select(CollectionItemTable.id)
             .where {
                 (CollectionTable.userId eq userId) and
                 (CollectionTable.kind eq CollectionKind.BOOKMARKS)
             }
-            .singleOrNull()
-
-        val totalBookmarks = bookmarksCollection?.let {
-            CollectionItemTable
-                .select(CollectionItemTable.id)
-                .where { CollectionItemTable.collectionId eq it[CollectionTable.id] }
-                .count()
-                .toInt()
-        } ?: 0
-
-        val followerCount = UserFollowTable
-            .select(UserFollowTable.follower)
-            .where { UserFollowTable.followed eq userId }
-            .count()
-            .toInt()
-
-        val followingCount = UserFollowTable
-            .select(UserFollowTable.followed)
-            .where { UserFollowTable.follower eq userId }
             .count()
             .toInt()
 

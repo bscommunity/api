@@ -12,12 +12,16 @@ import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IUserRepository
+import org.bscm.services.CollectionService
 import org.bscm.services.ProfileService
+import org.bscm.utils.getPagination
+import org.bscm.utils.getUserIdOrNull
 import java.util.*
 
 fun Route.userRoutes(
     userRepository: IUserRepository,
     profileService: ProfileService,
+    collectionService: CollectionService,
     activityRepository: IActivityRepository
 ) {
     route("/users") {
@@ -54,14 +58,13 @@ fun Route.userRoutes(
                 ?: throw IllegalArgumentException("Invalid or missing username")
 
             val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
-            val targetUser = userRepository.getUserByUsername(username)
-                ?: throw NotFoundException("User not found")
-
-            val response = profileService.getProfileHeader(targetUser.id, requesterId)
+            val response = profileService.getProfileHeaderByUsername(username, requesterId)
             call.respond(response)
         }
 
         authenticate("auth-bearer", optional = true) {
+            install(org.bscm.plugins.UserContext)
+
             /**
              * List users with optional search filter.
              *
@@ -327,7 +330,34 @@ fun Route.userRoutes(
                     offset = offset
                 )
 
+                println("Fetched ${charts.size} charts for user $userId (requester: $requester, limit: $limit, offset: $offset)")
+
                 call.respond(charts)
+            }
+
+            /**
+             * Get user's collections.
+             *
+             * Tag: Users
+             *
+             * Path: id [String] User ID (use "me" for current user).
+             * Query: limit [Integer] Optional limit for results.
+             * Query: offset [Integer] Optional pagination offset.
+             *
+             * Responses:
+             *   - 401 User not authenticated.
+             *   - 200 List of user's collections.
+             */
+            get("{id}/collections") {
+                val requesterUserId = call.getUserIdOrNull()
+                val userId = call.pathParameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                    ?: throw IllegalArgumentException("Invalid user ID format")
+                val isMe = userId == requesterUserId
+
+                val (limit, offset) = call.getPagination()
+
+                val response = collectionService.getUserCollections(userId, limit, offset, !isMe)
+                call.respond(response)
             }
         }
     }

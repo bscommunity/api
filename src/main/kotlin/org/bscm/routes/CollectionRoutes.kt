@@ -18,32 +18,6 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
     route("/collections") {
         authenticate("auth-bearer") {
             install(org.bscm.plugins.UserContext)
-
-            /**
-             * Get user's collections.
-             *
-             * Tag: Collections
-             *
-             * Path: id [String] User ID (use "me" for current user).
-             * Query: limit [Integer] Optional limit for results.
-             * Query: offset [Integer] Optional pagination offset.
-             *
-             * Responses:
-             *   - 401 User not authenticated.
-             *   - 200 List of user's collections.
-             */
-            get("{userId}") {
-                val requesterUserId = call.getUserId()
-                val userId = call.pathParameters["userId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-                    ?: throw IllegalArgumentException("Invalid user ID format")
-                val isMe = userId == requesterUserId
-
-                val (limit, offset) = call.getPagination()
-
-                val response = collectionService.getUserCollections(userId, limit, offset, !isMe)
-                call.respond(response)
-            }
-
             /**
              * Create a new collection.
              *

@@ -53,10 +53,17 @@ class ProfileService(
 
     suspend fun getProfileHeader(userId: UUID, requesterId: UUID?): UserProfileResponse {
         val user = userRepository.getUserById(userId) ?: throw NotFoundException("User not found")
+        return buildProfileHeader(user, requesterId)
+    }
+
+    suspend fun getProfileHeaderByUsername(username: String, requesterId: UUID?): UserProfileResponse {
+        val user = userRepository.getUserByUsernameAsFull(username) ?: throw NotFoundException("User not found")
+        return buildProfileHeader(user, requesterId)
+    }
+
+    private suspend fun buildProfileHeader(user: User, requesterId: UUID?): UserProfileResponse {
         ensureVisibility(user, requesterId)
-
-        val counts = userRepository.getProfileCounts(user.id)
-
+        val counts = userRepository.getProfileCounts(user.id, user.followerCount, user.followingCount)
         return UserProfileResponse(
             user = toSimplifiedUser(user),
             counts = counts,

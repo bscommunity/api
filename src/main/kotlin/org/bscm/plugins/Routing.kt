@@ -88,7 +88,7 @@ fun Application.configureRouting() {
         }
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
-        userRoutes(userRepository, profileService, activityRepository)
+        userRoutes(userRepository, profileService, collectionService, activityRepository)
         meRoutes(collectionService, profileService, chartRepository)
 
         chartRoutes(chartRepository, versionRepository, userRepository, uploadService)

@@ -18,6 +18,13 @@ fun ApplicationCall.getUserId(): UUID {
 }
 
 /**
+ * Extracts the authenticated user's ID from the JWT principal, or null if not authenticated.
+ */
+fun ApplicationCall.getUserIdOrNull(): UUID? {
+    return principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
+}
+
+/**
  * Extracts a ContentType from query parameters if present.
  * @return ContentType enum value or null if not present or invalid
  */
