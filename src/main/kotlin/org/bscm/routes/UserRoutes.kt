@@ -41,29 +41,33 @@ fun Route.userRoutes(
             call.respond(HttpStatusCode.Created, createdUser)
         }
 
-        /**
-         * Get user profile header by username.
-         *
-         * Tag: Users
-         *
-         * Path: username [String] User's username.
-         *
-         * Responses:
-         *   - 400 Username parameter is malformatted or missing.
-         *   - 404 User not found.
-         *   - 200 User profile header.
-         */
-        get("username/{username}") {
-            val username = call.parameters["username"]
-                ?: throw IllegalArgumentException("Invalid or missing username")
-
-            val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
-            val response = profileService.getProfileHeaderByUsername(username, requesterId)
-            call.respond(response)
-        }
-
         authenticate("auth-bearer", optional = true) {
             install(org.bscm.plugins.UserContext)
+
+            /**
+             * Get user profile header by username.
+             *
+             * Tag: Users
+             *
+             * Path: username [String] User's username.
+             * Query: counts [String] Optional comma-separated list of counts to include (e.g. "charts,likes").
+             *
+             * Responses:
+             *   - 400 Username parameter is malformatted or missing.
+             *   - 404 User not found.
+             *   - 200 User profile header.
+             */
+            get("username/{username}") {
+                val username = call.parameters["username"]
+                    ?: throw IllegalArgumentException("Invalid or missing username")
+                val requesterId = call.getUserIdOrNull()
+
+                // POSSIBLE VALUES: collections, followers, following, library
+                val counts = call.request.queryParameters["counts"].orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+                val response = profileService.getProfileHeaderByUsername(username, requesterId, counts)
+                call.respond(response)
+            }
 
             /**
              * List users with optional search filter.
@@ -101,7 +105,11 @@ fun Route.userRoutes(
                     ?: throw IllegalArgumentException("Invalid or missing ID")
 
                 val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
-                val response = profileService.getProfileHeader(id, requesterId)
+
+                // POSSIBLE VALUES: likes, bookmarks, collections, followers, following, library
+                val counts = call.request.queryParameters["counts"].orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+                val response = profileService.getProfileHeader(id, requesterId, counts)
                 call.respond(response)
             }
 

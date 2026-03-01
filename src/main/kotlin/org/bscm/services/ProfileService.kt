@@ -51,22 +51,27 @@ class ProfileService(
         }
     }
 
-    suspend fun getProfileHeader(userId: UUID, requesterId: UUID?): UserProfileResponse {
+    suspend fun getProfileHeader(userId: UUID, requesterId: UUID?, requestedCounts: Set<String> = emptySet()): UserProfileResponse {
         val user = userRepository.getUserById(userId) ?: throw NotFoundException("User not found")
-        return buildProfileHeader(user, requesterId)
+        return buildProfileHeader(user, requesterId, requestedCounts)
     }
 
-    suspend fun getProfileHeaderByUsername(username: String, requesterId: UUID?): UserProfileResponse {
+    suspend fun getProfileHeaderByUsername(username: String, requesterId: UUID?, requestedCounts: Set<String> = emptySet()): UserProfileResponse {
         val user = userRepository.getUserByUsernameAsFull(username) ?: throw NotFoundException("User not found")
-        return buildProfileHeader(user, requesterId)
+        return buildProfileHeader(user, requesterId, requestedCounts)
     }
 
-    private suspend fun buildProfileHeader(user: User, requesterId: UUID?): UserProfileResponse {
+    private suspend fun buildProfileHeader(user: User, requesterId: UUID?, requestedCounts: Set<String> = emptySet()): UserProfileResponse {
         ensureVisibility(user, requesterId)
-        val counts = userRepository.getProfileCounts(user.id, user.followerCount, user.followingCount)
+        val counts = userRepository.getProfileCounts(user.id, user.followerCount, user.followingCount, requestedCounts)
+        val isFollowing = when {
+            requesterId == null || requesterId == user.id -> null
+            else -> userRepository.isFollowing(requesterId, user.id)
+        }
         return UserProfileResponse(
             user = toSimplifiedUser(user),
-            counts = counts,
+            isFollowing = isFollowing,
+            counts = counts
         )
     }
 

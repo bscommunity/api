@@ -50,7 +50,7 @@ interface IUserRepository {
         offset: Int
     ): List<CatalogItem>
 
-    suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int): UserProfileCounts
+    suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int, requestedCounts: Set<String> = emptySet()): UserProfileCounts
 
     suspend fun getSystemCollectionItems(
         userId: UUID,

@@ -67,7 +67,11 @@ fun Route.meRoutes(
              */
             get("/profile") {
                 val userId = call.getUserId()
-                val response = profileService.getProfileHeader(userId, userId)
+
+                // POSSIBLE VALUES: likes, bookmarks, collections, followers, following
+                val counts = call.request.queryParameters["counts"].orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+                val response = profileService.getProfileHeader(userId, userId, counts)
                 call.respond(response)
             }
 

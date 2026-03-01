@@ -4,10 +4,10 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class UserProfileCounts(
-    val charts: Int,
-    val likes: Int,
-    val bookmarks: Int,
-    val collections: Int,
-    val followers: Int,
-    val following: Int
+    val library: Triple<Int, Int, Int>? = null,
+    val likes: Triple<Int, Int, Int>? = null,
+    val bookmarks: Triple<Int, Int, Int>? = null,
+    val collections: Int? = null,
+    val followers: Int? = null,
+    val following: Int? = null
 )

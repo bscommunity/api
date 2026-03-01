@@ -13,6 +13,7 @@ import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileCounts
 import org.bscm.models.enums.CollectionKind
+import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.*
 import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.*
@@ -303,53 +304,62 @@ class UserRepository(
         themes.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
     }
 
-    override suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int): UserProfileCounts = newSuspendedTransaction {
-        // Count charts
-        val totalCharts = ChartTable
-            .select(ChartTable.id)
-            .where { ChartTable.authorId eq userId }
-            .count()
-            .toInt()
+    override suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int, requestedCounts: Set<String>): UserProfileCounts = newSuspendedTransaction {
+        val all = requestedCounts.isEmpty()
 
-        // Count collections (only USER kind collections)
-        val totalCollections = CollectionTable
-            .select(CollectionTable.id)
-            .where {
-                (CollectionTable.userId eq userId) and
-                (CollectionTable.kind eq CollectionKind.USER)
-            }
-            .count()
-            .toInt()
+        // Helper: count items in a system collection broken down by content type -> Triple(charts, tourPasses, themes)
+        fun countByKind(kind: CollectionKind): Triple<Int, Int, Int> {
+            val countColumn = CollectionItemTable.id.count()
+            val rows = CollectionItemTable
+                .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+                .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
+                .select(ContentTable.type, countColumn)
+                .where {
+                    (CollectionTable.userId eq userId) and
+                    (CollectionTable.kind eq kind)
+                }
+                .groupBy(ContentTable.type)
+                .associate { it[ContentTable.type] to it[countColumn].toInt() }
 
-        // Count likes: single JOIN query instead of find-collection + count-items
-        val totalLikes = CollectionItemTable
-            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .select(CollectionItemTable.id)
-            .where {
-                (CollectionTable.userId eq userId) and
-                (CollectionTable.kind eq CollectionKind.LIKES)
-            }
-            .count()
-            .toInt()
+            return Triple(
+                rows[ContentType.CHART] ?: 0,
+                rows[ContentType.TOUR_PASS] ?: 0,
+                rows[ContentType.THEME] ?: 0
+            )
+        }
 
-        // Count bookmarks: single JOIN query instead of find-collection + count-items
-        val totalBookmarks = CollectionItemTable
-            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .select(CollectionItemTable.id)
-            .where {
-                (CollectionTable.userId eq userId) and
-                (CollectionTable.kind eq CollectionKind.BOOKMARKS)
-            }
-            .count()
-            .toInt()
+        // library: authored content (charts, tour passes, themes)
+        val library: Triple<Int, Int, Int>? = if (all || "library" in requestedCounts) {
+            val charts = ChartTable.select(ChartTable.id).where { ChartTable.authorId eq userId }.count().toInt()
+            val tourPasses = TourPassTable.select(TourPassTable.id).where { TourPassTable.authorId eq userId }.count().toInt()
+            val themes = ThemeTable.select(ThemeTable.id).where { ThemeTable.authorId eq userId }.count().toInt()
+            Triple(charts, tourPasses, themes)
+        } else null
+
+        val likes: Triple<Int, Int, Int>? = if (all || "likes" in requestedCounts) countByKind(CollectionKind.LIKES) else null
+        val bookmarks: Triple<Int, Int, Int>? = if (all || "bookmarks" in requestedCounts) countByKind(CollectionKind.BOOKMARKS) else null
+
+        val collections: Int? = if (all || "collections" in requestedCounts) {
+            CollectionTable
+                .select(CollectionTable.id)
+                .where {
+                    (CollectionTable.userId eq userId) and
+                    (CollectionTable.kind eq CollectionKind.USER)
+                }
+                .count()
+                .toInt()
+        } else null
+
+        val followers: Int? = if (all || "followers" in requestedCounts) followerCount else null
+        val following: Int? = if (all || "following" in requestedCounts) followingCount else null
 
         UserProfileCounts(
-            charts = totalCharts,
-            likes = totalLikes,
-            bookmarks = totalBookmarks,
-            collections = totalCollections,
-            followers = followerCount,
-            following = followingCount
+            library = library,
+            likes = likes,
+            bookmarks = bookmarks,
+            collections = collections,
+            followers = followers,
+            following = following
         )
     }
 
@@ -386,32 +396,25 @@ class UserRepository(
     }
 
     override suspend fun followUser(followerId: UUID, followedId: UUID): Boolean = newSuspendedTransaction {
-        // Verify both users exist
-        UserEntity.findById(followerId) ?: throw NotFoundException("Follower user not found")
-        UserEntity.findById(followedId) ?: throw NotFoundException("User to follow not found")
-
         // Cannot follow yourself
-        if (followerId == followedId) {
-            return@newSuspendedTransaction false
-        }
+        if (followerId == followedId) return@newSuspendedTransaction false
 
-        // Check if already following
-        val alreadyFollowing = UserFollowTable.selectAll().where {
-            (UserFollowTable.follower eq followerId) and (UserFollowTable.followed eq followedId)
-        }.empty().not()
+        // Verify both users exist in a single query
+        val foundIds = UserTable
+            .select(UserTable.id)
+            .where { UserTable.id inList listOf(followerId, followedId) }
+            .map { it[UserTable.id].value }
+            .toSet()
 
-        if (alreadyFollowing) {
-            return@newSuspendedTransaction false // Already following
-        }
+        if (followerId !in foundIds) throw NotFoundException("Follower user not found")
+        if (followedId !in foundIds) throw NotFoundException("User to follow not found")
 
-        // Insert follow relationship
-        UserFollowTable.insert {
+        // insertIgnore: the composite PK (follower, followed) silently rejects duplicate rows,
+        // eliminating a separate "already following" round-trip query.
+        UserFollowTable.insertIgnore {
             it[follower] = followerId
             it[followed] = followedId
-            it[createdAt] = java.time.LocalDateTime.now()
-        }
-
-        true
+        }.insertedCount > 0
     }
 
     override suspend fun unfollowUser(followerId: UUID, followedId: UUID): Boolean = newSuspendedTransaction {
