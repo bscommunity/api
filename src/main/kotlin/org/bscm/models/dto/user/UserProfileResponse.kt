@@ -10,7 +10,5 @@ import org.bscm.serialization.UUIDSerializer
 @Serializable
 data class UserProfileResponse(
     val user: SimplifiedUser,
-    val isFollowing: Boolean?,
-    val counts: UserProfileCounts
+    val isFollowing: Boolean?
 )
-

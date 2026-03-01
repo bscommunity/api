@@ -13,5 +13,7 @@ data class SimplifiedUser(
     val bannerUrl: String?,
     val bio: String?,
     val accentColor: Int?,
-    val isVerified: Boolean
+    val isVerified: Boolean,
+    val followersCount: Int? = null,
+    val followingCount: Int? = null
 )

@@ -462,6 +462,13 @@ class UserRepository(
             (UserFollowTable.follower eq followerId) and (UserFollowTable.followed eq followedId)
         }.empty().not()
     }
+
+    override suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int> = newSuspendedTransaction {
+        val charts = ChartTable.select(ChartTable.id).where { ChartTable.authorId eq userId }.count().toInt()
+        val tourPasses = TourPassTable.select(TourPassTable.id).where { TourPassTable.authorId eq userId }.count().toInt()
+        val themes = ThemeTable.select(ThemeTable.id).where { ThemeTable.authorId eq userId }.count().toInt()
+        Triple(charts, tourPasses, themes)
+    }
 }
 
 

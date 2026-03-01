@@ -7,8 +7,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.dto.user.CreateUserRequest
-import org.bscm.models.dto.user.UpdateUserRequest
+import org.bscm.models.dto.user.*
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IUserRepository
@@ -61,11 +60,7 @@ fun Route.userRoutes(
                 val username = call.parameters["username"]
                     ?: throw IllegalArgumentException("Invalid or missing username")
                 val requesterId = call.getUserIdOrNull()
-
-                // POSSIBLE VALUES: collections, followers, following, library
-                val counts = call.request.queryParameters["counts"].orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-
-                val response = profileService.getProfileHeaderByUsername(username, requesterId, counts)
+                val response = profileService.getProfileHeaderByUsername(username, requesterId)
                 call.respond(response)
             }
 
@@ -103,13 +98,8 @@ fun Route.userRoutes(
             get("{id}") {
                 val id = call.parameters["id"]?.let { UUID.fromString(it) }
                     ?: throw IllegalArgumentException("Invalid or missing ID")
-
                 val requesterId = call.principal<JWTPrincipal>()?.subject?.let { UUID.fromString(it) }
-
-                // POSSIBLE VALUES: likes, bookmarks, collections, followers, following, library
-                val counts = call.request.queryParameters["counts"].orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-
-                val response = profileService.getProfileHeader(id, requesterId, counts)
+                val response = profileService.getProfileHeader(id, requesterId)
                 call.respond(response)
             }
 
@@ -321,7 +311,7 @@ fun Route.userRoutes(
              * Responses:
              *   - 400 Invalid or missing ID parameter.
              *   - 404 User not found.
-             *   - 200 List of user's charts.
+             *   - 200 List of user's charts with library counts.
              */
             get("{id}/charts") {
                 val userId = UUID.fromString(call.parameters["id"]!!)
@@ -338,9 +328,12 @@ fun Route.userRoutes(
                     offset = offset
                 )
 
+                // Get library counts (charts, tour passes, themes) for this user
+                val libraryCounts = userRepository.getLibraryCounts(userId)
+
                 println("Fetched ${charts.size} charts for user $userId (requester: $requester, limit: $limit, offset: $offset)")
 
-                call.respond(charts)
+                call.respond(ItemsPage(charts, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
             }
 
             /**
@@ -354,7 +347,7 @@ fun Route.userRoutes(
              *
              * Responses:
              *   - 401 User not authenticated.
-             *   - 200 List of user's collections.
+             *   - 200 List of user's collections with total count.
              */
             get("{id}/collections") {
                 val requesterUserId = call.getUserIdOrNull()
@@ -364,8 +357,8 @@ fun Route.userRoutes(
 
                 val (limit, offset) = call.getPagination()
 
-                val response = collectionService.getUserCollections(userId, limit, offset, !isMe)
-                call.respond(response)
+                val (collections, total) = collectionService.getUserCollections(userId, limit, offset, !isMe)
+                call.respond(CollectionsPage(items = collections, total = total))
             }
         }
     }

@@ -607,6 +607,60 @@ class CollectionRepository(
         catalogItems.sortedByDescending { orderMap[it.id] }
     }
 
+    override suspend fun getCollectionItemsWithCounts(
+        collectionId: UUID,
+        userId: UUID?,
+        limit: Int?,
+        offset: Int?
+    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>> = newSuspendedTransaction {
+        // Get the items
+        val items = getCollectionItems(collectionId, userId, null, limit, offset)
+
+        // Get total counts for this collection by content type
+        val countColumn = CollectionItemTable.id.count()
+        val rows = CollectionItemTable
+            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+            .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
+            .select(ContentTable.type, countColumn)
+            .where {
+                (CollectionItemTable.collectionId eq collectionId) and
+                (CollectionTable.id eq collectionId)
+            }
+            .groupBy(ContentTable.type)
+            .associate { it[ContentTable.type] to it[countColumn].toInt() }
+
+        val counts = Triple(
+            rows[ContentType.CHART] ?: 0,
+            rows[ContentType.TOUR_PASS] ?: 0,
+            rows[ContentType.THEME] ?: 0
+        )
+
+        Pair(items, counts)
+    }
+
+    override suspend fun getCollectionItemCountsByKind(
+        userId: UUID,
+        kind: CollectionKind
+    ): Triple<Int, Int, Int> = newSuspendedTransaction {
+        val countColumn = CollectionItemTable.id.count()
+        val rows = CollectionItemTable
+            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+            .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
+            .select(ContentTable.type, countColumn)
+            .where {
+                (CollectionTable.userId eq userId) and
+                (CollectionTable.kind eq kind)
+            }
+            .groupBy(ContentTable.type)
+            .associate { it[ContentTable.type] to it[countColumn].toInt() }
+
+        return@newSuspendedTransaction Triple(
+            rows[ContentType.CHART] ?: 0,
+            rows[ContentType.TOUR_PASS] ?: 0,
+            rows[ContentType.THEME] ?: 0
+        )
+    }
+
     override suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean =
         newSuspendedTransaction {
             // COUNT is lighter than fetching a full row — the DB can use an index-only scan.

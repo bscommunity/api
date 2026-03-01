@@ -4,6 +4,9 @@ import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.bscm.models.dto.user.CollectionsPage
+import org.bscm.models.dto.user.ContentCounts
+import org.bscm.models.dto.user.ItemsPage
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.repository.ChartRepository
@@ -67,11 +70,7 @@ fun Route.meRoutes(
              */
             get("/profile") {
                 val userId = call.getUserId()
-
-                // POSSIBLE VALUES: likes, bookmarks, collections, followers, following
-                val counts = call.request.queryParameters["counts"].orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-
-                val response = profileService.getProfileHeader(userId, userId, counts)
+                val response = profileService.getProfileHeader(userId, userId)
                 call.respond(response)
             }
 
@@ -101,22 +100,16 @@ fun Route.meRoutes(
 
             /**
              * Get authenticated user's liked items.
-             *
-             * Tag: Me
-             *
-             * Query: limit [Integer] Optional limit for results.
-             * Query: offset [Integer] Optional pagination offset (default 0).
-             *
-             * Responses:
-             *   - 200 application/json [Array] List of liked items.
-             *   - 401 application/json [Error] User not authenticated.
-             *
-             * Security: auth-bearer
+             * Returns [ItemsPage] with the paginated items and total content counts (charts / tourPasses / themes).
+             * Counts are always for the full collection, regardless of the current page.
              */
             get("/likes") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
-                call.respond(collectionService.getCollectionItems(userId, CollectionKind.LIKES, limit = limit, offset = offset))
+                val (items, counts) = collectionService.getCollectionItemsWithCounts(
+                    userId, CollectionKind.LIKES, limit = limit, offset = offset
+                )
+                call.respond(ItemsPage(items, ContentCounts(counts.first, counts.second, counts.third)))
             }
 
             /**
@@ -167,22 +160,15 @@ fun Route.meRoutes(
 
             /**
              * Get authenticated user's bookmarked items.
-             *
-             * Tag: Me
-             *
-             * Query: limit [Integer] Optional limit for results.
-             * Query: offset [Integer] Optional pagination offset (default 0).
-             *
-             * Responses:
-             *   - 200 application/json [Array] List of bookmarked items.
-             *   - 401 application/json [Error] User not authenticated.
-             *
-             * Security: auth-bearer
+             * Returns [ItemsPage] with the paginated items and total content counts (charts / tourPasses / themes).
              */
             get("/bookmarks") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
-                call.respond(collectionService.getCollectionItems(userId, CollectionKind.BOOKMARKS, limit = limit, offset = offset))
+                val (items, counts) = collectionService.getCollectionItemsWithCounts(
+                    userId, CollectionKind.BOOKMARKS, limit = limit, offset = offset
+                )
+                call.respond(ItemsPage(items, ContentCounts(counts.first, counts.second, counts.third)))
             }
 
             /**
@@ -233,22 +219,13 @@ fun Route.meRoutes(
 
             /**
              * Get collections created by the authenticated user.
-             *
-             * Tag: Me
-             *
-             * Query: limit [Integer] Optional limit for results.
-             * Query: offset [Integer] Optional pagination offset.
-             *
-             * Responses:
-             *   - 401 User not authenticated.
-             *   - 200 List of user's collections.
+             * Returns [CollectionsPage] with the current page of collections and the total count.
              */
             get("/collections") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
-                val response = collectionService.getUserCollections(userId, limit, offset, false)
-                println("User $userId requested their collections with limit=$limit and offset=$offset, returning ${response.size} collections")
-                call.respond(response)
+                val (collections, total) = collectionService.getUserCollections(userId, limit, offset, false)
+                call.respond(CollectionsPage(items = collections, total = total))
             }
         }
     }

@@ -19,6 +19,8 @@ interface ICollectionRepository {
 
     // Collection Item Management
     suspend fun getCollectionItems(collectionId: UUID, userId: UUID? = null, category: ContentType?, limit: Int? = null, offset: Int? = null): List<CatalogItem>
+    suspend fun getCollectionItemsWithCounts(collectionId: UUID, userId: UUID? = null, limit: Int? = null, offset: Int? = null): Pair<List<CatalogItem>, Triple<Int, Int, Int>>
+    suspend fun getCollectionItemCountsByKind(userId: UUID, kind: CollectionKind): Triple<Int, Int, Int>
     suspend fun addItemToCollection(collectionId: UUID, collectionKind: CollectionKind, userId: UUID, contentId: String): Boolean
     suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
     suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean

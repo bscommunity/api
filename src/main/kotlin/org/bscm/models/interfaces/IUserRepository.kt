@@ -52,6 +52,8 @@ interface IUserRepository {
 
     suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int, requestedCounts: Set<String> = emptySet()): UserProfileCounts
 
+    suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int>
+
     suspend fun getSystemCollectionItems(
         userId: UUID,
         collectionKind: CollectionKind,

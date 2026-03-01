@@ -143,14 +143,43 @@ class CollectionService(
         return collectionRepository.getCollectionItems(resolvedId, userId, category, limit, offset)
     }
 
+    suspend fun getCollectionItemsWithCounts(
+        userId: UUID,
+        kind: CollectionKind,
+        collectionId: UUID? = null,
+        limit: Int? = null,
+        offset: Int? = null
+    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>> {
+        val (resolvedId, _) = resolveCollection(userId, kind, collectionId)
+            ?: return Pair(emptyList(), Triple(0, 0, 0))
+
+        return collectionRepository.getCollectionItemsWithCounts(resolvedId, userId, limit, offset)
+    }
+
+    suspend fun getSystemCollectionCounts(userId: UUID, kind: CollectionKind): Triple<Int, Int, Int> {
+        return collectionRepository.getCollectionItemCountsByKind(userId, kind)
+    }
+
     suspend fun getCollection(collectionId: UUID, userId: UUID): Collection? =
         collectionRepository.getCollection(collectionId, userId)
 
     suspend fun getCollectionBySlug(username: String, slug: String, viewerId: UUID?): Collection? =
         collectionRepository.getCollectionBySlug(username, slug, viewerId)
 
-    suspend fun getUserCollections(userId: UUID, limit: Int? = 20, offset: Int? = 0, onlyPublic: Boolean): List<Collection> =
-        collectionRepository.getUserCollections(userId, limit, offset, onlyPublic)
+    /**
+     * Returns a page of collections together with the total number of collections
+     * owned by the user (ignoring pagination), so callers avoid a second count query.
+     */
+    suspend fun getUserCollections(
+        userId: UUID,
+        limit: Int? = 20,
+        offset: Int? = 0,
+        onlyPublic: Boolean
+    ): Pair<List<Collection>, Int> {
+        val page  = collectionRepository.getUserCollections(userId, limit, offset, onlyPublic)
+        val total = collectionRepository.getUserCollections(userId, null, null, onlyPublic).size
+        return page to total
+    }
 
     // ── Mutations ───────────────────────────────────────────────────────────
 
