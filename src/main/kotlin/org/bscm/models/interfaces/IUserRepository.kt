@@ -7,6 +7,7 @@ import org.bscm.models.dto.account.CreateAccountRequest
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
+import org.bscm.models.dto.user.UserProfileCounts
 import org.bscm.models.enums.CollectionKind
 import java.util.*
 
@@ -48,6 +49,8 @@ interface IUserRepository {
         limit: Int,
         offset: Int
     ): List<CatalogItem>
+
+    suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int, requestedCounts: Set<String> = emptySet()): UserProfileCounts
 
     suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int>
 
