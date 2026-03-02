@@ -11,9 +11,7 @@ import org.bscm.models.dto.account.CreateAccountRequest
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
-import org.bscm.models.dto.user.UserProfileCounts
 import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.*
 import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.*
@@ -302,65 +300,6 @@ class UserRepository(
         // Return in order of original query
         val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
         themes.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
-    }
-
-    override suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int, requestedCounts: Set<String>): UserProfileCounts = newSuspendedTransaction {
-        val all = requestedCounts.isEmpty()
-
-        // Helper: count items in a system collection broken down by content type -> Triple(charts, tourPasses, themes)
-        fun countByKind(kind: CollectionKind): Triple<Int, Int, Int> {
-            val countColumn = CollectionItemTable.id.count()
-            val rows = CollectionItemTable
-                .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-                .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
-                .select(ContentTable.type, countColumn)
-                .where {
-                    (CollectionTable.userId eq userId) and
-                    (CollectionTable.kind eq kind)
-                }
-                .groupBy(ContentTable.type)
-                .associate { it[ContentTable.type] to it[countColumn].toInt() }
-
-            return Triple(
-                rows[ContentType.CHART] ?: 0,
-                rows[ContentType.TOUR_PASS] ?: 0,
-                rows[ContentType.THEME] ?: 0
-            )
-        }
-
-        // library: authored content (charts, tour passes, themes)
-        val library: Triple<Int, Int, Int>? = if (all || "library" in requestedCounts) {
-            val charts = ChartTable.select(ChartTable.id).where { ChartTable.authorId eq userId }.count().toInt()
-            val tourPasses = TourPassTable.select(TourPassTable.id).where { TourPassTable.authorId eq userId }.count().toInt()
-            val themes = ThemeTable.select(ThemeTable.id).where { ThemeTable.authorId eq userId }.count().toInt()
-            Triple(charts, tourPasses, themes)
-        } else null
-
-        val likes: Triple<Int, Int, Int>? = if (all || "likes" in requestedCounts) countByKind(CollectionKind.LIKES) else null
-        val bookmarks: Triple<Int, Int, Int>? = if (all || "bookmarks" in requestedCounts) countByKind(CollectionKind.BOOKMARKS) else null
-
-        val collections: Int? = if (all || "collections" in requestedCounts) {
-            CollectionTable
-                .select(CollectionTable.id)
-                .where {
-                    (CollectionTable.userId eq userId) and
-                    (CollectionTable.kind eq CollectionKind.USER)
-                }
-                .count()
-                .toInt()
-        } else null
-
-        val followers: Int? = if (all || "followers" in requestedCounts) followerCount else null
-        val following: Int? = if (all || "following" in requestedCounts) followingCount else null
-
-        UserProfileCounts(
-            library = library,
-            likes = likes,
-            bookmarks = bookmarks,
-            collections = collections,
-            followers = followers,
-            following = following
-        )
     }
 
     override suspend fun getSystemCollectionItems(
