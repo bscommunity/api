@@ -7,7 +7,10 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.dto.user.*
+import org.bscm.models.dto.user.ContentCounts
+import org.bscm.models.dto.user.CreateUserRequest
+import org.bscm.models.dto.user.ItemsPage
+import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IUserRepository
@@ -328,7 +331,8 @@ fun Route.userRoutes(
                     offset = offset
                 )
 
-                // Get library counts (charts, tour passes, themes) for this user
+                // Get library counts (charts, tour passes, themes) for this user,
+                // since this is the default section of the profile and users will expect to see these counts
                 val libraryCounts = userRepository.getLibraryCounts(userId)
 
                 println("Fetched ${charts.size} charts for user $userId (requester: $requester, limit: $limit, offset: $offset)")
@@ -341,7 +345,7 @@ fun Route.userRoutes(
              *
              * Tag: Users
              *
-             * Path: id [String] User ID (use "me" for current user).
+             * Path: id [String] User ID
              * Query: limit [Integer] Optional limit for results.
              * Query: offset [Integer] Optional pagination offset.
              *
@@ -358,7 +362,7 @@ fun Route.userRoutes(
                 val (limit, offset) = call.getPagination()
 
                 val (collections, total) = collectionService.getUserCollections(userId, limit, offset, !isMe)
-                call.respond(CollectionsPage(items = collections, total = total))
+                call.respond(ItemsPage(collections, ContentCounts(collections = total)) )
             }
         }
     }
