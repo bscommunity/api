@@ -2,6 +2,7 @@
 
 package org.bscm.models
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import org.bscm.models.enums.Genre
@@ -11,6 +12,7 @@ import java.time.LocalDateTime
 // SS = Server-side gathered fields for convenience
 
 @Serializable
+@SerialName("chart")
 data class Chart(
     val artist: String,
     val track: String,

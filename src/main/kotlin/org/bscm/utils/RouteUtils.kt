@@ -28,13 +28,13 @@ fun ApplicationCall.getUserIdOrNull(): UUID? {
  * Extracts a ContentType from query parameters if present.
  * @return ContentType enum value or null if not present or invalid
  */
-fun ApplicationCall.getContentTypeOrNull(): ContentType? {
-    val typeParam = request.queryParameters["contentType"]
-    return typeParam?.let {
+fun ApplicationCall.getContentTypeOrNull(): List<ContentType>? {
+    val typeParam = request.queryParameters["types"] ?: return null
+    return typeParam.split(',').mapNotNull {
         try {
-            ContentType.valueOf(it.uppercase())
-        } catch (_: IllegalArgumentException) {
-            null
+            ContentType.valueOf(it.trim().uppercase())
+        } catch (e: IllegalArgumentException) {
+            null // ignore invalid content types
         }
     }
 }

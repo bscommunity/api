@@ -117,7 +117,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
             genre = entity.genre,
-            versions = versions,
+            versions = if (versions.size > 1) versions else listOf(), // Only include versions list if there are multiple versions
             contributors = contributors ?: emptyList(),
             updatedAt = latestVersion.createdAt,
             createdAt = entity.createdAt,
@@ -518,7 +518,12 @@ class ChartRepository : BaseRepository(), IChartRepository {
                 streamingLinks = if (includeStreamingLinks) chartResult.streamingLinks?.map { toStreamingLink(it) } else null,
                 versions = chartResult.versions.map { entityToVersion(it, versionIndices[it.id.value] ?: 0) },
                 contributors = chartResult.contributors.map {
-                    log.debug("Processing contributor for chart ${chartResult.chart.id.value}: userId=${it.second.id.value}, roles=${it.first.roles.joinToString()}")
+                    log.debug(
+                        "Processing contributor for chart {}: userId={}, roles={}",
+                        chartResult.chart.id.value,
+                        it.second.id.value,
+                        it.first.roles.joinToString()
+                    )
                     contributorEntityToContributor(it.component1(), it.component2())
                 },
                 likedAt = chartResult.userStats.first,

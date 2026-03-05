@@ -130,34 +130,37 @@ class CollectionService(
     // ── Read operations ─────────────────────────────────────────────────────
 
     suspend fun getCollectionItems(
-        userId: UUID,
-        kind: CollectionKind,
-        collectionId: UUID? = null,
-        category: ContentType? = null,
+        collectionId: UUID,
+        userId: UUID? = null,
+        categories: List<ContentType>? = null,
         limit: Int? = null,
         offset: Int? = null
-    ): List<CatalogItem> {
-        val (resolvedId, _) = resolveCollection(userId, kind, collectionId)
-            ?: return emptyList()
+    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>?> {
+        val items = collectionRepository.getCollectionItems(collectionId, userId, categories, limit, offset)
 
-        return collectionRepository.getCollectionItems(resolvedId, userId, category, limit, offset)
+        // Only fetch counts if we're on the first page (offset 0 or null)
+        val counts = if (offset == null || offset == 0) {
+            collectionRepository.getCollectionItemsCounts(collectionId)
+        } else null
+
+        return items to counts
     }
 
-    suspend fun getCollectionItemsWithCounts(
+    suspend fun getSystemCollectionItems(
         userId: UUID,
         kind: CollectionKind,
-        collectionId: UUID? = null,
+        categories: List<ContentType>? = null,
         limit: Int? = null,
         offset: Int? = null
-    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>> {
-        val (resolvedId, _) = resolveCollection(userId, kind, collectionId)
-            ?: return Pair(emptyList(), Triple(0, 0, 0))
+    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>?> {
+        val items = collectionRepository.getCollectionItemsByKind(userId, kind, categories, limit, offset)
 
-        return collectionRepository.getCollectionItemsWithCounts(resolvedId, userId, limit, offset)
-    }
+        // Only fetch counts if we're on the first page (offset 0 or null)
+        val counts = if (offset == null || offset == 0) {
+            collectionRepository.getCollectionItemCountsByKind(userId, kind)
+        } else null
 
-    suspend fun getSystemCollectionCounts(userId: UUID, kind: CollectionKind): Triple<Int, Int, Int> {
-        return collectionRepository.getCollectionItemCountsByKind(userId, kind)
+        return items to counts
     }
 
     suspend fun getCollection(collectionId: UUID, userId: UUID): Collection? =

@@ -389,9 +389,7 @@ class UserRepository(
         collectionRepository.getCollectionItems(
             collectionId = collectionId,
             userId = requestingUserId,
-            category = null,
             limit = limit,
-            offset = 0
         )
     }
 

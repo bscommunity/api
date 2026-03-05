@@ -2,6 +2,7 @@
 
 package org.bscm.models
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import org.bscm.serialization.LocalDateTimeSerializer
@@ -10,6 +11,7 @@ import java.time.LocalDateTime
 // SS = Server-side gathered fields for convenience
 
 @Serializable
+@SerialName("theme")
 data class Theme(
     val name: String,
     val replaces: String,

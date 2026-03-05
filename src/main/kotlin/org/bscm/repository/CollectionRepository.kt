@@ -462,7 +462,8 @@ class CollectionRepository(
                     }
             }
 
-            CollectionKind.LIKES -> { /* coexist with everything */ }
+            CollectionKind.LIKES -> { /* coexist with everything */
+            }
         }
 
         val now = LocalDateTime.now()
@@ -481,67 +482,59 @@ class CollectionRepository(
         wasInserted
     }
 
-    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean = newSuspendedTransaction {
-        // Ownership check + existence guard in one query
-        val collectionExists = CollectionTable
-            .select(CollectionTable.id)
-            .where {
-                (CollectionTable.id eq collectionId) and
-                        (CollectionTable.userId eq userId)
+    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
+        newSuspendedTransaction {
+            // Ownership check + existence guard in one query
+            val collectionExists = CollectionTable
+                .select(CollectionTable.id)
+                .where {
+                    (CollectionTable.id eq collectionId) and
+                            (CollectionTable.userId eq userId)
+                }
+                .limit(1)
+                .count() > 0
+
+            if (!collectionExists) return@newSuspendedTransaction false
+
+            val deletedCount = CollectionItemTable.deleteWhere {
+                (CollectionItemTable.collectionId eq collectionId) and
+                        (CollectionItemTable.contentId eq contentId)
             }
-            .limit(1)
-            .count() > 0
 
-        if (!collectionExists) return@newSuspendedTransaction false
+            if (deletedCount > 0) {
+                CollectionTable.update({ CollectionTable.id eq collectionId }) {
+                    it[updatedAt] = LocalDateTime.now()
+                }
+            }
 
-        val deletedCount = CollectionItemTable.deleteWhere {
-            (CollectionItemTable.collectionId eq collectionId) and
-                    (CollectionItemTable.contentId eq contentId)
+            deletedCount > 0
         }
 
-        if (deletedCount > 0) {
-            CollectionTable.update({ CollectionTable.id eq collectionId }) {
-                it[updatedAt] = LocalDateTime.now()
-            }
-        }
-
-        deletedCount > 0
-    }
-
-    override suspend fun getCollectionItems(
-        collectionId: UUID,
-        userId: UUID?,
-        category: ContentType?,
+    private suspend fun getCollectionItemsByCondition(
+        collectionFilter: Op<Boolean>,
+        accessFilter: Op<Boolean>,
+        categories: List<ContentType>?,
         limit: Int?,
         offset: Int?
     ): List<CatalogItem> = newSuspendedTransaction {
-        // Access check — merged into the items query below to avoid a separate COUNT round-trip.
-        // We do this once here so the logic stays readable, then skip the standalone count query
-        // used in the original by letting the items query return empty naturally when the
-        // collection isn't visible. Still, an explicit early-exit is clearer than letting
-        // a huge join silently return nothing.
-        val accessFilter = if (userId != null) {
-            (CollectionTable.userId eq userId) or (CollectionTable.isPublic eq true)
-        } else {
-            CollectionTable.isPublic eq true
-        }
 
         val collectionExists = CollectionTable
-            .select(CollectionTable.id)                     // SELECT 1 equivalent — minimal projection
-            .where { (CollectionTable.id eq collectionId) and accessFilter }
-            .limit(1)                                       // no need to scan beyond the first match
-            .count() > 0
+            .select(CollectionTable.id)             // SELECT 1 equivalent — minimal projection
+            .where { collectionFilter and accessFilter }
+            .limit(1)
+            .count() > 0                                     // no need to scan beyond the first match
 
         if (!collectionExists) return@newSuspendedTransaction emptyList()
 
-        // Category filter — when no category, Op.TRUE is a no-op for the DB planner.
-        val categoryFilter: Op<Boolean> = when (category) {
-            null -> Op.TRUE
+        // Category filter — when no categories, Op.TRUE is a no-op for the DB planner.
+        val categoryFilter: Op<Boolean> = when {
+            categories.isNullOrEmpty() -> Op.TRUE
             else -> CollectionItemTable.contentId inSubQuery
-                    ContentTable.select(ContentTable.id).where { ContentTable.type eq category }
+                    ContentTable.select(ContentTable.id).where { ContentTable.type inList categories }
         }
 
         var itemsQuery = CollectionItemTable
+            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
             .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
             .select(
                 CollectionItemTable.collectionId,
@@ -549,7 +542,7 @@ class CollectionRepository(
                 CollectionItemTable.addedAt,
                 ContentTable.type
             )
-            .where { (CollectionItemTable.collectionId eq collectionId) and categoryFilter }
+            .where { collectionFilter and categoryFilter and accessFilter }
             .orderBy(CollectionItemTable.addedAt to SortOrder.DESC)
 
         if (limit != null) {
@@ -561,7 +554,7 @@ class CollectionRepository(
 
         // Track insertion order BEFORE dispatching to child repositories, because they
         // don't guarantee returning items in our requested order.
-        val orderMap: Map<String, LocalDateTime> = items.associate {
+        val orderMap = items.associate {
             it[CollectionItemTable.contentId].value to it[CollectionItemTable.addedAt]
         }
 
@@ -607,59 +600,85 @@ class CollectionRepository(
         catalogItems.sortedByDescending { orderMap[it.id] }
     }
 
-    override suspend fun getCollectionItemsWithCounts(
+    override suspend fun getCollectionItems(
         collectionId: UUID,
         userId: UUID?,
+        categories: List<ContentType>?,
         limit: Int?,
         offset: Int?
-    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>> = newSuspendedTransaction {
-        // Get the items
-        val items = getCollectionItems(collectionId, userId, null, limit, offset)
+    ): List<CatalogItem> {
 
-        // Get total counts for this collection by content type
+        // We set an access filter since an explicit early-exit is clearer than letting
+        // a huge join silently return nothing.
+        val accessFilter =
+            if (userId != null)
+                (CollectionTable.userId eq userId) or (CollectionTable.isPublic eq true)
+            else
+                CollectionTable.isPublic eq true
+
+        return getCollectionItemsByCondition(
+            collectionFilter = CollectionTable.id eq collectionId,
+            accessFilter = accessFilter,
+            categories = categories,
+            limit = limit,
+            offset = offset
+        )
+    }
+
+    override suspend fun getCollectionItemsByKind(
+        userId: UUID,
+        kind: CollectionKind,
+        categories: List<ContentType>?,
+        limit: Int?,
+        offset: Int?
+    ): List<CatalogItem> {
+
+        return getCollectionItemsByCondition(
+            collectionFilter =
+                (CollectionTable.userId eq userId) and
+                        (CollectionTable.kind eq kind),
+            accessFilter = Op.TRUE, // já estamos filtrando por dono
+            categories = categories,
+            limit = limit,
+            offset = offset
+        )
+    }
+
+    private suspend fun getCountsByCondition(
+        condition: Op<Boolean>
+    ): Triple<Int, Int, Int> = newSuspendedTransaction {
+
         val countColumn = CollectionItemTable.id.count()
+
         val rows = CollectionItemTable
             .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
             .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
             .select(ContentTable.type, countColumn)
-            .where {
-                (CollectionItemTable.collectionId eq collectionId) and
-                (CollectionTable.id eq collectionId)
-            }
+            .where { condition }
             .groupBy(ContentTable.type)
             .associate { it[ContentTable.type] to it[countColumn].toInt() }
 
-        val counts = Triple(
+        Triple(
             rows[ContentType.CHART] ?: 0,
             rows[ContentType.TOUR_PASS] ?: 0,
             rows[ContentType.THEME] ?: 0
         )
-
-        Pair(items, counts)
     }
+
+    override suspend fun getCollectionItemsCounts(
+        collectionId: UUID
+    ): Triple<Int, Int, Int> =
+        getCountsByCondition(
+            (CollectionItemTable.collectionId eq collectionId) and (CollectionTable.id eq collectionId)
+        )
 
     override suspend fun getCollectionItemCountsByKind(
         userId: UUID,
         kind: CollectionKind
-    ): Triple<Int, Int, Int> = newSuspendedTransaction {
-        val countColumn = CollectionItemTable.id.count()
-        val rows = CollectionItemTable
-            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
-            .select(ContentTable.type, countColumn)
-            .where {
-                (CollectionTable.userId eq userId) and
-                (CollectionTable.kind eq kind)
-            }
-            .groupBy(ContentTable.type)
-            .associate { it[ContentTable.type] to it[countColumn].toInt() }
-
-        return@newSuspendedTransaction Triple(
-            rows[ContentType.CHART] ?: 0,
-            rows[ContentType.TOUR_PASS] ?: 0,
-            rows[ContentType.THEME] ?: 0
+    ): Triple<Int, Int, Int> =
+        getCountsByCondition(
+            (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind)
         )
-    }
 
     override suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean =
         newSuspendedTransaction {

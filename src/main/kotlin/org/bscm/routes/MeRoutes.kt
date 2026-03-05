@@ -7,6 +7,7 @@ import io.ktor.server.routing.*
 import org.bscm.models.dto.user.ContentCounts
 import org.bscm.models.dto.user.ItemsPage
 import org.bscm.models.enums.CollectionKind
+import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.repository.ChartRepository
 import org.bscm.services.CollectionService
@@ -100,15 +101,31 @@ fun Route.meRoutes(
             /**
              * Get authenticated user's liked items.
              * Returns [ItemsPage] with the paginated items and total content counts (charts / tourPasses / themes).
-             * Counts are always for the full collection, regardless of the current page.
+             * Counts are only returned for the first page (offset=0) to optimize performance
              */
             get("/likes") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
-                val (items, counts) = collectionService.getCollectionItemsWithCounts(
-                    userId, CollectionKind.LIKES, limit = limit, offset = offset
+
+                // Parse ?types=charts,themes,tourPasses — null means "all"
+                val requestedTypes = call.request.queryParameters["types"]
+                    ?.split(",")
+                    ?.mapNotNull { runCatching { ContentType.valueOf(it.trim()) }.getOrNull() }
+
+                val (items, counts) = collectionService.getSystemCollectionItems(
+                    userId = userId,
+                    kind = CollectionKind.LIKES,
+                    limit = limit,
+                    offset = offset,
+                    categories = requestedTypes  // pass null = all types
                 )
-                call.respond(ItemsPage(items, ContentCounts(counts.first, counts.second, counts.third)))
+
+                call.respond(
+                    ItemsPage(
+                        items,
+                        counts?.let { ContentCounts(it.first, it.second, it.third) }
+                    )
+                )
             }
 
             /**
@@ -164,10 +181,26 @@ fun Route.meRoutes(
             get("/bookmarks") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
-                val (items, counts) = collectionService.getCollectionItemsWithCounts(
-                    userId, CollectionKind.BOOKMARKS, limit = limit, offset = offset
+
+                // Parse ?types=charts,themes,tourPasses — null means "all"
+                val requestedTypes = call.request.queryParameters["types"]
+                    ?.split(",")
+                    ?.mapNotNull { runCatching { ContentType.valueOf(it.trim()) }.getOrNull() }
+
+                val (items, counts) = collectionService.getSystemCollectionItems(
+                    userId = userId,
+                    kind = CollectionKind.BOOKMARKS,
+                    limit = limit,
+                    offset = offset,
+                    categories = requestedTypes  // pass null = all types
                 )
-                call.respond(ItemsPage(items, ContentCounts(counts.first, counts.second, counts.third)))
+
+                call.respond(
+                    ItemsPage(
+                        items,
+                        counts?.let { ContentCounts(it.first, it.second, it.third) }
+                    )
+                )
             }
 
             /**
@@ -218,7 +251,7 @@ fun Route.meRoutes(
 
             /**
              * Get collections created by the authenticated user.
-             * Returns [CollectionsPage] with the current page of collections and the total count.
+             * Returns [ItemsPage] with the paginated collections and total collection count.
              */
             get("/collections") {
                 val userId = call.getUserId()

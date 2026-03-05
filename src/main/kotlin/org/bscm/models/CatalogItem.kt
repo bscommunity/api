@@ -2,12 +2,16 @@
 
 package org.bscm.models
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
+import kotlinx.serialization.json.JsonClassDiscriminator
 import org.bscm.serialization.LocalDateTimeSerializer
 import java.time.LocalDateTime
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
+@JsonClassDiscriminator("type")
 sealed interface CatalogItem {
     @Serializable(with = LocalDateTimeSerializer::class)
     val id: String

@@ -2,12 +2,14 @@
 
 package org.bscm.models
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import org.bscm.serialization.LocalDateTimeSerializer
 import java.time.LocalDateTime
 
 @Serializable
+@SerialName("tour_pass")
 data class TourPass(
     val name: String,
     val artist: String?,

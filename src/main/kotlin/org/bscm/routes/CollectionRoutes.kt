@@ -9,6 +9,8 @@ import org.bscm.models.dto.collection.BatchCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
+import org.bscm.models.dto.user.ContentCounts
+import org.bscm.models.dto.user.ItemsPage
 import org.bscm.models.enums.CollectionKind
 import org.bscm.services.CollectionService
 import org.bscm.utils.*
@@ -152,7 +154,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                      * Tag: Collections
                      *
                      * Path: id [UUID] Collection ID.
-                     * Query: contentType [String] Optional content type filter.
+                     * Query: types [String] Optional list of content types to filter by (comma-separated, e.g. "chart,tourpass").
                      * Query: limit [Integer] Optional limit for results.
                      * Query: offset [Integer] Optional pagination offset.
                      *
@@ -164,21 +166,24 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     get {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
-                        val category = call.getContentTypeOrNull()
+                        val categories = call.getContentTypeOrNull()
                         val (limit, offset) = call.getPagination()
 
-                        val items = collectionService.getCollectionItems(
+                        val (items, counts) = collectionService.getCollectionItems(
                             userId = userId,
-                            kind = CollectionKind.USER,
                             collectionId = collectionId,
-                            category = category,
+                            categories = categories,
                             limit = limit,
                             offset = offset
                         )
 
-                        call.respond(items)
+                        call.respond(
+                            ItemsPage(
+                                items,
+                                counts?.let { ContentCounts(it.first, it.second, it.third) }
+                            )
+                        )
                     }
-
 
                     /**
                      * Add item to collection.

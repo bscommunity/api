@@ -13,19 +13,50 @@ interface ICollectionRepository {
     suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection
     suspend fun getCollection(collectionId: UUID, userId: UUID? = null): Collection?
     suspend fun getCollectionBySlug(username: String, slug: String, userId: UUID?): Collection?
-    suspend fun getUserCollections(userId: UUID, limit: Int? = null, offset: Int? = null, onlyPublic: Boolean = false): List<Collection>
+    suspend fun getUserCollections(
+        userId: UUID,
+        limit: Int? = null,
+        offset: Int? = null,
+        onlyPublic: Boolean = false
+    ): List<Collection>
+
     suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String?, isPublic: Boolean?): String?
     suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean
 
     // Collection Item Management
-    suspend fun getCollectionItems(collectionId: UUID, userId: UUID? = null, category: ContentType?, limit: Int? = null, offset: Int? = null): List<CatalogItem>
-    suspend fun getCollectionItemsWithCounts(collectionId: UUID, userId: UUID? = null, limit: Int? = null, offset: Int? = null): Pair<List<CatalogItem>, Triple<Int, Int, Int>>
+    suspend fun getCollectionItems(
+        collectionId: UUID,
+        userId: UUID? = null,
+        categories: List<ContentType>? = null,
+        limit: Int? = null,
+        offset: Int? = null
+    ): List<CatalogItem>
+    suspend fun getCollectionItemsByKind(
+        userId: UUID,
+        kind: CollectionKind,
+        categories: List<ContentType>?,
+        limit: Int? = null,
+        offset: Int? = null
+    ): List<CatalogItem>
+
+    suspend fun getCollectionItemsCounts(collectionId: UUID): Triple<Int, Int, Int>
     suspend fun getCollectionItemCountsByKind(userId: UUID, kind: CollectionKind): Triple<Int, Int, Int>
-    suspend fun addItemToCollection(collectionId: UUID, collectionKind: CollectionKind, userId: UUID, contentId: String): Boolean
+
+    suspend fun addItemToCollection(
+        collectionId: UUID,
+        collectionKind: CollectionKind,
+        userId: UUID,
+        contentId: String
+    ): Boolean
+
     suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
     suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean
 
     // Batch Operations
-    suspend fun batchAddItemsToCollection(collectionId: UUID, userId: UUID, contentIds: List<String>): Pair<Int, List<String>>
+    suspend fun batchAddItemsToCollection(
+        collectionId: UUID,
+        userId: UUID,
+        contentIds: List<String>
+    ): Pair<Int, List<String>>
     suspend fun batchRemoveItemsFromCollection(collectionId: UUID, userId: UUID, contentIds: List<String>): Int
 }

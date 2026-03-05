@@ -93,7 +93,6 @@ fun Route.chartRoutes(
 
                     val sortBy = call.request.queryParameters["sortBy"]
                         ?.let { runCatching { SortOption.valueOf(it) }.getOrNull() }
-                    // Bug fix: same valueOf crash risk.
 
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     val offset = call.request.queryParameters["offset"]?.toIntOrNull()
@@ -122,8 +121,8 @@ fun Route.chartRoutes(
                         else -> null
                     }
 
-                    // userId filter: only scope to the requester's own charts when myCharts=true
-                    // and they are authenticated. Otherwise browse is public-only (userId=null).
+                    // userId filter: only scope to the requester's own charts when myCharts=true,
+                    // and they are authenticated. Otherwise, browse is public-only (userId=null).
                     val filterUserId = requesterId?.takeIf { myCharts }
 
                     // Unauthenticated users are limited to the first 5 pages
