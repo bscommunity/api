@@ -60,6 +60,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
             .dataSource(url, user, password)
             .validateMigrationNaming(false)
             .baselineOnMigrate(true) // Used when migrating an existing database for the first time
+            .baselineVersion("4")
             .load()
 
         // Executa as migrações
