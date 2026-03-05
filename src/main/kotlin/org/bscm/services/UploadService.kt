@@ -4,14 +4,12 @@ import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.util.logging.*
 import io.ktor.utils.io.*
-import kotlinx.coroutines.delay
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import org.bscm.clients.applicationHttpClient
+import org.bscm.clients.jsonClient
 import org.bscm.interactions.*
 import org.bscm.models.Chart
 import org.bscm.models.StreamingLink
@@ -21,9 +19,9 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
-import org.bscm.plugins.applicationHttpClient
-import org.bscm.plugins.jsonClient
 import java.util.*
+
+private val logger = KtorSimpleLogger("UploadService")
 
 class UploadService(
     private val webhookId: String,
@@ -209,7 +207,7 @@ class UploadService(
             if (chart.isExplicit) append(" $explicitIcon")
         }
 
-        val title = "${chart.track} – ${chart.artist}$titleIcons"
+        val title = "${chart.track} - ${chart.artist}$titleIcons"
 
         val fields = listOf(
             EmbedField("Duration", "$durationIcon $durationFormatted", true),
@@ -224,7 +222,7 @@ class UploadService(
 
         val payload = message {
             username(author.username)
-            avatar(author.imageUrl)
+            avatar(author.avatarUrl)
             attachments(attachments)
             embed {
                 this.title = title
@@ -255,12 +253,15 @@ class UploadService(
         )
         val normalizedTrack = getNormalizedTrackName(chart.track)
 
-        println("Uploading chart: cover=${coverImage != null} (${coverImage?.size ?: 0} bytes), bundle=${chartBundle.size} bytes")
+        logger.info("Uploading chart: cover=${coverImage != null} (${coverImage?.size ?: 0} bytes), bundle=${chartBundle.size} bytes")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?with_components=true",
             formData = formData {
-                append("payload_json", payloadJson, Headers.build { append(HttpHeaders.ContentType, "application/json") })
+                append(
+                    "payload_json",
+                    payloadJson,
+                    Headers.build { append(HttpHeaders.ContentType, "application/json") })
                 // Attach cover image first so we can reliably identify it later
                 // Use unique field names (file0, file1) to avoid conflicts
                 coverImage?.let { bytes ->
@@ -270,7 +271,10 @@ class UploadService(
                     })
                 }
                 append("file1", chartBundle, Headers.build {
-                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file1\"; filename=\"${normalizedTrack}_v1.zip\"")
+                    append(
+                        HttpHeaders.ContentDisposition,
+                        "form-data; name=\"file1\"; filename=\"${normalizedTrack}_v1.zip\""
+                    )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
             }
@@ -294,32 +298,32 @@ class UploadService(
 
     @OptIn(InternalAPI::class)
     suspend fun uploadVersion(
-        messageId: String,
         chart: Chart,
-        newVersion: CreateVersionRequest,
+        version: CreateVersionRequest,
         author: User,
         chartBundle: ByteArray,
     ): DiscordMessageResponse {
-        val latestVersionIndex = chart.versions.maxOfOrNull { it.index } ?: 1
-        val newIndex = latestVersionIndex + 1
 
         val normalizedTrack = getNormalizedTrackName(chart.track)
+
+        // Calculate the next version index (current versions count + 1)
+        val nextIndex = chart.versions.size + 1
 
         // We need to update the displayed info with the new version data
         val payloadJson = buildWebhookPayload(
             CreateChartRequest(
-                track = newVersion.track,
-                artist = newVersion.artist,
-                duration = newVersion.duration,
-                notesAmount = newVersion.notesAmount,
-                effectsAmount = newVersion.effectsAmount,
-                difficulty = newVersion.difficulty,
-                isDeluxe = newVersion.isDeluxe,
-                isExplicit = newVersion.isExplicit,
+                track = version.track,
+                artist = version.artist,
+                duration = version.duration,
+                notesAmount = version.notesAmount,
+                effectsAmount = version.effectsAmount,
+                difficulty = version.difficulty,
+                isDeluxe = version.isDeluxe,
+                isExplicit = version.isExplicit,
                 trackPreviewUrl = chart.trackPreviewUrl,
-                bpm = newVersion.bpm,
-                bundleUrl = newVersion.bundleUrl,
-                previewUrl = newVersion.previewUrl,
+                bpm = version.bpm,
+                bundleUrl = version.bundleUrl,
+                previewUrl = version.previewUrl,
                 coverUrl = chart.coverUrl,
                 trackUrls = chart.trackUrls,
                 contentId = chart.contentId,
@@ -335,7 +339,7 @@ class UploadService(
         // println("Current message attachments: $payloadJson")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
-            url = "${editWebhookUrl}/${messageId}?with_components=true",
+            url = "${editWebhookUrl}/${chart.id}?with_components=true",
             formData = formData {
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
@@ -343,7 +347,7 @@ class UploadService(
                 append("file", chartBundle, Headers.build {
                     append(
                         HttpHeaders.ContentDisposition,
-                        "form-data; name=\"file\"; filename=\"${normalizedTrack}_v${newIndex}.zip\""
+                        "form-data; name=\"file\"; filename=\"${normalizedTrack}_v${nextIndex}.zip\""
                     )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
@@ -356,12 +360,17 @@ class UploadService(
             throw Exception("Failed to send: ${response.status}, ${response.bodyAsText()}")
         }
 
-        println(jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText()))
+        logger.info(response.bodyAsText())
 
         return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }
 
-    suspend fun deleteVersion(messageId: String, track: String, versions: List<Version>, versionId: String): Boolean {
+    suspend fun deleteVersion(
+        messageId: String,
+        track: String,
+        versions: List<Version>,
+        versionId: String
+    ): Boolean {
         val remainingVersions = versions.filter { it.id != versionId }
         val normalizedTrack = getNormalizedTrackName(track)
 
@@ -376,7 +385,7 @@ class UploadService(
             )
         )
 
-        println("Current message attachments after deletion: $payloadJson")
+        logger.info("Current message attachments after deletion: $payloadJson")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${editWebhookUrl}/${messageId}?with_components=true",
@@ -408,70 +417,57 @@ class UploadService(
 
     @Serializable
     data class RefreshData(
+        val versionId: String,
         val bundleUrl: String,
-        val coverUrl: String? = null
+        val coverUrl: String? = null,
+        val audioUrl: String? = null
     )
 
-    // Refreshes all bundle URLs and cover URLs in the webhook messages (from the charts channel)
-    suspend fun refreshBundleUrls(): Map<String, RefreshData> {
-        val maxMessages = 1000
-        val messagesPerRequest = 100
-        val refreshData = mutableMapOf<String, RefreshData>()
-        var lastMessageId: String? = null
-        var fetched = 0
-        while (fetched < maxMessages) {
-            val url = "https://discord.com/api/v10/channels/$channelId/messages?limit=$messagesPerRequest" +
-                    (lastMessageId?.let { "&before=$it" } ?: "")
-            val response: HttpResponse = applicationHttpClient.get(url) {
-                header(HttpHeaders.Authorization, "Bot $botToken")
-            }
-
-            // Rate limit handling
-            val rateLimitRemaining = response.headers["X-RateLimit-Remaining"]?.toIntOrNull() ?: 1
-            val rateLimitResetAfter = response.headers["X-RateLimit-Reset-After"]?.toDoubleOrNull() ?: 0.0
-            if (response.status.value == 429) {
-                val retryAfter = response.headers["Retry-After"]?.toDoubleOrNull() ?: rateLimitResetAfter
-                delay((retryAfter * 1000).toLong())
-                continue
-            } else if (rateLimitRemaining == 0) {
-                delay((rateLimitResetAfter * 1000).toLong())
-            }
-
-            val messagesJson = response.bodyAsText()
-            val messages = jsonClient.decodeFromString(
-                JsonArray.serializer(), messagesJson
+    /**
+     * Upload an audio file to Discord and return the attachment URL
+     * @param audioBytes The audio file bytes (e.g., MP3)
+     * @param filename The filename for the attachment
+     * @param trackName Track name for the message content
+     * @param artistName Artist name for the message content
+     * @param originalUrl Original preview URL from the source
+     * @return The Discord attachment URL
+     */
+    suspend fun uploadAudioFile(
+        audioBytes: ByteArray,
+        filename: String,
+        trackName: String,
+        artistName: String,
+        originalUrl: String
+    ): String {
+        val payload = jsonClient.encodeToString(
+            WebhookPayload.serializer(),
+            WebhookPayload(
+                content = "**$trackName - $artistName**\nOriginal: $originalUrl",
+                attachments = emptyList()
             )
+        )
 
-            if (messages.isEmpty()) break
-
-            for (msg in messages) {
-                val obj = msg.jsonObject
-                val attachments = obj["attachments"]?.jsonArray
-                val embeds = obj["embeds"]?.jsonArray
-
-                if (attachments != null && attachments.isNotEmpty()) {
-                    val lastAttachment = attachments.last().jsonObject
-                    val bundleUrl = lastAttachment["url"]?.jsonPrimitive?.content
-                    val id = lastAttachment["id"]?.jsonPrimitive?.content
-
-                    // Get cover URL from first embed's image
-                    val coverUrl = embeds?.firstOrNull()?.jsonObject
-                        ?.get("image")?.jsonObject
-                        ?.get("url")?.jsonPrimitive?.content
-
-                    println("Refreshing message ID=${obj["id"]?.jsonPrimitive?.content}: bundleUrl=$bundleUrl, coverUrl=$coverUrl")
-
-                    if (id != null && bundleUrl != null) {
-                        refreshData[id] = RefreshData(bundleUrl, coverUrl)
-                    }
-                }
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = webhookUrl,
+            formData = formData {
+                append("payload_json", payload, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+                append("file", audioBytes, Headers.build {
+                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"$filename\"")
+                    append(HttpHeaders.ContentType, "audio/mpeg")
+                })
             }
+        )
 
-            lastMessageId = messages.last().jsonObject["id"]?.jsonPrimitive?.content
-            fetched += messages.size
-
-            if (messages.size < messagesPerRequest) break
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to upload audio: ${response.status}, ${response.bodyAsText()}")
         }
-        return refreshData
+
+        val discordResponse = jsonClient.decodeFromString<DiscordMessageResponse>(response.bodyAsText())
+        val audioAttachment = discordResponse.attachments.firstOrNull()
+            ?: throw IllegalStateException("Discord response missing audio attachment")
+
+        return audioAttachment.url
     }
 }

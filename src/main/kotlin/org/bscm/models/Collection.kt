@@ -4,6 +4,8 @@ package org.bscm.models
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
+import org.bscm.models.dto.user.SimplifiedUser
+import org.bscm.models.enums.CollectionKind
 import org.bscm.serialization.LocalDateTimeSerializer
 import org.bscm.serialization.UUIDSerializer
 import java.time.LocalDateTime
@@ -15,11 +17,15 @@ import java.util.*
 data class Collection(
     val id: UUID,
     val userId: UUID,
+    val kind: CollectionKind,
     val name: String,
+    val slug: String? = null,
     val isPublic: Boolean,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,
-    val items: List<CatalogItem>? = null,
     val coverUrl: String? = null, // SS
-    val itemCount: Int = 0, // SS
+    val chartCount: Int, // SS
+    val tourPassCount: Int, // SS
+    val themeCount: Int, // SS
+    val owner: SimplifiedUser? = null // SS
 )

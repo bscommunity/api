@@ -7,6 +7,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.util.logging.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 
@@ -25,23 +26,20 @@ private data class ApplicationCommand(
     val options: List<CommandOption>? = null
 )
 
+private val log = KtorSimpleLogger("CommandUtils")
+
 object CommandUtils {
     fun registerDiscordCommands(botToken: String, appId: String, guildId: String? = null) {
         val client = HttpClient(CIO) { install(ContentNegotiation) { json() } }
 
         val commands = listOf(
             ApplicationCommand(
-                name = "ping",
-                description = "Replies with pong!"
-            ),
-            ApplicationCommand(
                 name = "publish",
                 description = "Publishes a new chart (attachments required)",
                 options = listOf(
                     CommandOption(11, "bundle_zip", "Bundle .zip (attachment)", true),
-                    CommandOption(11, "chart_file", ".chart file (attachment)", true),
                     CommandOption(3, "gameplay_url", "Gameplay URL (YouTube)", false),
-                    CommandOption(5, "is_explicit", "Explicit?", false)
+                    // CommandOption(5, "is_explicit", "Explicit?", false)
                 )
             )
         )
@@ -59,10 +57,10 @@ object CommandUtils {
                     contentType(ContentType.Application.Json)
                     setBody(commands)
                 }
-                println("[DiscordCmd][$scope] Status: ${response.status}")
-                println("[DiscordCmd][$scope] Body: ${response.bodyAsText()}")
+                log.info("[DiscordCmd][$scope] Status: ${response.status}")
+                log.info("[DiscordCmd][$scope] Body: ${response.bodyAsText()}")
             } catch (e: Exception) {
-                println("[DiscordCmd][$scope] Erro: $e")
+                log.error("[DiscordCmd][$scope] Error: $e")
             }
         }
     }
@@ -85,10 +83,10 @@ object CommandUtils {
                 val response = client.get(url) {
                     header(HttpHeaders.Authorization, "Bot $botToken")
                 }
-                println("[DiscordCmd][CLEAR][$scope] Status: ${response.status}")
-                println("[DiscordCmd][CLEAR][$scope] Body: ${response.bodyAsText()}")
+                log.info("[$scope] Status: ${response.status}")
+                log.info("[$scope] Body: ${response.bodyAsText()}")
             } catch (e: Exception) {
-                println("[DiscordCmd][CLEAR][$scope] Erro: $e")
+                log.error("[$scope] Error: $e")
             }
         }
     }

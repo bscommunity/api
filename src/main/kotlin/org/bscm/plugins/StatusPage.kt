@@ -39,7 +39,7 @@ fun Application.configureStatusPages() {
 
             val (status, errorResponse) = when (cause) {
                 is NotImplementedError -> HttpStatusCode.NotImplemented to ErrorResponse(
-                    message = "Feature not implemented",
+                    message = cause.message ?: "This feature is not implemented",
                     code = "NOT_IMPLEMENTED",
                     path = call.request.path()
                 )
@@ -63,20 +63,20 @@ fun Application.configureStatusPages() {
                 )
 
                 is NoSuchElementException -> HttpStatusCode.NotFound to ErrorResponse(
-                    message = "Resource not found",
+                    message = cause.message ?: "Resource not found",
                     code = "RESOURCE_NOT_FOUND",
                     path = call.request.path()
                 )
 
                 is SecurityException -> HttpStatusCode.Forbidden to ErrorResponse(
-                    message = "Access denied",
+                    message = cause.message ?: "Access denied",
                     code = "ACCESS_DENIED",
                     path = call.request.path()
                 )
 
                 // Handle JWT/Authentication specific exceptions if you use them
                 is UnauthorizedException -> HttpStatusCode.Unauthorized to ErrorResponse(
-                    message = "Authentication required",
+                    message = cause.message ?: "Unauthorized access",
                     code = "UNAUTHORIZED",
                     path = call.request.path()
                 )

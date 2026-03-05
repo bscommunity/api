@@ -4,8 +4,8 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import kotlinx.serialization.json.*
+import org.bscm.clients.jsonClient
 import org.bscm.interactions.commands.PublishCommand
-import org.bscm.plugins.jsonClient
 
 object CommandHandler {
     suspend fun handle(call: ApplicationCall, payload: JsonObject) {
@@ -18,7 +18,7 @@ object CommandHandler {
 
         when (name) {
             "publish" -> {
-                PublishCommand.handle(call, data, locale)
+                PublishCommand.handle(call, payload, data, locale)
                 return
             }
             else -> {
@@ -47,4 +47,7 @@ object CommandHandler {
     }
 
     fun ephemeralMessage(block: MessageBuilder.() -> Unit): JsonObject = message(block).toInteractionJson(ephemeral = true)
+
+    fun immediateEphemeralResponse(block: MessageBuilder.() -> Unit): JsonObject =
+        message(block).toInteractionJson(ephemeral = true)
 }

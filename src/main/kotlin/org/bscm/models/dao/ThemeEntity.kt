@@ -20,9 +20,10 @@ class ThemeEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var coverUrl by ThemeTable.coverUrl
     var isPublic by ThemeTable.isPublic
     var isFeatured by ThemeTable.isFeatured
-
     var downloadsSum by ThemeTable.downloadsSum
-    var latestPublishedAt by ThemeTable.latestUpdatedAt
+
+    var createdAt by ThemeTable.createdAt
+    var latestUpdatedAt by ThemeTable.latestUpdatedAt
 
     // var content by ContentEntity referencedOn ThemeTable.contentId
 }

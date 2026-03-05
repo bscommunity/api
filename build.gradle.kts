@@ -23,6 +23,14 @@ repositories {
     maven { url = uri("https://jitpack.io") }
 }
 
+ktor {
+    openApi {
+        enabled = true
+        codeInferenceEnabled = false
+        onlyCommented = false
+    }
+}
+
 dependencies {
     // Ktor (Client)
     implementation(libs.ktor.client.core.jvm)
@@ -39,11 +47,14 @@ dependencies {
     implementation(libs.ktor.server.host.common)
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.server.status.pages)
-    implementation(libs.ktor.server.swagger.jvm)
     implementation(libs.ktor.server.auth)
     implementation(libs.ktor.server.auth.jwt.jvm)
     implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.rate.limit)
+    implementation(libs.ktor.server.config.yaml)
+    implementation(libs.ktor.server.openapi)
+    implementation(libs.ktor.server.swagger)
+    implementation(libs.ktor.server.routing.openapi)
 
     testImplementation(libs.ktor.server.test.host.jvm)
     testImplementation(libs.kotlin.test.junit)
@@ -67,15 +78,20 @@ dependencies {
     implementation(libs.flyway.core)
     runtimeOnly(libs.flyway.database.postgresql)
 
-    // Utils
-    implementation(libs.logback)
-    implementation(libs.kotlinx.datetime)
-    implementation(libs.ktor.server.config.yaml)
+    // Logging
+    implementation(libs.logback.classic)
 
-    // BouncyCastle
-    implementation(libs.bouncycastle)
+    // Kotlin
+    implementation(libs.kotlinx.datetime)
+
+    // Utils
+    implementation(libs.bouncycastle) // For cryptographic operations (e.g., NanoId)
+    implementation(libs.classgraph) // For classpath scanning (e.g., loading Exposed tables)
 
     // Decoding
     implementation(libs.unitykt)
     implementation(libs.compress)
+
+    // Caching
+    implementation(libs.lettuce.core)
 }

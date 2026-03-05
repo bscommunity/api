@@ -10,6 +10,23 @@ import org.bscm.interactions.I18n
 import org.bscm.utils.Ed25519Utils.verifyEd25519
 
 fun Route.interactionsRoutes(publicKey: String?) {
+    /**
+     * Handle Discord slash command interactions.
+     *
+     * Tag: Interactions
+     *
+     * Description: Discord interaction endpoint for command handling. Expects Ed25519 signature verification in headers.
+     *
+     * Header: X-Signature-Ed25519 [String] Ed25519 signature of the request.
+     * Header: X-Signature-Timestamp [String] Request timestamp for signature verification.
+     * Body: application/json Discord interaction payload with type 1 (PING) or 2 (APPLICATION_COMMAND).
+     *
+     * Responses:
+     *   - 400 Invalid JSON body.
+     *   - 401 Invalid request signature or missing public key.
+     *   - 501 Unsupported interaction type.
+     *   - 200 PING response (type 1) or command response.
+     */
     post("/interactions") {
         val signature = call.request.header("X-Signature-Ed25519")
         val timestamp = call.request.header("X-Signature-Timestamp")

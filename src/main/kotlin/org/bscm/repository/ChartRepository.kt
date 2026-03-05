@@ -1,6 +1,7 @@
 package org.bscm.repository
 
 import io.ktor.server.plugins.*
+import io.ktor.util.logging.*
 import org.bscm.models.Chart
 import org.bscm.models.Contributor
 import org.bscm.models.StreamingLink
@@ -9,11 +10,13 @@ import org.bscm.models.dao.*
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.enums.*
-import org.bscm.models.repository.IChartRepository
+import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.mappers.VersionMapper.entityToVersion
 import org.bscm.models.tables.*
 import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
-import org.bscm.repository.VersionRepository.Companion.versionEntityToVersion
 import org.bscm.utils.QueryUtils
+import org.bscm.utils.UserStatsUtils
+import org.bscm.utils.retryOnConflict
 import org.jetbrains.exposed.dao.flushCache
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.*
@@ -21,35 +24,86 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.time.LocalDateTime
 import java.util.*
 import kotlin.math.max
 
-class ChartRepository : IChartRepository {
+private val log = KtorSimpleLogger("ChartRepository")
+
+class ChartRepository : BaseRepository(), IChartRepository {
+
+
+    /**
+     * Calculates version indices for multiple versions efficiently using a window function.
+     * Returns a map of versionId -> index (1-based).
+     * This is much more efficient than calling calculateVersionIndex() for each version.
+     */
+    private suspend fun calculateVersionIndices(chartIds: List<ULong>): Map<ULong, Int> =
+        newSuspendedTransaction {
+            if (chartIds.isEmpty()) return@newSuspendedTransaction emptyMap()
+
+            // Use raw SQL with window function for optimal performance
+            val sql = """
+                SELECT 
+                    id,
+                    ROW_NUMBER() OVER (PARTITION BY chart_id ORDER BY created_at) as version_index
+                FROM ${VersionTable.tableName}
+                WHERE chart_id IN (${chartIds.joinToString { it.toString() }})
+            """.trimIndent()
+
+            val result = mutableMapOf<ULong, Int>()
+            exec(sql) { rs ->
+                while (rs.next()) {
+                    val versionId = rs.getLong("id").toULong()
+                    val index = rs.getInt("version_index")
+                    result[versionId] = index
+                }
+            }
+            result
+        }
 
     private class ChartResult(
         val chart: ChartEntity,
         val streamingLinks: List<StreamingLinkEntity>?,
         val versions: List<VersionEntity>,
         val contributors: List<Pair<ContributorEntity, UserEntity>>,
-        var userStats: Pair<Boolean, Boolean> // (isLiked, isFavorited)
+        var userStats: Pair<LocalDateTime?, LocalDateTime?> // (isLiked, isBookmarked)
     )
 
-    private fun daoToStreamingLink(
+    data class ChartFilters(
+        val userId: UUID? = null,
+        val chartIds: List<ULong>? = null,
+        val contentIds: List<String>? = null,
+        val search: String? = null,
+        val difficulties: List<Difficulty>? = null,
+        val genres: List<Genre>? = null,
+        val isDeluxe: Boolean? = null,
+        val includePrivate: Boolean = false,
+    )
+
+    data class ChartAddons(
+        val versions: Boolean = false,
+        val streamingLinks: Boolean = false,
+        val count: Boolean = false,
+    )
+
+    private fun toStreamingLink(
         entity: StreamingLinkEntity
     ): StreamingLink = StreamingLink(
         platform = entity.platform,
         url = entity.url,
     )
 
-    private fun daoToChart(
+    private fun toChart(
         entity: ChartEntity,
-        streamingLinks: List<StreamingLink>?,
         versions: List<Version>,
         contributors: List<Contributor>? = null,
-        isLiked: Boolean = false,
-        isFavorited: Boolean = false,
+        streamingLinks: List<StreamingLink>? = null,
+        likedAt: LocalDateTime? = null,
+        bookmarkedAt: LocalDateTime? = null,
     ): Chart {
-        val latestVersion = versions.maxBy { it.publishedAt }
+        // We always expect at least one version to be present
+        val latestVersion = versions.maxBy { it.createdAt }
 
         return Chart(
             id = entity.id.value.toString(),
@@ -63,107 +117,94 @@ class ChartRepository : IChartRepository {
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
             genre = entity.genre,
-            versions = versions,
+            versions = if (versions.size > 1) versions else listOf(), // Only include versions list if there are multiple versions
             contributors = contributors ?: emptyList(),
-            latestPublishedAt = latestVersion.publishedAt,
-            // Room Database fields (Android app expects these fields)
+            updatedAt = latestVersion.createdAt,
+            createdAt = entity.createdAt,
+
+            // Server-side computed fields
             downloadsSum = versions.sumOf { it.downloadsAmount },
             latestVersion = latestVersion,
-            isLiked = isLiked,
-            isFavorited = isFavorited
+            likedAt = likedAt,
+            bookmarkedAt = bookmarkedAt,
         )
     }
 
-    override suspend fun getChartById(id: ULong): Chart? = newSuspendedTransaction {
-        val query = ChartTable.selectAll()
-            .where { ChartTable.id eq id }
-
-        applyJoinsAndSelect(query, fetchAllVersions = true, fetchStreamingLinks = false)
-        val processedResults = processResultsInMemory(
-            query.toList(),
-            includeStreamingLinks = false
+    private suspend fun getChart(query: Query, addons: ChartAddons? = null): Chart? {
+        // Apply joins based on addons
+        applyJoinsAndSelect(
+            query,
+            fetchAllVersions = addons?.versions == true,
+            fetchStreamingLinks = addons?.streamingLinks == true
         )
 
-        if (processedResults.isEmpty()) return@newSuspendedTransaction null
+        // Process results
+        val processedResults = processResultsInMemory(
+            requestingUserId = getUserContext()?.userId,
+            results = query.toList(),
+            includeStreamingLinks = addons?.streamingLinks == true
+        )
+
+        if (processedResults.isEmpty()) return null
 
         val chartResult = processedResults.first()
 
-        daoToChart(
+        // Calculate version indices for this chart in a single query
+        val versionIndices = calculateVersionIndices(listOf(chartResult.chart.id.value))
+
+        return toChart(
             entity = chartResult.chart,
-            streamingLinks = null,
-            versions = chartResult.versions.map { versionEntityToVersion(it) },
+            streamingLinks = chartResult.streamingLinks?.map { toStreamingLink(it) },
+            versions = chartResult.versions.map { entityToVersion(it, versionIndices[it.id.value] ?: 0) },
             contributors = chartResult.contributors.map {
                 contributorEntityToContributor(it.component1(), it.component2())
-            }
+            },
+            likedAt = chartResult.userStats.first,
+            bookmarkedAt = chartResult.userStats.second
         )
     }
 
-    override suspend fun getAppChartById(contentId: String): Chart? = newSuspendedTransaction {
-        val query = ChartTable.selectAll()
-            .where { ChartTable.contentId eq contentId }
-
-        applyJoinsAndSelect(query, fetchAllVersions = false, fetchStreamingLinks = true)
-        val processedResults = processResultsInMemory(
-            query.toList(),
-            includeStreamingLinks = true
-        )
-
-        if (processedResults.isEmpty()) return@newSuspendedTransaction null
-
-        val chartResult = processedResults.first()
-
-        daoToChart(
-            entity = chartResult.chart,
-            streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
-            versions = chartResult.versions.map { versionEntityToVersion(it) },
-            contributors = chartResult.contributors.map {
-                contributorEntityToContributor(it.component1(), it.component2())
-            }
+    override suspend fun getChartById(id: ULong, addons: ChartAddons?): Chart? = newSuspendedTransaction {
+        getChart(
+            query = ChartTable.selectAll().where { ChartTable.id eq id },
+            addons = addons
         )
     }
+
+    override suspend fun getChartByContentId(contentId: String, addons: ChartAddons?): Chart? =
+        newSuspendedTransaction {
+            getChart(
+                query = ChartTable.selectAll().where { ChartTable.contentId eq contentId },
+                addons = addons
+            )
+        }
 
     private fun fetchChartEntities(
-        userId: UUID?,
-        chartIds: List<ULong>? = null,
-        contentIds: List<String>? = null,
-        search: String? = null,
-        sortBy: SortOption? = null,
-        difficulties: List<Difficulty>? = null,
-        genres: List<Genre>? = null,
-        isDeluxe: Boolean? = null,
+        sortBy: SortOption?,
+        filters: ChartFilters? = null,
+        addons: ChartAddons? = null,
         limit: Int? = 20,
         offset: Int? = null,
-        filterByUser: Boolean = false,
-        fetchAllVersions: Boolean = false,
-        fetchStreamingLinks: Boolean,
     ): Pair<List<ChartResult>, Int> {
         val startTime = System.currentTimeMillis()
 
         // First, fetch the correctly filtered and sorted IDs with pagination
         val baseQuery = ChartTable.select(ChartTable.id)
-        applyAllFilters(
-            baseQuery,
-            filterByUser.let { if (it) userId else null },
-            chartIds,
-            contentIds,
-            search,
-            difficulties,
-            genres,
-            isDeluxe
-        )
-        applyOrdering(baseQuery, sortBy ?: SortOption.LAST_UPDATED)
 
-        val totalCount = baseQuery.count().toInt()
+        // Then, apply filters and sorting
+        applyFilters(query = baseQuery, filters = filters)
+        applySorting(baseQuery, sortBy ?: SortOption.LAST_UPDATED)
 
         // println("Base query: ${baseQuery.prepareSQL(QueryBuilder(false))}")
 
+        // Apply pagination
         limit?.takeIf { it > 0 }?.let { baseQuery.limit(it) }
         offset?.takeIf { it >= 0 }?.let { baseQuery.offset(it.toLong()) }
 
         val paginatedIds = baseQuery.map { it[ChartTable.id].value }
         if (paginatedIds.isEmpty()) {
             // println("No charts found with the provided filters.")
-            return Pair(emptyList(), totalCount)
+            return Pair(emptyList(), 0)
         }
 
         // println("Paginated IDs: ${paginatedIds.joinToString()}")
@@ -171,20 +212,25 @@ class ChartRepository : IChartRepository {
         // Now, fetch the full data for those specific IDs
         val fullQuery = ChartTable.selectAll().where { ChartTable.id inList paginatedIds }
 
-        // Decoupled join logic
-        applyJoinsAndSelect(fullQuery, fetchAllVersions, fetchStreamingLinks)
+        // Apply joins based on addons
+        applyJoinsAndSelect(
+            query = fullQuery,
+            fetchAllVersions = addons?.versions == true,
+            fetchStreamingLinks = addons?.streamingLinks == true
+        )
 
         // Execute the query to get all chart data
         val results = fullQuery.toList()
 
         // Process results to group related entities (versions, contributors, etc.)
+        // Use UserContext for user stats (independent of filtering)
         val processedResults = processResultsInMemory(
-            results,
-            userId = if (userId != null && !filterByUser) userId else null,
-            includeStreamingLinks = fetchStreamingLinks
+            requestingUserId = getUserContext()?.userId,
+            results = results,
+            includeStreamingLinks = addons?.streamingLinks == true
         )
 
-        // println("Fetched ${processedResults.size} with filters: userId=$userId, chartIds=${chartIds?.joinToString()}, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
+        // println("Fetched ${processedResults.size} with filters: userId=${filters?.userId}, chartIds=${filters?.chartIds?.joinToString()}, search=${filters?.search}, sortBy=$sortBy, difficulties=${filters?.difficulties?.joinToString()}, genres=${filters?.genres?.joinToString()}, limit=$limit, offset=$offset")
 
         // The database does not guarantee order with an `IN` clause,
         // so we re-sort the results in memory based on the correctly ordered `paginatedIds`.
@@ -192,9 +238,13 @@ class ChartRepository : IChartRepository {
         val sortedResults = paginatedIds.mapNotNull { id -> chartMap[id] }
 
         val endTime = System.currentTimeMillis()
-        println("Charts fetch completed in ${endTime - startTime}ms with ${sortedResults.size} charts")
+        log.info("Charts fetch completed in ${endTime - startTime}ms with ${sortedResults.size} charts")
 
-        return Pair(sortedResults, totalCount)
+        return if (addons?.count == true) {
+            Pair(sortedResults, baseQuery.count().toInt())
+        } else {
+            Pair(sortedResults, -1)
+        }
     }
 
     /**
@@ -245,25 +295,16 @@ class ChartRepository : IChartRepository {
         query.adjustSelect { select(columnsToSelect) }
     }
 
-    private fun applyAllFilters(
-        query: Query,
-        userId: UUID?,
-        chartIds: List<ULong>?,
-        contentIds: List<String>?,
-        search: String?,
-        difficulties: List<Difficulty>?,
-        genres: List<Genre>?,
-        isDeluxe: Boolean?,
-    ) {
-        // Only return public charts if userId is null
-        if (userId == null) {
+    private fun applyFilters(query: Query, filters: ChartFilters?) {
+        // Only return public charts if neither userId (contributor filter) nor includePrivate is set
+        if (filters?.userId == null && filters?.includePrivate != true) {
             query.andWhere {
                 ChartTable.isPublic eq true
             }
         }
 
         // If user is provided, filter by their charts
-        userId?.let {
+        filters?.userId?.let {
             query.andWhere {
                 ChartTable.id inSubQuery (
                         ContributorTable.select(ContributorTable.chartId)
@@ -273,22 +314,22 @@ class ChartRepository : IChartRepository {
         }
 
         // Filter by a specific list of chartIds if provided
-        chartIds?.takeIf { it.isNotEmpty() }?.let { ids ->
+        filters?.chartIds?.takeIf { it.isNotEmpty() }?.let { ids ->
             query.andWhere { ChartTable.id inList ids }
         }
 
         // Filter by a specific list of contentIds if provided
-        contentIds?.takeIf { it.isNotEmpty() }?.let { ids ->
+        filters?.contentIds?.takeIf { it.isNotEmpty() }?.let { ids ->
             query.andWhere { ChartTable.contentId inList ids.map { it } }
         }
 
         // Search functionality for artist, track, or album
-        if (!search.isNullOrBlank()) {
-            applySearch(search, query)
+        if (!filters?.search.isNullOrBlank()) {
+            applySearch(query, filters.search)
         }
 
         // Filter by difficulties - now using latest version
-        difficulties?.takeIf { it.isNotEmpty() }?.let {
+        filters?.difficulties?.takeIf { it.isNotEmpty() }?.let {
             query.andWhere {
                 ChartTable.latestVersionId inSubQuery (
                         VersionTable.select(VersionTable.id)
@@ -298,12 +339,12 @@ class ChartRepository : IChartRepository {
         }
 
         // Filter by genres
-        genres?.takeIf { it.isNotEmpty() }?.let {
+        filters?.genres?.takeIf { it.isNotEmpty() }?.let {
             query.andWhere { ChartTable.genre inList it }
         }
 
         // Filter by isDeluxe
-        isDeluxe?.let { deluxe ->
+        filters?.isDeluxe?.let { deluxe ->
             query.andWhere {
                 ChartTable.latestVersionId inSubQuery (
                         VersionTable.select(VersionTable.id)
@@ -313,10 +354,7 @@ class ChartRepository : IChartRepository {
         }
     }
 
-    private fun applySearch(
-        search: String,
-        query: Query
-    ) {
+    private fun applySearch(query: Query, search: String) {
         val normalizedSearchTerm = QueryUtils.getNormalizedQuery(search)
         val searchTerms = normalizedSearchTerm.split(" ").filter { it.isNotBlank() } // Split and filter empty terms
 
@@ -350,14 +388,14 @@ class ChartRepository : IChartRepository {
         }
     }
 
-    private fun applyOrdering(query: Query, sortBy: SortOption) {
+    private fun applySorting(query: Query, sortBy: SortOption) {
         when (sortBy) {
             SortOption.LAST_UPDATED -> {
                 query
                     .adjustColumnSet {
                         innerJoin(VersionTable, { ChartTable.latestVersionId }, { VersionTable.id })
                     }
-                    .orderBy(VersionTable.publishedAt to SortOrder.DESC)
+                    .orderBy(VersionTable.createdAt to SortOrder.DESC)
             }
 
             else -> { // Defaults to MOST_DOWNLOADED
@@ -372,204 +410,128 @@ class ChartRepository : IChartRepository {
         }
     }
 
+    /**
+     * Fetches user interaction stats (likes and bookmarks) for a batch of charts.
+     * Returns a map of contentId -> (isLiked, isBookmarked)
+     */
+    private fun fetchUserStats(
+        userId: UUID?,
+        groupedByChartId: Map<ULong, List<ResultRow>>
+    ): Map<String, Pair<LocalDateTime?, LocalDateTime?>> {
+        if (userId == null || groupedByChartId.isEmpty()) {
+            return emptyMap()
+        }
+
+        // Extract all contentIds from the grouped charts
+        val contentIds = groupedByChartId.values.map { rows -> rows.first()[ChartTable.contentId].value }
+
+        if (contentIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        return UserStatsUtils.fetchUserStats(userId, contentIds)
+    }
+
     private fun processResultsInMemory(
+        requestingUserId: UUID? = null,
         results: List<ResultRow>,
-        userId: UUID? = null,
         includeStreamingLinks: Boolean
     ): List<ChartResult> {
         // Group the rows by Chart ID
         val groupedByChartId = results.groupBy { it[ChartTable.id].value }
 
-        // Pre-fetch user stats for all charts in this batch if userId is provided
-        val userStats = if (userId != null) {
-            // Pre-fetch user stats for all charts in this batch
-            val contentIds = groupedByChartId.values.map { rows -> rows.first()[ChartTable.contentId].value }
-            val statsQuery = CollectionItemTable.select(CollectionItemTable.contentId, CollectionItemTable.collectionId)
-            statsQuery.adjustColumnSet {
-                leftJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            }
-            statsQuery.adjustSelect {
-                select(CollectionItemTable.contentId, CollectionTable.name)
-            }
-            statsQuery.andWhere {
-                (CollectionTable.userId eq userId) and
-                        (CollectionItemTable.contentId inList contentIds)
-            }
-            statsQuery.groupBy { it[CollectionItemTable.contentId].value }
-                .mapValues { it.value.map { row -> row[CollectionTable.name] } }
-                .mapValues { (_, collections) ->
-                    val isLiked = collections.contains("likes")
-                    val isFavorited = !isLiked && collections.isNotEmpty() || collections.size > 1
-                    Pair(isLiked, isFavorited)
-                }
-        } else emptyMap()
+        // Pre-fetch user stats for all charts in this batch if requestingUserId is provided
+        val userStats = fetchUserStats(requestingUserId, groupedByChartId)
 
-        return groupedByChartId.map { (chartId, rows) ->
+        return groupedByChartId.map { (_, rows) ->
             val chartEntity = ChartEntity.wrapRow(rows.first())
 
             val streamingLinks = if (includeStreamingLinks) {
                 rows.mapNotNull { row ->
                     // Check if streaming link data exists in this row
-                    row.getOrNull(StreamingLinkTable.id)?.let { streamingLinkId ->
+                    row.getOrNull(StreamingLinkTable.id)?.let { _ ->
                         // Also check if URL exists to ensure it's not a NULL join result
                         row.getOrNull(StreamingLinkTable.url)?.let {
                             StreamingLinkEntity.wrapRow(row)
                         }
                     }
-                }.distinctBy { it.id.value } // Use .value for ULong comparison
+                }.distinctBy { it.id.value }
             } else emptyList()
 
             val versions = rows.mapNotNull { row ->
-                row.getOrNull(VersionTable.id)?.let { versionId ->
+                row.getOrNull(VersionTable.id)?.let { _ ->
                     VersionEntity.wrapRow(row)
                 }
-            }.distinctBy { it.id.value } // Use .value for ULong comparison
+            }.distinctBy { it.id.value }
 
             val contributors = rows.mapNotNull { row ->
                 // Check if contributor data exists
-                row.getOrNull(ContributorTable.userId)?.let { userId ->
-                    row.getOrNull(UserTable.id)?.let { userTableId ->
+                row.getOrNull(ContributorTable.userId)?.let { _ ->
+                    row.getOrNull(UserTable.id)?.let { _ ->
                         val contributor = ContributorEntity.wrapRow(row)
                         val user = UserEntity.wrapRow(row)
                         contributor to user
                     }
                 }
-            }.distinctBy { it.first.id.value } // Use the composite ID value for distinction
+            }.distinctBy { it.first.id.value }
 
             ChartResult(
                 chart = chartEntity,
                 streamingLinks = streamingLinks,
                 versions = versions,
                 contributors = contributors,
-                userStats = userStats[chartEntity.contentId.value] ?: Pair(false, false)
+                userStats = userStats[chartEntity.contentId.value] ?: Pair(null, null)
             )
         }
     }
 
-    // Used by other functions (TourPasses) to fetch charts (for now, only for the mobile app)
     override suspend fun getCharts(
-        userId: UUID?,
-        contentIds: List<String>?,
-        chartIds: List<ULong>?,
-    ): Pair<List<Chart>, Int> = newSuspendedTransaction {
-        val (results, total) = fetchChartEntities(
-            userId = userId,
-            chartIds = chartIds,
-            contentIds = contentIds,
-            filterByUser = false,
-            fetchStreamingLinks = true,
-            fetchAllVersions = true
-        )
-
-        val charts = results.map { chartResult ->
-            // println("Processing chart with ID: ${chartResult.chart.id.value}")
-            daoToChart(
-                entity = chartResult.chart,
-                streamingLinks = null, // No streaming links for this variant
-                versions = chartResult.versions.map { versionEntityToVersion(it) },
-                contributors = chartResult.contributors.map {
-                    contributorEntityToContributor(
-                        it.component1(),
-                        it.component2()
-                    )
-                },
-                isLiked = chartResult.userStats.first,
-                isFavorited = chartResult.userStats.second
-            )
-        }
-
-        Pair(charts, total)
-    }
-
-    override suspend fun getFullCharts(
-        userId: UUID?,
-        search: String?,
         sortBy: SortOption?,
-        difficulties: List<Difficulty>?,
-        genres: List<Genre>?,
-        isDeluxe: Boolean?,
-        limit: Int?,
-        offset: Int?
-    ): Pair<List<Chart>, Int> = newSuspendedTransaction {
-        val (results, total) = fetchChartEntities(
-            userId = userId,
-            search = search,
-            sortBy = sortBy,
-            difficulties = difficulties,
-            genres = genres,
-            isDeluxe = isDeluxe,
-            limit = limit,
-            offset = offset,
-            fetchStreamingLinks = false,
-            filterByUser = true,
-            fetchAllVersions = true,
-        )
-
-        println("Fetched ${results.size} charts with filters: userId=$userId, search=$search, sortBy=$sortBy, difficulties=${difficulties?.joinToString()}, genres=${genres?.joinToString()}, limit=$limit, offset=$offset")
-
-        val charts = results.map { chartResult ->
-            // println("Processing chart with ID: ${chartResult.chart.id.value}")
-            daoToChart(
-                entity = chartResult.chart,
-                streamingLinks = null, // No streaming links for this variant
-                versions = chartResult.versions.map { versionEntityToVersion(it) },
-                contributors = chartResult.contributors.map {
-                    contributorEntityToContributor(
-                        it.component1(),
-                        it.component2()
-                    )
-                },
-                isLiked = false,
-                isFavorited = false
-            )
-        }
-
-        Pair(charts, total)
-    }
-
-    // Mobile App Chart variant of getCharts that includes streaming links and only returns the latest version
-    override suspend fun getAppCharts(
-        userId: UUID?,
-        search: String?,
-        sortBy: SortOption?,
-        difficulties: List<Difficulty>?,
-        genres: List<Genre>?,
-        isDeluxe: Boolean?,
+        filters: ChartFilters?,
+        addons: ChartAddons?,
         limit: Int?,
         offset: Int?,
-    ): Pair<List<Chart>, Int> = newSuspendedTransaction {
+    ): Pair<List<Chart>, Int?> = newSuspendedTransaction {
+        // Don't modify filters - userId in filters is for filtering charts (dashboard mode)
+        // UserContext userId is separate and used only for fetching user stats
         val (results, total) = fetchChartEntities(
-            userId = userId,
-            search = search,
             sortBy = sortBy,
-            difficulties = difficulties,
-            genres = genres,
-            isDeluxe = isDeluxe,
+            filters = filters,
+            addons = addons,
             limit = limit,
             offset = offset,
-            filterByUser = false,
-            fetchAllVersions = false,
-            fetchStreamingLinks = true,
         )
 
+        if (results.isEmpty()) {
+            return@newSuspendedTransaction Pair(emptyList(), if (addons?.count == true) total else null)
+        }
+
+        val includeStreamingLinks = addons?.streamingLinks == true
+
+        // Calculate version indices for ALL charts in a single batch query
+        val chartIds = results.map { it.chart.id.value }
+        val versionIndices = calculateVersionIndices(chartIds)
+
         val charts = results.map { chartResult ->
-            // println("Processing chart with ID: ${chartResult.chart.id.value} and stats: ${chartResult.userStats}")
-            daoToChart(
+            toChart(
                 entity = chartResult.chart,
-                streamingLinks = chartResult.streamingLinks?.map { daoToStreamingLink(it) },
-                versions = chartResult.versions.map { versionEntityToVersion(it) },
+                streamingLinks = if (includeStreamingLinks) chartResult.streamingLinks?.map { toStreamingLink(it) } else null,
+                versions = chartResult.versions.map { entityToVersion(it, versionIndices[it.id.value] ?: 0) },
                 contributors = chartResult.contributors.map {
-                    contributorEntityToContributor(
-                        it.component1(),
-                        it.component2()
+                    log.debug(
+                        "Processing contributor for chart {}: userId={}, roles={}",
+                        chartResult.chart.id.value,
+                        it.second.id.value,
+                        it.first.roles.joinToString()
                     )
+                    contributorEntityToContributor(it.component1(), it.component2())
                 },
-                isLiked = chartResult.userStats.first,
-                isFavorited = chartResult.userStats.second
+                likedAt = chartResult.userStats.first,
+                bookmarkedAt = chartResult.userStats.second
             )
         }
 
-        Pair(charts, total)
+        Pair(charts, if (addons?.count == true) total else null)
     }
 
     override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {
@@ -581,7 +543,7 @@ class ChartRepository : IChartRepository {
 
         val endTime = System.currentTimeMillis()
 
-        println("Suggestions returned in ${endTime - startTime}ms with ${result.size} results")
+        log.info("Suggestions returned in ${endTime - startTime}ms with ${result.size} results")
         result
     }
 
@@ -596,8 +558,10 @@ class ChartRepository : IChartRepository {
         // exec("SET CONSTRAINTS chart_latest_version_id_fkey DEFERRED")
 
         // Create the content entry first
-        val content = ContentEntity.new(chart.contentId) {
-            this.type = ContentType.CHART
+        val content = retryOnConflict {
+            ContentEntity.new(chart.contentId) {
+                this.type = ContentType.CHART
+            }
         }
 
         // Create the chart
@@ -693,11 +657,11 @@ class ChartRepository : IChartRepository {
 
         // Since the new chart will be cached on the creator device,
         // we need to return all the data to avoid inconsistencies
-        daoToChart(
-            newChart,
-            streamingLinks = streamingLinks.map { daoToStreamingLink(it) },
-            listOf(versionEntityToVersion(initialVersion)),
-            listOf(contributorEntityToContributor(contributor)),
+        toChart(
+            entity = newChart,
+            versions = listOf(entityToVersion(initialVersion, 1)), // Always index 1 for initial version
+            contributors = listOf(contributorEntityToContributor(contributor)),
+            streamingLinks = streamingLinks.map { toStreamingLink(it) },
         )
     }
 
@@ -715,12 +679,15 @@ class ChartRepository : IChartRepository {
             throw NotFoundException("Chart with ID $id not found")
         }
 
+        // Calculate version indices in a single batch query
+        val versionIndices = calculateVersionIndices(listOf(id))
+
         // TODO: It's not performant quite performant, but it works with the dashboard for now
-        daoToChart(
+        toChart(
             entity = existingChart,
-            streamingLinks = existingChart.trackUrls.map { daoToStreamingLink(it) },
+            streamingLinks = existingChart.trackUrls.map { toStreamingLink(it) },
             contributors = existingChart.contributors.map { contributorEntityToContributor(it) },
-            versions = existingChart.versions.map { versionEntityToVersion(it) }
+            versions = existingChart.versions.map { entityToVersion(it, versionIndices[it.id.value] ?: 0) }
         )
     }
 
@@ -739,7 +706,7 @@ class ChartRepository : IChartRepository {
                         version.downloadsAmount += 1
                     }
                 }
-                println("Download analytics recorded for chart $chartId")
+                log.info("Download analytics recorded for chart $chartId")
                 true
             }
 
@@ -747,64 +714,47 @@ class ChartRepository : IChartRepository {
         }
     }
 
-    override suspend fun refreshChartsBundles(ids: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = newSuspendedTransaction {
-        // Update bundle URLs
-        val bundleSql = buildString {
-            append("UPDATE ${VersionTable.tableName} SET ${VersionTable.bundleUrl.name} = CASE ${VersionTable.id.name} ")
-            ids.forEach { (id, data) ->
-                append("WHEN '$id' THEN '${data.bundleUrl}' ")
-            }
-            append("END WHERE ${VersionTable.id.name} IN (${ids.keys.joinToString { "'$it'" }});")
-        }
-
-        // Update cover URLs for charts that have a cover URL and existing coverUrl contains 'cdn.discordapp.com'
-        val idsWithCovers = ids.filter { it.value.coverUrl != null }
-        val coverSql = if (idsWithCovers.isNotEmpty()) {
-            buildString {
-                append("UPDATE ${ChartTable.tableName} SET ${ChartTable.coverUrl.name} = CASE ${ChartTable.id.name} ")
-                idsWithCovers.forEach { (versionId, data) ->
-                    // Get chart ID from version ID
-                    append("WHEN (SELECT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} = '$versionId') THEN '${data.coverUrl}' ")
+    override suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean =
+        newSuspendedTransaction {
+            // messages: key is message/chart id, value has versionId and URLs
+            // Update bundle URLs by versionId from values
+            val bundleSql = buildString {
+                append("UPDATE ${VersionTable.tableName} SET ${VersionTable.bundleUrl.name} = CASE ${VersionTable.id.name} ")
+                messages.forEach { (_, data) ->
+                    append("WHEN '${data.versionId}' THEN '${data.bundleUrl}' ")
                 }
-                append("END WHERE ${ChartTable.id.name} IN (")
-                append("SELECT DISTINCT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} IN (${idsWithCovers.keys.joinToString { "'$it'" }})")
-                append(") AND ${ChartTable.coverUrl.name} LIKE 'https://cdn.discordapp.com%';")
-            }
-        } else null
-
-        transaction {
-            exec(bundleSql)
-            if (coverSql != null) {
-                exec(coverSql)
+                append("END WHERE ${VersionTable.id.name} IN (${messages.values.joinToString { "'${it.versionId}'" }});")
             }
 
-            println("Successfully refreshed bundle URLs for ${ids.size} charts")
-            if (idsWithCovers.isNotEmpty()) {
-                println("Successfully refreshed cover URLs for ${idsWithCovers.size} charts (only where coverUrl contains 'cdn.discordapp.com')")
+            // Update cover URLs for charts that have a cover URL and existing coverUrl contains 'cdn.discordapp.com'
+            val withCovers = messages.values.filter { it.coverUrl != null }
+            val coverSql = if (withCovers.isNotEmpty()) {
+                buildString {
+                    append("UPDATE ${ChartTable.tableName} SET ${ChartTable.coverUrl.name} = CASE ${ChartTable.id.name} ")
+                    withCovers.forEach { data ->
+                        // Get chart ID from version ID
+                        append("WHEN (SELECT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} = '${data.versionId}') THEN '${data.coverUrl}' ")
+                    }
+                    append("END WHERE ${ChartTable.id.name} IN (")
+                    append("SELECT DISTINCT ${VersionTable.chartId.name} FROM ${VersionTable.tableName} WHERE ${VersionTable.id.name} IN (${withCovers.joinToString { "'${it.versionId}'" }})")
+                    append(") AND ${ChartTable.coverUrl.name} LIKE 'https://cdn.discordapp.com%';")
+                }
+            } else null
+
+            // Update audio URLs
+
+
+            transaction {
+                exec(bundleSql)
+                if (coverSql != null) {
+                    exec(coverSql)
+                }
+
+                log.info("Successfully refreshed bundle URLs for ${messages.size} charts")
+                if (withCovers.isNotEmpty()) {
+                    log.info("Successfully refreshed cover URLs for ${withCovers.size} charts (only where coverUrl contains 'cdn.discordapp.com')")
+                }
+                true
             }
-            true
         }
-
-        /*val batchUpdate = BatchUpdateStatement(VersionTable)
-
-        chartsIds.forEach { entry ->
-            batchUpdate.addBatch(
-            batchUpdate[VersionTable.bundleUrl] = entry.value
-        }
-
-        val result = batchUpdate.execute(TransactionManager.current())
-
-        if (result == null) {
-            println("No charts were updated. Check if the provided chart IDs are valid.")
-            return@newSuspendedTransaction false
-        }
-
-        if (result > 0) {
-            println("Successfully refreshed bundle URLs for ${chartsIds.size} charts")
-            true
-        } else {
-            println("Failed to refresh bundle URLs for charts: $chartsIds")
-            false
-        }*/
-    }
 }

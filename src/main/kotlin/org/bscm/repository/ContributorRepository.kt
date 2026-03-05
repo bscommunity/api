@@ -7,7 +7,7 @@ import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.enums.ContributorRole
-import org.bscm.models.repository.IContributorRepository
+import org.bscm.models.interfaces.IContributorRepository
 import org.bscm.models.tables.ContributorTable
 import org.jetbrains.exposed.dao.id.CompositeID
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -21,12 +21,17 @@ class ContributorRepository : IContributorRepository {
 
             return Contributor(
                 user = SimplifiedUser(
-                    id = entity.user.id.value.toString(),
+                    id = entity.user.id.value,
                     username = entity.user.username,
-                    imageUrl = entity.user.imageUrl,
+                    avatarUrl = entity.user.avatarUrl,
+                    bannerUrl = entity.user.bannerUrl,
+                    isVerified = entity.user.isVerified,
+                    bio = entity.user.bio,
+                    accentColor = entity.user.accentColor,
                 ),
                 chartId = chartId.toString(),
                 roles = entity.roles,
+                note = entity.note,
                 joinedAt = entity.joinedAt,
             )
         }
@@ -37,9 +42,13 @@ class ContributorRepository : IContributorRepository {
 
             return Contributor(
                 user = SimplifiedUser(
-                    id = user.id.value.toString(),
+                    id = user.id.value,
                     username = user.username,
-                    imageUrl = user.imageUrl,
+                    avatarUrl = user.avatarUrl,
+                    bannerUrl = user.bannerUrl,
+                    isVerified = user.isVerified,
+                    bio = user.bio,
+                    accentColor = user.accentColor,
                 ),
                 chartId = chartId.toString(),
                 roles = entity.roles,

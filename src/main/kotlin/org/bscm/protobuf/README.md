@@ -1,50 +1,44 @@
-# Beatstar Protobuf Parser - Kotlin
+# Protobuf Parser
 
-Este pacote é uma portagem do parser de protobuf JavaScript para Kotlin, permitindo decodificar arquivos `.bytes` do Beatstar em um formato estruturado.
+This package is a port of the JavaScript protobuf parser to Kotlin, allowing decoding of Beatstar `.bytes` files into a structured format.
 
-## Uso
+## Usage
 
-### Parse de Chart
+### Chart Parsing
 
 ```kotlin
-import org.bscm.protobuf.ChartParser
-import java.io.File
-
 fun main() {
-    // Ler o arquivo .bytes
+    // Read the .bytes file
     val chartBytes = File("chart.bytes").readBytes()
     
-    // Parse do chart
+    // Parse the chart
     val chart = ChartParser.parse(chartBytes)
     
-    // Acessar os dados
+    // Access the data
     println("Chart ID: ${chart.id}")
     println("Interactions ID: ${chart.interactionsId}")
-    println("Total de notas: ${chart.notes.size}")
-    println("Seções: ${chart.sections.size}")
+    println("Total notes: ${chart.notes.size}")
+    println("Sections: ${chart.sections.size}")
 }
 ```
 
-### Estrutura do Chart
+### Chart Structure
 
-O objeto `Chart` retornado contém:
+The returned `Chart` object contains:
 
-- `id`: ID do chart
-- `interactionsId`: ID de interações
-- `notes`: Lista de notas do beatmap
-  - Cada nota pode ser: `single`, `long` ou `switchHold`
-  - Contém informações como `offset`, `lane`, `size`, `swipe`
-- `sections`: Seções do chart com offsets
-- `perfectSizes`: Multiplicadores de tamanho de perfect hits
-- `speeds`: Mudanças de velocidade durante o chart
-- `effects`: Efeitos aplicados em diferentes offsets
+- `id`: Chart ID
+- `interactionsId`: Interactions ID
+- `notes`: List of beatmap notes
+  - Each note can be: `single`, `long` or `switchHold`
+  - Contains information like `offset`, `lane`, `size`, `swipe`
+- `sections`: Chart sections with offsets
+- `perfectSizes`: Multipliers for perfect hit sizes
+- `speeds`: Speed changes during the chart
+- `effects`: Effects applied at different offsets
 
-### Exemplo com Controller REST
+### REST Controller Example
 
 ```kotlin
-import org.springframework.web.bind.annotation.*
-import org.springframework.web.multipart.MultipartFile
-
 @RestController
 @RequestMapping("/api/charts")
 class ChartController {
@@ -57,40 +51,34 @@ class ChartController {
 }
 ```
 
-## Arquitetura
+## Architecture
 
-O pacote é composto por:
+The package consists of:
 
-1. **ProtobufReader**: Leitor de bytes em formato protobuf customizado
-2. **ProtoField**: Tipos de campos (Varint, String, Float, Group, PackedMessage)
-3. **ChartProto**: Definição do protocolo específico para Charts
-4. **ChartParser**: Parser principal que converte bytes em objetos tipados
-5. **Data Classes**: Representações tipadas do Chart e suas estruturas
+1. **ProtobufReader**: Custom protobuf format byte reader
+2. **ProtoField**: Field types (Varint, String, Float, Group, PackedMessage)
+3. **ChartProto**: Specific protocol definition for Charts
+4. **ChartParser**: Main parser that converts bytes to typed objects
+5. **Data Classes**: Typed representations of the Chart and its structures
 
-## Diferenças do JavaScript
+## Differences from JavaScript
 
-- Uso de data classes ao invés de objetos dinâmicos
-- Type safety completo
-- Melhor performance com ByteBuffer do Java NIO
-- Integração nativa com Spring Boot e Kotlin
+- Use of data classes instead of dynamic objects
+- Complete type safety
+- Better performance with Java NIO ByteBuffer
+- Native integration with Spring Boot and Kotlin
 
-## Notas
+## Notes
 
-O formato protobuf do Beatstar não segue o formato tradicional protobuf. Algumas peculiaridades:
+The Beatstar protobuf format does not follow the traditional protobuf format. Some peculiarities:
 
-- Campo 1 geralmente especifica o tipo de classe da mensagem
-- Campo 2 contém uma mensagem com campos que variam baseado no campo 1
-- Isso foi tratado com mapeamentos dinâmicos no parser
+- Field 1 generally specifies the message class type
+- Field 2 contains a message with fields that vary based on field 1
+- This was handled with dynamic mappings in the parser
 
-### Correções Aplicadas (Nov 2025)
+### Error Handling
 
-- **processBlocks**: Agora inclui a chave (key) e o length varint no segmento retornado, idêntico ao comportamento do JS. Isso é necessário porque os `ProtoField.read()` esperam ler a key e length do buffer.
-- **Validações defensivas**: `readByte`, `readVarint`, e métodos de leitura de tamanho fixo agora lançam exceções claras quando não há bytes suficientes.
-- **slice**: Lança `IndexOutOfBoundsException` com mensagens detalhadas quando o length solicitado excede os bytes disponíveis (idêntico ao JS).
-
-### Tratamento de Erros
-
-Se você receber `IndexOutOfBoundsException` ou `ArrayIndexOutOfBoundsException`:
-- Verifique se o arquivo `.bytes` está completo e não truncado
-- Para arquivos comprimidos (GZIP), verifique se a descompressão foi bem-sucedida
-- Se o erro persistir com arquivos válidos, reporte com o stacktrace e arquivo de teste
+If you receive `IndexOutOfBoundsException` or `ArrayIndexOutOfBoundsException`:
+- Check if the `.bytes` file is complete and not truncated
+- For compressed files (GZIP), verify that decompression was successful
+- If the error persists with valid files, report with stacktrace and test file

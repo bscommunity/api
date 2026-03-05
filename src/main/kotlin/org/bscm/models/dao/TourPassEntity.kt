@@ -14,6 +14,8 @@ class TourPassEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var isPublic by TourPassTable.isPublic
     var isFeatured by TourPassTable.isFeatured
     var downloadsSum by TourPassTable.downloadsSum
+
+    var createdAt by TourPassTable.createdAt
     var latestPublishedAt by TourPassTable.latestUpdatedAt
 
     var content by ContentEntity referencedOn TourPassTable.contentId

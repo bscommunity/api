@@ -1,0 +1,82 @@
+package org.bscm.services.auth
+
+import io.ktor.client.call.*
+import io.ktor.client.request.*
+import io.ktor.client.request.forms.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.bscm.clients.applicationHttpClient
+import org.bscm.routes.AuthRequest
+
+class DiscordOAuthService(
+    private val clientId: String,
+    private val clientSecret: String,
+    private val redirectUri: String
+) {
+    private val discordApiEndpoint = "https://discord.com/api/v10"
+
+    @Serializable
+    data class DiscordUser(
+        val id: String,
+        val username: String,
+        val email: String?,
+        val avatar: String?,
+        val banner: String?,
+        @SerialName("accent_color") val accentColor: Int?
+    )
+
+    @Serializable
+    private data class TokenResponse(
+        @SerialName("access_token") val accessToken: String,
+        @SerialName("token_type") val tokenType: String,
+        @SerialName("expires_in") val expiresIn: Int
+    )
+
+    @Serializable
+    private data class TokenRequestError(
+        @SerialName("error") val error: String,
+        @SerialName("error_description") val errorDescription: String
+    )
+
+    suspend fun getAccessToken(authRequest: AuthRequest): String {
+        val response: HttpResponse = applicationHttpClient.submitForm(
+            url = "${discordApiEndpoint}/oauth2/token",
+            formParameters = Parameters.build {
+                append("grant_type", "authorization_code")
+                append("code", authRequest.code)
+                append("redirect_uri", authRequest.redirectUri ?: redirectUri)
+                append("client_id", clientId)
+                append("client_secret", clientSecret)
+                authRequest.codeVerifier?.let { append("code_verifier", it) }
+            }
+        )
+        if (response.status.isSuccess()) {
+            val tokenResponse = response.body<TokenResponse>()
+            return tokenResponse.accessToken
+        } else {
+            val errorResponse = response.body<TokenRequestError>()
+            throw Exception("Failed to get access token: ${errorResponse.errorDescription}")
+        }
+    }
+
+    suspend fun getUserInfo(accessToken: String): DiscordUser {
+        val response = applicationHttpClient.get("$discordApiEndpoint/users/@me") {
+            headers {
+                append(HttpHeaders.Authorization, "Bearer $accessToken")
+            }
+        }.body<DiscordUser>()
+
+        return response
+    }
+
+    fun getAvatarUrl(userId: String, avatarHash: String): String {
+        return "https://cdn.discordapp.com/avatars/$userId/$avatarHash.png"
+    }
+
+    fun getBannerUrl(userId: String, bannerHash: String): String {
+        return "https://cdn.discordapp.com/banners/$userId/$bannerHash.png"
+    }
+}
+

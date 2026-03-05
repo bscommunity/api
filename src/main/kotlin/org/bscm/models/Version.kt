@@ -14,13 +14,14 @@ import java.time.LocalDateTime
 data class Version(
     val id : String,
     val chartId: String,
-    val index: Int,
+    val index: Int, // SS
     val duration: Float,
     val notesAmount: Int,
     val effectsAmount: Int,
     val bpm: Int,
     val difficulty: Difficulty,
-    val publishedAt: LocalDateTime,
+    val downloadsAmount: Int = 0,
+    val changelog: List<Changelog> = emptyList(),
 
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
@@ -28,6 +29,5 @@ data class Version(
     val bundleUrl: String,
     val previewUrl: String? = null,
 
-    val downloadsAmount: Int = 0, // SS
-    val knownIssues: List<KnownIssue> = emptyList(), // SS
+    val createdAt: LocalDateTime,
 )

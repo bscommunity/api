@@ -5,7 +5,7 @@ import java.nio.ByteOrder
 import java.util.zip.GZIPInputStream
 
 /**
- * Leitor de dados Protobuf customizado para o formato Beatstar.
+ * Custom Protobuf data reader for the Beatstar format.
  */
 class ProtobufReader(
     private val data: ByteArray
@@ -238,7 +238,7 @@ class ProtobufReader(
     }
 
     /**
-     * Retorna quantos bytes restam a partir do index atual.
+     * Returns how many bytes remain from the current index.
      */
     fun remaining(): Int {
         return data.size - index

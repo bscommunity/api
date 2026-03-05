@@ -15,19 +15,33 @@ jwt:
   realm: "bs-community"
 hmac:
   secret: $HMAC_SECRET
+refresh:
+    secret: $REFRESH_SECRET
 discord:
   clientId: $DISCORD_CLIENT_ID
   clientSecret: $DISCORD_CLIENT_SECRET
   redirectUri: $DISCORD_REDIRECT_URI
-  webhookId: $DISCORD_WEBHOOK_ID
-  webhookToken: $DISCORD_WEBHOOK_TOKEN
   botToken: $DISCORD_BOT_TOKEN
-  channelId: $DISCORD_CHANNEL_ID
   publicKey: $DISCORD_PUBLIC_KEY
-  guildId: $DISCORD_GUILD_ID # optional (dev) for instant commands
 google:
   clientId: $GOOGLE_CLIENT_ID
   clientSecret: $GOOGLE_CLIENT_SECRET
   redirectUri: $GOOGLE_REDIRECT_URI
+lastfm:
+    apiKey: $LASTFM_API_KEY
+workshop:
+  guildId: $WORKSHOP_GUILD_ID # optional (dev) for instant commands
+  channelId: $WORKSHOP_CHANNEL_ID
+  webhookId: $WORKSHOP_WEBHOOK_ID
+  webhookToken: $WORKSHOP_WEBHOOK_TOKEN
+support:
+  guildId: $SUPPORT_GUILD_ID # optional (dev) for instant commands
+  channelId: $SUPPORT_CHANNEL_ID
+  webhookId: $SUPPORT_WEBHOOK_ID
+  webhookToken: $SUPPORT_WEBHOOK_TOKEN
 status:
   url: $STATUS_URL
+redis:
+  host: $REDIS_HOST
+  port: $REDIS_PORT
+  password: $REDIS_PASSWORD

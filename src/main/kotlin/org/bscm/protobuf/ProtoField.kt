@@ -1,7 +1,7 @@
 package org.bscm.protobuf
 
 /**
- * Classe base para todos os tipos de campos Protobuf.
+ * Base class for all Protobuf field types.
  */
 abstract class ProtoField(
     val name: String?,
@@ -29,7 +29,7 @@ abstract class ProtoField(
 }
 
 /**
- * Campo Varint (inteiros variáveis).
+ * Varint field (variable integers).
  */
 class VarintField(
     name: String?,
@@ -81,7 +81,7 @@ class VarintField(
 }
 
 /**
- * Campo String.
+ * String field.
  */
 class StringField(
     name: String?,
@@ -142,7 +142,7 @@ class StringField(
 }
 
 /**
- * Campo Float.
+ * Float field.
  */
 class FloatField(
     name: String?,
@@ -158,7 +158,7 @@ class FloatField(
 }
 
 /**
- * Campo Group (mensagem aninhada).
+ * Group field (nested message).
  */
 class GroupField(
     name: String?,
@@ -221,7 +221,7 @@ class GroupField(
 }
 
 /**
- * Campo PackedMessage (lista de mensagens empacotadas).
+ * PackedMessage field (list of packed messages).
  */
 class PackedMessageField(
     name: String?,

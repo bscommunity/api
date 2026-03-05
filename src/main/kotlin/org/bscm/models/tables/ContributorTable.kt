@@ -13,6 +13,8 @@ object ContributorTable : CompositeIdTable("contributors") {
     val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)
     val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
 
+    val note = varchar("note", 280).nullable()
+
     val roles = jsonb(
         "roles",
         Json { ignoreUnknownKeys = true },

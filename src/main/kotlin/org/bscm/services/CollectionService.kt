@@ -1,116 +1,248 @@
 package org.bscm.services
 
+import io.ktor.util.logging.*
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
-import org.bscm.models.dto.collection.UpdateCollectionItemRequest
+import org.bscm.models.dto.collection.BatchCollectionItemRequest
+import org.bscm.models.dto.collection.BatchCollectionItemResponse
+import org.bscm.models.enums.ActionType
+import org.bscm.models.enums.ActivityType
+import org.bscm.models.enums.CollectionKind
 import org.bscm.models.enums.ContentType
-import org.bscm.models.repository.ICollectionRepository
+import org.bscm.models.interfaces.IActivityRepository
+import org.bscm.models.interfaces.ICollectionRepository
+import java.time.LocalDateTime
 import java.util.*
 
+private val log = KtorSimpleLogger("CollectionService")
+
 class CollectionService(
-    private val collectionRepository: ICollectionRepository
+    private val collectionRepository: ICollectionRepository,
+    private val activityRepository: IActivityRepository
 ) {
 
-    companion object {
-        const val FAVORITES_COLLECTION_NAME = "favorites"
-        const val LIKES_COLLECTION_NAME = "likes"
+    // ── Write operations ────────────────────────────────────────────────────
 
-        // System collections that users cannot delete or rename
-        val SYSTEM_COLLECTIONS = setOf(FAVORITES_COLLECTION_NAME, LIKES_COLLECTION_NAME)
+    /**
+     * Add an item to any collection — system (LIKES/BOOKMARKS) or user-created.
+     *
+     * For system collections, [collectionId] is null and [kind] drives the lookup.
+     * For user collections, [collectionId] is required and [kind] is USER.
+     *
+     * Returns true if the item was inserted, false if it already existed or the
+     * collection wasn't found.
+     */
+    suspend fun addItem(
+        userId: UUID,
+        contentId: String,
+        kind: CollectionKind,
+        collectionId: UUID? = null
+    ): Boolean {
+        val (resolvedId, resolvedKind) = resolveCollection(userId, kind, collectionId)
+            ?: return false
+
+        val added = collectionRepository.addItemToCollection(resolvedId, resolvedKind, userId, contentId)
+
+        if (added) {
+            logActivityForKind(userId, resolvedKind, contentId)
+        }
+
+        return added
     }
+
+    /**
+     * Remove an item from any collection — system or user-created.
+     */
+    suspend fun removeItem(
+        userId: UUID,
+        contentId: String,
+        kind: CollectionKind,
+        collectionId: UUID? = null
+    ): Boolean {
+        val (resolvedId, _) = resolveCollection(userId, kind, collectionId)
+            ?: return false
+
+        return collectionRepository.removeItemFromCollection(resolvedId, userId, contentId)
+    }
+
+    // ── Batch ───────────────────────────────────────────────────────────────
+
+    suspend fun processBatchCollectionItems(
+        userId: UUID,
+        requests: List<BatchCollectionItemRequest>
+    ): BatchCollectionItemResponse {
+        if (requests.isEmpty()) return BatchCollectionItemResponse(successful = 0, failed = 0)
+
+        var successCount = 0
+        var failCount = 0
+
+        // Cache resolved collection IDs — avoids hitting DB for the same
+        // (kind, collectionId) pair more than once across the whole batch.
+        val collectionIdCache = mutableMapOf<Pair<CollectionKind, String?>, UUID>()
+
+        val grouped = requests.groupBy { Triple(it.collectionId, it.collectionKind, it.action) }
+
+        for ((key, items) in grouped) {
+            val (collectionId, kind, action) = key
+            val contentIds = items.map { it.contentId }
+
+            try {
+                val cacheKey = kind to collectionId
+                val resolvedId = collectionIdCache.getOrPut(cacheKey) {
+                    resolveCollection(userId, kind, collectionId?.let { UUID.fromString(it) })?.first
+                        ?: run { failCount += contentIds.size; return@getOrPut null!! }
+                }
+
+                val activityTimestamp = items.firstNotNullOfOrNull { it.enqueuedAt } ?: LocalDateTime.now()
+
+                val (success, failed) = when (action) {
+                    ActionType.ADD -> {
+                        val result = collectionRepository.batchAddItemsToCollection(resolvedId, userId, contentIds)
+
+                        if (kind in setOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS) && result.first > 0) {
+                            activityTypeForKind(kind)?.let { type ->
+                                val successfulIds = contentIds.filterNot { it in result.second }
+                                if (successfulIds.isNotEmpty()) {
+                                    activityRepository.batchLogActivity(userId, type, successfulIds, activityTimestamp)
+                                }
+                            }
+                        }
+
+                        result.first to result.second.size
+                    }
+                    ActionType.REMOVE -> {
+                        val deleted = collectionRepository.batchRemoveItemsFromCollection(resolvedId, userId, contentIds)
+                        deleted to (contentIds.size - deleted)
+                    }
+                }
+
+                successCount += success
+                failCount += failed
+            } catch (e: Exception) {
+                log.error("Batch operation failed for group $key", e)
+                failCount += contentIds.size
+            }
+        }
+
+        return BatchCollectionItemResponse(successful = successCount, failed = failCount)
+    }
+
+    // ── Read operations ─────────────────────────────────────────────────────
+
+    suspend fun getCollectionItems(
+        collectionId: UUID,
+        userId: UUID? = null,
+        categories: List<ContentType>? = null,
+        limit: Int? = null,
+        offset: Int? = null
+    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>?> {
+        val items = collectionRepository.getCollectionItems(collectionId, userId, categories, limit, offset)
+
+        // Only fetch counts if we're on the first page (offset 0 or null)
+        val counts = if (offset == null || offset == 0) {
+            collectionRepository.getCollectionItemsCounts(collectionId)
+        } else null
+
+        return items to counts
+    }
+
+    suspend fun getSystemCollectionItems(
+        userId: UUID,
+        kind: CollectionKind,
+        categories: List<ContentType>? = null,
+        limit: Int? = null,
+        offset: Int? = null
+    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>?> {
+        val items = collectionRepository.getCollectionItemsByKind(userId, kind, categories, limit, offset)
+
+        // Only fetch counts if we're on the first page (offset 0 or null)
+        val counts = if (offset == null || offset == 0) {
+            collectionRepository.getCollectionItemCountsByKind(userId, kind)
+        } else null
+
+        return items to counts
+    }
+
+    suspend fun getCollection(collectionId: UUID, userId: UUID): Collection? =
+        collectionRepository.getCollection(collectionId, userId)
+
+    suspend fun getCollectionBySlug(username: String, slug: String, viewerId: UUID?): Collection? =
+        collectionRepository.getCollectionBySlug(username, slug, viewerId)
+
+    /**
+     * Returns a page of collections together with the total number of collections
+     * owned by the user (ignoring pagination), so callers avoid a second count query.
+     */
+    suspend fun getUserCollections(
+        userId: UUID,
+        limit: Int? = 20,
+        offset: Int? = 0,
+        onlyPublic: Boolean
+    ): Pair<List<Collection>, Int> {
+        val page  = collectionRepository.getUserCollections(userId, limit, offset, onlyPublic)
+        val total = collectionRepository.getUserCollections(userId, null, null, onlyPublic).size
+        return page to total
+    }
+
+    // ── Mutations ───────────────────────────────────────────────────────────
 
     suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean = false): Collection {
         require(name.isNotBlank()) { "Collection name cannot be blank" }
         require(name.length <= 30) { "Collection name must be 30 characters or less" }
-
         return collectionRepository.createCollection(userId, name, isPublic)
     }
 
-    suspend fun getUserCollections(userId: UUID, limit: Int? = 20, offset: Int? = 0): List<Collection> {
-        return collectionRepository.getUserCollections(userId, limit, offset)
-    }
-
-    /**
-     * Resolves a collectionId string to the actual UUID for the user.
-     * Supports system collections ("likes", "favorites") and UUIDs.
-     */
-    private suspend fun resolveCollectionIdForUser(userId: UUID, collectionId: String): UUID {
-        return when (collectionId.lowercase()) {
-            "likes" -> getOrCreateSystemCollection(userId, LIKES_COLLECTION_NAME).id
-            "favorites" -> getOrCreateSystemCollection(userId, FAVORITES_COLLECTION_NAME).id
-            else -> UUID.fromString(collectionId)
-        }
-    }
-
-    suspend fun getCollection(collectionId: String, userId: UUID? = null): Collection? {
-        val resolvedId = userId?.let { resolveCollectionIdForUser(it, collectionId) } ?: UUID.fromString(collectionId)
-        return collectionRepository.getCollection(resolvedId, userId)
-    }
-
-    /**
-     * Get or create a system collection for a user
-     */
-    private suspend fun getOrCreateSystemCollection(userId: UUID, collectionName: String): Collection {
-        val userCollections = collectionRepository.getUserCollections(userId)
-        val systemCollection = userCollections.find { it.name == collectionName }
-
-        return systemCollection ?: run {
-            // Create system collection if it doesn't exist (always private)
-            collectionRepository.createCollection(userId, collectionName, isPublic = false)
-        }
-    }
-
-    suspend fun updateCollection(collectionId: String, userId: UUID, name: String? = null, isPublic: Boolean? = null): Boolean {
-        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
-
-        // Get collection first to check if it's a system collection
-        val collection = collectionRepository.getCollection(resolvedId, userId)
-        if (collection != null && collection.name in SYSTEM_COLLECTIONS) {
-            // Cannot rename system collections, but can change visibility
-            return if (name != null) {
-                false // Cannot rename
-            } else {
-                collectionRepository.updateCollection(resolvedId, userId, null, isPublic)
-            }
-        }
+    suspend fun updateCollection(collectionId: UUID, userId: UUID, name: String? = null, isPublic: Boolean? = null): String? {
+        // TODO: For now, for optimization, we add a SELECT clause in the UPDATE query
+        //  to ensure the collection belongs to the user and is of kind USER.
+        //  This means we don't need to do a separate getCollection call here,
+        //  but it also means we can't validate the collection's existence or ownership before attempting the update.
+        // val collection = collectionRepository.getCollection(collectionId, userId)
+        // if (collection?.kind != CollectionKind.USER) throw IllegalArgumentException("Only user collections can be updated")
 
         name?.let {
             require(it.isNotBlank()) { "Collection name cannot be blank" }
             require(it.length <= 30) { "Collection name must be 30 characters or less" }
         }
 
-        return collectionRepository.updateCollection(resolvedId, userId, name, isPublic)
+        return collectionRepository.updateCollection(collectionId, userId, name, isPublic)
     }
 
-    suspend fun deleteCollection(collectionId: String, userId: UUID): Boolean {
-        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
-
-        // Get collection first to check if it's a system collection
-        val collection = collectionRepository.getCollection(resolvedId, userId)
-        if (collection != null && collection.name in SYSTEM_COLLECTIONS) {
-            // Cannot delete system collections
-            return false
-        }
-
-        return collectionRepository.deleteCollection(resolvedId, userId)
+    suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean {
+        val collection = collectionRepository.getCollection(collectionId, userId)
+        if (collection?.kind != CollectionKind.USER) throw IllegalArgumentException("Only user collections can be deleted")
+        return collectionRepository.deleteCollection(collectionId, userId)
     }
 
-    suspend fun addItemToCollection(collectionId: String, userId: UUID, contentId: String): Boolean {
-        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
-        return collectionRepository.addItemToCollection(resolvedId, userId, contentId)
+    // ── Private helpers ─────────────────────────────────────────────────────
+
+    /**
+     * Resolves a (collectionId, kind) pair into a concrete UUID.
+     *
+     * Think of this like a switchboard: given either a direct extension number
+     * (explicit collectionId) or a department name (LIKES/BOOKMARKS), it always
+     * hands back the actual room number (UUID) you need to knock on.
+     *
+     * Returns null if the inputs are inconsistent (e.g. USER kind without an ID).
+     */
+    private suspend fun resolveCollection(
+        userId: UUID,
+        kind: CollectionKind,
+        collectionId: UUID?
+    ): Pair<UUID, CollectionKind>? = when {
+        kind == CollectionKind.USER && collectionId != null -> collectionId to kind
+        kind in setOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS) ->
+            collectionRepository.getOrCreateSystemCollectionId(userId, kind) to kind
+        else -> null
     }
 
-    suspend fun removeItemFromCollection(collectionId: String, userId: UUID, contentId: String): Boolean {
-        val resolvedId = resolveCollectionIdForUser(userId, collectionId)
-        return collectionRepository.removeItemFromCollection(resolvedId, userId, contentId)
+    private suspend fun logActivityForKind(userId: UUID, kind: CollectionKind, contentId: String) {
+        activityTypeForKind(kind)?.let { activityRepository.logActivity(userId, it, contentId) }
     }
 
-    suspend fun getCollectionItems(collectionId: String, userId: UUID? = null, category: ContentType? = null, limit: Int? = null, offset: Int? = null): List<CatalogItem> {
-        val resolvedId = userId?.let { resolveCollectionIdForUser(it, collectionId) } ?: UUID.fromString(collectionId)
-        return collectionRepository.getCollectionItems(resolvedId, userId, category, limit, offset)
-    }
-
-    suspend fun batchProcessInteractions(userId: UUID, request: List<UpdateCollectionItemRequest>): Int {
-        return collectionRepository.batchProcessInteractions(userId, request)
+    private fun activityTypeForKind(kind: CollectionKind): ActivityType? = when (kind) {
+        CollectionKind.LIKES -> ActivityType.LIKED_CHART
+        CollectionKind.BOOKMARKS -> ActivityType.BOOKMARKED_CHART
+        CollectionKind.USER -> null
     }
 }

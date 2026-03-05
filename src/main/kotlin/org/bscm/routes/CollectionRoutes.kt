@@ -1,58 +1,37 @@
 package org.bscm.routes
 
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.bscm.models.dto.collection.BatchCollectionItemRequest
+import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionRequest
-import org.bscm.models.dto.collection.UpdateCollectionItemRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
-import org.bscm.models.enums.ContentType
-import org.bscm.plugins.UnauthorizedException
+import org.bscm.models.dto.user.ContentCounts
+import org.bscm.models.dto.user.ItemsPage
+import org.bscm.models.enums.CollectionKind
 import org.bscm.services.CollectionService
+import org.bscm.utils.*
 import java.util.*
-
-private fun ApplicationCall.getUserId(): UUID {
-    val principal = principal<JWTPrincipal>()
-    return principal?.subject?.let { UUID.fromString(it) } ?: throw UnauthorizedException("User not authenticated")
-}
-
-private fun ApplicationCall.getContentTypeOrNull(): ContentType? {
-    val typeParam = request.queryParameters["contentType"]
-    return typeParam?.let {
-        try {
-            ContentType.valueOf(it.uppercase())
-        } catch (_: IllegalArgumentException) {
-            null
-        }
-    }
-}
-
-private fun ApplicationCall.getId(paramName: String = "id"): String {
-    return parameters[paramName] ?: throw IllegalArgumentException("Invalid or missing $paramName")
-}
-
-private fun ApplicationCall.getPagination(): Pair<Int?, Int?> {
-    val limit = request.queryParameters["limit"]?.toIntOrNull()
-    val offset = request.queryParameters["offset"]?.toIntOrNull()
-    return limit to offset
-}
 
 fun Route.collectionRoutes(collectionService: CollectionService) {
     route("/collections") {
         authenticate("auth-bearer") {
-            // Get user's custom collections
-            get {
-                val userId = call.getUserId()
-                val (limit, offset) = call.getPagination()
-                val response = collectionService.getUserCollections(userId, limit, offset)
-                call.respond(response)
-            }
-
-            // Create new collection
+            install(org.bscm.plugins.UserContext)
+            /**
+             * Create a new collection.
+             *
+             * Tag: Collections
+             *
+             * Body: application/json Collection name and visibility settings [CreateCollectionRequest].
+             *
+             * Responses:
+             *   - 400 Invalid request parameters.
+             *   - 401 User not authenticated.
+             *   - 201 Created collection.
+             */
             post {
                 val userId = call.getUserId()
                 val request = call.receive<CreateCollectionRequest>()
@@ -64,26 +43,99 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 }
             }
 
+            /**
+             * Batch process multiple items (add or remove) in a single operation.
+             *
+             * Tag: Collections
+             *
+             * Body: application/json List of items with actions [BatchCollectionItemRequest].
+             *
+             * Responses:
+             *   - 400 Invalid request parameters.
+             *   - 401 User not authenticated.
+             *   - 200 Batch operation summary.
+             */
+            post("batch") {
+                val userId = call.getUserId()
+                val request = call.receive<List<BatchCollectionItemRequest>>()
+
+                if (request.isEmpty()) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Request must contain at least one item")
+                    )
+                    return@post
+                }
+
+                val response = collectionService.processBatchCollectionItems(userId, request)
+                call.respond(HttpStatusCode.OK, response)
+            }
+
+            get("/slug/{username}/{slug}") {
+                val requesterUserId = call.getUserId()
+                val username = call.pathParameters["username"] ?: throw IllegalArgumentException("Username is required")
+                val slug = call.pathParameters["slug"] ?: throw IllegalArgumentException("Slug is required")
+
+                val collection = collectionService.getCollectionBySlug(username, slug, requesterUserId)
+                if (collection != null) {
+                    call.respond(collection)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, "Collection not found or you don't have permission")
+                }
+            }
+
             // Generalized routes with id
             route("/{id}") {
-                // Update collection
+                get {
+                    val userId = call.getUserId()
+                    val collectionId = call.getId()
+                    val collection = collectionService.getCollection(collectionId, userId)
+                    if (collection != null) {
+                        call.respond(collection)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "Collection not found or you don't have permission")
+                    }
+                }
+
+                /**
+                 * Update collection metadata.
+                 *
+                 * Tag: Collections
+                 *
+                 * Path: id [UUID] Collection ID.
+                 * Body: application/json Updated collection information [UpdateCollectionRequest].
+                 *
+                 * Responses:
+                 *   - 400 Invalid request parameters.
+                 *   - 401 User not authenticated.
+                 *   - 404 Collection not found or no permission.
+                 *   - 200 Updated collection slug (if name changed)
+                 */
                 put {
                     val userId = call.getUserId()
                     val collectionId = call.getId()
                     val request = call.receive<UpdateCollectionRequest>()
                     try {
-                        val updated = collectionService.updateCollection(collectionId, userId, request.name, request.isPublic)
-                        if (updated) {
-                            call.respond(HttpStatusCode.OK, mapOf("message" to "Collection updated successfully"))
-                        } else {
-                            call.respond(HttpStatusCode.NotFound, "Collection not found or you don't have permission")
-                        }
+                        val slug = collectionService.updateCollection(collectionId, userId, request.name, request.isPublic)
+                        call.respond(HttpStatusCode.OK, mapOf("slug" to slug))
                     } catch (e: IllegalArgumentException) {
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
                 }
 
-                // Delete collection
+
+                /**
+                 * Delete a collection.
+                 *
+                 * Tag: Collections
+                 *
+                 * Path: id [UUID] Collection ID.
+                 *
+                 * Responses:
+                 *   - 401 User not authenticated.
+                 *   - 404 Collection not found or no permission.
+                 *   - 200 Success message.
+                 */
                 delete {
                     val userId = call.getUserId()
                     val collectionId = call.getId()
@@ -96,59 +148,90 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                 }
 
                 route("/items") {
+                    /**
+                     * Get collection items.
+                     *
+                     * Tag: Collections
+                     *
+                     * Path: id [UUID] Collection ID.
+                     * Query: types [String] Optional list of content types to filter by (comma-separated, e.g. "chart,tourpass").
+                     * Query: limit [Integer] Optional limit for results.
+                     * Query: offset [Integer] Optional pagination offset.
+                     *
+                     * Responses:
+                     *   - 401 User not authenticated.
+                     *   - 404 Collection not found.
+                     *   - 200 List of collection items.
+                     */
                     get {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
-                        val category = call.getContentTypeOrNull()
+                        val categories = call.getContentTypeOrNull()
                         val (limit, offset) = call.getPagination()
-                        val items = collectionService.getCollectionItems(collectionId, userId, category, limit, offset)
-                        call.respond(items)
+
+                        val (items, counts) = collectionService.getCollectionItems(
+                            userId = userId,
+                            collectionId = collectionId,
+                            categories = categories,
+                            limit = limit,
+                            offset = offset
+                        )
+
+                        call.respond(
+                            ItemsPage(
+                                items,
+                                counts?.let { ContentCounts(it.first, it.second, it.third) }
+                            )
+                        )
                     }
 
-                    // Add item to collection
+                    /**
+                     * Add item to collection.
+                     *
+                     * Tag: Collections
+                     *
+                     * Path: id [UUID] Collection ID.
+                     * Body: application/json Content ID to add [CreateCollectionItemRequest].
+                     *
+                     * Responses:
+                     *   - 400 Failed to add item (may already exist).
+                     *   - 401 User not authenticated.
+                     *   - 404 Collection not found.
+                     *   - 200 Success message.
+                     */
                     post {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
-
-                        val request = call.receive<UpdateCollectionItemRequest>()
-
-                        val added = collectionService.addItemToCollection(collectionId, userId, request.contentId)
-                        if (added) {
-                            call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to collection"))
-                        } else {
-                            call.respond(HttpStatusCode.BadRequest, "Failed to add item (may already exist or collection not found)")
-                        }
+                        val request = call.receive<CreateCollectionItemRequest>()
+                        val added = collectionService.addItem(userId, request.contentId, CollectionKind.USER, collectionId)
+                        if (added) call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to collection"))
+                        else call.respond(HttpStatusCode.BadRequest, "Failed to add item (may already exist or collection not found)")
                     }
 
-                    // Remove item from collection
-                    delete("{itemId}") {
+
+                    /**
+                     * Remove item from collection.
+                     *
+                     * Tag: Collections
+                     *
+                     * Path: id [UUID] Collection ID.
+                     * Path: itemId [String] Content ID to remove.
+                     *
+                     * Responses:
+                     *   - 401 User not authenticated.
+                     *   - 404 Item not found in collection.
+                     *   - 200 Success message.
+                     */
+                    delete("/{id}/items/{itemId}") {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
-                        val contentId = call.getId("itemId")
-                        val removed = collectionService.removeItemFromCollection(collectionId, userId, contentId)
-                        if (removed) {
-                            call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from collection"))
-                        } else {
-                            call.respond(HttpStatusCode.NotFound, "Item not found in collection")
-                        }
+                        val contentId = call.getContentId("itemId")
+                        val removed = collectionService.removeItem(userId, contentId, CollectionKind.USER, collectionId)
+                        if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from collection"))
+                        else call.respond(HttpStatusCode.NotFound, "Item not found in collection")
                     }
-                }
-            }
-
-            // Batch process items (add/remove) in collection
-            post("/batch") {
-                val userId = call.getUserId()
-
-                val request = call.receive<List<UpdateCollectionItemRequest>>()
-
-                try {
-                    collectionService.batchProcessInteractions(userId, request)
-                    call.respond(HttpStatusCode.OK)
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
                 }
             }
         }
     }
 }
-

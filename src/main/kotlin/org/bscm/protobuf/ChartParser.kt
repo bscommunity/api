@@ -1,15 +1,15 @@
 package org.bscm.protobuf
 
 /**
- * Parser principal para converter bytes de Chart em um objeto estruturado.
+ * Main parser to convert Chart bytes into a structured object.
  */
 object ChartParser {
     
     /**
-     * Parse de bytes brutos para um objeto Chart.
-     * 
-     * @param data ByteArray contendo os dados do chart em formato protobuf
-     * @return Map contendo o chart parseado com todas as informações
+     * Parse raw bytes into a Chart object.
+     *
+     * @param data ByteArray containing the chart data in protobuf format
+     * @return Chart object with all parsed information
      */
     fun parse(data: ByteArray): Chart {
         val reader = ProtobufReader(data)
@@ -198,7 +198,7 @@ object ChartParser {
     }
 }
 
-// Data classes para representar o Chart
+// Data classes to represent the Chart
 data class Chart(
     val id: Int?,
     val interactionsId: String?,

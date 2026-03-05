@@ -11,8 +11,7 @@ object CollectionItemTable : IntIdTable("collection_items") {
     val addedAt = datetime("added_at")
 
     init {
-        index(false, collectionId)
-        index(false, contentId)
+        index(false, collectionId, addedAt, contentId)
         uniqueIndex(collectionId, contentId) // avoid duplicates
     }
 }

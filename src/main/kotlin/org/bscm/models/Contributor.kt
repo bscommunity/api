@@ -13,6 +13,7 @@ import java.time.LocalDateTime
 data class Contributor(
     val user: SimplifiedUser,
     val chartId: String,
+    val note: String? = null,
     val roles: List<ContributorRole>,
     val joinedAt: LocalDateTime
 )

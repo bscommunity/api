@@ -6,10 +6,12 @@ import org.bscm.models.TourPass
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.TourPassEntity
 import org.bscm.models.enums.ContentType
-import org.bscm.models.repository.IChartRepository
-import org.bscm.models.repository.ITourPassRepository
+import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.TourPassChartTable
 import org.bscm.models.tables.TourPassTable
+import org.bscm.utils.UserStatsUtils
+import org.bscm.utils.retryOnConflict
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -18,9 +20,14 @@ import java.util.*
 
 class TourPassRepository(
     private val chartRepository: IChartRepository
-) : ITourPassRepository {
+) : BaseRepository(), ITourPassRepository {
 
-    private fun daoToTourPass(entity: TourPassEntity, charts: List<Chart>): TourPass {
+    private fun daoToTourPass(
+        entity: TourPassEntity,
+        charts: List<Chart>,
+        likedAt: LocalDateTime? = null,
+        bookmarkedAt: LocalDateTime? = null
+    ): TourPass {
         return TourPass(
             id = entity.id.value.toString(),
             contentId = entity.content.id.value,
@@ -30,10 +37,11 @@ class TourPassRepository(
             charts = charts,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
-            isLiked = false, // Placeholder, logic to be implemented
-            isFavorited = false, // Placeholder, logic to be implemented
+            likedAt = likedAt,
+            bookmarkedAt = bookmarkedAt,
             downloadsSum = entity.downloadsSum,
-            latestPublishedAt = entity.latestPublishedAt ?: LocalDateTime.now()
+            createdAt = entity.createdAt,
+            updatedAt = entity.latestPublishedAt ?: LocalDateTime.now()
         )
     }
 
@@ -71,9 +79,15 @@ class TourPassRepository(
 
         val tourPassEntities = TourPassEntity.wrapRows(query).toList()
 
+        // Fetch user stats for all tour passes in one query
+        val tourPassContentIds = tourPassEntities.map { it.content.id.value }
+        val userStats = UserStatsUtils.fetchUserStats(getUserContext()?.userId, tourPassContentIds)
+
         tourPassEntities.map { tourPassEntity ->
             val charts = getChartsForTourPass(tourPassEntity.id.value, userId)
-            daoToTourPass(tourPassEntity, charts)
+            val contentId = tourPassEntity.content.id.value
+            val stats = userStats[contentId] ?: Pair(null, null)
+            daoToTourPass(tourPassEntity, charts, stats.first, stats.second)
         }
     }
 
@@ -97,8 +111,10 @@ class TourPassRepository(
         coverUrl: String
     ): TourPass = newSuspendedTransaction {
         // Create new content entry
-        val content = ContentEntity.new {
-            this.type = ContentType.TOUR_PASS
+        val content = retryOnConflict {
+            ContentEntity.new {
+                this.type = ContentType.TOUR_PASS
+            }
         }
 
         val entity = TourPassEntity.new {
@@ -146,8 +162,14 @@ class TourPassRepository(
 
         // Use the real ChartRepository to get full chart details with versions, contributors, etc.
         return chartRepository.getCharts(
-            userId = userId,
-            chartIds = chartIds,
+            filters = ChartRepository.ChartFilters(
+                chartIds = chartIds,
+                userId = userId
+            ),
+            addons = ChartRepository.ChartAddons(
+                versions = true,
+                streamingLinks = true,
+            )
         ).first
     }
 
@@ -192,7 +214,7 @@ class TourPassRepository(
 
         TourPassEntity.findByIdAndUpdate(tourPassId) { entity ->
             entity.downloadsSum = charts.sumOf { it.downloadsSum }
-            entity.latestPublishedAt = charts.maxOfOrNull { it.latestPublishedAt } ?: LocalDateTime.now()
+            entity.latestPublishedAt = charts.maxOfOrNull { it.updatedAt } ?: LocalDateTime.now()
         }
     }
 }
