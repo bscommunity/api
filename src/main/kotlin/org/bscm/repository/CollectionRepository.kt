@@ -637,7 +637,7 @@ class CollectionRepository(
             collectionFilter =
                 (CollectionTable.userId eq userId) and
                         (CollectionTable.kind eq kind),
-            accessFilter = Op.TRUE, // já estamos filtrando por dono
+            accessFilter = Op.TRUE,
             categories = categories,
             limit = limit,
             offset = offset

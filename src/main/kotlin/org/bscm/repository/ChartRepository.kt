@@ -534,6 +534,41 @@ class ChartRepository : BaseRepository(), IChartRepository {
         Pair(charts, if (addons?.count == true) total else null)
     }
 
+    override suspend fun getChartsByContentIds(contentIds: List<String>, addons: ChartAddons?): List<Chart> = newSuspendedTransaction {
+        if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
+
+        val query = ChartTable.selectAll().where { ChartTable.contentId inList contentIds }
+        applyJoinsAndSelect(
+            query = query,
+            fetchAllVersions = addons?.versions == true,
+            fetchStreamingLinks = addons?.streamingLinks == true
+        )
+
+        val results = query.toList()
+        val processedResults = processResultsInMemory(
+            requestingUserId = getUserContext()?.userId,
+            results = results,
+            includeStreamingLinks = addons?.streamingLinks == true
+        )
+
+        // Calculate version indices for all charts in a single batch query
+        val chartIds = processedResults.map { it.chart.id.value }
+        val versionIndices = calculateVersionIndices(chartIds)
+
+        processedResults.map { chartResult ->
+            toChart(
+                entity = chartResult.chart,
+                streamingLinks = chartResult.streamingLinks?.map { toStreamingLink(it) },
+                versions = chartResult.versions.map { entityToVersion(it, versionIndices[it.id.value] ?: 0) },
+                contributors = chartResult.contributors.map {
+                    contributorEntityToContributor(it.component1(), it.component2())
+                },
+                likedAt = chartResult.userStats.first,
+                bookmarkedAt = chartResult.userStats.second
+            )
+        }
+    }
+
     override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {
         if (query.isBlank()) return@newSuspendedTransaction emptyList()
 

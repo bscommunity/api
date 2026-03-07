@@ -58,9 +58,8 @@ fun Application.configureDatabases(config: ApplicationConfig) {
 
         val flyway = Flyway.configure()
             .dataSource(url, user, password)
-            .validateMigrationNaming(false)
-            .baselineOnMigrate(true) // Used when migrating an existing database for the first time
-            .baselineVersion("4")
+            .baselineOnMigrate(true)
+            .baselineVersion("0")  // ← use 0, not 1
             .load()
 
         // Executa as migrações

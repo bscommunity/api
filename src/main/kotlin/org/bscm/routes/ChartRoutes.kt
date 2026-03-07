@@ -229,6 +229,38 @@ fun Route.chartRoutes(
 
                     call.respond(chart)
                 }
+
+                /**
+                 * Get charts with a list of content IDs.
+                 *
+                 * Tag: Charts
+                 *
+                 * Query: ids [String] Comma-separated content IDs.
+                 * Responses:
+                 *  - 200 application/json [Array] List of chart details.
+                 *  - 401 application/json [Error] Unauthorized access.
+                 *  - 404 application/json [Error] No charts found for the given content IDs.
+                * */
+                get("content") {
+                    val idsParam = call.request.queryParameters["ids"]
+                        ?: throw BadRequestException("Missing content IDs")
+
+                    call.principal<HMACPrincipal>() ?: throw UnauthorizedException("Unauthorized")
+
+                    val contentIds = idsParam.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
+                    if (contentIds.isEmpty()) {
+                        throw BadRequestException("No valid content IDs provided")
+                    }
+
+                    val charts = chartRepository.getChartsByContentIds(contentIds)
+
+                    if (charts.isEmpty()) {
+                        throw NotFoundException("No charts found for the given content IDs")
+                    }
+
+                    call.respond(charts)
+                }
             }
 
             rateLimit(RateLimitName("unrestricted")) {
@@ -254,7 +286,7 @@ fun Route.chartRoutes(
         // -----------------------------------------------------------------
         // HMAC-only routes (mobile app analytics + version sync)
         // -----------------------------------------------------------------
-        authenticate("auth-hmac") {
+        authenticate("auth-public", "auth-hmac") {
             rateLimit(RateLimitName("unrestricted")) {
 
                 /**
@@ -303,8 +335,6 @@ fun Route.chartRoutes(
                     val chartIds = call.request.queryParameters["chartIds"]
                         ?.split(",")
                         ?.mapNotNull { it.toULongOrNull() }
-                    // Bug fix: toULong() throws on bad input. mapNotNull silently skips
-                    // malformed IDs — the mobile app gets results for valid IDs only.
                         ?: emptyList()
 
                     logger.info("Fetching latest versions for ${chartIds.size} chart IDs")

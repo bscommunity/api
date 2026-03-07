@@ -18,6 +18,8 @@ interface IChartRepository {
         offset: Int? = null,
     ): Pair<List<Chart>, Int?>
 
+    suspend fun getChartsByContentIds(contentIds: List<String>, addons: ChartAddons? = null): List<Chart>
+
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: ULong, addons: ChartAddons? = null): Chart?
     suspend fun getChartByContentId(contentId: String, addons: ChartAddons? = null): Chart?
