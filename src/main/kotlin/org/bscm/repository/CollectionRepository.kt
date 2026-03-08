@@ -278,7 +278,7 @@ class CollectionRepository(
                         it[CollectionTable.createdAt] = now
                         it[CollectionTable.updatedAt] = now
                     }.value
-                } catch (e: ExposedSQLException) {
+                } catch (_: ExposedSQLException) {
                     CollectionTable
                         .select(CollectionTable.id)
                         .where { (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind) }
@@ -424,48 +424,6 @@ class CollectionRepository(
         userId: UUID,
         contentId: String
     ): Boolean = newSuspendedTransaction {
-        when (collectionKind) {
-            CollectionKind.BOOKMARKS -> {
-                // Remove from all USER collections
-                val userCollectionIds = CollectionTable
-                    .select(CollectionTable.id)
-                    .where {
-                        (CollectionTable.userId eq userId) and
-                                (CollectionTable.kind eq CollectionKind.USER)
-                    }
-                    .map { it[CollectionTable.id].value }
-
-                if (userCollectionIds.isNotEmpty()) {
-                    CollectionItemTable.deleteWhere {
-                        (CollectionItemTable.collectionId inList userCollectionIds) and
-                                (CollectionItemTable.contentId eq contentId)
-                    }
-                }
-            }
-
-            CollectionKind.USER -> {
-                // Remove from BOOKMARKS
-                CollectionTable
-                    .select(CollectionTable.id)
-                    .where {
-                        (CollectionTable.userId eq userId) and
-                                (CollectionTable.kind eq CollectionKind.BOOKMARKS)
-                    }
-                    .firstOrNull()
-                    ?.get(CollectionTable.id)
-                    ?.value
-                    ?.let { bookmarksId ->
-                        CollectionItemTable.deleteWhere {
-                            (CollectionItemTable.collectionId eq bookmarksId) and
-                                    (CollectionItemTable.contentId eq contentId)
-                        }
-                    }
-            }
-
-            CollectionKind.LIKES -> { /* coexist with everything */
-            }
-        }
-
         val now = LocalDateTime.now()
         val result = CollectionItemTable.insertIgnore {
             it[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
@@ -474,27 +432,40 @@ class CollectionRepository(
         }
 
         val wasInserted = result.insertedCount > 0
+
+        // Only proceed with updates if something was actually inserted
         if (wasInserted) {
             CollectionTable.update({ CollectionTable.id eq collectionId }) {
                 it[updatedAt] = now
             }
+
+            // Add to bookmarks for USER collections - reuse the same timestamp
+            if (collectionKind == CollectionKind.USER) {
+                val bookmarksId = getOrCreateSystemCollectionId(userId, CollectionKind.BOOKMARKS)
+                CollectionItemTable.insertIgnore {
+                    it[CollectionItemTable.collectionId] = EntityID(bookmarksId, CollectionTable)
+                    it[CollectionItemTable.contentId] = EntityID(contentId, ContentTable)
+                    it[CollectionItemTable.addedAt] = now
+                }
+            }
         }
+
         wasInserted
     }
 
     override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
         newSuspendedTransaction {
-            // Ownership check + existence guard in one query
-            val collectionExists = CollectionTable
-                .select(CollectionTable.id)
+            // Fetch collection info (ownership check + kind) in one query
+            val collectionRow = CollectionTable
+                .select(CollectionTable.id, CollectionTable.kind)
                 .where {
                     (CollectionTable.id eq collectionId) and
                             (CollectionTable.userId eq userId)
                 }
                 .limit(1)
-                .count() > 0
+                .firstOrNull() ?: return@newSuspendedTransaction false
 
-            if (!collectionExists) return@newSuspendedTransaction false
+            val kind = collectionRow[CollectionTable.kind]
 
             val deletedCount = CollectionItemTable.deleteWhere {
                 (CollectionItemTable.collectionId eq collectionId) and
@@ -502,8 +473,28 @@ class CollectionRepository(
             }
 
             if (deletedCount > 0) {
+                val now = LocalDateTime.now()
                 CollectionTable.update({ CollectionTable.id eq collectionId }) {
-                    it[updatedAt] = LocalDateTime.now()
+                    it[updatedAt] = now
+                }
+
+                // Only nuke from all collections if removing from USER or BOOKMARKS collection
+                if (kind in listOf(CollectionKind.USER, CollectionKind.BOOKMARKS)) {
+                    // Fetch both BOOKMARKS and USER collection IDs in a single query
+                    val collectionIdsToNuke = CollectionTable
+                        .select(CollectionTable.id)
+                        .where {
+                            (CollectionTable.userId eq userId) and
+                                    (CollectionTable.kind inList listOf(CollectionKind.BOOKMARKS, CollectionKind.USER))
+                        }
+                        .map { it[CollectionTable.id].value }
+
+                    if (collectionIdsToNuke.isNotEmpty()) {
+                        CollectionItemTable.deleteWhere {
+                            (CollectionItemTable.collectionId inList collectionIdsToNuke) and
+                                    (CollectionItemTable.contentId eq contentId)
+                        }
+                    }
                 }
             }
 
@@ -719,50 +710,6 @@ class CollectionRepository(
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@newSuspendedTransaction 0 to contentIds
 
-        when (collection.kind) {
-            CollectionKind.BOOKMARKS -> {
-                // Remove all contentIds from every USER collection
-                val userCollectionIds = CollectionTable
-                    .select(CollectionTable.id)
-                    .where {
-                        (CollectionTable.userId eq userId) and
-                                (CollectionTable.kind eq CollectionKind.USER)
-                    }
-                    .map { it[CollectionTable.id].value }
-
-                if (userCollectionIds.isNotEmpty()) {
-                    CollectionItemTable.deleteWhere {
-                        (CollectionItemTable.collectionId inList userCollectionIds) and
-                                (CollectionItemTable.contentId inList contentIds)
-                    }
-                }
-            }
-
-            CollectionKind.USER -> {
-                // Remove from BOOKMARKS
-                val bookmarksId = CollectionTable
-                    .select(CollectionTable.id)
-                    .where {
-                        (CollectionTable.userId eq userId) and
-                                (CollectionTable.kind eq CollectionKind.BOOKMARKS)
-                    }
-                    .firstOrNull()
-                    ?.get(CollectionTable.id)
-                    ?.value
-
-                if (bookmarksId != null) {
-                    CollectionItemTable.deleteWhere {
-                        (CollectionItemTable.collectionId eq bookmarksId) and
-                                (CollectionItemTable.contentId inList contentIds)
-                    }
-                }
-            }
-
-            CollectionKind.LIKES -> {
-                // Nothing
-            }
-        }
-
         val now = LocalDateTime.now()
 
         // Fetch which IDs already exist so we can report skipped ones accurately
@@ -784,6 +731,15 @@ class CollectionRepository(
                 this[CollectionItemTable.addedAt] = now
             }
             collection.updatedAt = now
+        }
+
+        if (collection.kind == CollectionKind.USER && toInsert.isNotEmpty()) {
+            val bookmarksId = getOrCreateSystemCollectionId(userId, CollectionKind.BOOKMARKS)
+            CollectionItemTable.batchInsert(data = toInsert, ignore = true) { id ->
+                this[CollectionItemTable.collectionId] = EntityID(bookmarksId, CollectionTable)
+                this[CollectionItemTable.contentId] = EntityID(id, ContentTable)
+                this[CollectionItemTable.addedAt] = now
+            }
         }
 
         val skipped = contentIds.filter { it in alreadyExisting }
@@ -821,6 +777,25 @@ class CollectionRepository(
 
         if (deletedCount > 0) {
             collection.updatedAt = LocalDateTime.now()
+
+            // Only nuke from all collections if removing from USER or BOOKMARKS collection
+            if (collection.kind in listOf(CollectionKind.USER, CollectionKind.BOOKMARKS)) {
+                // Fetch both BOOKMARKS and USER collection IDs in a single query
+                val collectionIdsToNuke = CollectionTable
+                    .select(CollectionTable.id)
+                    .where {
+                        (CollectionTable.userId eq userId) and
+                                (CollectionTable.kind inList listOf(CollectionKind.BOOKMARKS, CollectionKind.USER))
+                    }
+                    .map { it[CollectionTable.id].value }
+
+                if (collectionIdsToNuke.isNotEmpty()) {
+                    CollectionItemTable.deleteWhere {
+                        (CollectionItemTable.collectionId inList collectionIdsToNuke) and
+                                (CollectionItemTable.contentId inList contentIds)
+                    }
+                }
+            }
         }
 
         deletedCount

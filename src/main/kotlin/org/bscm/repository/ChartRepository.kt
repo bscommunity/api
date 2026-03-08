@@ -518,12 +518,12 @@ class ChartRepository : BaseRepository(), IChartRepository {
                 streamingLinks = if (includeStreamingLinks) chartResult.streamingLinks?.map { toStreamingLink(it) } else null,
                 versions = chartResult.versions.map { entityToVersion(it, versionIndices[it.id.value] ?: 0) },
                 contributors = chartResult.contributors.map {
-                    log.debug(
+                    /*log.debug(
                         "Processing contributor for chart {}: userId={}, roles={}",
                         chartResult.chart.id.value,
                         it.second.id.value,
                         it.first.roles.joinToString()
-                    )
+                    )*/
                     contributorEntityToContributor(it.component1(), it.component2())
                 },
                 likedAt = chartResult.userStats.first,

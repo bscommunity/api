@@ -152,6 +152,8 @@ fun Route.chartRoutes(
                         )
                     }
 
+                    println("Query: $sanitizedQuery, Difficulties: $difficulties, Genres: $genres, IsDeluxe: $isDeluxe, SortBy: $sortBy, Limit: $limit, Offset: $offset, Count: $count, MyCharts: $myCharts, RequesterId: $requesterId, ResultCount: ${result.first.size}")
+
                     call.respond(result)
                 }
 

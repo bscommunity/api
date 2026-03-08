@@ -120,6 +120,8 @@ fun Route.meRoutes(
                     categories = requestedTypes  // pass null = all types
                 )
 
+                println("User $userId requested likes with limit=$limit, offset=$offset, types=$requestedTypes. Returning ${items.size} items and counts=$counts")
+
                 call.respond(
                     ItemsPage(
                         items,
@@ -194,6 +196,8 @@ fun Route.meRoutes(
                     offset = offset,
                     categories = requestedTypes  // pass null = all types
                 )
+
+                println("User $userId requested bookmarks with limit=$limit, offset=$offset, types=$requestedTypes. Returning ${items.size} items and counts=$counts")
 
                 call.respond(
                     ItemsPage(

@@ -46,11 +46,11 @@ object UserStatsUtils {
 
         log.info("Query returned ${statsRows.size} rows")
 
-        if (statsRows.isNotEmpty()) {
+        /*if (statsRows.isNotEmpty()) {
             statsRows.forEach { row ->
                 log.info("Row: contentId=${row[CollectionItemTable.contentId].value}, kind=${row[CollectionTable.kind]}")
             }
-        }
+        }*/
 
         // Group results by contentId and collect all collection kinds
         val contentIdToTimes = statsRows.groupBy { it[CollectionItemTable.contentId].value }
@@ -67,17 +67,17 @@ object UserStatsUtils {
                 Pair (likedAt, bookmarkedAt)
             }
 
-        log.info("Grouped by contentId: ${contentIdToTimes.keys.joinToString()}")
+        // log.info("Grouped by contentId: ${contentIdToTimes.keys.joinToString()}")
 
         val result = contentIds.associateWith { contentId ->
             val times = contentIdToTimes[contentId] ?: Pair(null, null)
 
-            log.info("ContentId=$contentId: likedAt=${times.first}, bookmarkedAt=${times.second}")
+            // log.info("ContentId=$contentId: likedAt=${times.first}, bookmarkedAt=${times.second}")
 
             times
         }
 
-        log.info("Final result map size: ${result.size}")
+        // log.info("Final result map size: ${result.size}")
         return result
     }
 }
