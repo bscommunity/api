@@ -127,6 +127,70 @@ class CollectionService(
         return BatchCollectionItemResponse(successful = successCount, failed = failCount)
     }
 
+    /**
+     * Add an item to multiple collections atomically.
+     * Can add to bookmarks and/or any number of custom collections in a single operation.
+     *
+     * Returns the number of collections the item was successfully added to.
+     * No side effects occur - each collection is treated independently.
+     */
+    suspend fun addItemToMultipleCollections(
+        userId: UUID,
+        contentId: String,
+        collectionSpecs: List<Pair<CollectionKind, UUID?>>
+    ): Int {
+        if (collectionSpecs.isEmpty()) return 0
+
+        var successCount = 0
+        val activityLogged = mutableSetOf<CollectionKind>()
+
+        for ((kind, collectionId) in collectionSpecs) {
+            val (resolvedId, resolvedKind) = resolveCollection(userId, kind, collectionId)
+                ?: continue
+
+            val added = collectionRepository.addItemToCollection(resolvedId, resolvedKind, userId, contentId)
+            if (added) {
+                successCount++
+                // Log activity only once per kind (e.g., don't log BOOKMARKS multiple times if adding to multiple custom collections)
+                if (resolvedKind !in activityLogged) {
+                    logActivityForKind(userId, resolvedKind, contentId)
+                    activityLogged.add(resolvedKind)
+                }
+            }
+        }
+
+        return successCount
+    }
+
+    /**
+     * Remove an item from multiple collections atomically.
+     * Each collection removal is independent - removing from one doesn't affect others.
+     *
+     * Returns the number of collections the item was successfully removed from.
+     */
+    suspend fun removeItemFromMultipleCollections(
+        userId: UUID,
+        contentId: String,
+        collectionSpecs: List<Pair<CollectionKind, UUID?>>
+    ): Int {
+        if (collectionSpecs.isEmpty()) return 0
+
+        var successCount = 0
+
+        for ((kind, collectionId) in collectionSpecs) {
+            val (resolvedId, _) = resolveCollection(userId, kind, collectionId)
+                ?: continue
+
+            val removed = collectionRepository.removeItemFromCollection(resolvedId, userId, contentId)
+            if (removed) {
+                successCount++
+            }
+        }
+
+        return successCount
+    }
+
+
     // ── Read operations ─────────────────────────────────────────────────────
 
     suspend fun getCollectionItems(
