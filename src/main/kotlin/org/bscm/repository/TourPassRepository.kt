@@ -2,6 +2,7 @@ package org.bscm.repository
 
 import io.ktor.server.plugins.*
 import org.bscm.models.Chart
+import org.bscm.models.StreamingLink
 import org.bscm.models.TourPass
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.TourPassEntity
@@ -11,6 +12,7 @@ import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.TourPassChartTable
 import org.bscm.models.tables.TourPassTable
+import org.bscm.utils.StreamingPlatformUtils
 import org.bscm.utils.UserStatsUtils
 import org.bscm.utils.retryOnConflict
 import org.jetbrains.exposed.sql.*
@@ -29,6 +31,11 @@ class TourPassRepository(
         likedAt: LocalDateTime? = null,
         bookmarkedAt: LocalDateTime? = null
     ): TourPass {
+        val playlistUrls = entity.playlistUrls
+            ?.takeIf { it.isNotBlank() }
+            ?.let { StreamingPlatformUtils.deserializeLinks(it) }
+            ?: emptyList()
+
         return TourPass(
             id = entity.id.value.toString(),
             contentId = entity.content.id.value,
@@ -37,6 +44,7 @@ class TourPassRepository(
             artist = entity.artist,
             coverUrl = entity.coverUrl,
             charts = charts,
+            playlistUrls = playlistUrls,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
             likedAt = likedAt,
@@ -122,6 +130,7 @@ class TourPassRepository(
         description: String?,
         artist: String?,
         coverUrl: String,
+        playlistUrls: List<StreamingLink>?,
         chartIds: List<ULong>?,
         id: ULong?
     ): TourPass = newSuspendedTransaction {
@@ -139,6 +148,9 @@ class TourPassRepository(
                 this.description = description
                 this.artist = artist
                 this.coverUrl = coverUrl
+                this.playlistUrls = playlistUrls
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { StreamingPlatformUtils.serializeLinks(it) }
                 this.isPublic = true
                 this.isFeatured = false
                 this.downloadsSum = 0
@@ -152,6 +164,9 @@ class TourPassRepository(
                 this.description = description
                 this.artist = artist
                 this.coverUrl = coverUrl
+                this.playlistUrls = playlistUrls
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { StreamingPlatformUtils.serializeLinks(it) }
                 this.isPublic = true
                 this.isFeatured = false
                 this.downloadsSum = 0
@@ -175,6 +190,7 @@ class TourPassRepository(
         description: String?,
         artist: String?,
         coverUrl: String?,
+        playlistUrls: List<StreamingLink>?,
         chartIds: List<ULong>?
     ): TourPass = newSuspendedTransaction {
         val entity = TourPassEntity.findById(id)
@@ -185,6 +201,11 @@ class TourPassRepository(
         description?.let { entity.description = it }
         artist?.let { entity.artist = it }
         coverUrl?.let { entity.coverUrl = it }
+        if (playlistUrls != null) {
+            entity.playlistUrls = playlistUrls
+                .takeIf { it.isNotEmpty() }
+                ?.let { StreamingPlatformUtils.serializeLinks(it) }
+        }
 
         chartIds?.let { ids ->
             replaceTourPassCharts(id, ids)

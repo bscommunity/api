@@ -15,7 +15,6 @@ import org.bscm.models.dto.theme.UpdateThemeRequest
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.ThemePublishService
-import org.bscm.services.UploadService
 import org.bscm.utils.getUserId
 import org.bscm.utils.getUserIdOrNull
 import java.util.*
@@ -209,12 +208,8 @@ fun Route.themeRoutes(
                         uploader = user,
                         request = payload.request,
                         assets = ThemePublishService.Assets(
-                            coverArt = payload.assets.coverArt?.let {
-                                UploadService.UploadImage(it.bytes, it.filename, it.contentType)
-                            },
-                            displayArt = payload.assets.displayArt?.let {
-                                UploadService.UploadImage(it.bytes, it.filename, it.contentType)
-                            }
+                            coverArt = payload.assets.coverArt?.toUploadImage(),
+                            displayArt = payload.assets.displayArt?.toUploadImage()
                         )
                     )
 
@@ -245,12 +240,8 @@ fun Route.themeRoutes(
                         userId = userId,
                         request = payload.request,
                         assets = ThemePublishService.Assets(
-                            coverArt = payload.assets.coverArt?.let {
-                                UploadService.UploadImage(it.bytes, it.filename, it.contentType)
-                            },
-                            displayArt = payload.assets.displayArt?.let {
-                                UploadService.UploadImage(it.bytes, it.filename, it.contentType)
-                            }
+                            coverArt = payload.assets.coverArt?.toUploadImage(),
+                            displayArt = payload.assets.displayArt?.toUploadImage()
                         )
                     )
 

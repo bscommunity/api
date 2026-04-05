@@ -1,5 +1,6 @@
 package org.bscm.models.interfaces
 
+import org.bscm.models.StreamingLink
 import org.bscm.models.TourPass
 import java.util.*
 
@@ -20,10 +21,20 @@ interface ITourPassRepository {
         description: String?,
         artist: String?,
         coverUrl: String,
+        playlistUrls: List<StreamingLink>? = null,
         chartIds: List<ULong>? = null,
         id: ULong? = null,
     ): TourPass
-    suspend fun updateTourPass(id: ULong, userId: UUID, name: String?, description: String?, artist: String?, coverUrl: String?, chartIds: List<ULong>? = null): TourPass
+    suspend fun updateTourPass(
+        id: ULong,
+        userId: UUID,
+        name: String?,
+        description: String?,
+        artist: String?,
+        coverUrl: String?,
+        playlistUrls: List<StreamingLink>? = null,
+        chartIds: List<ULong>? = null,
+    ): TourPass
     suspend fun deleteTourPass(id: ULong, userId: UUID): Boolean
     suspend fun setTourPassCharts(id: ULong, userId: UUID, chartIds: List<ULong>): TourPass
     suspend fun addChartToTourPass(tourPassId: ULong, chartId: ULong): Boolean

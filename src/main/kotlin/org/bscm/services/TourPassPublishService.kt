@@ -11,6 +11,7 @@ import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.repository.ChartRepository
+import org.bscm.utils.StreamingPlatformUtils
 
 class TourPassPublishService(
     private val tourPassRepository: ITourPassRepository,
@@ -50,17 +51,22 @@ class TourPassPublishService(
             "${index + 1}. ${chart.artist} - ${chart.track}$icons"
         }
 
+        val normalizedPlaylistUrls = request.playlistUrls
+            ?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
+
         val discordResponse = uploadService.uploadTourPass(
             UploadService.TourPassPublishData(
                 title = request.name,
                 description = request.description,
-                uploader = uploader,
+                context = UploadService.PublishContext(
+                    submittedBy = UploadService.SubmittedBy.fromUser(uploader),
+                    trackUrls = normalizedPlaylistUrls ?: emptyList(),
+                ),
                 coverUrl = request.coverUrl,
                 coverImage = cover,
                 durationSeconds = charts.sumOf { (it.latestVersion?.duration ?: 0f).toInt() },
                 tracksAmount = charts.size,
                 tracklist = tracklist,
-                trackUrls = charts.flatMap { it.trackUrls },
             )
         )
 
@@ -75,6 +81,7 @@ class TourPassPublishService(
             description = request.description,
             artist = request.artist,
             coverUrl = resolvedCoverUrl,
+            playlistUrls = normalizedPlaylistUrls,
             chartIds = chartIds,
             id = discordResponse.id.toULong(),
         )
@@ -118,6 +125,9 @@ class TourPassPublishService(
             )
         } ?: request.coverUrl
 
+        val normalizedPlaylistUrls = request.playlistUrls
+            ?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
+
         return tourPassRepository.updateTourPass(
             id = id,
             userId = userId,
@@ -125,6 +135,7 @@ class TourPassPublishService(
             description = request.description,
             artist = request.artist,
             coverUrl = resolvedCoverUrl,
+            playlistUrls = normalizedPlaylistUrls,
             chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() }
         )
     }

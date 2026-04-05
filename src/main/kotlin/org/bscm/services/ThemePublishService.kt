@@ -35,14 +35,15 @@ class ThemePublishService(
             UploadService.ThemePublishData(
                 title = request.name,
                 description = request.description,
-                uploader = uploader,
+                context = UploadService.PublishContext(
+                    submittedBy = UploadService.SubmittedBy.fromUser(uploader)
+                ),
                 replaces = request.replaces,
                 trailerUrl = request.previewUrl,
                 coverArtUrl = request.coverUrl,
                 coverArt = assets.coverArt,
                 displayArtUrl = request.displayArtUrl,
                 displayArt = assets.displayArt,
-                trackUrls = emptyList(),
             )
         )
 

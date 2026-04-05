@@ -13,6 +13,7 @@ class TourPassEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var description by TourPassTable.description
     var artist by TourPassTable.artist
     var coverUrl by TourPassTable.coverUrl
+    var playlistUrls by TourPassTable.playlistUrls
     var isPublic by TourPassTable.isPublic
     var isFeatured by TourPassTable.isFeatured
     var downloadsSum by TourPassTable.downloadsSum

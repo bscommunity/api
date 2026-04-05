@@ -29,17 +29,37 @@ class UploadService(
     private val botToken: String,
     private val channelId: String,
 ) {
+    private val workshopUsername = "bscm"
+    private val workshopAvatarUrl = "https://i.imgur.com/7e4lzGf.png"
+
     data class UploadImage(
         val bytes: ByteArray,
         val filename: String,
         val contentType: ContentType,
     )
 
+    data class SubmittedBy(
+        val username: String,
+        val avatarUrl: String?,
+    ) {
+        companion object {
+            fun fromUser(user: User): SubmittedBy = SubmittedBy(
+                username = user.username,
+                avatarUrl = user.avatarUrl,
+            )
+        }
+    }
+
+    data class PublishContext(
+        val contentId: String? = null,
+        val submittedBy: SubmittedBy,
+        val trackUrls: List<StreamingLink> = emptyList(),
+    )
+
     data class TourPassPublishData(
         val title: String,
         val description: String?,
-        val contentId: String? = null,
-        val uploader: User,
+        val context: PublishContext,
         val coverUrl: String?,
         val coverImage: UploadImage?,
         val durationSeconds: Int,
@@ -47,21 +67,18 @@ class UploadService(
         val difficultyLabel: String? = null,
         val trailerUrl: String? = null,
         val tracklist: List<String> = emptyList(),
-        val trackUrls: List<StreamingLink> = emptyList(),
     )
 
     data class ThemePublishData(
         val title: String,
         val description: String?,
-        val contentId: String? = null,
-        val uploader: User,
+        val context: PublishContext,
         val replaces: String,
         val trailerUrl: String?,
         val coverArtUrl: String?,
         val coverArt: UploadImage?,
         val displayArtUrl: String?,
         val displayArt: UploadImage?,
-        val trackUrls: List<StreamingLink> = emptyList(),
     )
 
     private val webhookUrl = "https://discord.com/api/webhooks/$webhookId/$webhookToken"
@@ -168,6 +185,10 @@ class UploadService(
     private fun formatDuration(seconds: Int): String {
         val safe = kotlin.math.max(0, seconds)
         return "~${safe / 60}m${safe % 60}s"
+    }
+
+    private fun getWorkshopContentUrl(type: String, contentId: String?): String {
+        return contentId?.let { "https://bscm.netlify.app/link/$type/$it" } ?: "https://bscm.netlify.app/"
     }
 
     private fun buildComponents(trackUrls: List<StreamingLink>): List<ActionRow> {
@@ -340,16 +361,16 @@ class UploadService(
         val payloadJson = jsonClient.encodeToString(
             WebhookPayload.serializer(),
             message {
-                username("bscm")
-                avatar("https://i.imgur.com/7e4lzGf.png")
+                username(workshopUsername)
+                avatar(workshopAvatarUrl)
                 embed {
                     title = data.title
                     description = data.description
-                    url = data.contentId?.let { "https://bscm.netlify.app/link/tourpass/$it" } ?: "https://bscm.netlify.app/"
+                    url = getWorkshopContentUrl("tourpass", data.context.contentId)
                     color = 3820816
                     timestamp()
                     author("New tour pass submitted")
-                    footer("Submitted by @${data.uploader.username}", data.uploader.avatarUrl)
+                    footer("Submitted by @${data.context.submittedBy.username}", data.context.submittedBy.avatarUrl)
                     image(if (data.coverImage != null) "attachment://tourpass-cover.png" else data.coverUrl)
                     thumbnail("")
                     field("Duration", "$durationIcon ${formatDuration(data.durationSeconds)}", true)
@@ -365,7 +386,7 @@ class UploadService(
                         field("Tracklist", data.tracklist.joinToString("\n"), false)
                     }
                 }
-                buildComponents(data.trackUrls).forEach { component(it) }
+                buildComponents(data.context.trackUrls).forEach { component(it) }
             }
         )
 
@@ -395,22 +416,22 @@ class UploadService(
         val payloadJson = jsonClient.encodeToString(
             WebhookPayload.serializer(),
             message {
-                username("bscm")
-                avatar("https://i.imgur.com/7e4lzGf.png")
+                username(workshopUsername)
+                avatar(workshopAvatarUrl)
                 embed {
                     title = data.title
                     description = data.description
-                    url = data.contentId?.let { "https://bscm.netlify.app/link/theme/$it" } ?: "https://bscm.netlify.app/"
+                    url = getWorkshopContentUrl("theme", data.context.contentId)
                     color = 3820816
                     timestamp()
                     author("New theme submitted")
-                    footer("Submitted by @${data.uploader.username}", data.uploader.avatarUrl)
+                    footer("Submitted by @${data.context.submittedBy.username}", data.context.submittedBy.avatarUrl)
                     image(if (data.displayArt != null) "attachment://theme-display-art.png" else data.displayArtUrl)
                     thumbnail(if (data.coverArt != null) "attachment://theme-cover-art.png" else data.coverArtUrl)
                     field("<:refresh:1490158323197022449> Replaces", data.replaces, false)
                     data.trailerUrl?.takeIf { it.isNotBlank() }?.let { field("Trailer", it, false) }
                 }
-                buildComponents(data.trackUrls).forEach { component(it) }
+                buildComponents(data.context.trackUrls).forEach { component(it) }
             }
         )
 

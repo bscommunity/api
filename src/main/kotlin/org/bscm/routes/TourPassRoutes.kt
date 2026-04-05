@@ -15,7 +15,6 @@ import org.bscm.models.dto.tourpass.UpdateTourPassRequest
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.TourPassPublishService
-import org.bscm.services.UploadService
 import org.bscm.utils.getUserId
 import org.bscm.utils.getUserIdOrNull
 import java.util.*
@@ -173,9 +172,7 @@ fun Route.tourPassRoutes(
                     val created = publishService.createAndPublish(
                         uploader = user,
                         request = payload.request,
-                        cover = payload.cover?.let {
-                            UploadService.UploadImage(it.bytes, it.filename, it.contentType)
-                        }
+                        cover = payload.cover?.toUploadImage()
                     )
 
                     call.respond(HttpStatusCode.Created, created)
@@ -205,9 +202,7 @@ fun Route.tourPassRoutes(
                         id = id,
                         userId = userId,
                         request = payload.request,
-                        cover = payload.cover?.let {
-                            UploadService.UploadImage(it.bytes, it.filename, it.contentType)
-                        }
+                        cover = payload.cover?.toUploadImage()
                     )
 
                     call.respond(updated)
@@ -238,7 +233,7 @@ fun Route.tourPassRoutes(
                     }
                 }
 
-                put("/charts") {
+                put("/{id}/charts") {
                     val userId = call.getUserId()
                     val id = call.parameters["id"]?.toULongOrNull()
                         ?: throw BadRequestException("Invalid or missing ID parameter")

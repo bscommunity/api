@@ -15,6 +15,7 @@ data class TourPass(
     val description: String? = null,
     val artist: String?,
     val charts: List<Chart>,
+    val playlistUrls: List<StreamingLink> = emptyList(),
 
     override val contributors: List<Contributor> = emptyList(),
 
