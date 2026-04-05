@@ -613,45 +613,9 @@ class ChartRepository : BaseRepository(), IChartRepository {
 
         flushCache()
 
-        /* HANDLING STREAMING LINKS ================ */
+        val resolvedStreamingLinks = StreamingLinkRepositorySupport.resolveOrCreateLinks(chart.trackUrls)
 
-        val streamingLinks: MutableList<StreamingLinkEntity> = mutableListOf()
-
-        // Handle streaming links with duplicate prevention
-        val streamingLinkIds = chart.trackUrls.map { streamingLinkRequest ->
-            // Try to find existing streaming link first
-            val existingLink = StreamingLinkEntity.find {
-                (StreamingLinkTable.platform eq streamingLinkRequest.platform) and
-                        (StreamingLinkTable.url eq streamingLinkRequest.url)
-            }.firstOrNull()
-
-            if (existingLink != null) {
-                // println("Using existing streaming link: ${existingLink.platform} - ${existingLink.url}")
-
-                // Add existing link to the list
-                streamingLinks.add(existingLink)
-
-                // Use existing streaming link
-                existingLink.id.value
-            } else {
-                // println("Creating new streaming link: ${streamingLinkRequest.platform} - ${streamingLinkRequest.url}")
-
-                // Create new streaming link
-                val newLink = StreamingLinkEntity.new {
-                    this.platform = streamingLinkRequest.platform
-                    this.url = streamingLinkRequest.url
-                }
-
-                // Add new link to the list
-                streamingLinks.add(newLink)
-
-                // Use new streaming link
-                newLink.id.value
-            }
-        }
-
-        // Link the chart to the streaming links through the junction table
-        ChartStreamingLinkTable.batchInsert(streamingLinkIds) { streamingLinkId ->
+        ChartStreamingLinkTable.batchInsert(resolvedStreamingLinks.ids) { streamingLinkId ->
             this[ChartStreamingLinkTable.chartId] = newChart.id
             this[ChartStreamingLinkTable.streamingLinkId] = streamingLinkId
         }
@@ -696,7 +660,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
             entity = newChart,
             versions = listOf(entityToVersion(initialVersion, 1)), // Always index 1 for initial version
             contributors = listOf(contributorEntityToContributor(contributor)),
-            streamingLinks = streamingLinks.map { toStreamingLink(it) },
+            streamingLinks = resolvedStreamingLinks.entities.map { toStreamingLink(it) },
         )
     }
 

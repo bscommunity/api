@@ -11,8 +11,8 @@ import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.TourPassChartTable
+import org.bscm.models.tables.TourPassStreamingLinkTable
 import org.bscm.models.tables.TourPassTable
-import org.bscm.utils.StreamingPlatformUtils
 import org.bscm.utils.UserStatsUtils
 import org.bscm.utils.retryOnConflict
 import org.jetbrains.exposed.sql.*
@@ -31,10 +31,9 @@ class TourPassRepository(
         likedAt: LocalDateTime? = null,
         bookmarkedAt: LocalDateTime? = null
     ): TourPass {
-        val playlistUrls = entity.playlistUrls
-            ?.takeIf { it.isNotBlank() }
-            ?.let { StreamingPlatformUtils.deserializeLinks(it) }
-            ?: emptyList()
+        val playlistUrls = entity.playlistUrls.map {
+            StreamingLink(platform = it.platform, url = it.url)
+        }
 
         return TourPass(
             id = entity.id.value.toString(),
@@ -148,9 +147,6 @@ class TourPassRepository(
                 this.description = description
                 this.artist = artist
                 this.coverUrl = coverUrl
-                this.playlistUrls = playlistUrls
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { StreamingPlatformUtils.serializeLinks(it) }
                 this.isPublic = true
                 this.isFeatured = false
                 this.downloadsSum = 0
@@ -164,9 +160,6 @@ class TourPassRepository(
                 this.description = description
                 this.artist = artist
                 this.coverUrl = coverUrl
-                this.playlistUrls = playlistUrls
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { StreamingPlatformUtils.serializeLinks(it) }
                 this.isPublic = true
                 this.isFeatured = false
                 this.downloadsSum = 0
@@ -174,6 +167,8 @@ class TourPassRepository(
                 this.authorId = UserEntity[userId].id
             }
         }
+
+        syncPlaylistUrls(entity.id.value, playlistUrls)
 
         chartIds?.let { ids ->
             replaceTourPassCharts(entity.id.value, ids)
@@ -201,11 +196,7 @@ class TourPassRepository(
         description?.let { entity.description = it }
         artist?.let { entity.artist = it }
         coverUrl?.let { entity.coverUrl = it }
-        if (playlistUrls != null) {
-            entity.playlistUrls = playlistUrls
-                .takeIf { it.isNotEmpty() }
-                ?.let { StreamingPlatformUtils.serializeLinks(it) }
-        }
+        if (playlistUrls != null) syncPlaylistUrls(id, playlistUrls)
 
         chartIds?.let { ids ->
             replaceTourPassCharts(id, ids)
@@ -343,6 +334,20 @@ class TourPassRepository(
         TourPassEntity.findByIdAndUpdate(tourPassId) { entity ->
             entity.downloadsSum = charts.sumOf { it.downloadsSum }
             entity.latestPublishedAt = charts.maxOfOrNull { it.updatedAt } ?: LocalDateTime.now()
+        }
+    }
+
+    private fun syncPlaylistUrls(tourPassId: ULong, playlistUrls: List<StreamingLink>?) {
+        TourPassStreamingLinkTable.deleteWhere { TourPassStreamingLinkTable.tourPassId eq tourPassId }
+        if (playlistUrls.isNullOrEmpty()) return
+
+        val streamingLinkIds = StreamingLinkRepositorySupport
+            .resolveOrCreateLinks(playlistUrls)
+            .ids
+
+        TourPassStreamingLinkTable.batchInsert(streamingLinkIds) { streamingLinkId ->
+            this[TourPassStreamingLinkTable.tourPassId] = tourPassId
+            this[TourPassStreamingLinkTable.streamingLinkId] = streamingLinkId
         }
     }
 }

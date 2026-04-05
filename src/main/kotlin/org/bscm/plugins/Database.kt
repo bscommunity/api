@@ -49,6 +49,7 @@ fun Application.configureDatabases(config: ApplicationConfig) {
                 org.bscm.models.tables.StreamingLinkTable,
                 org.bscm.models.tables.ThemeTable,
                 org.bscm.models.tables.TourPassChartTable,
+                org.bscm.models.tables.TourPassStreamingLinkTable,
                 org.bscm.models.tables.TourPassTable,
                 org.bscm.models.tables.UserTable,
                 org.bscm.models.tables.VersionTable,
