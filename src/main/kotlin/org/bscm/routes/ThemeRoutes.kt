@@ -1,7 +1,6 @@
 package org.bscm.routes
 
 import io.ktor.http.*
-import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
@@ -10,7 +9,6 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.utils.io.*
 import org.bscm.clients.jsonClient
 import org.bscm.models.dto.theme.CreateThemeRequest
 import org.bscm.models.dto.theme.UpdateThemeRequest
@@ -38,96 +36,71 @@ private data class ThemeUpdatePayload(
 )
 
 private suspend fun ApplicationCall.receiveThemeCreatePayload(): ThemeCreatePayload {
-    if (!request.contentType().match(ContentType.MultiPart.FormData)) {
+    val multipart = parseMultipartPayload(
+        acceptedFormFields = setOf("theme"),
+        fileAliases = mapOf(
+            "coverArt" to "coverArt",
+            "cover" to "coverArt",
+            "displayArt" to "displayArt",
+        ),
+        defaultFilenames = mapOf(
+            "coverArt" to "theme-cover-art.png",
+            "displayArt" to "theme-display-art.png",
+        ),
+    )
+
+    if (multipart == null) {
         return ThemeCreatePayload(receive(), ThemeUploadedAssets(coverArt = null, displayArt = null))
     }
 
-    val multipart = receiveMultipart()
-    var requestJson: String? = null
-    var coverArt: UploadedImage? = null
-    var displayArt: UploadedImage? = null
-
-    multipart.forEachPart { part ->
-        when (part) {
-            is PartData.FormItem -> if (part.name == "theme") requestJson = part.value
-            is PartData.FileItem -> if (part.name == "coverArt" || part.name == "cover") {
-                val bytes = part.provider().toByteArray()
-                if (bytes.isNotEmpty()) {
-                    coverArt = UploadedImage(
-                        bytes = bytes,
-                        filename = part.originalFileName ?: "theme-cover-art.png",
-                        contentType = part.contentType ?: ContentType.Application.OctetStream,
-                    )
-                }
-            } else if (part.name == "displayArt") {
-                val bytes = part.provider().toByteArray()
-                if (bytes.isNotEmpty()) {
-                    displayArt = UploadedImage(
-                        bytes = bytes,
-                        filename = part.originalFileName ?: "theme-display-art.png",
-                        contentType = part.contentType ?: ContentType.Application.OctetStream,
-                    )
-                }
-            }
-            else -> {}
-        }
-        part.dispose()
-    }
-
-    val body = requestJson ?: throw BadRequestException("theme field is required for multipart requests")
+    val body = multipart.fields["theme"]
+        ?: throw BadRequestException("theme field is required for multipart requests")
     val request = runCatching { jsonClient.decodeFromString<CreateThemeRequest>(body) }
         .getOrElse { throw BadRequestException("Invalid theme JSON payload") }
 
-    return ThemeCreatePayload(request, ThemeUploadedAssets(coverArt = coverArt, displayArt = displayArt))
+    return ThemeCreatePayload(
+        request,
+        ThemeUploadedAssets(
+            coverArt = multipart.files["coverArt"],
+            displayArt = multipart.files["displayArt"],
+        )
+    )
 }
 
 private suspend fun ApplicationCall.receiveThemeUpdatePayload(): ThemeUpdatePayload {
-    if (!request.contentType().match(ContentType.MultiPart.FormData)) {
+    val multipart = parseMultipartPayload(
+        acceptedFormFields = setOf("theme"),
+        fileAliases = mapOf(
+            "coverArt" to "coverArt",
+            "cover" to "coverArt",
+            "displayArt" to "displayArt",
+        ),
+        defaultFilenames = mapOf(
+            "coverArt" to "theme-cover-art.png",
+            "displayArt" to "theme-display-art.png",
+        ),
+    )
+
+    if (multipart == null) {
         return ThemeUpdatePayload(receive(), ThemeUploadedAssets(coverArt = null, displayArt = null))
     }
 
-    val multipart = receiveMultipart()
-    var requestJson: String? = null
-    var coverArt: UploadedImage? = null
-    var displayArt: UploadedImage? = null
-
-    multipart.forEachPart { part ->
-        when (part) {
-            is PartData.FormItem -> if (part.name == "theme") requestJson = part.value
-            is PartData.FileItem -> if (part.name == "coverArt" || part.name == "cover") {
-                val bytes = part.provider().toByteArray()
-                if (bytes.isNotEmpty()) {
-                    coverArt = UploadedImage(
-                        bytes = bytes,
-                        filename = part.originalFileName ?: "theme-cover-art.png",
-                        contentType = part.contentType ?: ContentType.Application.OctetStream,
-                    )
-                }
-            } else if (part.name == "displayArt") {
-                val bytes = part.provider().toByteArray()
-                if (bytes.isNotEmpty()) {
-                    displayArt = UploadedImage(
-                        bytes = bytes,
-                        filename = part.originalFileName ?: "theme-display-art.png",
-                        contentType = part.contentType ?: ContentType.Application.OctetStream,
-                    )
-                }
-            }
-            else -> {}
-        }
-        part.dispose()
-    }
-
-    val body = requestJson ?: throw BadRequestException("theme field is required for multipart requests")
+    val body = multipart.fields["theme"]
+        ?: throw BadRequestException("theme field is required for multipart requests")
     val request = runCatching { jsonClient.decodeFromString<UpdateThemeRequest>(body) }
         .getOrElse { throw BadRequestException("Invalid theme JSON payload") }
 
-    return ThemeUpdatePayload(request, ThemeUploadedAssets(coverArt = coverArt, displayArt = displayArt))
+    return ThemeUpdatePayload(
+        request,
+        ThemeUploadedAssets(
+            coverArt = multipart.files["coverArt"],
+            displayArt = multipart.files["displayArt"],
+        )
+    )
 }
 
 fun Route.themeRoutes(
     themeRepository: IThemeRepository,
-    uploadService: UploadService,
     userRepository: IUserRepository,
     publishService: ThemePublishService,
 ) {
@@ -267,33 +240,18 @@ fun Route.themeRoutes(
                         ?: throw BadRequestException("Invalid or missing ID parameter")
 
                     val payload = call.receiveThemeUpdatePayload()
-                    val request = payload.request
-                    val resolvedCoverUrl = payload.assets.coverArt?.let {
-                        uploadService.uploadCoverImage(
-                            coverBytes = it.bytes,
-                            filename = it.filename,
-                            contentType = it.contentType,
-                            context = "theme-update:$id"
-                        )
-                    } ?: request.coverUrl
-
-                    val resolvedDisplayArtUrl = payload.assets.displayArt?.let {
-                        uploadService.uploadCoverImage(
-                            coverBytes = it.bytes,
-                            filename = it.filename,
-                            contentType = it.contentType,
-                            context = "theme-display-art-update:$id"
-                        )
-                    } ?: request.displayArtUrl
-
-                    val theme = themeRepository.updateTheme(
+                    val theme = publishService.updateAndPublish(
                         id = id,
                         userId = userId,
-                        name = request.name,
-                        replaces = request.replaces,
-                        coverUrl = resolvedCoverUrl,
-                        displayArtUrl = resolvedDisplayArtUrl,
-                        previewUrl = request.previewUrl
+                        request = payload.request,
+                        assets = ThemePublishService.Assets(
+                            coverArt = payload.assets.coverArt?.let {
+                                UploadService.UploadImage(it.bytes, it.filename, it.contentType)
+                            },
+                            displayArt = payload.assets.displayArt?.let {
+                                UploadService.UploadImage(it.bytes, it.filename, it.contentType)
+                            }
+                        )
                     )
 
                     call.respond(theme)

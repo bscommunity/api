@@ -4,6 +4,7 @@ import io.ktor.server.plugins.*
 import org.bscm.models.Theme
 import org.bscm.models.User
 import org.bscm.models.dto.theme.CreateThemeRequest
+import org.bscm.models.dto.theme.UpdateThemeRequest
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IThemeRepository
@@ -91,6 +92,41 @@ class ThemePublishService(
         // Best effort cleanup - DB state is source of truth.
         runCatching { uploadService.deleteMessage(id.toString()) }
         return true
+    }
+
+    suspend fun updateAndPublish(
+        id: ULong,
+        userId: java.util.UUID,
+        request: UpdateThemeRequest,
+        assets: Assets,
+    ): Theme {
+        val resolvedCoverUrl = assets.coverArt?.let {
+            uploadService.uploadCoverImage(
+                coverBytes = it.bytes,
+                filename = it.filename,
+                contentType = it.contentType,
+                context = "theme-update:$id"
+            )
+        } ?: request.coverUrl
+
+        val resolvedDisplayArtUrl = assets.displayArt?.let {
+            uploadService.uploadCoverImage(
+                coverBytes = it.bytes,
+                filename = it.filename,
+                contentType = it.contentType,
+                context = "theme-display-art-update:$id"
+            )
+        } ?: request.displayArtUrl
+
+        return themeRepository.updateTheme(
+            id = id,
+            userId = userId,
+            name = request.name,
+            replaces = request.replaces,
+            coverUrl = resolvedCoverUrl,
+            displayArtUrl = resolvedDisplayArtUrl,
+            previewUrl = request.previewUrl
+        )
     }
 }
 

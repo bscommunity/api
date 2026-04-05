@@ -4,6 +4,7 @@ import io.ktor.server.plugins.*
 import org.bscm.models.TourPass
 import org.bscm.models.User
 import org.bscm.models.dto.tourpass.CreateTourPassRequest
+import org.bscm.models.dto.tourpass.UpdateTourPassRequest
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.interfaces.IActivityRepository
@@ -100,6 +101,32 @@ class TourPassPublishService(
         // Best effort cleanup - DB state is source of truth.
         runCatching { uploadService.deleteMessage(id.toString()) }
         return true
+    }
+
+    suspend fun updateAndPublish(
+        id: ULong,
+        userId: java.util.UUID,
+        request: UpdateTourPassRequest,
+        cover: UploadService.UploadImage?,
+    ): TourPass {
+        val resolvedCoverUrl = cover?.let {
+            uploadService.uploadCoverImage(
+                coverBytes = it.bytes,
+                filename = it.filename,
+                contentType = it.contentType,
+                context = "tourpass-update:$id"
+            )
+        } ?: request.coverUrl
+
+        return tourPassRepository.updateTourPass(
+            id = id,
+            userId = userId,
+            name = request.name,
+            description = request.description,
+            artist = request.artist,
+            coverUrl = resolvedCoverUrl,
+            chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() }
+        )
     }
 }
 

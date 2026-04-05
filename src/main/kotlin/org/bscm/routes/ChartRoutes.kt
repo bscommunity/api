@@ -1,7 +1,6 @@
 package org.bscm.routes
 
 import io.ktor.http.*
-import io.ktor.http.content.*
 import io.ktor.openapi.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
@@ -361,18 +360,14 @@ fun Route.chartRoutes(
                     val user = userRepository.getUserById(userId)
                         ?: throw UnauthorizedException("User not found")
 
-                    val multipart = call.receiveMultipart()
-                    var chartJson: String? = null
-                    var bundleFileBytes: ByteArray? = null
+                    val multipart = call.parseMultipartPayload(
+                        acceptedFormFields = setOf("chart"),
+                        fileAliases = mapOf("bundle" to "bundle"),
+                        defaultFilenames = mapOf("bundle" to "chart-bundle.zip"),
+                    ) ?: throw BadRequestException("multipart/form-data is required")
 
-                    multipart.forEachPart { part ->
-                        when (part) {
-                            is PartData.FormItem -> if (part.name == "chart") chartJson = part.value
-                            is PartData.FileItem -> if (part.name == "bundle") bundleFileBytes = part.provider().toByteArray()
-                            else -> {}
-                        }
-                        part.dispose()
-                    }
+                    val chartJson = multipart.fields["chart"]
+                    val bundleFileBytes = multipart.files["bundle"]?.bytes
 
                     if (bundleFileBytes == null) {
                         throw BadRequestException("Bundle file is required")

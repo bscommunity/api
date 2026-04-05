@@ -1,7 +1,6 @@
 package org.bscm.routes
 
 import io.ktor.http.*
-import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
@@ -10,7 +9,6 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.utils.io.*
 import org.bscm.clients.jsonClient
 import org.bscm.models.dto.tourpass.CreateTourPassRequest
 import org.bscm.models.dto.tourpass.UpdateTourPassRequest
@@ -33,77 +31,46 @@ private data class TourPassUpdatePayload(
 )
 
 private suspend fun ApplicationCall.receiveTourPassCreatePayload(): TourPassCreatePayload {
-    if (!request.contentType().match(ContentType.MultiPart.FormData)) {
+    val multipart = parseMultipartPayload(
+        acceptedFormFields = setOf("tourPass"),
+        fileAliases = mapOf("cover" to "cover"),
+        defaultFilenames = mapOf("cover" to "tourpass-cover.png"),
+    )
+
+    if (multipart == null) {
         return TourPassCreatePayload(receive(), null)
     }
 
-    val multipart = receiveMultipart()
-    var requestJson: String? = null
-    var cover: UploadedImage? = null
-
-    multipart.forEachPart { part ->
-        when (part) {
-            is PartData.FormItem -> if (part.name == "tourPass") requestJson = part.value
-            is PartData.FileItem -> if (part.name == "cover") {
-                val bytes = part.provider().toByteArray()
-                if (bytes.isNotEmpty()) {
-                    cover = UploadedImage(
-                        bytes = bytes,
-                        filename = part.originalFileName ?: "tourpass-cover.png",
-                        contentType = part.contentType ?: ContentType.Application.OctetStream,
-                    )
-                }
-            }
-            else -> {}
-        }
-        part.dispose()
-    }
-
-    val body = requestJson ?: throw BadRequestException("tourPass field is required for multipart requests")
+    val body = multipart.fields["tourPass"]
+        ?: throw BadRequestException("tourPass field is required for multipart requests")
     val request = runCatching { jsonClient.decodeFromString<CreateTourPassRequest>(body) }
         .getOrElse { throw BadRequestException("Invalid tourPass JSON payload") }
 
-    return TourPassCreatePayload(request, cover)
+    return TourPassCreatePayload(request, multipart.files["cover"])
 }
 
 private suspend fun ApplicationCall.receiveTourPassUpdatePayload(): TourPassUpdatePayload {
-    if (!request.contentType().match(ContentType.MultiPart.FormData)) {
+    val multipart = parseMultipartPayload(
+        acceptedFormFields = setOf("tourPass"),
+        fileAliases = mapOf("cover" to "cover"),
+        defaultFilenames = mapOf("cover" to "tourpass-cover.png"),
+    )
+
+    if (multipart == null) {
         return TourPassUpdatePayload(receive(), null)
     }
 
-    val multipart = receiveMultipart()
-    var requestJson: String? = null
-    var cover: UploadedImage? = null
-
-    multipart.forEachPart { part ->
-        when (part) {
-            is PartData.FormItem -> if (part.name == "tourPass") requestJson = part.value
-            is PartData.FileItem -> if (part.name == "cover") {
-                val bytes = part.provider().toByteArray()
-                if (bytes.isNotEmpty()) {
-                    cover = UploadedImage(
-                        bytes = bytes,
-                        filename = part.originalFileName ?: "tourpass-cover.png",
-                        contentType = part.contentType ?: ContentType.Application.OctetStream,
-                    )
-                }
-            }
-            else -> {}
-        }
-        part.dispose()
-    }
-
-    val body = requestJson ?: throw BadRequestException("tourPass field is required for multipart requests")
+    val body = multipart.fields["tourPass"]
+        ?: throw BadRequestException("tourPass field is required for multipart requests")
     val request = runCatching { jsonClient.decodeFromString<UpdateTourPassRequest>(body) }
         .getOrElse { throw BadRequestException("Invalid tourPass JSON payload") }
 
-    return TourPassUpdatePayload(request, cover)
+    return TourPassUpdatePayload(request, multipart.files["cover"])
 }
 
 fun Route.tourPassRoutes(
     tourPassRepository: ITourPassRepository,
     userRepository: IUserRepository,
-    uploadService: UploadService,
     publishService: TourPassPublishService,
 ) {
     route("/tourpasses") {
@@ -234,24 +201,13 @@ fun Route.tourPassRoutes(
                         ?: throw BadRequestException("Invalid or missing ID parameter")
 
                     val payload = call.receiveTourPassUpdatePayload()
-                    val request = payload.request
-                    val resolvedCoverUrl = payload.cover?.let {
-                        uploadService.uploadCoverImage(
-                            coverBytes = it.bytes,
-                            filename = it.filename,
-                            contentType = it.contentType,
-                            context = "tourpass-update:$id"
-                        )
-                    } ?: request.coverUrl
-
-                    val updated = tourPassRepository.updateTourPass(
+                    val updated = publishService.updateAndPublish(
                         id = id,
                         userId = userId,
-                        name = request.name,
-                        description = request.description,
-                        artist = request.artist,
-                        coverUrl = resolvedCoverUrl,
-                        chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() }
+                        request = payload.request,
+                        cover = payload.cover?.let {
+                            UploadService.UploadImage(it.bytes, it.filename, it.contentType)
+                        }
                     )
 
                     call.respond(updated)
