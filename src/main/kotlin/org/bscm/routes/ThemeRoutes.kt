@@ -14,10 +14,9 @@ import io.ktor.utils.io.*
 import org.bscm.clients.jsonClient
 import org.bscm.models.dto.theme.CreateThemeRequest
 import org.bscm.models.dto.theme.UpdateThemeRequest
-import org.bscm.models.enums.ActivityType
-import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.IUserRepository
+import org.bscm.services.ThemePublishService
 import org.bscm.services.UploadService
 import org.bscm.utils.getUserId
 import org.bscm.utils.getUserIdOrNull
@@ -128,9 +127,9 @@ private suspend fun ApplicationCall.receiveThemeUpdatePayload(): ThemeUpdatePayl
 
 fun Route.themeRoutes(
     themeRepository: IThemeRepository,
-    activityRepository: IActivityRepository,
     uploadService: UploadService,
     userRepository: IUserRepository,
+    publishService: ThemePublishService,
 ) {
     route("/themes") {
         authenticate("auth-bearer", optional = true) {
@@ -233,67 +232,20 @@ fun Route.themeRoutes(
                         ?: throw NotFoundException("User not found")
 
                     val payload = call.receiveThemeCreatePayload()
-                    val request = payload.request
-                    val coverArtInput = payload.assets.coverArt
-                    val displayArtInput = payload.assets.displayArt
-
-                    if (coverArtInput == null && request.coverUrl.isNullOrBlank()) {
-                        throw BadRequestException("coverUrl or coverArt file is required")
-                    }
-                    if (displayArtInput == null && request.displayArtUrl.isNullOrBlank()) {
-                        throw BadRequestException("displayArtUrl or displayArt file is required")
-                    }
-
-                    val discordResponse = uploadService.uploadTheme(
-                        UploadService.ThemePublishData(
-                            title = request.name,
-                            description = request.description,
-                            uploader = user,
-                            replaces = request.replaces,
-                            trailerUrl = request.previewUrl,
-                            coverArtUrl = request.coverUrl,
-                            coverArt = coverArtInput?.let {
+                    val created = publishService.createAndPublish(
+                        uploader = user,
+                        request = payload.request,
+                        assets = ThemePublishService.Assets(
+                            coverArt = payload.assets.coverArt?.let {
                                 UploadService.UploadImage(it.bytes, it.filename, it.contentType)
                             },
-                            displayArtUrl = request.displayArtUrl,
-                            displayArt = displayArtInput?.let {
+                            displayArt = payload.assets.displayArt?.let {
                                 UploadService.UploadImage(it.bytes, it.filename, it.contentType)
-                            },
-                            trackUrls = emptyList(),
+                            }
                         )
                     )
 
-                    val resolvedDisplayArtUrl = discordResponse.attachments
-                        .firstOrNull { it.filename.contains("display-art", ignoreCase = true) }
-                        ?.url
-                        ?: discordResponse.embeds.firstOrNull()?.image?.url
-                        ?: request.displayArtUrl
-                        ?: throw IllegalStateException("Unable to resolve displayArt URL from Discord response")
-
-                    val resolvedCoverUrl = discordResponse.attachments
-                        .firstOrNull { it.filename.contains("cover-art", ignoreCase = true) }
-                        ?.url
-                        ?: discordResponse.embeds.firstOrNull()?.thumbnail?.url
-                        ?: request.coverUrl
-                        ?: throw IllegalStateException("Unable to resolve cover URL from Discord response")
-
-                    val theme = themeRepository.createTheme(
-                        userId = userId,
-                        name = request.name,
-                        replaces = request.replaces,
-                        coverUrl = resolvedCoverUrl,
-                        displayArtUrl = resolvedDisplayArtUrl,
-                        previewUrl = request.previewUrl,
-                        id = discordResponse.id.toULong(),
-                    )
-
-                    activityRepository.logActivity(
-                        userId = userId,
-                        type = ActivityType.CREATED_THEME,
-                        targetId = theme.contentId
-                    )
-
-                    call.respond(HttpStatusCode.Created, theme)
+                    call.respond(HttpStatusCode.Created, created)
                 }
 
                 /**
@@ -365,16 +317,8 @@ fun Route.themeRoutes(
                     val id = call.parameters["id"]?.toULongOrNull()
                         ?: throw BadRequestException("Invalid or missing ID parameter")
 
-                    val contentId = themeRepository.getThemeById(id, userId)?.contentId
-                        ?: throw NotFoundException("Theme not found")
-
-                    val success = themeRepository.deleteTheme(id, userId)
+                    val success = publishService.deleteAndCleanup(id, userId)
                     if (success) {
-                        activityRepository.removeActivityByTypeAndTarget(
-                            type = ActivityType.CREATED_THEME,
-                            targetId = contentId
-                        )
-                        runCatching { uploadService.deleteMessage(id.toString()) }
                         call.respond(HttpStatusCode.NoContent)
                     } else {
                         throw NotFoundException("Theme not found")

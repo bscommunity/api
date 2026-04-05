@@ -131,6 +131,21 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
     single {
+        TourPassPublishService(
+            tourPassRepository = get(),
+            chartRepository = get(),
+            uploadService = get(),
+            activityRepository = get(),
+        )
+    }
+    single {
+        ThemePublishService(
+            themeRepository = get(),
+            uploadService = get(),
+            activityRepository = get(),
+        )
+    }
+    single {
         CollectionService(
             collectionRepository = get(),
             activityRepository = get()

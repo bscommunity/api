@@ -14,13 +14,9 @@ import io.ktor.utils.io.*
 import org.bscm.clients.jsonClient
 import org.bscm.models.dto.tourpass.CreateTourPassRequest
 import org.bscm.models.dto.tourpass.UpdateTourPassRequest
-import org.bscm.models.enums.ActivityType
-import org.bscm.models.enums.Difficulty
-import org.bscm.models.interfaces.IActivityRepository
-import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.interfaces.IUserRepository
-import org.bscm.repository.ChartRepository
+import org.bscm.services.TourPassPublishService
 import org.bscm.services.UploadService
 import org.bscm.utils.getUserId
 import org.bscm.utils.getUserIdOrNull
@@ -106,10 +102,9 @@ private suspend fun ApplicationCall.receiveTourPassUpdatePayload(): TourPassUpda
 
 fun Route.tourPassRoutes(
     tourPassRepository: ITourPassRepository,
-    activityRepository: IActivityRepository,
-    uploadService: UploadService,
     userRepository: IUserRepository,
-    chartRepository: IChartRepository,
+    uploadService: UploadService,
+    publishService: TourPassPublishService,
 ) {
     route("/tourpasses") {
         authenticate("auth-bearer", optional = true) {
@@ -208,234 +203,160 @@ fun Route.tourPassRoutes(
                         ?: throw NotFoundException("User not found")
 
                     val payload = call.receiveTourPassCreatePayload()
-                    val request = payload.request
-                    if (payload.cover == null && request.coverUrl.isNullOrBlank()) {
-                        throw BadRequestException("coverUrl or cover file is required")
-                    }
-
-                    val chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() } ?: emptyList()
-                    val charts = if (chartIds.isNotEmpty()) {
-                        chartRepository.getCharts(
-                            filters = ChartRepository.ChartFilters(chartIds = chartIds),
-                            addons = ChartRepository.ChartAddons(streamingLinks = true),
-                            limit = null,
-                            offset = null,
-                        ).first
-                    } else {
-                        emptyList()
-                    }
-
-                    val tracklist = charts.mapIndexed { index, chart ->
-                        val latest = chart.latestVersion
-                        val icons = buildString {
-                            if (latest?.difficulty == Difficulty.HARD) append(" <:hard:1393411882282385458>")
-                            if (latest?.difficulty == Difficulty.EXTREME) append(" <:extreme:1393411880067797115>")
-                            if (latest?.isDeluxe == true) append(" <:deluxe:1393402180991586365>")
-                            if (latest?.isExplicit == true) append(" <:explicit:1393412061786017862>")
+                    val created = publishService.createAndPublish(
+                        uploader = user,
+                        request = payload.request,
+                        cover = payload.cover?.let {
+                            UploadService.UploadImage(it.bytes, it.filename, it.contentType)
                         }
-                        "${index + 1}. ${chart.artist} - ${chart.track}$icons"
-                    }
-
-                    val discordResponse = uploadService.uploadTourPass(
-                        UploadService.TourPassPublishData(
-                            title = request.name,
-                            description = request.description,
-                            uploader = user,
-                            coverUrl = request.coverUrl,
-                            coverImage = payload.cover?.let {
-                                UploadService.UploadImage(it.bytes, it.filename, it.contentType)
-                            },
-                            durationSeconds = charts.sumOf { (it.latestVersion?.duration ?: 0f).toInt() },
-                            tracksAmount = charts.size,
-                            tracklist = tracklist,
-                            trackUrls = charts.flatMap { it.trackUrls },
-                        )
                     )
 
-                    val resolvedCoverUrl = discordResponse.attachments.firstOrNull { it.filename.contains("cover", true) }?.url
-                        ?: discordResponse.embeds.firstOrNull()?.image?.url
-                        ?: request.coverUrl
-                        ?: throw IllegalStateException("Unable to resolve cover URL from Discord response")
+                    call.respond(HttpStatusCode.Created, created)
+                }
 
-                    val tourPass = tourPassRepository.createTourPass(
+                /**
+                 * Update an existing tour pass.
+                 * Tag: TourPasses
+                 *
+                 * Security: auth-bearer
+                 *
+                 * Path: id [ULong] Tour pass ID.
+                 * Body: application/json Fields to update [UpdateTourPassRequest].
+                 *
+                 * Responses:
+                 *   - 400 ID parameter is malformatted or missing, or authentication required.
+                 *   - 200 Updated tour pass.
+                 */
+                put("/{id}") {
+                    val userId = call.getUserId()
+
+                    val id = call.parameters["id"]?.toULongOrNull()
+                        ?: throw BadRequestException("Invalid or missing ID parameter")
+
+                    val payload = call.receiveTourPassUpdatePayload()
+                    val request = payload.request
+                    val resolvedCoverUrl = payload.cover?.let {
+                        uploadService.uploadCoverImage(
+                            coverBytes = it.bytes,
+                            filename = it.filename,
+                            contentType = it.contentType,
+                            context = "tourpass-update:$id"
+                        )
+                    } ?: request.coverUrl
+
+                    val updated = tourPassRepository.updateTourPass(
+                        id = id,
                         userId = userId,
                         name = request.name,
                         description = request.description,
                         artist = request.artist,
                         coverUrl = resolvedCoverUrl,
-                        chartIds = chartIds,
-                        id = discordResponse.id.toULong(),
+                        chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() }
                     )
 
-                    activityRepository.logActivity(
-                        userId = userId,
-                        type = ActivityType.CREATED_TOUR_PASS,
-                        targetId = tourPass.contentId
-                    )
-
-                    call.respond(HttpStatusCode.Created, tourPass)
+                    call.respond(updated)
                 }
 
-                route("/{id}") {
+                /**
+                 * Delete a tour pass.
+                 * Tag: TourPasses
+                 *
+                 * Path: id [ULong] Tour pass ID.
+                 *
+                 * Responses:
+                 *   - 400 ID parameter is malformatted or missing, or authentication required.
+                 *   - 404 Tour pass not found.
+                 *   - 204 Tour pass deleted successfully.
+                 */
+                delete("/{id}") {
+                    val userId = call.getUserId()
+
+                    val id = call.parameters["id"]?.toULongOrNull()
+                        ?: throw BadRequestException("Invalid or missing ID parameter")
+
+                    val success = publishService.deleteAndCleanup(id, userId)
+                    if (success) {
+                        call.respond(HttpStatusCode.NoContent)
+                    } else {
+                        throw NotFoundException("TourPass not found")
+                    }
+                }
+
+                put("/charts") {
+                    val userId = call.getUserId()
+                    val id = call.parameters["id"]?.toULongOrNull()
+                        ?: throw BadRequestException("Invalid or missing ID parameter")
+
+                    val chartIds = call.receive<List<String>>()
+                        .mapNotNull { it.toULongOrNull() }
+
+                    val updated = tourPassRepository.setTourPassCharts(id, userId, chartIds)
+                    call.respond(updated)
+                }
+
+                route("/charts/{chartId}") {
+
                     /**
-                     * Update an existing tour pass.
+                     * Add chart to tour pass.
                      * Tag: TourPasses
                      *
                      * Path: id [ULong] Tour pass ID.
-                     * Body: application/json Fields to update [UpdateTourPassRequest].
+                     * Path: chartId [ULong] Chart ID.
                      *
                      * Responses:
-                     *   - 400 ID parameter is malformatted or missing, or authentication required.
-                     *   - 200 Updated tour pass.
+                     *   - 400 Invalid parameters or chart already in tour pass.
+                     *   - 401 Authentication required.
+                     *   - 200 Success message.
                      */
-                    put {
+                    post {
                         val userId = call.getUserId()
 
-                        val id = call.parameters["id"]?.toULongOrNull()
-                            ?: throw BadRequestException("Invalid or missing ID parameter")
+                        val tourPassId = call.parameters["id"]?.toULongOrNull()
+                            ?: throw BadRequestException("Invalid or missing tour pass ID parameter")
 
-                        val payload = call.receiveTourPassUpdatePayload()
-                        val request = payload.request
-                        val resolvedCoverUrl = payload.cover?.let {
-                            uploadService.uploadCoverImage(
-                                coverBytes = it.bytes,
-                                filename = it.filename,
-                                contentType = it.contentType,
-                                context = "tourpass-update:$id"
-                            )
-                        } ?: request.coverUrl
+                        tourPassRepository.getTourPassById(tourPassId, userId)
+                            ?: throw NotFoundException("TourPass not found")
 
-                        val tourPass = tourPassRepository.updateTourPass(
-                            id = id,
-                            userId = userId,
-                            name = request.name,
-                            description = request.description,
-                            artist = request.artist,
-                            coverUrl = resolvedCoverUrl,
-                            chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() }
-                        )
+                        val chartId = call.parameters["chartId"]?.toULongOrNull()
+                            ?: throw BadRequestException("Invalid or missing chart ID parameter")
 
-                        call.respond(tourPass)
+                        val success = tourPassRepository.addChartToTourPass(tourPassId, chartId)
+                        if (success) {
+                            call.respond(HttpStatusCode.OK, mapOf("message" to "Chart added to tour pass successfully"))
+                        } else {
+                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Chart already in tour pass or tour pass not found"))
+                        }
                     }
 
                     /**
-                     * Delete a tour pass.
+                     * Remove chart from tour pass.
                      * Tag: TourPasses
                      *
                      * Path: id [ULong] Tour pass ID.
+                     * Path: chartId [ULong] Chart ID.
                      *
                      * Responses:
-                     *   - 400 ID parameter is malformatted or missing, or authentication required.
-                     *   - 404 Tour pass not found.
-                     *   - 204 Tour pass deleted successfully.
+                     *   - 400 Invalid parameters or authentication required.
+                     *   - 404 Chart not found in tour pass.
+                     *   - 200 Success message.
                      */
                     delete {
                         val userId = call.getUserId()
 
-                        val id = call.parameters["id"]?.toULongOrNull()
-                            ?: throw BadRequestException("Invalid or missing ID parameter")
+                        val tourPassId = call.parameters["id"]?.toULongOrNull()
+                            ?: throw BadRequestException("Invalid or missing tour pass ID parameter")
 
-                        val contentId = tourPassRepository.getTourPassById(id, userId)?.contentId
+                        tourPassRepository.getTourPassById(tourPassId, userId)
                             ?: throw NotFoundException("TourPass not found")
 
-                        val success = tourPassRepository.deleteTourPass(id, userId)
+                        val chartId = call.parameters["chartId"]?.toULongOrNull()
+                            ?: throw BadRequestException("Invalid or missing chart ID parameter")
+
+                        val success = tourPassRepository.removeChartFromTourPass(tourPassId, chartId)
                         if (success) {
-                            activityRepository.removeActivityByTypeAndTarget(
-                                type = ActivityType.CREATED_TOUR_PASS,
-                                targetId = contentId
-                            )
-                            runCatching { uploadService.deleteMessage(id.toString()) }
-                            call.respond(HttpStatusCode.NoContent)
+                            call.respond(HttpStatusCode.OK, mapOf("message" to "Chart removed from tour pass successfully"))
                         } else {
-                            throw NotFoundException("TourPass not found")
-                        }
-                    }
-
-                    put("/charts") {
-                        val userId = call.getUserId()
-                        val id = call.parameters["id"]?.toULongOrNull()
-                            ?: throw BadRequestException("Invalid or missing ID parameter")
-
-                        val chartIds = call.receive<List<String>>()
-                            .mapNotNull { it.toULongOrNull() }
-
-                        val updated = tourPassRepository.setTourPassCharts(id, userId, chartIds)
-                        call.respond(updated)
-                    }
-
-                    route("/charts/{chartId}") {
-
-                        /**
-                         * Add chart to tour pass.
-                         * Tag: TourPasses
-                         *
-                         * Path: id [ULong] Tour pass ID.
-                         * Path: chartId [ULong] Chart ID.
-                         *
-                         * Responses:
-                         *   - 400 Invalid parameters or chart already in tour pass.
-                         *   - 401 Authentication required.
-                         *   - 200 Success message.
-                         */
-                        post {
-                            val userId = call.getUserId()
-
-                            val tourPassId = call.parameters["id"]?.toULongOrNull()
-                                ?: throw BadRequestException("Invalid or missing tour pass ID parameter")
-
-                            tourPassRepository.getTourPassById(tourPassId, userId)
-                                ?: throw NotFoundException("TourPass not found")
-
-                            val chartId = call.parameters["chartId"]?.toULongOrNull()
-                                ?: throw BadRequestException("Invalid or missing chart ID parameter")
-
-                            val success = tourPassRepository.addChartToTourPass(tourPassId, chartId)
-                            if (success) {
-                                call.respond(
-                                    HttpStatusCode.OK,
-                                    mapOf("message" to "Chart added to tour pass successfully")
-                                )
-                            } else {
-                                call.respond(
-                                    HttpStatusCode.BadRequest,
-                                    mapOf("error" to "Chart already in tour pass or tour pass not found")
-                                )
-                            }
-                        }
-
-                        /**
-                         * Remove chart from tour pass.
-                         * Tag: TourPasses
-                         *
-                         * Path: id [ULong] Tour pass ID.
-                         * Path: chartId [ULong] Chart ID.
-                         *
-                         * Responses:
-                         *   - 400 Invalid parameters or authentication required.
-                         *   - 404 Chart not found in tour pass.
-                         *   - 200 Success message.
-                         */
-                        delete {
-                            val userId = call.getUserId()
-
-                            val tourPassId = call.parameters["id"]?.toULongOrNull()
-                                ?: throw BadRequestException("Invalid or missing tour pass ID parameter")
-
-                            tourPassRepository.getTourPassById(tourPassId, userId)
-                                ?: throw NotFoundException("TourPass not found")
-
-                            val chartId = call.parameters["chartId"]?.toULongOrNull()
-                                ?: throw BadRequestException("Invalid or missing chart ID parameter")
-
-                            val success = tourPassRepository.removeChartFromTourPass(tourPassId, chartId)
-                            if (success) {
-                                call.respond(
-                                    HttpStatusCode.OK,
-                                    mapOf("message" to "Chart removed from tour pass successfully")
-                                )
-                            } else {
-                                call.respond(HttpStatusCode.NotFound, mapOf("error" to "Chart not found in tour pass"))
-                            }
+                            call.respond(HttpStatusCode.NotFound, mapOf("error" to "Chart not found in tour pass"))
                         }
                     }
                 }
