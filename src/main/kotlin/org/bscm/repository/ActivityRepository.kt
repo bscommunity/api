@@ -4,10 +4,9 @@ import org.bscm.models.ActivityEntry
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.tables.UserActivityTable
-import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.batchInsert
-import org.jetbrains.exposed.sql.insertAndGetId
-import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDateTime
 import java.util.*
@@ -55,6 +54,42 @@ class ActivityRepository : IActivityRepository {
 			this[UserActivityTable.targetId] = targetId
 			this[UserActivityTable.createdAt] = createdAt
 		}.size
+	}
+
+	override suspend fun removeActivity(
+		userId: UUID,
+		type: ActivityType,
+		targetId: String
+	): Int = newSuspendedTransaction {
+		UserActivityTable.deleteWhere {
+			(UserActivityTable.userId eq userId) and
+				(UserActivityTable.type eq type) and
+				(UserActivityTable.targetId eq targetId)
+		}
+	}
+
+	override suspend fun batchRemoveActivity(
+		userId: UUID,
+		type: ActivityType,
+		targetIds: List<String>
+	): Int = newSuspendedTransaction {
+		if (targetIds.isEmpty()) return@newSuspendedTransaction 0
+
+		UserActivityTable.deleteWhere {
+			(UserActivityTable.userId eq userId) and
+				(UserActivityTable.type eq type) and
+				(UserActivityTable.targetId inList targetIds)
+		}
+	}
+
+	override suspend fun removeActivityByTypeAndTarget(
+		type: ActivityType,
+		targetId: String
+	): Int = newSuspendedTransaction {
+		UserActivityTable.deleteWhere {
+			(UserActivityTable.type eq type) and
+				(UserActivityTable.targetId eq targetId)
+		}
 	}
 
 	override suspend fun getUserActivity(userId: UUID, limit: Int, offset: Int): List<ActivityEntry> =

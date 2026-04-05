@@ -140,7 +140,9 @@ fun mainModule(config: ApplicationConfig) = module {
         ProfileService(
             userRepository = get(),
             activityRepository = get(),
-            chartRepository = get()
+            chartRepository = get(),
+            tourPassRepository = get(),
+            themeRepository = get(),
         )
     }
     single {

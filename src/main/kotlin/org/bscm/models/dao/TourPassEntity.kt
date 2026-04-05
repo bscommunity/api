@@ -8,7 +8,9 @@ import org.jetbrains.exposed.dao.id.EntityID
 class TourPassEntity(id: EntityID<ULong>) : ULongEntity(id) {
     companion object : ULongEntityClass<TourPassEntity>(TourPassTable)
 
+    var authorId by TourPassTable.authorId
     var name by TourPassTable.name
+    var description by TourPassTable.description
     var artist by TourPassTable.artist
     var coverUrl by TourPassTable.coverUrl
     var isPublic by TourPassTable.isPublic

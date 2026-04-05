@@ -5,6 +5,7 @@ import org.bscm.models.Chart
 import org.bscm.models.TourPass
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.TourPassEntity
+import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
@@ -32,6 +33,7 @@ class TourPassRepository(
             id = entity.id.value.toString(),
             contentId = entity.content.id.value,
             name = entity.name,
+            description = entity.description,
             artist = entity.artist,
             coverUrl = entity.coverUrl,
             charts = charts,
@@ -54,9 +56,13 @@ class TourPassRepository(
     ): List<TourPass> = newSuspendedTransaction {
         val query = TourPassTable.selectAll()
 
-        // Only return public tour passes if userId is null
-        if (userId == null) {
-            query.andWhere { TourPassTable.isPublic eq true }
+        // Anonymous users see only public items; authenticated users also see their own private items.
+        query.andWhere {
+            if (userId == null) {
+                TourPassTable.isPublic eq true
+            } else {
+                (TourPassTable.isPublic eq true) or (TourPassTable.authorId eq userId)
+            }
         }
 
         if (!contentIds.isNullOrEmpty()) {
@@ -84,22 +90,28 @@ class TourPassRepository(
         val userStats = UserStatsUtils.fetchUserStats(getUserContext()?.userId, tourPassContentIds)
 
         tourPassEntities.map { tourPassEntity ->
-            val charts = getChartsForTourPass(tourPassEntity.id.value, userId)
+            val charts = getChartsForTourPass(tourPassEntity.id.value, null)
             val contentId = tourPassEntity.content.id.value
             val stats = userStats[contentId] ?: Pair(null, null)
             daoToTourPass(tourPassEntity, charts, stats.first, stats.second)
         }
     }
 
-    override suspend fun getTourPassById(id: ULong): TourPass? = newSuspendedTransaction {
+    override suspend fun getTourPassById(id: ULong, userId: UUID?): TourPass? = newSuspendedTransaction {
         val entity = TourPassEntity.findById(id) ?: return@newSuspendedTransaction null
+        if (!entity.isPublic && entity.authorId.value != userId) {
+            return@newSuspendedTransaction null
+        }
         val charts = getChartsForTourPass(id, null)
         daoToTourPass(entity, charts)
     }
 
-    override suspend fun getAppTourPassById(contentId: String): TourPass? = newSuspendedTransaction {
+    override suspend fun getAppTourPassById(contentId: String, userId: UUID?): TourPass? = newSuspendedTransaction {
         val entity = TourPassEntity.find { TourPassTable.contentId eq contentId }.firstOrNull()
             ?: return@newSuspendedTransaction null
+        if (!entity.isPublic && entity.authorId.value != userId) {
+            return@newSuspendedTransaction null
+        }
         val charts = getChartsForTourPass(entity.id.value, null)
         daoToTourPass(entity, charts)
     }
@@ -107,8 +119,11 @@ class TourPassRepository(
     override suspend fun createTourPass(
         userId: UUID,
         name: String,
+        description: String?,
         artist: String?,
-        coverUrl: String
+        coverUrl: String,
+        chartIds: List<ULong>?,
+        id: ULong?
     ): TourPass = newSuspendedTransaction {
         // Create new content entry
         val content = retryOnConflict {
@@ -117,37 +132,85 @@ class TourPassRepository(
             }
         }
 
-        val entity = TourPassEntity.new {
-            this.content = content
-            this.name = name
-            this.artist = artist
-            this.coverUrl = coverUrl
-            this.isPublic = true
-            this.isFeatured = false
-            this.downloadsSum = 0
-            this.latestPublishedAt = LocalDateTime.now()
+        val entity = if (id != null) {
+            TourPassEntity.new(id) {
+                this.content = content
+                this.name = name
+                this.description = description
+                this.artist = artist
+                this.coverUrl = coverUrl
+                this.isPublic = true
+                this.isFeatured = false
+                this.downloadsSum = 0
+                this.latestPublishedAt = LocalDateTime.now()
+                this.authorId = UserEntity[userId].id
+            }
+        } else {
+            TourPassEntity.new {
+                this.content = content
+                this.name = name
+                this.description = description
+                this.artist = artist
+                this.coverUrl = coverUrl
+                this.isPublic = true
+                this.isFeatured = false
+                this.downloadsSum = 0
+                this.latestPublishedAt = LocalDateTime.now()
+                this.authorId = UserEntity[userId].id
+            }
         }
+
+        chartIds?.let { ids ->
+            replaceTourPassCharts(entity.id.value, ids)
+            updateTourPassStats(entity.id.value)
+        }
+
         daoToTourPass(entity, emptyList())
     }
 
     override suspend fun updateTourPass(
         id: ULong,
+        userId: UUID,
         name: String?,
+        description: String?,
         artist: String?,
-        coverUrl: String?
+        coverUrl: String?,
+        chartIds: List<ULong>?
     ): TourPass = newSuspendedTransaction {
-        val entity = TourPassEntity.findById(id) ?: throw NotFoundException("TourPass not found")
+        val entity = TourPassEntity.findById(id)
+            ?.takeIf { it.authorId.value == userId }
+            ?: throw NotFoundException("TourPass not found")
 
         name?.let { entity.name = it }
+        description?.let { entity.description = it }
         artist?.let { entity.artist = it }
         coverUrl?.let { entity.coverUrl = it }
+
+        chartIds?.let { ids ->
+            replaceTourPassCharts(id, ids)
+            updateTourPassStats(id)
+        }
 
         val charts = getChartsForTourPass(id, null)
         daoToTourPass(entity, charts)
     }
 
-    override suspend fun deleteTourPass(id: ULong): Boolean = newSuspendedTransaction {
-        val entity = TourPassEntity.findById(id) ?: return@newSuspendedTransaction false
+    override suspend fun setTourPassCharts(id: ULong, userId: UUID, chartIds: List<ULong>): TourPass = newSuspendedTransaction {
+        val entity = TourPassEntity.findById(id)
+            ?.takeIf { it.authorId.value == userId }
+            ?: throw NotFoundException("TourPass not found")
+
+        replaceTourPassCharts(id, chartIds)
+        updateTourPassStats(id)
+
+        val charts = getChartsForTourPass(id, null)
+        daoToTourPass(entity, charts)
+    }
+
+    override suspend fun deleteTourPass(id: ULong, userId: UUID): Boolean = newSuspendedTransaction {
+        val entity = TourPassEntity.findById(id)
+            ?.takeIf { it.authorId.value == userId }
+            ?: return@newSuspendedTransaction false
         entity.delete()
         true
     }
@@ -156,6 +219,7 @@ class TourPassRepository(
         val chartIds = TourPassChartTable
             .selectAll()
             .where { TourPassChartTable.tourPassId eq tourPassId }
+            .orderBy(TourPassChartTable.position to SortOrder.ASC)
             .map { it[TourPassChartTable.chartId].value }
 
         if (chartIds.isEmpty()) return emptyList()
@@ -175,7 +239,7 @@ class TourPassRepository(
 
     override suspend fun addChartToTourPass(tourPassId: ULong, chartId: ULong): Boolean = newSuspendedTransaction {
         // Check if tour pass exists
-        val tourPass = TourPassEntity.findById(tourPassId) ?: return@newSuspendedTransaction false
+        TourPassEntity.findById(tourPassId) ?: return@newSuspendedTransaction false
 
         // Check if chart is already in tour pass
         val existing = TourPassChartTable.selectAll()
@@ -185,9 +249,20 @@ class TourPassRepository(
         if (existing != null) return@newSuspendedTransaction false
 
         // Add chart to tour pass
+        val nextPosition = TourPassChartTable
+            .select(TourPassChartTable.position.max())
+            .where { TourPassChartTable.tourPassId eq tourPassId }
+            .firstOrNull()
+            ?.get(TourPassChartTable.position.max())
+            ?.toString()
+            ?.toIntOrNull()
+            ?.let { it + 1 }
+            ?: 0
+
         TourPassChartTable.insert {
             it[TourPassChartTable.tourPassId] = tourPassId
             it[TourPassChartTable.chartId] = chartId
+            it[TourPassChartTable.position] = nextPosition
         }
 
         // Update tour pass statistics
@@ -202,10 +277,42 @@ class TourPassRepository(
         }
 
         if (deletedCount > 0) {
+            reindexTourPassChartPositions(tourPassId)
             updateTourPassStats(tourPassId)
             true
         } else {
             false
+        }
+    }
+
+    private fun replaceTourPassCharts(tourPassId: ULong, chartIds: List<ULong>) {
+        TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq tourPassId }
+
+        chartIds.distinct().forEachIndexed { index, chartId ->
+            TourPassChartTable.insert {
+                it[TourPassChartTable.tourPassId] = tourPassId
+                it[TourPassChartTable.chartId] = chartId
+                it[TourPassChartTable.position] = index
+            }
+        }
+    }
+
+    private fun reindexTourPassChartPositions(tourPassId: ULong) {
+        val chartIds = TourPassChartTable
+            .select(TourPassChartTable.chartId, TourPassChartTable.position)
+            .where { TourPassChartTable.tourPassId eq tourPassId }
+            .orderBy(TourPassChartTable.position to SortOrder.ASC)
+            .map { it[TourPassChartTable.chartId].value }
+
+        chartIds.forEachIndexed { index, chartId ->
+            TourPassChartTable.update(
+                where = {
+                    (TourPassChartTable.tourPassId eq tourPassId) and
+                        (TourPassChartTable.chartId eq chartId)
+                }
+            ) {
+                it[TourPassChartTable.position] = index
+            }
         }
     }
 

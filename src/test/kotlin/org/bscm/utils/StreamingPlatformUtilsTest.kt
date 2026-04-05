@@ -1,6 +1,7 @@
 package org.bscm.utils
 
 
+import io.ktor.util.logging.*
 import org.bscm.models.StreamingLink
 import org.bscm.models.enums.StreamingPlatform
 import kotlin.test.Test
@@ -10,7 +11,7 @@ import kotlin.test.assertTrue
 
 class StreamingPlatformUtilsTest {
 
-    private val logger = noCoLogger(StreamingPlatformUtilsTest::class)
+    private val logger = KtorSimpleLogger("StreamingPlatformUtilsTest")
 
     @Test
     fun `test link prioritization with music subdomain`() {

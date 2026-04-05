@@ -40,6 +40,7 @@ fun Application.configureRouting() {
     val collectionService by inject<CollectionService>()
     val activityRepository by inject<IActivityRepository>()
     val profileService by inject<ProfileService>()
+    val chartPublishService by inject<ChartPublishService>()
 
     val mediaInfoService by inject<MediaInfoService>()
     // val previewService by inject<PreviewService>()
@@ -91,11 +92,11 @@ fun Application.configureRouting() {
         userRoutes(userRepository, profileService, collectionService, activityRepository)
         meRoutes(collectionService, profileService, chartRepository)
 
-        chartRoutes(chartRepository, versionRepository, userRepository, uploadService)
+        chartRoutes(chartRepository, versionRepository, userRepository, uploadService, chartPublishService)
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService, /*supportUploadService*/)
         contributorRoutes(contributorRepository)
-        tourPassRoutes(tourPassRepository)
-        themeRoutes(themeRepository)
+        tourPassRoutes(tourPassRepository, activityRepository, uploadService, userRepository, chartRepository)
+        themeRoutes(themeRepository, activityRepository, uploadService, userRepository)
         debugRoutes(mediaInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)
         // changelogRoutes(knownIssueRepository)

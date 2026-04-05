@@ -28,6 +28,14 @@ class CollectionRepository(
     private val tourPassRepository: ITourPassRepository
 ) : ICollectionRepository {
 
+    override suspend fun getContentType(contentId: String): ContentType? = newSuspendedTransaction {
+        ContentTable
+            .select(ContentTable.type)
+            .where { ContentTable.id eq contentId }
+            .firstOrNull()
+            ?.get(ContentTable.type)
+    }
+
     // -------------------------------------------------------------------------
     // Mapping helpers
     // -------------------------------------------------------------------------

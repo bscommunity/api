@@ -1,6 +1,8 @@
 package org.bscm.routes
 
 import io.ktor.http.*
+import io.ktor.http.content.*
+import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.*
@@ -8,26 +10,107 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.serialization.Serializable
+import io.ktor.utils.io.*
+import org.bscm.clients.jsonClient
+import org.bscm.models.dto.tourpass.CreateTourPassRequest
+import org.bscm.models.dto.tourpass.UpdateTourPassRequest
+import org.bscm.models.enums.ActivityType
+import org.bscm.models.enums.Difficulty
+import org.bscm.models.interfaces.IActivityRepository
+import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
-import org.bscm.plugins.UnauthorizedException
+import org.bscm.models.interfaces.IUserRepository
+import org.bscm.repository.ChartRepository
+import org.bscm.services.UploadService
+import org.bscm.utils.getUserId
+import org.bscm.utils.getUserIdOrNull
 import java.util.*
 
-@kotlinx.serialization.Serializable
-data class CreateTourPassRequest(
-    val name: String,
-    val artist: String?,
-    val coverUrl: String
+private data class TourPassCreatePayload(
+    val request: CreateTourPassRequest,
+    val cover: UploadedImage?,
 )
 
-@Serializable
-data class UpdateTourPassRequest(
-    val name: String?,
-    val artist: String?,
-    val coverUrl: String?
+private data class TourPassUpdatePayload(
+    val request: UpdateTourPassRequest,
+    val cover: UploadedImage?,
 )
 
-fun Route.tourPassRoutes(tourPassRepository: ITourPassRepository) {
+private suspend fun ApplicationCall.receiveTourPassCreatePayload(): TourPassCreatePayload {
+    if (!request.contentType().match(ContentType.MultiPart.FormData)) {
+        return TourPassCreatePayload(receive(), null)
+    }
+
+    val multipart = receiveMultipart()
+    var requestJson: String? = null
+    var cover: UploadedImage? = null
+
+    multipart.forEachPart { part ->
+        when (part) {
+            is PartData.FormItem -> if (part.name == "tourPass") requestJson = part.value
+            is PartData.FileItem -> if (part.name == "cover") {
+                val bytes = part.provider().toByteArray()
+                if (bytes.isNotEmpty()) {
+                    cover = UploadedImage(
+                        bytes = bytes,
+                        filename = part.originalFileName ?: "tourpass-cover.png",
+                        contentType = part.contentType ?: ContentType.Application.OctetStream,
+                    )
+                }
+            }
+            else -> {}
+        }
+        part.dispose()
+    }
+
+    val body = requestJson ?: throw BadRequestException("tourPass field is required for multipart requests")
+    val request = runCatching { jsonClient.decodeFromString<CreateTourPassRequest>(body) }
+        .getOrElse { throw BadRequestException("Invalid tourPass JSON payload") }
+
+    return TourPassCreatePayload(request, cover)
+}
+
+private suspend fun ApplicationCall.receiveTourPassUpdatePayload(): TourPassUpdatePayload {
+    if (!request.contentType().match(ContentType.MultiPart.FormData)) {
+        return TourPassUpdatePayload(receive(), null)
+    }
+
+    val multipart = receiveMultipart()
+    var requestJson: String? = null
+    var cover: UploadedImage? = null
+
+    multipart.forEachPart { part ->
+        when (part) {
+            is PartData.FormItem -> if (part.name == "tourPass") requestJson = part.value
+            is PartData.FileItem -> if (part.name == "cover") {
+                val bytes = part.provider().toByteArray()
+                if (bytes.isNotEmpty()) {
+                    cover = UploadedImage(
+                        bytes = bytes,
+                        filename = part.originalFileName ?: "tourpass-cover.png",
+                        contentType = part.contentType ?: ContentType.Application.OctetStream,
+                    )
+                }
+            }
+            else -> {}
+        }
+        part.dispose()
+    }
+
+    val body = requestJson ?: throw BadRequestException("tourPass field is required for multipart requests")
+    val request = runCatching { jsonClient.decodeFromString<UpdateTourPassRequest>(body) }
+        .getOrElse { throw BadRequestException("Invalid tourPass JSON payload") }
+
+    return TourPassUpdatePayload(request, cover)
+}
+
+fun Route.tourPassRoutes(
+    tourPassRepository: ITourPassRepository,
+    activityRepository: IActivityRepository,
+    uploadService: UploadService,
+    userRepository: IUserRepository,
+    chartRepository: IChartRepository,
+) {
     route("/tourpasses") {
         authenticate("auth-bearer", optional = true) {
             rateLimit(RateLimitName("unrestricted")) {
@@ -77,7 +160,7 @@ fun Route.tourPassRoutes(tourPassRepository: ITourPassRepository) {
                     val id = call.parameters["id"]?.toULongOrNull()
                         ?: throw BadRequestException("Invalid or missing ID parameter")
 
-                    val tourPass = tourPassRepository.getTourPassById(id)
+                    val tourPass = tourPassRepository.getTourPassById(id, call.getUserIdOrNull())
                         ?: throw NotFoundException("TourPass not found")
 
                     call.respond(tourPass)
@@ -94,11 +177,11 @@ fun Route.tourPassRoutes(tourPassRepository: ITourPassRepository) {
                  *   - 404 Tour pass not found.
                  *   - 200 Tour pass details.
                  */
-                get("/{contentId}") {
-                    val contentId = call.parameters["contentId"]
+                get("/content/{id}") {
+                    val contentId = call.parameters["id"]
                         ?: throw BadRequestException("Missing contentId parameter")
 
-                    val tourPass = tourPassRepository.getAppTourPassById(contentId)
+                    val tourPass = tourPassRepository.getAppTourPassById(contentId, call.getUserIdOrNull())
                         ?: throw NotFoundException("TourPass not found")
 
                     call.respond(tourPass)
@@ -120,17 +203,74 @@ fun Route.tourPassRoutes(tourPassRepository: ITourPassRepository) {
                  * Response: 400 application/json Authentication required or invalid request.
                  */
                 post {
-                    val principal = call.principal<JWTPrincipal>()
-                        ?: throw UnauthorizedException("Authentication required")
-                    val userId = UUID.fromString(principal.payload.getClaim("sub").asString())
+                    val userId = call.getUserId()
+                    val user = userRepository.getUserById(userId)
+                        ?: throw NotFoundException("User not found")
 
-                    val request = call.receive<CreateTourPassRequest>()
+                    val payload = call.receiveTourPassCreatePayload()
+                    val request = payload.request
+                    if (payload.cover == null && request.coverUrl.isNullOrBlank()) {
+                        throw BadRequestException("coverUrl or cover file is required")
+                    }
+
+                    val chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() } ?: emptyList()
+                    val charts = if (chartIds.isNotEmpty()) {
+                        chartRepository.getCharts(
+                            filters = ChartRepository.ChartFilters(chartIds = chartIds),
+                            addons = ChartRepository.ChartAddons(streamingLinks = true),
+                            limit = null,
+                            offset = null,
+                        ).first
+                    } else {
+                        emptyList()
+                    }
+
+                    val tracklist = charts.mapIndexed { index, chart ->
+                        val latest = chart.latestVersion
+                        val icons = buildString {
+                            if (latest?.difficulty == Difficulty.HARD) append(" <:hard:1393411882282385458>")
+                            if (latest?.difficulty == Difficulty.EXTREME) append(" <:extreme:1393411880067797115>")
+                            if (latest?.isDeluxe == true) append(" <:deluxe:1393402180991586365>")
+                            if (latest?.isExplicit == true) append(" <:explicit:1393412061786017862>")
+                        }
+                        "${index + 1}. ${chart.artist} - ${chart.track}$icons"
+                    }
+
+                    val discordResponse = uploadService.uploadTourPass(
+                        UploadService.TourPassPublishData(
+                            title = request.name,
+                            description = request.description,
+                            uploader = user,
+                            coverUrl = request.coverUrl,
+                            coverImage = payload.cover?.let {
+                                UploadService.UploadImage(it.bytes, it.filename, it.contentType)
+                            },
+                            durationSeconds = charts.sumOf { (it.latestVersion?.duration ?: 0f).toInt() },
+                            tracksAmount = charts.size,
+                            tracklist = tracklist,
+                            trackUrls = charts.flatMap { it.trackUrls },
+                        )
+                    )
+
+                    val resolvedCoverUrl = discordResponse.attachments.firstOrNull { it.filename.contains("cover", true) }?.url
+                        ?: discordResponse.embeds.firstOrNull()?.image?.url
+                        ?: request.coverUrl
+                        ?: throw IllegalStateException("Unable to resolve cover URL from Discord response")
 
                     val tourPass = tourPassRepository.createTourPass(
                         userId = userId,
                         name = request.name,
+                        description = request.description,
                         artist = request.artist,
-                        coverUrl = request.coverUrl
+                        coverUrl = resolvedCoverUrl,
+                        chartIds = chartIds,
+                        id = discordResponse.id.toULong(),
+                    )
+
+                    activityRepository.logActivity(
+                        userId = userId,
+                        type = ActivityType.CREATED_TOUR_PASS,
+                        targetId = tourPass.contentId
                     )
 
                     call.respond(HttpStatusCode.Created, tourPass)
@@ -149,19 +289,30 @@ fun Route.tourPassRoutes(tourPassRepository: ITourPassRepository) {
                      *   - 200 Updated tour pass.
                      */
                     put {
-                        val principal = call.principal<JWTPrincipal>()
-                            ?: throw UnauthorizedException("Authentication required")
+                        val userId = call.getUserId()
 
                         val id = call.parameters["id"]?.toULongOrNull()
                             ?: throw BadRequestException("Invalid or missing ID parameter")
 
-                        val request = call.receive<UpdateTourPassRequest>()
+                        val payload = call.receiveTourPassUpdatePayload()
+                        val request = payload.request
+                        val resolvedCoverUrl = payload.cover?.let {
+                            uploadService.uploadCoverImage(
+                                coverBytes = it.bytes,
+                                filename = it.filename,
+                                contentType = it.contentType,
+                                context = "tourpass-update:$id"
+                            )
+                        } ?: request.coverUrl
 
                         val tourPass = tourPassRepository.updateTourPass(
                             id = id,
+                            userId = userId,
                             name = request.name,
+                            description = request.description,
                             artist = request.artist,
-                            coverUrl = request.coverUrl
+                            coverUrl = resolvedCoverUrl,
+                            chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() }
                         )
 
                         call.respond(tourPass)
@@ -179,18 +330,37 @@ fun Route.tourPassRoutes(tourPassRepository: ITourPassRepository) {
                      *   - 204 Tour pass deleted successfully.
                      */
                     delete {
-                        val principal = call.principal<JWTPrincipal>()
-                            ?: throw UnauthorizedException("Authentication required")
+                        val userId = call.getUserId()
 
                         val id = call.parameters["id"]?.toULongOrNull()
                             ?: throw BadRequestException("Invalid or missing ID parameter")
 
-                        val success = tourPassRepository.deleteTourPass(id)
+                        val contentId = tourPassRepository.getTourPassById(id, userId)?.contentId
+                            ?: throw NotFoundException("TourPass not found")
+
+                        val success = tourPassRepository.deleteTourPass(id, userId)
                         if (success) {
+                            activityRepository.removeActivityByTypeAndTarget(
+                                type = ActivityType.CREATED_TOUR_PASS,
+                                targetId = contentId
+                            )
+                            runCatching { uploadService.deleteMessage(id.toString()) }
                             call.respond(HttpStatusCode.NoContent)
                         } else {
                             throw NotFoundException("TourPass not found")
                         }
+                    }
+
+                    put("/charts") {
+                        val userId = call.getUserId()
+                        val id = call.parameters["id"]?.toULongOrNull()
+                            ?: throw BadRequestException("Invalid or missing ID parameter")
+
+                        val chartIds = call.receive<List<String>>()
+                            .mapNotNull { it.toULongOrNull() }
+
+                        val updated = tourPassRepository.setTourPassCharts(id, userId, chartIds)
+                        call.respond(updated)
                     }
 
                     route("/charts/{chartId}") {
@@ -208,11 +378,13 @@ fun Route.tourPassRoutes(tourPassRepository: ITourPassRepository) {
                          *   - 200 Success message.
                          */
                         post {
-                            val principal = call.principal<JWTPrincipal>()
-                                ?: throw UnauthorizedException("Authentication required")
+                            val userId = call.getUserId()
 
                             val tourPassId = call.parameters["id"]?.toULongOrNull()
                                 ?: throw BadRequestException("Invalid or missing tour pass ID parameter")
+
+                            tourPassRepository.getTourPassById(tourPassId, userId)
+                                ?: throw NotFoundException("TourPass not found")
 
                             val chartId = call.parameters["chartId"]?.toULongOrNull()
                                 ?: throw BadRequestException("Invalid or missing chart ID parameter")
@@ -244,11 +416,13 @@ fun Route.tourPassRoutes(tourPassRepository: ITourPassRepository) {
                          *   - 200 Success message.
                          */
                         delete {
-                            call.principal<JWTPrincipal>()
-                                ?: throw UnauthorizedException("Authentication required")
+                            val userId = call.getUserId()
 
                             val tourPassId = call.parameters["id"]?.toULongOrNull()
                                 ?: throw BadRequestException("Invalid or missing tour pass ID parameter")
+
+                            tourPassRepository.getTourPassById(tourPassId, userId)
+                                ?: throw NotFoundException("TourPass not found")
 
                             val chartId = call.parameters["chartId"]?.toULongOrNull()
                                 ?: throw BadRequestException("Invalid or missing chart ID parameter")

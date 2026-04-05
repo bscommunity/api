@@ -12,9 +12,25 @@ interface IThemeRepository {
         offset: Int? = null,
     ): List<Theme>
 
-    suspend fun getThemeById(id: ULong): Theme?
-    suspend fun getAppThemeById(contentId: String): Theme?
-    suspend fun createTheme(userId: UUID, name: String, replaces: String, coverUrl: String, previewUrl: String): Theme
-    suspend fun updateTheme(id: ULong, userId: UUID, name: String?, replaces: String?, coverUrl: String?, previewUrl: String?): Theme
+    suspend fun getThemeById(id: ULong, userId: UUID? = null): Theme?
+    suspend fun getAppThemeById(contentId: String, userId: UUID? = null): Theme?
+    suspend fun createTheme(
+        userId: UUID,
+        name: String,
+        replaces: String,
+        coverUrl: String,
+        displayArtUrl: String,
+        previewUrl: String,
+        id: ULong? = null,
+    ): Theme
+    suspend fun updateTheme(
+        id: ULong,
+        userId: UUID,
+        name: String?,
+        replaces: String?,
+        coverUrl: String?,
+        displayArtUrl: String?,
+        previewUrl: String?,
+    ): Theme
     suspend fun deleteTheme(id: ULong, userId: UUID): Boolean
 }

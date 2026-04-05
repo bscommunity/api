@@ -14,8 +14,10 @@ import java.time.LocalDateTime
 @SerialName("theme")
 data class Theme(
     val name: String,
+    val description: String? = null,
     val replaces: String,
     val previewUrl: String,
+    val displayArtUrl: String,
 
     override val contributors: List<Contributor> = emptyList(),
 

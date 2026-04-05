@@ -240,6 +240,11 @@ fun Route.userRoutes(
 
                 val success = userRepository.unfollowUser(followerId, followedId)
                 if (success) {
+                    activityRepository.removeActivity(
+                        userId = followerId,
+                        type = ActivityType.FOLLOWED_USER,
+                        targetId = followedId.toString()
+                    )
                     call.respond(HttpStatusCode.OK, "User unfollowed successfully")
                 } else {
                     throw NotFoundException("Follow relationship not found")
@@ -338,6 +343,44 @@ fun Route.userRoutes(
                 println("Fetched ${charts.size} charts for user $userId (requester: $requester, limit: $limit, offset: $offset)")
 
                 call.respond(ItemsPage(charts, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
+            }
+
+            get("{id}/tourpasses") {
+                val userId = UUID.fromString(call.parameters["id"]!!)
+                val requester = call.principal<JWTPrincipal>()?.subject?.let(UUID::fromString)
+
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+
+                val items = userRepository.getUserTourPasses(
+                    userId = userId,
+                    requestingUserId = requester,
+                    query = null,
+                    limit = limit,
+                    offset = offset
+                )
+
+                val libraryCounts = userRepository.getLibraryCounts(userId)
+                call.respond(ItemsPage(items, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
+            }
+
+            get("{id}/themes") {
+                val userId = UUID.fromString(call.parameters["id"]!!)
+                val requester = call.principal<JWTPrincipal>()?.subject?.let(UUID::fromString)
+
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+
+                val items = userRepository.getUserThemes(
+                    userId = userId,
+                    requestingUserId = requester,
+                    query = null,
+                    limit = limit,
+                    offset = offset
+                )
+
+                val libraryCounts = userRepository.getLibraryCounts(userId)
+                call.respond(ItemsPage(items, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
             }
 
             /**

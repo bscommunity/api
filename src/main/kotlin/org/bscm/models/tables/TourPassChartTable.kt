@@ -6,6 +6,7 @@ import org.jetbrains.exposed.sql.ReferenceOption
 object TourPassChartTable : CompositeIdTable("tour_pass_charts") {
     val tourPassId = reference("tour_pass_id", TourPassTable, onDelete = ReferenceOption.CASCADE)
     val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
+    val position = integer("position").default(0)
 
     init {
         addIdColumn(tourPassId)
@@ -13,4 +14,8 @@ object TourPassChartTable : CompositeIdTable("tour_pass_charts") {
     }
 
     override val primaryKey = PrimaryKey(tourPassId, chartId)
+
+    init {
+        index(false, tourPassId, position)
+    }
 }

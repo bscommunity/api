@@ -29,7 +29,6 @@ import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
 import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
-import org.koin.ktor.ext.getKoin
 import java.util.*
 
 private val logger = KtorSimpleLogger("ChartRoutes")
@@ -40,6 +39,7 @@ fun Route.chartRoutes(
     versionRepository: IVersionRepository,
     userRepository: IUserRepository,
     uploadService: UploadService,
+    publishService: ChartPublishService,
 ) {
 
     route("/charts") {
@@ -387,8 +387,6 @@ fun Route.chartRoutes(
                         // a malformed JSON just means "no overrides".
                     }
 
-                    val publishService = call.application.getKoin().get<ChartPublishService>()
-
                     // Bug fix: was a bare catch(e: Exception) that called println() and
                     // responded with e.message — leaking internal details to the client.
                     // Let the StatusPages plugin handle unexpected exceptions uniformly.
@@ -499,7 +497,7 @@ fun Route.chartRoutes(
                     // Correct order: delete from DB first, then clean up Discord.
                     // A failed Discord delete is recoverable (re-run or ignore stale message).
                     // A failed DB delete after Discord cleanup is not.
-                    val deleted = chartRepository.deleteChart(id)
+                    val deleted = publishService.deleteChartAndCleanup(id)
 
                     if (!deleted) throw NotFoundException("Chart not found")
 

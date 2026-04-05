@@ -12,6 +12,7 @@ import java.time.LocalDateTime
 @SerialName("tour_pass")
 data class TourPass(
     val name: String,
+    val description: String? = null,
     val artist: String?,
     val charts: List<Chart>,
 

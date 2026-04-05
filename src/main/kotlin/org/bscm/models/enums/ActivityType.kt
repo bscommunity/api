@@ -2,7 +2,13 @@ package org.bscm.models.enums
 
 enum class ActivityType {
     CREATED_CHART,
+    CREATED_TOUR_PASS,
+    CREATED_THEME,
     LIKED_CHART,
+    LIKED_TOUR_PASS,
+    LIKED_THEME,
     BOOKMARKED_CHART,
+    BOOKMARKED_TOUR_PASS,
+    BOOKMARKED_THEME,
     FOLLOWED_USER
 }

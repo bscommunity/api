@@ -726,11 +726,13 @@ class ChartRepository : BaseRepository(), IChartRepository {
         )
     }
 
-    override suspend fun deleteChart(id: ULong): Boolean = newSuspendedTransaction {
-        val chart = ChartEntity.findById(id) ?: return@newSuspendedTransaction false
+    override suspend fun deleteChartAndGetContentId(id: ULong): String? = newSuspendedTransaction {
+        val chart = ChartEntity.findById(id) ?: return@newSuspendedTransaction null
+        val contentId = chart.contentId.value
         chart.delete()
-        true
+        contentId
     }
+
 
     override suspend fun postAnalytics(chartId: ULong, action: OperationOption): Boolean = newSuspendedTransaction {
         when (action) {

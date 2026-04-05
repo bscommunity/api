@@ -4,19 +4,21 @@ import io.ktor.server.plugins.*
 import org.bscm.models.User
 import org.bscm.models.dto.activity.ActivityItemResponse
 import org.bscm.models.dto.activity.ChartActivityItem
+import org.bscm.models.dto.activity.ThemeActivityItem
+import org.bscm.models.dto.activity.TourPassActivityItem
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UserProfileResponse
 import org.bscm.models.enums.ActivityType
-import org.bscm.models.interfaces.IActivityRepository
-import org.bscm.models.interfaces.IChartRepository
-import org.bscm.models.interfaces.IUserRepository
+import org.bscm.models.interfaces.*
 import org.bscm.repository.ChartRepository
 import java.util.*
 
 class ProfileService(
     private val userRepository: IUserRepository,
     private val activityRepository: IActivityRepository,
-    private val chartRepository: IChartRepository
+    private val chartRepository: IChartRepository,
+    private val tourPassRepository: ITourPassRepository,
+    private val themeRepository: IThemeRepository,
 ) {
     /**
      * Maps a [User] to [SimplifiedUser].
@@ -50,8 +52,14 @@ class ProfileService(
         if (isOwner) return items
         return items.filter { entry ->
             when (entry.type) {
-                ActivityType.BOOKMARKED_CHART -> false
-                ActivityType.LIKED_CHART -> isPublic
+                ActivityType.BOOKMARKED_CHART,
+                ActivityType.BOOKMARKED_TOUR_PASS,
+                ActivityType.BOOKMARKED_THEME -> false
+
+                ActivityType.LIKED_CHART,
+                ActivityType.LIKED_TOUR_PASS,
+                ActivityType.LIKED_THEME -> isPublic
+
                 else -> true
             }
         }
@@ -87,14 +95,42 @@ class ProfileService(
         val isOwner = requesterId == user.id
         val entries = activityRepository.getUserActivity(user.id, limit, offset)
 
+        val chartTypes = setOf(ActivityType.LIKED_CHART, ActivityType.CREATED_CHART, ActivityType.BOOKMARKED_CHART)
+        val tourPassTypes = setOf(ActivityType.LIKED_TOUR_PASS, ActivityType.CREATED_TOUR_PASS, ActivityType.BOOKMARKED_TOUR_PASS)
+        val themeTypes = setOf(ActivityType.LIKED_THEME, ActivityType.CREATED_THEME, ActivityType.BOOKMARKED_THEME)
+
         val chartContentIds = entries
-            .filter { it.type == ActivityType.LIKED_CHART || it.type == ActivityType.CREATED_CHART || it.type == ActivityType.BOOKMARKED_CHART }
+            .filter { it.type in chartTypes }
+            .map { it.targetId }
+            .distinct()
+
+        val tourPassContentIds = entries
+            .filter { it.type in tourPassTypes }
+            .map { it.targetId }
+            .distinct()
+
+        val themeContentIds = entries
+            .filter { it.type in themeTypes }
             .map { it.targetId }
             .distinct()
 
         val charts = if (chartContentIds.isNotEmpty()) {
             chartRepository.getCharts(filters = ChartRepository.ChartFilters(contentIds = chartContentIds))
                 .first
+                .associateBy { it.contentId }
+        } else {
+            emptyMap()
+        }
+
+        val tourPasses = if (tourPassContentIds.isNotEmpty()) {
+            tourPassRepository.getTourPasses(userId = requesterId, contentIds = tourPassContentIds, search = null, limit = null, offset = null)
+                .associateBy { it.contentId }
+        } else {
+            emptyMap()
+        }
+
+        val themes = if (themeContentIds.isNotEmpty()) {
+            themeRepository.getThemes(userId = requesterId, contentIds = themeContentIds, search = null, limit = null, offset = null)
                 .associateBy { it.contentId }
         } else {
             emptyMap()
@@ -108,6 +144,21 @@ class ProfileService(
                     val chart = charts[entry.targetId] ?: return@mapNotNull null
                     ChartActivityItem(id = entry.id, type = entry.type, createdAt = entry.createdAt, chart = chart)
                 }
+
+                ActivityType.LIKED_TOUR_PASS,
+                ActivityType.CREATED_TOUR_PASS,
+                ActivityType.BOOKMARKED_TOUR_PASS -> {
+                    val tourPass = tourPasses[entry.targetId] ?: return@mapNotNull null
+                    TourPassActivityItem(id = entry.id, type = entry.type, createdAt = entry.createdAt, tourPass = tourPass)
+                }
+
+                ActivityType.LIKED_THEME,
+                ActivityType.CREATED_THEME,
+                ActivityType.BOOKMARKED_THEME -> {
+                    val theme = themes[entry.targetId] ?: return@mapNotNull null
+                    ThemeActivityItem(id = entry.id, type = entry.type, createdAt = entry.createdAt, theme = theme)
+                }
+
                 ActivityType.FOLLOWED_USER -> null
             }
         }

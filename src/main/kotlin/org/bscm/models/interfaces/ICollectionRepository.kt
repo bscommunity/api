@@ -51,6 +51,7 @@ interface ICollectionRepository {
 
     suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
     suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean
+    suspend fun getContentType(contentId: String): ContentType?
 
     // Batch Operations
     suspend fun batchAddItemsToCollection(

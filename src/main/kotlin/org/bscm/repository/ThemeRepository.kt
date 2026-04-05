@@ -4,6 +4,7 @@ import io.ktor.server.plugins.*
 import org.bscm.models.Theme
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.ThemeEntity
+import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.ThemeTable
@@ -25,10 +26,12 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
     ): Theme {
         return Theme(
             id = entity.id.value.toString(),
-            contentId = ContentEntity[entity.contentId].id.value,
+            contentId = entity.content.id.value,
             name = entity.name,
+            description = null,
             replaces = entity.replaces,
             coverUrl = entity.coverUrl,
+            displayArtUrl = entity.displayArtUrl ?: entity.coverUrl,
             previewUrl = entity.previewUrl,
             isPublic = entity.isPublic,
             isFeatured = entity.isFeatured,
@@ -49,6 +52,14 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
     ): List<Theme> = newSuspendedTransaction {
         val query = ThemeTable.selectAll()
 
+        query.andWhere {
+            if (userId == null) {
+                ThemeTable.isPublic eq true
+            } else {
+                (ThemeTable.isPublic eq true) or (ThemeTable.authorId eq userId)
+            }
+        }
+
         if (!contentIds.isNullOrEmpty()) {
             query.andWhere { ThemeTable.contentId inList contentIds }
         }
@@ -67,24 +78,30 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
         val themeEntities = ThemeEntity.wrapRows(query).toList()
 
         // Fetch user stats for all themes in one query
-        val themeContentIds = themeEntities.map { ContentEntity[it.contentId].id.value }
+        val themeContentIds = themeEntities.map { it.content.id.value }
         val userStats = UserStatsUtils.fetchUserStats(getUserContext()?.userId, themeContentIds)
 
         themeEntities.map { entity ->
-            val contentId = ContentEntity[entity.contentId].id.value
+            val contentId = entity.content.id.value
             val stats = userStats[contentId] ?: Pair(null, null)
             daoToTheme(entity, stats.first, stats.second)
         }
     }
 
-    override suspend fun getThemeById(id: ULong): Theme? = newSuspendedTransaction {
+    override suspend fun getThemeById(id: ULong, userId: UUID?): Theme? = newSuspendedTransaction {
         val entity = ThemeEntity.findById(id) ?: return@newSuspendedTransaction null
+        if (!entity.isPublic && entity.authorId.value != userId) {
+            return@newSuspendedTransaction null
+        }
         daoToTheme(entity)
     }
 
-    override suspend fun getAppThemeById(contentId: String): Theme? = newSuspendedTransaction {
+    override suspend fun getAppThemeById(contentId: String, userId: UUID?): Theme? = newSuspendedTransaction {
         val entity = ThemeEntity.find { ThemeTable.contentId eq contentId }.firstOrNull()
             ?: return@newSuspendedTransaction null
+        if (!entity.isPublic && entity.authorId.value != userId) {
+            return@newSuspendedTransaction null
+        }
         daoToTheme(entity)
     }
 
@@ -93,7 +110,10 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
         name: String,
         replaces: String,
         coverUrl: String,
+        displayArtUrl: String,
         previewUrl: String
+        ,
+        id: ULong?
     ): Theme = newSuspendedTransaction {
         // Generate a unique content entry
         val content = retryOnConflict {
@@ -102,16 +122,34 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
             }
         }
 
-        val entity = ThemeEntity.new {
-            this.contentId = content.id
-            this.name = name
-            this.replaces = replaces
-            this.coverUrl = coverUrl
-            this.previewUrl = previewUrl
-            this.isPublic = true
-            this.isFeatured = false
-            this.downloadsSum = 0
-            this.latestUpdatedAt = LocalDateTime.now()
+        val entity = if (id != null) {
+            ThemeEntity.new(id) {
+                this.contentId = content.id
+                this.authorId = UserEntity[userId].id
+                this.name = name
+                this.replaces = replaces
+                this.coverUrl = coverUrl
+                this.displayArtUrl = displayArtUrl
+                this.previewUrl = previewUrl
+                this.isPublic = true
+                this.isFeatured = false
+                this.downloadsSum = 0
+                this.latestUpdatedAt = LocalDateTime.now()
+            }
+        } else {
+            ThemeEntity.new {
+                this.contentId = content.id
+                this.authorId = UserEntity[userId].id
+                this.name = name
+                this.replaces = replaces
+                this.coverUrl = coverUrl
+                this.displayArtUrl = displayArtUrl
+                this.previewUrl = previewUrl
+                this.isPublic = true
+                this.isFeatured = false
+                this.downloadsSum = 0
+                this.latestUpdatedAt = LocalDateTime.now()
+            }
         }
         daoToTheme(entity)
     }
@@ -122,20 +160,26 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
         name: String?,
         replaces: String?,
         coverUrl: String?,
+        displayArtUrl: String?,
         previewUrl: String?
     ): Theme = newSuspendedTransaction {
-        val entity = ThemeEntity.findById(id) ?: throw NotFoundException("Theme not found")
+        val entity = ThemeEntity.findById(id)
+            ?.takeIf { it.authorId.value == userId }
+            ?: throw NotFoundException("Theme not found")
 
         name?.let { entity.name = it }
         replaces?.let { entity.replaces = it }
         coverUrl?.let { entity.coverUrl = it }
+        displayArtUrl?.let { entity.displayArtUrl = it }
         previewUrl?.let { entity.previewUrl = it }
 
         daoToTheme(entity)
     }
 
     override suspend fun deleteTheme(id: ULong, userId: UUID): Boolean = newSuspendedTransaction {
-        val entity = ThemeEntity.findById(id) ?: return@newSuspendedTransaction false
+        val entity = ThemeEntity.findById(id)
+            ?.takeIf { it.authorId.value == userId }
+            ?: return@newSuspendedTransaction false
         entity.delete()
         true
     }

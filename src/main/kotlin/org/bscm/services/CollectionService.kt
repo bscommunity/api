@@ -59,10 +59,15 @@ class CollectionService(
         kind: CollectionKind,
         collectionId: UUID? = null
     ): Boolean {
-        val (resolvedId, _) = resolveCollection(userId, kind, collectionId)
+        val (resolvedId, resolvedKind) = resolveCollection(userId, kind, collectionId)
             ?: return false
 
-        return collectionRepository.removeItemFromCollection(resolvedId, userId, contentId)
+        val removed = collectionRepository.removeItemFromCollection(resolvedId, userId, contentId)
+        if (removed) {
+            removeActivityForKind(userId, resolvedKind, contentId)
+        }
+
+        return removed
     }
 
     // ── Batch ───────────────────────────────────────────────────────────────
@@ -90,7 +95,7 @@ class CollectionService(
                 val cacheKey = kind to collectionId
                 val resolvedId = collectionIdCache.getOrPut(cacheKey) {
                     resolveCollection(userId, kind, collectionId?.let { UUID.fromString(it) })?.first
-                        ?: run { failCount += contentIds.size; return@getOrPut null!! }
+                        ?: run { failCount += contentIds.size; null!! }
                 }
 
                 val activityTimestamp = items.firstNotNullOfOrNull { it.enqueuedAt } ?: LocalDateTime.now()
@@ -100,10 +105,18 @@ class CollectionService(
                         val result = collectionRepository.batchAddItemsToCollection(resolvedId, userId, contentIds)
 
                         if (kind in setOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS) && result.first > 0) {
-                            activityTypeForKind(kind)?.let { type ->
-                                val successfulIds = contentIds.filterNot { it in result.second }
-                                if (successfulIds.isNotEmpty()) {
-                                    activityRepository.batchLogActivity(userId, type, successfulIds, activityTimestamp)
+                            val successfulIds = contentIds.filterNot { it in result.second }
+                            if (successfulIds.isNotEmpty()) {
+                                val typedIds = successfulIds.groupByNotNull { id ->
+                                    collectionRepository.getContentType(id)?.let { contentType ->
+                                        activityTypeForKind(kind, contentType)
+                                    }
+                                }
+
+                                typedIds.forEach { (type, ids) ->
+                                    // Keep only the latest active interaction per target.
+                                    activityRepository.batchRemoveActivity(userId, type, ids)
+                                    activityRepository.batchLogActivity(userId, type, ids, activityTimestamp)
                                 }
                             }
                         }
@@ -112,6 +125,19 @@ class CollectionService(
                     }
                     ActionType.REMOVE -> {
                         val deleted = collectionRepository.batchRemoveItemsFromCollection(resolvedId, userId, contentIds)
+
+                        if (kind in setOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS) && deleted > 0) {
+                            val typedIds = contentIds.groupByNotNull { id ->
+                                collectionRepository.getContentType(id)?.let { contentType ->
+                                    activityTypeForKind(kind, contentType)
+                                }
+                            }
+
+                            typedIds.forEach { (type, ids) ->
+                                activityRepository.batchRemoveActivity(userId, type, ids)
+                            }
+                        }
+
                         deleted to (contentIds.size - deleted)
                     }
                 }
@@ -126,70 +152,6 @@ class CollectionService(
 
         return BatchCollectionItemResponse(successful = successCount, failed = failCount)
     }
-
-    /**
-     * Add an item to multiple collections atomically.
-     * Can add to bookmarks and/or any number of custom collections in a single operation.
-     *
-     * Returns the number of collections the item was successfully added to.
-     * No side effects occur - each collection is treated independently.
-     */
-    suspend fun addItemToMultipleCollections(
-        userId: UUID,
-        contentId: String,
-        collectionSpecs: List<Pair<CollectionKind, UUID?>>
-    ): Int {
-        if (collectionSpecs.isEmpty()) return 0
-
-        var successCount = 0
-        val activityLogged = mutableSetOf<CollectionKind>()
-
-        for ((kind, collectionId) in collectionSpecs) {
-            val (resolvedId, resolvedKind) = resolveCollection(userId, kind, collectionId)
-                ?: continue
-
-            val added = collectionRepository.addItemToCollection(resolvedId, resolvedKind, userId, contentId)
-            if (added) {
-                successCount++
-                // Log activity only once per kind (e.g., don't log BOOKMARKS multiple times if adding to multiple custom collections)
-                if (resolvedKind !in activityLogged) {
-                    logActivityForKind(userId, resolvedKind, contentId)
-                    activityLogged.add(resolvedKind)
-                }
-            }
-        }
-
-        return successCount
-    }
-
-    /**
-     * Remove an item from multiple collections atomically.
-     * Each collection removal is independent - removing from one doesn't affect others.
-     *
-     * Returns the number of collections the item was successfully removed from.
-     */
-    suspend fun removeItemFromMultipleCollections(
-        userId: UUID,
-        contentId: String,
-        collectionSpecs: List<Pair<CollectionKind, UUID?>>
-    ): Int {
-        if (collectionSpecs.isEmpty()) return 0
-
-        var successCount = 0
-
-        for ((kind, collectionId) in collectionSpecs) {
-            val (resolvedId, _) = resolveCollection(userId, kind, collectionId)
-                ?: continue
-
-            val removed = collectionRepository.removeItemFromCollection(resolvedId, userId, contentId)
-            if (removed) {
-                successCount++
-            }
-        }
-
-        return successCount
-    }
-
 
     // ── Read operations ─────────────────────────────────────────────────────
 
@@ -301,12 +263,36 @@ class CollectionService(
     }
 
     private suspend fun logActivityForKind(userId: UUID, kind: CollectionKind, contentId: String) {
-        activityTypeForKind(kind)?.let { activityRepository.logActivity(userId, it, contentId) }
+        val contentType = collectionRepository.getContentType(contentId) ?: return
+        activityTypeForKind(kind, contentType)?.let {
+            // Remove stale duplicates from prior add/remove cycles, then insert fresh activity.
+            activityRepository.removeActivity(userId, it, contentId)
+            activityRepository.logActivity(userId, it, contentId)
+        }
     }
 
-    private fun activityTypeForKind(kind: CollectionKind): ActivityType? = when (kind) {
-        CollectionKind.LIKES -> ActivityType.LIKED_CHART
-        CollectionKind.BOOKMARKS -> ActivityType.BOOKMARKED_CHART
+    private suspend fun removeActivityForKind(userId: UUID, kind: CollectionKind, contentId: String) {
+        val contentType = collectionRepository.getContentType(contentId) ?: return
+        activityTypeForKind(kind, contentType)?.let { activityRepository.removeActivity(userId, it, contentId) }
+    }
+
+    private fun activityTypeForKind(kind: CollectionKind, contentType: ContentType): ActivityType? = when (kind) {
+        CollectionKind.LIKES -> when (contentType) {
+            ContentType.CHART -> ActivityType.LIKED_CHART
+            ContentType.TOUR_PASS -> ActivityType.LIKED_TOUR_PASS
+            ContentType.THEME -> ActivityType.LIKED_THEME
+        }
+
+        CollectionKind.BOOKMARKS -> when (contentType) {
+            ContentType.CHART -> ActivityType.BOOKMARKED_CHART
+            ContentType.TOUR_PASS -> ActivityType.BOOKMARKED_TOUR_PASS
+            ContentType.THEME -> ActivityType.BOOKMARKED_THEME
+        }
+
         CollectionKind.USER -> null
     }
+
+    private inline fun <T, K> Iterable<T>.groupByNotNull(keySelector: (T) -> K?): Map<K, List<T>> =
+        this.mapNotNull { element -> keySelector(element)?.let { it to element } }
+            .groupBy({ it.first }, { it.second })
 }

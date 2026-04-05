@@ -293,6 +293,7 @@ class UserRepository(
 
         // Fetch Themes
         val themes = themeRepository.getThemes(
+            userId = requestingUserId,
             contentIds = contentIds,
             search = null,
             limit = null,

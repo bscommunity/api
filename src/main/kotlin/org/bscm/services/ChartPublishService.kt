@@ -1,10 +1,6 @@
 package org.bscm.services
 
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
 import io.ktor.util.logging.*
-import org.bscm.clients.applicationHttpClient
 import org.bscm.models.Chart
 import org.bscm.models.StreamingLink
 import org.bscm.models.User
@@ -49,13 +45,19 @@ class ChartPublishService(
         val versionAttachmentId: String,
     )
 
-    private suspend fun downloadAudioFile(url: String): ByteArray {
-        val response: HttpResponse = applicationHttpClient.get(url)
-        if (!response.status.isSuccess()) {
-            throw Exception("Failed to download audio file: ${response.status}")
-        }
-        return response.readRawBytes()
+    /**
+     * Deletes a chart and removes its creation log in a single application-level flow.
+     * Returns false when the chart does not exist.
+     */
+    suspend fun deleteChartAndCleanup(chartId: ULong): Boolean {
+        val contentId = chartRepository.deleteChartAndGetContentId(chartId) ?: return false
+        activityRepository.removeActivityByTypeAndTarget(
+            type = ActivityType.CREATED_CHART,
+            targetId = contentId
+        )
+        return true
     }
+
 
     suspend fun publish(user: User, bundleBytes: ByteArray, overrides: Overrides = Overrides()): Result {
         val contentId = NanoIdUtils.generateOptimized(

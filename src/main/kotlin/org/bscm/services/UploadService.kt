@@ -29,6 +29,41 @@ class UploadService(
     private val botToken: String,
     private val channelId: String,
 ) {
+    data class UploadImage(
+        val bytes: ByteArray,
+        val filename: String,
+        val contentType: ContentType,
+    )
+
+    data class TourPassPublishData(
+        val title: String,
+        val description: String?,
+        val contentId: String? = null,
+        val uploader: User,
+        val coverUrl: String?,
+        val coverImage: UploadImage?,
+        val durationSeconds: Int,
+        val tracksAmount: Int,
+        val difficultyLabel: String? = null,
+        val trailerUrl: String? = null,
+        val tracklist: List<String> = emptyList(),
+        val trackUrls: List<StreamingLink> = emptyList(),
+    )
+
+    data class ThemePublishData(
+        val title: String,
+        val description: String?,
+        val contentId: String? = null,
+        val uploader: User,
+        val replaces: String,
+        val trailerUrl: String?,
+        val coverArtUrl: String?,
+        val coverArt: UploadImage?,
+        val displayArtUrl: String?,
+        val displayArt: UploadImage?,
+        val trackUrls: List<StreamingLink> = emptyList(),
+    )
+
     private val webhookUrl = "https://discord.com/api/webhooks/$webhookId/$webhookToken"
     private val editWebhookUrl = "https://discord.com/api/v10/webhooks/$webhookId/$webhookToken/messages"
 
@@ -128,6 +163,11 @@ class UploadService(
                 url = url,
             )
         }
+    }
+
+    private fun formatDuration(seconds: Int): String {
+        val safe = kotlin.math.max(0, seconds)
+        return "~${safe / 60}m${safe % 60}s"
     }
 
     private fun buildComponents(trackUrls: List<StreamingLink>): List<ActionRow> {
@@ -296,6 +336,112 @@ class UploadService(
         return discordResponse
     }
 
+    suspend fun uploadTourPass(data: TourPassPublishData): DiscordMessageResponse {
+        val payloadJson = jsonClient.encodeToString(
+            WebhookPayload.serializer(),
+            message {
+                username("bscm")
+                avatar("https://i.imgur.com/7e4lzGf.png")
+                embed {
+                    title = data.title
+                    description = data.description
+                    url = data.contentId?.let { "https://bscm.netlify.app/link/tourpass/$it" } ?: "https://bscm.netlify.app/"
+                    color = 3820816
+                    timestamp()
+                    author("New tour pass submitted")
+                    footer("Submitted by @${data.uploader.username}", data.uploader.avatarUrl)
+                    image(if (data.coverImage != null) "attachment://tourpass-cover.png" else data.coverUrl)
+                    thumbnail("")
+                    field("Duration", "$durationIcon ${formatDuration(data.durationSeconds)}", true)
+                    field("Tracks", "$noteIcon ${data.tracksAmount} songs", true)
+                    field(" ", " ", false)
+                    data.difficultyLabel?.takeIf { it.isNotBlank() }?.let {
+                        field("Difficulty", it, true)
+                    }
+                    data.trailerUrl?.takeIf { it.isNotBlank() }?.let {
+                        field("Trailer", it, true)
+                    }
+                    if (data.tracklist.isNotEmpty()) {
+                        field("Tracklist", data.tracklist.joinToString("\n"), false)
+                    }
+                }
+                buildComponents(data.trackUrls).forEach { component(it) }
+            }
+        )
+
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = "${webhookUrl}?with_components=true",
+            formData = formData {
+                append("payload_json", payloadJson, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+                data.coverImage?.let { image ->
+                    append("file", image.bytes, Headers.build {
+                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"tourpass-cover.png\"")
+                        append(HttpHeaders.ContentType, image.contentType.toString())
+                    })
+                }
+            }
+        )
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to upload tour pass: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        return jsonClient.decodeFromString<DiscordMessageResponse>(response.bodyAsText())
+    }
+
+    suspend fun uploadTheme(data: ThemePublishData): DiscordMessageResponse {
+        val payloadJson = jsonClient.encodeToString(
+            WebhookPayload.serializer(),
+            message {
+                username("bscm")
+                avatar("https://i.imgur.com/7e4lzGf.png")
+                embed {
+                    title = data.title
+                    description = data.description
+                    url = data.contentId?.let { "https://bscm.netlify.app/link/theme/$it" } ?: "https://bscm.netlify.app/"
+                    color = 3820816
+                    timestamp()
+                    author("New theme submitted")
+                    footer("Submitted by @${data.uploader.username}", data.uploader.avatarUrl)
+                    image(if (data.displayArt != null) "attachment://theme-display-art.png" else data.displayArtUrl)
+                    thumbnail(if (data.coverArt != null) "attachment://theme-cover-art.png" else data.coverArtUrl)
+                    field("<:refresh:1490158323197022449> Replaces", data.replaces, false)
+                    data.trailerUrl?.takeIf { it.isNotBlank() }?.let { field("Trailer", it, false) }
+                }
+                buildComponents(data.trackUrls).forEach { component(it) }
+            }
+        )
+
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = "${webhookUrl}?with_components=true",
+            formData = formData {
+                append("payload_json", payloadJson, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+                data.displayArt?.let { image ->
+                    append("file0", image.bytes, Headers.build {
+                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file0\"; filename=\"theme-display-art.png\"")
+                        append(HttpHeaders.ContentType, image.contentType.toString())
+                    })
+                }
+                data.coverArt?.let { image ->
+                    append("file1", image.bytes, Headers.build {
+                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file1\"; filename=\"theme-cover-art.png\"")
+                        append(HttpHeaders.ContentType, image.contentType.toString())
+                    })
+                }
+            }
+        )
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to upload theme: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        return jsonClient.decodeFromString<DiscordMessageResponse>(response.bodyAsText())
+    }
+
     @OptIn(InternalAPI::class)
     suspend fun uploadVersion(
         chart: Chart,
@@ -422,6 +568,45 @@ class UploadService(
         val coverUrl: String? = null,
         val audioUrl: String? = null
     )
+
+    /**
+     * Upload a generic cover image to Discord and return the resulting CDN URL.
+     */
+    suspend fun uploadCoverImage(
+        coverBytes: ByteArray,
+        filename: String = "cover.png",
+        contentType: ContentType = ContentType.Image.PNG,
+        context: String,
+    ): String {
+        val payload = jsonClient.encodeToString(
+            WebhookPayload.serializer(),
+            WebhookPayload(
+                content = "Cover upload: $context",
+                attachments = emptyList()
+            )
+        )
+
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = webhookUrl,
+            formData = formData {
+                append("payload_json", payload, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+                append("file", coverBytes, Headers.build {
+                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"$filename\"")
+                    append(HttpHeaders.ContentType, contentType.toString())
+                })
+            }
+        )
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to upload cover image: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        val discordResponse = jsonClient.decodeFromString<DiscordMessageResponse>(response.bodyAsText())
+        return discordResponse.attachments.firstOrNull()?.url
+            ?: throw IllegalStateException("Discord response missing cover image attachment")
+    }
 
     /**
      * Upload an audio file to Discord and return the attachment URL
