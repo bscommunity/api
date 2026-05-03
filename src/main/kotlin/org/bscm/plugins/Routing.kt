@@ -22,30 +22,27 @@ import org.koin.ktor.ext.inject
 // Disclaimer: Dependency Injection can't be made inside 'routing { }' block
 
 fun Application.configureRouting() {
-    val discordOAuthService: DiscordOAuthService by inject()
-    val googleOAuthService: GoogleOAuthService by inject()
-
-    val refreshService by inject<RefreshService>()
-    val uploadService by inject<UploadService>()
-    val supportUploadService by inject<UploadService>(qualifier = org.koin.core.qualifier.named("support"))
-    val jwtService by inject<JWTService>()
-
-    val userRepository by inject<IUserRepository>()
-    val chartRepository by inject<IChartRepository>()
-    val contributorRepository by inject<IContributorRepository>()
-    val knownIssueRepository by inject<IChangelogRepository>()
-    val versionRepository by inject<IVersionRepository>()
-    val tourPassRepository by inject<ITourPassRepository>()
-    val themeRepository by inject<IThemeRepository>()
-    val collectionService by inject<CollectionService>()
-    val activityRepository by inject<IActivityRepository>()
-    val profileService by inject<ProfileService>()
-    val chartPublishService by inject<ChartPublishService>()
-    val tourPassPublishService by inject<TourPassPublishService>()
-    val themePublishService by inject<ThemePublishService>()
-
-    val mediaInfoService by inject<MediaInfoService>()
-    // val previewService by inject<PreviewService>()
+    val cfg = environment.config
+    val hasFullConfig = listOf(
+        /*"redis.host",
+        "redis.port",
+        "redis.password",*/
+        "jwt.secret",
+        "hmac.secret",
+        "refresh.secret",
+        "discord.clientId",
+        "discord.clientSecret",
+        "discord.redirectUri",
+        "discord.botToken",
+        "discord.publicKey",
+        "workshop.webhookId",
+        "workshop.webhookToken",
+        "workshop.channelId",
+        "lastfm.apiKey",
+        "google.clientId",
+        "google.clientSecret",
+        "google.redirectUri",
+    ).all { cfg.propertyOrNull(it) != null }
 
     routing {
         // openAPI(path = "docs", swaggerFile = "openapi/documentation.yaml")
@@ -89,6 +86,35 @@ fun Application.configureRouting() {
             applicationHttpClient.get(statusUrl)
                 .let { call.respondText(it.bodyAsText(), ContentType.Application.Json) }
         }
+
+        if (!hasFullConfig) {
+            return@routing
+        }
+
+        val discordOAuthService: DiscordOAuthService by inject()
+        val googleOAuthService: GoogleOAuthService by inject()
+
+        val refreshService by inject<RefreshService>()
+        val uploadService by inject<UploadService>()
+        val supportUploadService by inject<UploadService>(qualifier = org.koin.core.qualifier.named("support"))
+        val jwtService by inject<JWTService>()
+
+        val userRepository by inject<IUserRepository>()
+        val chartRepository by inject<IChartRepository>()
+        val contributorRepository by inject<IContributorRepository>()
+        val knownIssueRepository by inject<IChangelogRepository>()
+        val versionRepository by inject<IVersionRepository>()
+        val tourPassRepository by inject<ITourPassRepository>()
+        val themeRepository by inject<IThemeRepository>()
+        val collectionService by inject<CollectionService>()
+        val activityRepository by inject<IActivityRepository>()
+        val profileService by inject<ProfileService>()
+        val chartPublishService by inject<ChartPublishService>()
+        val tourPassPublishService by inject<TourPassPublishService>()
+        val themePublishService by inject<ThemePublishService>()
+
+        val mediaInfoService by inject<MediaInfoService>()
+        // val previewService by inject<PreviewService>()
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
         userRoutes(userRepository, profileService, collectionService, activityRepository)

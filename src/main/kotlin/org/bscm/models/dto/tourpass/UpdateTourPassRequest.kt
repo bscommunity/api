@@ -9,6 +9,7 @@ data class UpdateTourPassRequest(
     val description: String? = null,
     val artist: String? = null,
     val coverUrl: String? = null,
+    val previewUrl: String? = null,
     val chartIds: List<String>? = null,
     val playlistUrls: List<StreamingLink>? = null,
 )

@@ -2,8 +2,6 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
-import io.lettuce.core.RedisClient
-import io.lettuce.core.RedisURI
 import org.bscm.clients.*
 import org.bscm.models.dto.PreviewResponse
 import org.bscm.models.interfaces.*
@@ -24,6 +22,31 @@ import org.koin.logger.slf4jLogger
 
 fun Application.configureDI() {
     val config = environment.config
+
+    // Keep lightweight tests working when external-service configuration is absent.
+    val requiredKeys = listOf(
+        "redis.host",
+        "redis.port",
+        "redis.password",
+        "jwt.secret",
+        "discord.clientId",
+        "discord.clientSecret",
+        "discord.redirectUri",
+        "discord.botToken",
+        "workshop.webhookId",
+        "workshop.webhookToken",
+        "workshop.channelId",
+        "lastfm.apiKey",
+        "google.clientId",
+        "google.clientSecret",
+        "google.redirectUri",
+    )
+
+    if (requiredKeys.any { config.propertyOrNull(it) == null }) {
+        log.warn("Skipping DI/Koin installation: external service configuration is incomplete")
+        return
+    }
+
     install(Koin) {
         slf4jLogger()
         modules(mainModule(config))
@@ -35,6 +58,14 @@ fun mainModule(config: ApplicationConfig) = module {
     single { applicationHttpClient }
     single { jsonClient }
 
+    /*// Allow lightweight tests to boot the application without external services.
+    if (config.propertyOrNull("redis.host") == null ||
+        config.propertyOrNull("redis.port") == null ||
+        config.propertyOrNull("redis.password") == null
+    ) {
+        return@module
+    }
+
     val uri = RedisURI.Builder
         .redis(config.property("redis.host").getString(), config.property("redis.port").getString().toInt())
         .withAuthentication("default", config.property("redis.password").getString())
@@ -43,7 +74,7 @@ fun mainModule(config: ApplicationConfig) = module {
     // Redis
     single {
         RedisClient.create(uri)
-    }
+    }*/
 
     // Cache Repository for PreviewResponse
     single<CacheRepository<PreviewResponse>> {

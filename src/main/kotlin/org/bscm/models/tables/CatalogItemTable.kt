@@ -9,6 +9,7 @@ abstract class CatalogItemTable(name: String) : ULongIdTable(name) {
     val contentId = reference("content_id", ContentTable, onDelete = ReferenceOption.CASCADE).uniqueIndex()
 
     val coverUrl = varchar("cover_url", 255)
+    val previewUrl = varchar("preview_url", 255)
     val isPublic = bool("is_public").default(true)
     val isFeatured = bool("is_featured").default(false)
 

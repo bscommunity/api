@@ -26,6 +26,22 @@ It’s built with [Ktor](https://ktor.io/) and [Exposed](https://github.com/JetB
 - **Swagger documentation**  
   Interactive API docs for easy exploration.
 
+### 🧰 CLI tools
+
+- **Workshop backup**  
+  Exports every workshop message from a Discord channel into a folder or a single `.zip`.
+
+  ```bash
+  ./gradlew test
+  # or run the backup entrypoint from your IDE / custom run configuration
+  # arguments: <botToken> <channelId> <outputPath>
+  ```
+
+  The backup writes a `manifest.json` plus per-message files under `messages/<messageId>/`:
+  - `bundle.zip`
+  - `cover.png` when available
+  - `info.json`
+
 ## 📦 Project Structure
 
 - `src/main/kotlin/org/bscm/` — Main source code (Kotlin)
