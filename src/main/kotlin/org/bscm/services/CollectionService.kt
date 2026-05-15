@@ -7,8 +7,8 @@ import org.bscm.models.dto.collection.BatchCollectionItemRequest
 import org.bscm.models.dto.collection.BatchCollectionItemResponse
 import org.bscm.models.enums.ActionType
 import org.bscm.models.enums.ActivityType
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.ICollectionRepository
 import java.time.LocalDateTime
@@ -158,7 +158,7 @@ class CollectionService(
     suspend fun getCollectionItems(
         collectionId: UUID,
         userId: UUID? = null,
-        categories: List<ContentType>? = null,
+        categories: List<CatalogItemType>? = null,
         limit: Int? = null,
         offset: Int? = null
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>?> {
@@ -175,7 +175,7 @@ class CollectionService(
     suspend fun getSystemCollectionItems(
         userId: UUID,
         kind: CollectionKind,
-        categories: List<ContentType>? = null,
+        categories: List<CatalogItemType>? = null,
         limit: Int? = null,
         offset: Int? = null
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>?> {
@@ -276,17 +276,17 @@ class CollectionService(
         activityTypeForKind(kind, contentType)?.let { activityRepository.removeActivity(userId, it, contentId) }
     }
 
-    private fun activityTypeForKind(kind: CollectionKind, contentType: ContentType): ActivityType? = when (kind) {
-        CollectionKind.LIKES -> when (contentType) {
-            ContentType.CHART -> ActivityType.LIKED_CHART
-            ContentType.TOUR_PASS -> ActivityType.LIKED_TOUR_PASS
-            ContentType.THEME -> ActivityType.LIKED_THEME
+    private fun activityTypeForKind(kind: CollectionKind, catalogItemType: CatalogItemType): ActivityType? = when (kind) {
+        CollectionKind.LIKES -> when (catalogItemType) {
+            CatalogItemType.CHART -> ActivityType.LIKED_CHART
+            CatalogItemType.TOUR_PASS -> ActivityType.LIKED_TOUR_PASS
+            CatalogItemType.THEME -> ActivityType.LIKED_THEME
         }
 
-        CollectionKind.BOOKMARKS -> when (contentType) {
-            ContentType.CHART -> ActivityType.BOOKMARKED_CHART
-            ContentType.TOUR_PASS -> ActivityType.BOOKMARKED_TOUR_PASS
-            ContentType.THEME -> ActivityType.BOOKMARKED_THEME
+        CollectionKind.BOOKMARKS -> when (catalogItemType) {
+            CatalogItemType.CHART -> ActivityType.BOOKMARKED_CHART
+            CatalogItemType.TOUR_PASS -> ActivityType.BOOKMARKED_TOUR_PASS
+            CatalogItemType.THEME -> ActivityType.BOOKMARKED_THEME
         }
 
         CollectionKind.USER -> null

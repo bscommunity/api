@@ -5,8 +5,8 @@ import org.bscm.models.Collection
 import org.bscm.models.dao.CollectionEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.user.SimplifiedUser
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ICollectionRepository
 import org.bscm.models.interfaces.IThemeRepository
@@ -28,12 +28,12 @@ class CollectionRepository(
     private val tourPassRepository: ITourPassRepository
 ) : ICollectionRepository {
 
-    override suspend fun getContentType(contentId: String): ContentType? = newSuspendedTransaction {
-        ContentTable
-            .select(ContentTable.type)
-            .where { ContentTable.id eq contentId }
+    override suspend fun getContentType(contentId: String): CatalogItemType? = newSuspendedTransaction {
+        CatalogItemTable
+            .select(CatalogItemTable.type)
+            .where { CatalogItemTable.id eq contentId }
             .firstOrNull()
-            ?.get(ContentTable.type)
+            ?.get(CatalogItemTable.type)
     }
 
     // -------------------------------------------------------------------------
@@ -141,11 +141,11 @@ class CollectionRepository(
         // that was placed there most recently."
         val inner = CollectionItemTable.alias("inner")
         val latestItems = CollectionItemTable
-            .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
+            .innerJoin(CatalogItemTable, { CollectionItemTable.contentId }, { CatalogItemTable.id })
             .select(
                 CollectionItemTable.collectionId,
                 CollectionItemTable.contentId,
-                ContentTable.type
+                CatalogItemTable.type
             )
             .where {
                 (CollectionItemTable.collectionId inList collectionIds) and
@@ -158,7 +158,7 @@ class CollectionRepository(
             .toList()
 
         // Step 2 — group by content type so we can do one bulk query per type.
-        val byType = latestItems.groupBy { it[ContentTable.type] }
+        val byType = latestItems.groupBy { it[CatalogItemTable.type] }
 
         // Intermediate map: contentId (String) -> collectionId (UUID)
         // contentId is a String FK on CollectionItemTable, so .value yields String, not UUID.
@@ -169,7 +169,7 @@ class CollectionRepository(
         val result = mutableMapOf<UUID, String?>()
 
         // Step 3a — bulk-fetch Chart cover URLs
-        byType[ContentType.CHART]?.let { rows ->
+        byType[CatalogItemType.CHART]?.let { rows ->
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             ChartTable
                 .select(ChartTable.contentId, ChartTable.coverUrl)
@@ -182,7 +182,7 @@ class CollectionRepository(
         }
 
         // Step 3b — bulk-fetch Theme cover URLs
-        byType[ContentType.THEME]?.let { rows ->
+        byType[CatalogItemType.THEME]?.let { rows ->
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             ThemeTable
                 .select(ThemeTable.contentId, ThemeTable.coverUrl)
@@ -195,7 +195,7 @@ class CollectionRepository(
         }
 
         // Step 3c — bulk-fetch TourPass cover URLs
-        byType[ContentType.TOUR_PASS]?.let { rows ->
+        byType[CatalogItemType.TOUR_PASS]?.let { rows ->
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             TourPassTable
                 .select(TourPassTable.contentId, TourPassTable.coverUrl)
@@ -215,16 +215,16 @@ class CollectionRepository(
 
     private fun getItemsCount(collectionId: UUID): Triple<Int, Int, Int> {
         val query = CollectionItemTable
-            .innerJoin(ContentTable, { contentId }, { id })
-            .select(CollectionItemTable.collectionId, ContentTable.type)
+            .innerJoin(CatalogItemTable, { contentId }, { id })
+            .select(CollectionItemTable.collectionId, CatalogItemTable.type)
             .where { CollectionItemTable.collectionId eq collectionId }
 
         val rows = query.toList()
-        val counts = rows.groupBy { it[ContentTable.type] }.mapValues { it.value.size }
+        val counts = rows.groupBy { it[CatalogItemTable.type] }.mapValues { it.value.size }
         return Triple(
-            counts[ContentType.CHART] ?: 0,
-            counts[ContentType.TOUR_PASS] ?: 0,
-            counts[ContentType.THEME] ?: 0
+            counts[CatalogItemType.CHART] ?: 0,
+            counts[CatalogItemType.TOUR_PASS] ?: 0,
+            counts[CatalogItemType.THEME] ?: 0
         )
     }
 
@@ -232,8 +232,8 @@ class CollectionRepository(
         if (collectionIds.isEmpty()) return emptyMap()
 
         val query = CollectionItemTable
-            .innerJoin(ContentTable, { contentId }, { id })
-            .select(CollectionItemTable.collectionId, ContentTable.type)
+            .innerJoin(CatalogItemTable, { contentId }, { id })
+            .select(CollectionItemTable.collectionId, CatalogItemTable.type)
             .where { CollectionItemTable.collectionId inList collectionIds }
 
         val rows = query.toList()
@@ -241,10 +241,10 @@ class CollectionRepository(
         val result = mutableMapOf<UUID, Triple<Int, Int, Int>>()
 
         for ((colId, rows) in grouped) {
-            val counts = rows.groupBy { it[ContentTable.type] }.mapValues { it.value.size }
-            val chart = counts[ContentType.CHART] ?: 0
-            val tour = counts[ContentType.TOUR_PASS] ?: 0
-            val theme = counts[ContentType.THEME] ?: 0
+            val counts = rows.groupBy { it[CatalogItemTable.type] }.mapValues { it.value.size }
+            val chart = counts[CatalogItemType.CHART] ?: 0
+            val tour = counts[CatalogItemType.TOUR_PASS] ?: 0
+            val theme = counts[CatalogItemType.THEME] ?: 0
             result[colId] = Triple(chart, tour, theme)
         }
 
@@ -435,7 +435,7 @@ class CollectionRepository(
         val now = LocalDateTime.now()
         val result = CollectionItemTable.insertIgnore {
             it[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
-            it[CollectionItemTable.contentId] = EntityID(contentId, ContentTable)
+            it[CollectionItemTable.contentId] = EntityID(contentId, CatalogItemTable)
             it[CollectionItemTable.addedAt] = now
         }
 
@@ -481,7 +481,7 @@ class CollectionRepository(
     private suspend fun getCollectionItemsByCondition(
         collectionFilter: Op<Boolean>,
         accessFilter: Op<Boolean>,
-        categories: List<ContentType>?,
+        categories: List<CatalogItemType>?,
         limit: Int?,
         offset: Int?
     ): List<CatalogItem> = newSuspendedTransaction {
@@ -498,17 +498,17 @@ class CollectionRepository(
         val categoryFilter: Op<Boolean> = when {
             categories.isNullOrEmpty() -> Op.TRUE
             else -> CollectionItemTable.contentId inSubQuery
-                    ContentTable.select(ContentTable.id).where { ContentTable.type inList categories }
+                    CatalogItemTable.select(CatalogItemTable.id).where { CatalogItemTable.type inList categories }
         }
 
         var itemsQuery = CollectionItemTable
             .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
+            .innerJoin(CatalogItemTable, { CollectionItemTable.contentId }, { CatalogItemTable.id })
             .select(
                 CollectionItemTable.collectionId,
                 CollectionItemTable.contentId,
                 CollectionItemTable.addedAt,
-                ContentTable.type
+                CatalogItemTable.type
             )
             .where { collectionFilter and categoryFilter and accessFilter }
             .orderBy(CollectionItemTable.addedAt to SortOrder.DESC)
@@ -527,11 +527,11 @@ class CollectionRepository(
         }
 
         // Group by type → one bulk fetch per type (3 queries max instead of N queries).
-        val byType = items.groupBy { it[ContentTable.type] }
+        val byType = items.groupBy { it[CatalogItemTable.type] }
         val catalogItems = mutableListOf<CatalogItem>()
 
         // Fetch Charts
-        byType[ContentType.CHART]?.let { rows ->
+        byType[CatalogItemType.CHART]?.let { rows ->
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             val (charts, _) = chartRepository.getCharts(
                 filters = ChartRepository.ChartFilters(contentIds = ids),
@@ -541,7 +541,7 @@ class CollectionRepository(
         }
 
         // Fetch Themes
-        byType[ContentType.THEME]?.let { rows ->
+        byType[CatalogItemType.THEME]?.let { rows ->
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             catalogItems.addAll(
                 themeRepository.getThemes(contentIds = ids, search = null, limit = null, offset = null)
@@ -549,7 +549,7 @@ class CollectionRepository(
         }
 
         // Fetch TourPasses
-        byType[ContentType.TOUR_PASS]?.let { rows ->
+        byType[CatalogItemType.TOUR_PASS]?.let { rows ->
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             catalogItems.addAll(
                 tourPassRepository.getTourPasses(
@@ -571,7 +571,7 @@ class CollectionRepository(
     override suspend fun getCollectionItems(
         collectionId: UUID,
         userId: UUID?,
-        categories: List<ContentType>?,
+        categories: List<CatalogItemType>?,
         limit: Int?,
         offset: Int?
     ): List<CatalogItem> {
@@ -596,7 +596,7 @@ class CollectionRepository(
     override suspend fun getCollectionItemsByKind(
         userId: UUID,
         kind: CollectionKind,
-        categories: List<ContentType>?,
+        categories: List<CatalogItemType>?,
         limit: Int?,
         offset: Int?
     ): List<CatalogItem> {
@@ -620,16 +620,16 @@ class CollectionRepository(
 
         val rows = CollectionItemTable
             .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
-            .select(ContentTable.type, countColumn)
+            .innerJoin(CatalogItemTable, { CollectionItemTable.contentId }, { CatalogItemTable.id })
+            .select(CatalogItemTable.type, countColumn)
             .where { condition }
-            .groupBy(ContentTable.type)
-            .associate { it[ContentTable.type] to it[countColumn].toInt() }
+            .groupBy(CatalogItemTable.type)
+            .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
 
         Triple(
-            rows[ContentType.CHART] ?: 0,
-            rows[ContentType.TOUR_PASS] ?: 0,
-            rows[ContentType.THEME] ?: 0
+            rows[CatalogItemType.CHART] ?: 0,
+            rows[CatalogItemType.TOUR_PASS] ?: 0,
+            rows[CatalogItemType.THEME] ?: 0
         )
     }
 
@@ -704,7 +704,7 @@ class CollectionRepository(
         if (toInsert.isNotEmpty()) {
             CollectionItemTable.batchInsert(data = toInsert, ignore = true) { id ->
                 this[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
-                this[CollectionItemTable.contentId] = EntityID(id, ContentTable)
+                this[CollectionItemTable.contentId] = EntityID(id, CatalogItemTable)
                 this[CollectionItemTable.addedAt] = now
             }
             collection.updatedAt = now

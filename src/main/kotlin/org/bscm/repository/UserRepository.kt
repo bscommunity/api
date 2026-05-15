@@ -12,8 +12,8 @@ import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileCounts
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.*
 import org.bscm.models.tables.*
 import org.jetbrains.exposed.sql.*
@@ -178,9 +178,9 @@ class UserRepository(
         offset: Int
     ): List<CatalogItem> = newSuspendedTransaction {
         // Get content IDs for the user's charts
-        val contentQuery = ContentTable
-            .innerJoin(ChartTable, { ContentTable.id }, { ChartTable.contentId })
-            .select(ContentTable.id, ContentTable.type)
+        val contentQuery = CatalogItemTable
+            .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.contentId })
+            .select(CatalogItemTable.id, CatalogItemTable.type)
             .where { ChartTable.authorId eq userId }
 
         // Apply text search on chart metadata if query is provided
@@ -198,7 +198,7 @@ class UserRepository(
         // Apply limit and offset
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
 
-        val contentIds = paginatedQuery.map { it[ContentTable.id].value }
+        val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
         if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
 
@@ -223,9 +223,9 @@ class UserRepository(
         offset: Int
     ): List<CatalogItem> = newSuspendedTransaction {
         // Get content IDs for the user's tour passes
-        val contentQuery = ContentTable
-            .innerJoin(TourPassTable, { ContentTable.id }, { TourPassTable.contentId })
-            .select(ContentTable.id, ContentTable.type)
+        val contentQuery = CatalogItemTable
+            .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.contentId })
+            .select(CatalogItemTable.id, CatalogItemTable.type)
             .where { TourPassTable.authorId eq userId }
 
         // Apply text search on tour pass metadata if query is provided
@@ -242,7 +242,7 @@ class UserRepository(
         // Apply limit and offset
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
 
-        val contentIds = paginatedQuery.map { it[ContentTable.id].value }
+        val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
         if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
 
@@ -268,9 +268,9 @@ class UserRepository(
         offset: Int
     ): List<CatalogItem> = newSuspendedTransaction {
         // Get content IDs for the user's themes
-        val contentQuery = ContentTable
-            .innerJoin(ThemeTable, { ContentTable.id }, { ThemeTable.contentId })
-            .select(ContentTable.id, ContentTable.type)
+        val contentQuery = CatalogItemTable
+            .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.contentId })
+            .select(CatalogItemTable.id, CatalogItemTable.type)
             .where { ThemeTable.authorId eq userId }
 
         // Apply text search on theme metadata if query is provided
@@ -287,7 +287,7 @@ class UserRepository(
         // Apply limit and offset
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
 
-        val contentIds = paginatedQuery.map { it[ContentTable.id].value }
+        val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
         if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
 
@@ -313,19 +313,19 @@ class UserRepository(
             val countColumn = CollectionItemTable.id.count()
             val rows = CollectionItemTable
                 .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-                .innerJoin(ContentTable, { CollectionItemTable.contentId }, { ContentTable.id })
-                .select(ContentTable.type, countColumn)
+                .innerJoin(CatalogItemTable, { CollectionItemTable.contentId }, { CatalogItemTable.id })
+                .select(CatalogItemTable.type, countColumn)
                 .where {
                     (CollectionTable.userId eq userId) and
                     (CollectionTable.kind eq kind)
                 }
-                .groupBy(ContentTable.type)
-                .associate { it[ContentTable.type] to it[countColumn].toInt() }
+                .groupBy(CatalogItemTable.type)
+                .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
 
             return Triple(
-                rows[ContentType.CHART] ?: 0,
-                rows[ContentType.TOUR_PASS] ?: 0,
-                rows[ContentType.THEME] ?: 0
+                rows[CatalogItemType.CHART] ?: 0,
+                rows[CatalogItemType.TOUR_PASS] ?: 0,
+                rows[CatalogItemType.THEME] ?: 0
             )
         }
 

@@ -1,9 +1,9 @@
 package org.bscm.migrations
 
 import io.ktor.util.logging.*
-import org.bscm.models.enums.ContentType
+import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ChartTable
-import org.bscm.models.tables.ContentTable
 import org.bscm.models.tables.ContributorTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -54,8 +54,8 @@ fun main(args: Array<String>) {
             val userId = contributor[ContributorTable.userId]
 
             // Step 3: Create a new content entry
-            val contentId = ContentTable.insertAndGetId {
-                it[type] = ContentType.CHART
+            val contentId = CatalogItemTable.insertAndGetId {
+                it[type] = CatalogItemType.CHART
                 it[createdAt] = LocalDateTime.now()
             }
 

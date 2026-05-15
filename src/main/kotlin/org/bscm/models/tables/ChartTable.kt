@@ -1,23 +1,33 @@
 package org.bscm.models.tables
 
-import org.bscm.models.enums.Genre
+import org.bscm.models.enums.Difficulty
+import org.jetbrains.exposed.dao.id.ULongIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
 
 // CatalogItemTable brings contentId, contentId, coverUrl, isPublic, isFeatured, downloadsSum, latestPublishedAt, author
-object ChartTable : CatalogItemTable("charts") {
-    val artist = varchar("artist", 200)
-    val track = varchar("track", 200)
-    val album = varchar("album", 200).nullable()
-    val genre = enumerationByName("genres", 20, Genre::class).nullable()
-    val trackPreviewUrl = varchar("track_preview_url", 255).nullable()
+object ChartTable : ULongIdTable("charts") {
+    val catalogId =
+        reference(
+            "catalog_item_id",
+            CatalogItemTable,
+            onDelete = ReferenceOption.CASCADE
+        ).uniqueIndex()
 
-    val normalizedArtist = varchar("normalized_artist", 200).nullable().index()
-    val normalizedTrack = varchar("normalized_track", 200).nullable().index()
-    val normalizedAlbum = varchar("normalized_album", 200).nullable().index()
+    val versionsCount =
+        integer("versions_count")
+            .default(0)
 
-    val latestVersionId = reference("latest_version_id", VersionTable, ReferenceOption.CASCADE).nullable()
+    val latestVersionId =
+        reference(
+            "latest_version_id",
+            VersionTable,
+            onDelete = ReferenceOption.SET_NULL
+        ).nullable()
 
-    init {
-        index(false, normalizedArtist, normalizedTrack, normalizedAlbum)
-    }
+    val difficulty = enumerationByName("difficulty", 10, Difficulty::class)
+    val notesAmount = integer("notes_amount")
+    val effectsAmount = integer("effects_amount")
+
+    val isDeluxe = bool("is_deluxe").default(false)
+    val isExplicit = bool("is_explicit").default(false)
 }

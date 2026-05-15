@@ -6,7 +6,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.utils.StreamingPlatformUtils
 
 class MusicbrainzClient(
@@ -50,17 +50,17 @@ class MusicbrainzClient(
         return data.relations
     }
 
-    suspend fun resolve(query: String): List<StreamingLink> {
+    suspend fun resolve(query: String): List<StreamingRef> {
         val recordingIds = fetchMusicBrainzRecordingIds(query)
         if (recordingIds.isEmpty()) return emptyList()
 
-        val streamingLinks = mutableListOf<StreamingLink>()
+        val streamingLinks = mutableListOf<StreamingRef>()
         for (recordingId in recordingIds) {
             val relations = fetchMusicBrainzRelations(recordingId)
             relations.forEach { relation ->
                 relation.url?.resource?.let { url ->
                     StreamingPlatformUtils.fromKey(relation.type ?: "unknown")?.let { platform ->
-                        streamingLinks.add(StreamingLink(platform, url))
+                        streamingLinks.add(StreamingRef(platform, url))
                     }
                 }
             }

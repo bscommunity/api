@@ -1,7 +1,7 @@
 package org.bscm.utils
 
 import io.ktor.util.logging.*
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.models.enums.StreamingPlatform
 import java.net.URI
 import java.net.URISyntaxException
@@ -141,6 +141,18 @@ object StreamingPlatformUtils {
     }
 
     /**
+     * Canonicalizes a streaming URL for persistence and deduplication.
+     *
+     * Today this is primarily:
+     *  - `trim()`
+     *  - remove known tracking parameters (utm_*, fbclid, gclid, ref, ...)
+     *
+     * Keep this as the single source of truth for URL normalization so that
+     * DB uniqueness (`streaming_links.url`) matches what we dedupe in-memory.
+     */
+    fun normalizeUrl(url: String): String = stripTrackingParams(url)
+
+    /**
      * Processes and prioritizes streaming links
      * Prioritizes URLs with platform keywords, "music" subdomain, and smallest length
      *
@@ -149,9 +161,9 @@ object StreamingPlatformUtils {
      * @return Deduplicated and prioritized list of streaming links
      */
     fun processLinksWithPrioritization(
-        links: List<StreamingLink>,
+        links: List<StreamingRef>,
         useKeyForDetection: Boolean = false
-    ): List<StreamingLink> {
+    ): List<StreamingRef> {
         val linkMap = mutableMapOf<String, LinkData>()
 
         // Process all links
@@ -205,7 +217,7 @@ object StreamingPlatformUtils {
 
         // Convert to final format and log
         return linkMap.values.map { data ->
-            StreamingLink(data.platform, data.url)
+            StreamingRef(data.platform, data.url)
         }
     }
 
@@ -231,7 +243,7 @@ object StreamingPlatformUtils {
      * @param links List of StreamingLink objects to serialize
      * @return Compact string representation of links
      */
-    fun serializeLinks(links: List<StreamingLink>): String {
+    fun serializeLinks(links: List<StreamingRef>): String {
         return links.joinToString("||") { link ->
             val cleanedUrl = stripTrackingParams(link.url)
             var path = cleanedUrl.removePrefix("https://").removePrefix("http://")
@@ -256,7 +268,7 @@ object StreamingPlatformUtils {
      * @return List of StreamingLink objects
      * @throws IllegalArgumentException if format is invalid or platform ID is unknown
      */
-    fun deserializeLinks(serialized: String): List<StreamingLink> {
+    fun deserializeLinks(serialized: String): List<StreamingRef> {
         if (serialized.isBlank()) return emptyList()
 
         return serialized.split("||").mapNotNull { entry ->
@@ -283,7 +295,7 @@ object StreamingPlatformUtils {
             val baseDomain = PLATFORM_TO_BASE_DOMAIN[platform] ?: ""
             val fullUrl = "https://$baseDomain$path"
 
-            StreamingLink(platform, stripTrackingParams(fullUrl))
+            StreamingRef(platform, stripTrackingParams(fullUrl))
         }
     }
 
@@ -293,7 +305,7 @@ object StreamingPlatformUtils {
      * @param links List of StreamingLink objects
      * @return Pair of (original bytes, serialized bytes)
      */
-    fun calculateSerializationSavings(links: List<StreamingLink>): Pair<Int, Int> {
+    fun calculateSerializationSavings(links: List<StreamingRef>): Pair<Int, Int> {
         val originalSize = links.sumOf { it.url.length + it.platform.name.length }
         val serializedSize = serializeLinks(links).length
         return Pair(originalSize, serializedSize)

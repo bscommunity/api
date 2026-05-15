@@ -1,6 +1,6 @@
 package org.bscm.models.dao
 
-import org.bscm.models.tables.TourPassStreamingLinkTable
+import org.bscm.models.tables.TourPassStreamingRefTable
 import org.bscm.models.tables.TourPassTable
 import org.jetbrains.exposed.dao.ULongEntity
 import org.jetbrains.exposed.dao.ULongEntityClass
@@ -14,7 +14,7 @@ class TourPassEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var description by TourPassTable.description
     var artist by TourPassTable.artist
     var coverUrl by TourPassTable.coverUrl
-    val playlistUrls by StreamingLinkEntity.via(TourPassStreamingLinkTable.tourPassId, TourPassStreamingLinkTable.streamingLinkId)
+    val playlistUrls by StreamingLinkEntity.via(TourPassStreamingRefTable.tourPassId, TourPassStreamingRefTable.streamingLinkId)
     var isPublic by TourPassTable.isPublic
     var isFeatured by TourPassTable.isFeatured
     var downloadsSum by TourPassTable.downloadsSum

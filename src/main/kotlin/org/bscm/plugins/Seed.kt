@@ -3,8 +3,7 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import io.ktor.util.logging.*
 import kotlinx.coroutines.*
-import org.bscm.models.Changelog
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
@@ -126,11 +125,11 @@ private suspend fun generateRandomCharts(
                             track = getRandomTrack(),
                             album = if (Random.nextBoolean()) getRandomAlbum() else null,
                             trackUrls = listOf(
-                                StreamingLink(
+                                StreamingRef(
                                     platform = StreamingPlatform.SPOTIFY,
                                     url = "https://open.spotify.com/track/${getRandomId()}",
                                 ),
-                                StreamingLink(
+                                StreamingRef(
                                     platform = StreamingPlatform.YOUTUBE_MUSIC,
                                     url = "https://www.youtube.com/watch?v=${getRandomId()}",
                                 ),

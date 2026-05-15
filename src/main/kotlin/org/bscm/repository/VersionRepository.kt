@@ -1,7 +1,6 @@
 package org.bscm.repository
 
-import org.bscm.models.Changelog
-import org.bscm.models.Version
+import org.bscm.models.ChartVersion
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.mappers.VersionMapper.rowToVersion
@@ -62,7 +61,7 @@ class VersionRepository : IVersionRepository {
      * The index is computed with a lightweight COUNT query scoped to versions
      * created at or before this one — correct and isolated to one row.
      */
-    override suspend fun getVersionById(id: ULong): Version? = newSuspendedTransaction {
+    override suspend fun getVersionById(id: ULong): ChartVersion? = newSuspendedTransaction {
         val row = VersionTable
             .selectAll()
             .where { VersionTable.id eq id }
@@ -90,7 +89,7 @@ class VersionRepository : IVersionRepository {
      * Uses calculateVersionIndices() so index computation is a single query
      * regardless of how many versions the chart has.
      */
-    override suspend fun getVersions(chartId: ULong): List<Version> = newSuspendedTransaction {
+    override suspend fun getVersions(chartId: ULong): List<ChartVersion> = newSuspendedTransaction {
         val rows = VersionTable
             .selectAll()
             .where { VersionTable.chartId eq chartId }
@@ -113,7 +112,7 @@ class VersionRepository : IVersionRepository {
      * Bug fix: the previous implementation loaded ALL versions for all charts
      * and called distinctBy() in memory, defeating the purpose of latestVersionId.
      */
-    override suspend fun getLatestVersionsByChartIds(chartIds: List<ULong>): List<Version> =
+    override suspend fun getLatestVersionsByChartIds(chartIds: List<ULong>): List<ChartVersion> =
         newSuspendedTransaction {
             if (chartIds.isEmpty()) return@newSuspendedTransaction emptyList()
 
@@ -149,7 +148,7 @@ class VersionRepository : IVersionRepository {
      * Bug fix: changelog UUIDs are now assigned here consistently, regardless
      * of which overload is called.
      */
-    override suspend fun addVersion(chartId: ULong, version: CreateVersionRequest): Version =
+    override suspend fun addVersion(chartId: ULong, version: CreateVersionRequest): ChartVersion =
         newSuspendedTransaction {
             // Count existing versions to derive the new index without an extra query after insert
             val existingCount = VersionTable

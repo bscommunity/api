@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import org.bscm.models.enums.StreamingPlatform
 
 @Serializable
-data class StreamingLink(
+data class StreamingRef(
     val platform: StreamingPlatform,
-    val url: String
+    val externalId: String
 )

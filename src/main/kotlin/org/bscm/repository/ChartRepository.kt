@@ -3,9 +3,9 @@ package org.bscm.repository
 import io.ktor.server.plugins.*
 import io.ktor.util.logging.*
 import org.bscm.models.Chart
+import org.bscm.models.ChartVersion
 import org.bscm.models.Contributor
-import org.bscm.models.StreamingLink
-import org.bscm.models.Version
+import org.bscm.models.StreamingRef
 import org.bscm.models.dao.*
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
@@ -89,16 +89,16 @@ class ChartRepository : BaseRepository(), IChartRepository {
 
     private fun toStreamingLink(
         entity: StreamingLinkEntity
-    ): StreamingLink = StreamingLink(
+    ): StreamingRef = StreamingRef(
         platform = entity.platform,
         url = entity.url,
     )
 
     private fun toChart(
         entity: ChartEntity,
-        versions: List<Version>,
+        versions: List<ChartVersion>,
         contributors: List<Contributor>? = null,
-        streamingLinks: List<StreamingLink>? = null,
+        streamingLinks: List<StreamingRef>? = null,
         likedAt: LocalDateTime? = null,
         bookmarkedAt: LocalDateTime? = null,
     ): Chart {
@@ -107,7 +107,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
 
         return Chart(
             id = entity.id.value.toString(),
-            contentId = entity.contentId.value,
+            contentId = entity.catalogId.value,
             track = entity.track,
             artist = entity.artist,
             album = entity.album,
@@ -267,10 +267,10 @@ class ChartRepository : BaseRepository(), IChartRepository {
 
         if (fetchStreamingLinks) {
             query.adjustColumnSet {
-                leftJoin(ChartStreamingLinkTable, { ChartTable.id }, { ChartStreamingLinkTable.chartId })
+                leftJoin(TrackStreamingRefTable, { ChartTable.id }, { TrackStreamingRefTable.chartId })
                     .leftJoin(
                         StreamingLinkTable,
-                        { ChartStreamingLinkTable.streamingLinkId },
+                        { TrackStreamingRefTable.streamingLinkId },
                         { StreamingLinkTable.id })
             }
             columnsToSelect.addAll(StreamingLinkTable.columns)
@@ -480,7 +480,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
                 streamingLinks = streamingLinks,
                 versions = versions,
                 contributors = contributors,
-                userStats = userStats[chartEntity.contentId.value] ?: Pair(null, null)
+                userStats = userStats[chartEntity.catalogId.value] ?: Pair(null, null)
             )
         }
     }
@@ -595,13 +595,13 @@ class ChartRepository : BaseRepository(), IChartRepository {
         // Create the content entry first
         val content = retryOnConflict {
             ContentEntity.new(chart.contentId) {
-                this.type = ContentType.CHART
+                this.type = CatalogItemType.CHART
             }
         }
 
         // Create the chart
         val newChart = ChartEntity.new(chart.id) {
-            this.contentId = content.id
+            this.catalogId = content.id
             this.artist = chart.artist
             this.track = chart.track
             this.album = chart.album
@@ -613,11 +613,11 @@ class ChartRepository : BaseRepository(), IChartRepository {
 
         flushCache()
 
-        val resolvedStreamingLinks = StreamingLinkRepositorySupport.resolveOrCreateLinks(chart.trackUrls)
+        val resolvedStreamingLinks = StreamingLinkRepository.resolveOrCreateLinks(chart.trackUrls)
 
-        ChartStreamingLinkTable.batchInsert(resolvedStreamingLinks.ids) { streamingLinkId ->
-            this[ChartStreamingLinkTable.chartId] = newChart.id
-            this[ChartStreamingLinkTable.streamingLinkId] = streamingLinkId
+        TrackStreamingRefTable.batchInsert(resolvedStreamingLinks.ids) { streamingLinkId ->
+            this[TrackStreamingRefTable.chartId] = newChart.id
+            this[TrackStreamingRefTable.streamingLinkId] = streamingLinkId
         }
 
         /* HANDLING CONTRIBUTORS ================ */
@@ -692,7 +692,7 @@ class ChartRepository : BaseRepository(), IChartRepository {
 
     override suspend fun deleteChartAndGetContentId(id: ULong): String? = newSuspendedTransaction {
         val chart = ChartEntity.findById(id) ?: return@newSuspendedTransaction null
-        val contentId = chart.contentId.value
+        val contentId = chart.catalogId.value
         chart.delete()
         contentId
     }

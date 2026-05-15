@@ -1,6 +1,6 @@
 package org.bscm.services.media
 
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.PreviewProvider
 
@@ -10,7 +10,7 @@ data class MediaInfoResult(
     val track: String,
     val artist: String,
     val genre: Genre?,
-    val link: StreamingLink,
+    val link: StreamingRef,
     val previewProvider: PreviewProvider?,
     val previewProviderTrackId: String?,
     val isExplicit: Boolean

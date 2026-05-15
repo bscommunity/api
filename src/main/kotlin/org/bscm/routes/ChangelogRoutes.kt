@@ -5,7 +5,6 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.Changelog
 import org.bscm.models.interfaces.IChangelogRepository
 import java.util.*
 

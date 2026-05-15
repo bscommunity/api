@@ -2,7 +2,7 @@ package org.bscm.services
 
 import io.ktor.util.logging.*
 import org.bscm.models.Chart
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.models.User
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.SimplifiedVersion
@@ -33,7 +33,7 @@ class ChartPublishService(
         val coverUrl: String? = null,
         val bpm: Int? = null,
         val isDeluxe: Boolean? = null,
-        val trackUrls: List<StreamingLink>? = null,
+        val trackUrls: List<StreamingRef>? = null,
         val album: String? = null,
         val genre: Genre? = null,
     )

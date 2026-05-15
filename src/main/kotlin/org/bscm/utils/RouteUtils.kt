@@ -3,7 +3,7 @@ package org.bscm.utils
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import org.bscm.models.enums.ContentType
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.plugins.UnauthorizedException
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import java.util.*
@@ -28,11 +28,11 @@ fun ApplicationCall.getUserIdOrNull(): UUID? {
  * Extracts a ContentType from query parameters if present.
  * @return ContentType enum value or null if not present or invalid
  */
-fun ApplicationCall.getContentTypeOrNull(): List<ContentType>? {
+fun ApplicationCall.getContentTypeOrNull(): List<CatalogItemType>? {
     val typeParam = request.queryParameters["types"] ?: return null
     return typeParam.split(',').mapNotNull {
         try {
-            ContentType.valueOf(it.trim().uppercase())
+            CatalogItemType.valueOf(it.trim().uppercase())
         } catch (e: IllegalArgumentException) {
             null // ignore invalid content types
         }

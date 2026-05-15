@@ -1,7 +1,6 @@
 package org.bscm.repository
 
 import io.ktor.server.plugins.*
-import org.bscm.models.Changelog
 import org.bscm.models.dao.ChartEntity
 import org.bscm.models.interfaces.IChangelogRepository
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction

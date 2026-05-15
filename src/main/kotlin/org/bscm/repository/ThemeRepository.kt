@@ -5,7 +5,7 @@ import org.bscm.models.Theme
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.ThemeEntity
 import org.bscm.models.dao.UserEntity
-import org.bscm.models.enums.ContentType
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.ThemeTable
 import org.bscm.utils.UserStatsUtils
@@ -118,7 +118,7 @@ class ThemeRepository : BaseRepository(), IThemeRepository {
         // Generate a unique content entry
         val content = retryOnConflict {
             ContentEntity.new {
-                this.type = ContentType.THEME
+                this.type = CatalogItemType.THEME
             }
         }
 

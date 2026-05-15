@@ -6,8 +6,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.user.ContentCounts
 import org.bscm.models.dto.user.ItemsPage
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.repository.ChartRepository
 import org.bscm.services.CollectionService
@@ -110,7 +110,7 @@ fun Route.meRoutes(
                 // Parse ?types=charts,themes,tourPasses — null means "all"
                 val requestedTypes = call.request.queryParameters["types"]
                     ?.split(",")
-                    ?.mapNotNull { runCatching { ContentType.valueOf(it.trim()) }.getOrNull() }
+                    ?.mapNotNull { runCatching { CatalogItemType.valueOf(it.trim()) }.getOrNull() }
 
                 val (items, counts) = collectionService.getSystemCollectionItems(
                     userId = userId,
@@ -187,7 +187,7 @@ fun Route.meRoutes(
                 // Parse ?types=charts,themes,tourPasses — null means "all"
                 val requestedTypes = call.request.queryParameters["types"]
                     ?.split(",")
-                    ?.mapNotNull { runCatching { ContentType.valueOf(it.trim()) }.getOrNull() }
+                    ?.mapNotNull { runCatching { CatalogItemType.valueOf(it.trim()) }.getOrNull() }
 
                 val (items, counts) = collectionService.getSystemCollectionItems(
                     userId = userId,

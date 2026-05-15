@@ -6,7 +6,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.utils.StreamingPlatformUtils
 
 class OdesliClient(
@@ -21,7 +21,7 @@ class OdesliClient(
     @Serializable
     data class OdesliLink(val url: String)
 
-    suspend fun resolve(url: String): List<StreamingLink> {
+    suspend fun resolve(url: String): List<StreamingRef> {
         val response = client.get("$baseUrl/links?url=$url")
         if (!response.status.isSuccess()) return emptyList()
 
@@ -31,7 +31,7 @@ class OdesliClient(
 
         return data.linksByPlatform.mapNotNull { (key, value) ->
             StreamingPlatformUtils.fromKey(key)?.let { platform ->
-                StreamingLink(platform, value.url)
+                StreamingRef(platform, value.url)
             }
         }
     }

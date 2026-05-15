@@ -1,4 +1,0 @@
-ALTER TABLE charts ALTER COLUMN content_id TYPE VARCHAR(16), ALTER COLUMN content_id SET NOT NULL;
-ALTER TABLE charts ALTER COLUMN author_id TYPE uuid, ALTER COLUMN author_id SET NOT NULL;
-ALTER TABLE themes ALTER COLUMN author_id TYPE uuid, ALTER COLUMN author_id SET NOT NULL;
-ALTER TABLE tour_passes ALTER COLUMN author_id TYPE uuid, ALTER COLUMN author_id SET NOT NULL;

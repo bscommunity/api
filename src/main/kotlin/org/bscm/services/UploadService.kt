@@ -12,9 +12,9 @@ import org.bscm.clients.applicationHttpClient
 import org.bscm.clients.jsonClient
 import org.bscm.interactions.*
 import org.bscm.models.Chart
-import org.bscm.models.StreamingLink
+import org.bscm.models.ChartVersion
+import org.bscm.models.StreamingRef
 import org.bscm.models.User
-import org.bscm.models.Version
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
@@ -53,7 +53,7 @@ class UploadService(
     data class PublishContext(
         val contentId: String? = null,
         val submittedBy: SubmittedBy,
-        val trackUrls: List<StreamingLink> = emptyList(),
+        val trackUrls: List<StreamingRef> = emptyList(),
     )
 
     data class TourPassPublishData(
@@ -191,7 +191,7 @@ class UploadService(
         return contentId?.let { "https://bscm.netlify.app/link/$type/$it" } ?: "https://bscm.netlify.app/"
     }
 
-    private fun buildComponents(trackUrls: List<StreamingLink>): List<ActionRow> {
+    private fun buildComponents(trackUrls: List<StreamingRef>): List<ActionRow> {
         if (trackUrls.isEmpty()) return emptyList()
 
         // Discord constraints
@@ -535,7 +535,7 @@ class UploadService(
     suspend fun deleteVersion(
         messageId: String,
         track: String,
-        versions: List<Version>,
+        versions: List<ChartVersion>,
         versionId: String
     ): Boolean {
         val remainingVersions = versions.filter { it.id != versionId }

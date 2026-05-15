@@ -1,8 +1,8 @@
 package org.bscm.models.dao
 
-import org.bscm.models.tables.ChartStreamingLinkTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.ContributorTable
+import org.bscm.models.tables.TrackStreamingRefTable
 import org.bscm.models.tables.VersionTable
 import org.jetbrains.exposed.dao.ULongEntity
 import org.jetbrains.exposed.dao.ULongEntityClass
@@ -11,8 +11,7 @@ import org.jetbrains.exposed.dao.id.EntityID
 class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
     companion object : ULongEntityClass<ChartEntity>(ChartTable)
 
-    var contentId by ChartTable.contentId
-    var authorId by ChartTable.authorId
+    var catalogId by ChartTable.catalogId
     val contributors by ContributorEntity referrersOn ContributorTable.chartId
 
     var artist by ChartTable.artist
@@ -34,7 +33,7 @@ class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
     var latestUpdatedAt by ChartTable.latestUpdatedAt
 
     // Updated: Many-to-many relationship through junction table
-    val trackUrls by StreamingLinkEntity.via(ChartStreamingLinkTable.chartId, ChartStreamingLinkTable.streamingLinkId)
+    val trackUrls by StreamingLinkEntity.via(TrackStreamingRefTable.chartId, TrackStreamingRefTable.streamingLinkId)
 
     val versions by VersionEntity referrersOn VersionTable.chartId
     var latestVersion by VersionEntity optionalReferencedOn ChartTable.latestVersionId

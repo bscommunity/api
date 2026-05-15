@@ -2,16 +2,16 @@ package org.bscm.repository
 
 import io.ktor.server.plugins.*
 import org.bscm.models.Chart
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
 import org.bscm.models.dao.ContentEntity
 import org.bscm.models.dao.TourPassEntity
 import org.bscm.models.dao.UserEntity
-import org.bscm.models.enums.ContentType
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.TourPassChartTable
-import org.bscm.models.tables.TourPassStreamingLinkTable
+import org.bscm.models.tables.TourPassStreamingRefTable
 import org.bscm.models.tables.TourPassTable
 import org.bscm.utils.UserStatsUtils
 import org.bscm.utils.retryOnConflict
@@ -32,7 +32,7 @@ class TourPassRepository(
         bookmarkedAt: LocalDateTime? = null
     ): TourPass {
         val playlistUrls = entity.playlistUrls.map {
-            StreamingLink(platform = it.platform, url = it.url)
+            StreamingRef(platform = it.platform, url = it.url)
         }
 
         return TourPass(
@@ -129,14 +129,14 @@ class TourPassRepository(
         description: String?,
         artist: String?,
         coverUrl: String,
-        playlistUrls: List<StreamingLink>?,
+        playlistUrls: List<StreamingRef>?,
         chartIds: List<ULong>?,
         id: ULong?
     ): TourPass = newSuspendedTransaction {
         // Create new content entry
         val content = retryOnConflict {
             ContentEntity.new {
-                this.type = ContentType.TOUR_PASS
+                this.type = CatalogItemType.TOUR_PASS
             }
         }
 
@@ -185,7 +185,7 @@ class TourPassRepository(
         description: String?,
         artist: String?,
         coverUrl: String?,
-        playlistUrls: List<StreamingLink>?,
+        playlistUrls: List<StreamingRef>?,
         chartIds: List<ULong>?
     ): TourPass = newSuspendedTransaction {
         val entity = TourPassEntity.findById(id)
@@ -337,17 +337,17 @@ class TourPassRepository(
         }
     }
 
-    private fun syncPlaylistUrls(tourPassId: ULong, playlistUrls: List<StreamingLink>?) {
-        TourPassStreamingLinkTable.deleteWhere { TourPassStreamingLinkTable.tourPassId eq tourPassId }
+    private fun syncPlaylistUrls(tourPassId: ULong, playlistUrls: List<StreamingRef>?) {
+        TourPassStreamingRefTable.deleteWhere { TourPassStreamingRefTable.tourPassId eq tourPassId }
         if (playlistUrls.isNullOrEmpty()) return
 
-        val streamingLinkIds = StreamingLinkRepositorySupport
+        val streamingLinkIds = StreamingLinkRepository
             .resolveOrCreateLinks(playlistUrls)
             .ids
 
-        TourPassStreamingLinkTable.batchInsert(streamingLinkIds) { streamingLinkId ->
-            this[TourPassStreamingLinkTable.tourPassId] = tourPassId
-            this[TourPassStreamingLinkTable.streamingLinkId] = streamingLinkId
+        TourPassStreamingRefTable.batchInsert(streamingLinkIds) { streamingLinkId ->
+            this[TourPassStreamingRefTable.tourPassId] = tourPassId
+            this[TourPassStreamingRefTable.streamingLinkId] = streamingLinkId
         }
     }
 }

@@ -7,7 +7,7 @@ import org.jetbrains.exposed.sql.javatime.datetime
 
 object CollectionItemTable : IntIdTable("collection_items") {
     val collectionId = reference("collection_id", CollectionTable, onDelete = ReferenceOption.CASCADE)
-    val contentId = reference("content_id", ContentTable, onDelete = ReferenceOption.CASCADE)
+    val contentId = reference("content_id", CatalogItemTable, onDelete = ReferenceOption.CASCADE)
     val addedAt = datetime("added_at")
 
     init {

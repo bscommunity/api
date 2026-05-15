@@ -2,7 +2,7 @@ package org.bscm.services
 
 import io.ktor.util.logging.*
 import org.bscm.clients.*
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.models.enums.PreviewProvider
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.services.media.MediaInfoResult
@@ -64,7 +64,7 @@ class MediaInfoService(
                     track = match.trackName,
                     artist = match.artistName,
                     genre = GenresUtils.normalizeGenre(match.primaryGenreName),
-                    link = StreamingLink(StreamingPlatform.APPLE_MUSIC, match.trackViewUrl),
+                    link = StreamingRef(StreamingPlatform.APPLE_MUSIC, match.trackViewUrl),
                     previewProvider = PreviewProvider.ITUNES,
                     previewProviderTrackId = match.trackId.toString(),
                     isExplicit = match.trackExplicitness == "explicit"
@@ -81,7 +81,7 @@ class MediaInfoService(
                     track = track.title,
                     artist = track.artist?.name ?: ctx.artist,
                     genre = null,
-                    link = StreamingLink(StreamingPlatform.DEEZER, track.link),
+                    link = StreamingRef(StreamingPlatform.DEEZER, track.link),
                     previewProvider = PreviewProvider.DEEZER,
                     previewProviderTrackId = track.id.toString(),
                     isExplicit = track.explicitLyrics == true
@@ -99,7 +99,7 @@ class MediaInfoService(
                     track = lf.name,
                     artist = lf.artist.name,
                     genre = genre,
-                    link = StreamingLink(StreamingPlatform.LAST_FM, lf.url),
+                    link = StreamingRef(StreamingPlatform.LAST_FM, lf.url),
                     previewProvider = null,
                     previewProviderTrackId = null,
                     isExplicit = false
@@ -111,7 +111,7 @@ class MediaInfoService(
         )
     }
 
-    suspend fun getTrackStreamingLinks(url: String, track: String, artist: String): List<StreamingLink> {
+    suspend fun getTrackStreamingLinks(url: String, track: String, artist: String): List<StreamingRef> {
         val cleanedTrack = cleanTrackName(track)
         val cleanedArtist = cleanArtistName(artist)
 

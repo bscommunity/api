@@ -1,6 +1,5 @@
 package org.bscm.models.interfaces
 
-import org.bscm.models.Changelog
 import java.util.*
 
 interface IChangelogRepository {
