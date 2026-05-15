@@ -48,7 +48,7 @@ class TourPassPublishService(
                 if (latest?.isDeluxe == true) append(" <:deluxe:1393402180991586365>")
                 if (latest?.isExplicit == true) append(" <:explicit:1393412061786017862>")
             }
-            "${index + 1}. ${chart.artist} - ${chart.track}$icons"
+            "${index + 1}. ${chart.track.artist} - ${chart.track.title}$icons"
         }
 
         val normalizedPlaylistUrls = request.playlistUrls

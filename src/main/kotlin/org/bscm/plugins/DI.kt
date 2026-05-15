@@ -15,6 +15,9 @@ import org.bscm.services.preview.PreviewService
 import org.bscm.services.preview.resolvers.DeezerPreviewResolver
 import org.bscm.services.preview.resolvers.ItunesPreviewResolver
 import org.bscm.services.preview.resolvers.PreviewResolverRegistry
+import org.bscm.storage.StaticUrlStorageAdapter
+import org.bscm.storage.StorageService
+import org.bscm.storage.SupabaseStorageAdapter
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
@@ -99,13 +102,40 @@ fun mainModule(config: ApplicationConfig) = module {
     single { MusicbrainzClient(client = get(), json = get()) }
 
     // Repositories
-    single<IChartRepository> { ChartRepository() }
+    single {
+        val assetsConfig = config.configOrNull("assets")
+        val publicBucket = assetsConfig?.propertyOrNull("publicBucket")?.getString() ?: "public"
+        val publicBaseUrl = assetsConfig?.propertyOrNull("publicBaseUrl")?.getString()
+
+        val adapter = if (assetsConfig?.propertyOrNull("supabase.url") != null &&
+            assetsConfig.propertyOrNull("supabase.serviceKey") != null
+        ) {
+            SupabaseStorageAdapter(
+                client = get(),
+                baseUrl = assetsConfig.property("supabase.url").getString(),
+                serviceKey = assetsConfig.property("supabase.serviceKey").getString(),
+                publicBaseUrl = publicBaseUrl,
+            )
+        } else {
+            val fallbackUrl = publicBaseUrl ?: "https://bscm-assets.s3.amazonaws.com"
+            StaticUrlStorageAdapter(publicBaseUrl = fallbackUrl)
+        }
+
+        StorageService(
+            adapter = adapter,
+            publicBucket = publicBucket,
+        )
+    }
+
+    single { CatalogItemRepository() }
+    single { TrackRepository(storageService = get()) }
+    single<IChartRepository> { ChartRepository(get(), get(), get()) }
     single<IContributorRepository> { ContributorRepository() }
     single<IChangelogRepository> { ChangelogRepository() }
     single<IVersionRepository> { VersionRepository() }
     single<ITourPassRepository> { TourPassRepository(get()) }
     single<IThemeRepository> { ThemeRepository() }
-    single<ICollectionRepository> { CollectionRepository(get(), get(), get()) }
+    single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get()) }
     single<IActivityRepository> { ActivityRepository() }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
     single {

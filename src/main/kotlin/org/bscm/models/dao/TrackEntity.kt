@@ -17,6 +17,9 @@ class TrackEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var genre by TrackTable.genre
     var bpm by TrackTable.bpm
     var duration by TrackTable.duration
+    var normalizedTitle by TrackTable.normalizedTitle
+    var normalizedArtist by TrackTable.normalizedArtist
+    var normalizedAlbum by TrackTable.normalizedAlbum
 
     val streamingRefs by TrackStreamingRefEntity referrersOn TrackStreamingRefTable.trackId
 }

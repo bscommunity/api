@@ -179,21 +179,22 @@ class UserRepository(
     ): List<CatalogItem> = newSuspendedTransaction {
         // Get content IDs for the user's charts
         val contentQuery = CatalogItemTable
-            .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.contentId })
+            .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.catalogItemId })
+            .innerJoin(TrackTable, { ChartTable.trackId }, { TrackTable.id })
             .select(CatalogItemTable.id, CatalogItemTable.type)
-            .where { ChartTable.authorId eq userId }
+            .where { CatalogItemTable.authorId eq userId }
 
         // Apply text search on chart metadata if query is provided
         query?.let { searchQuery ->
             contentQuery.andWhere {
-                (ChartTable.artist like "%$searchQuery%") or
-                (ChartTable.track like "%$searchQuery%") or
-                (ChartTable.album like "%$searchQuery%")
+                (TrackTable.artist like "%$searchQuery%") or
+                (TrackTable.title like "%$searchQuery%") or
+                (TrackTable.album like "%$searchQuery%")
             }
         }
 
         // Order by latest updated at
-        contentQuery.orderBy(ChartTable.latestUpdatedAt to SortOrder.DESC)
+        contentQuery.orderBy(CatalogItemTable.updatedAt to SortOrder.DESC)
 
         // Apply limit and offset
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())

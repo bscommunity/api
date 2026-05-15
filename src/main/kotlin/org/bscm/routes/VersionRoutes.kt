@@ -93,11 +93,11 @@ fun Route.versionRoutes(
 
                     val trackSimilarity = similarity(
                         getNormalizedQuery(createRequest.track),
-                        getNormalizedQuery(chart.track)
+                        getNormalizedQuery(chart.track.title)
                     )
                     val artistSimilarity = similarity(
                         getNormalizedQuery(createRequest.artist),
-                        getNormalizedQuery(chart.artist)
+                        getNormalizedQuery(chart.track.artist)
                     )
 
                     if (trackSimilarity < 0.3 || artistSimilarity < 0.3) {
@@ -106,11 +106,14 @@ fun Route.versionRoutes(
 
                     logger.info("Creating version for chart $chartId: $createRequest")
 
+                    val existingVersions = versionRepository.getVersions(chart.contentId)
+
                     val discordResponse = uploadService.uploadVersion(
                         chart = chart,
-                        version = createRequest,
+                        version = createRequest.copy(fileSizeBytes = bundleFileBytes.size.toLong()),
                         author = user,
-                        chartBundle = bundleFileBytes
+                        chartBundle = bundleFileBytes,
+                        existingVersions = existingVersions,
                     )
 
                     val attachment = discordResponse.attachments.lastOrNull()
@@ -121,7 +124,7 @@ fun Route.versionRoutes(
                         bundleUrl = attachment.url
                     )
 
-                    val createdVersion = versionRepository.addVersion(chartId, createRequestWithUrl)
+                    val createdVersion = versionRepository.addVersion(chart.contentId, createRequestWithUrl)
 
                     logger.info("Version ${createdVersion.id} (v${createdVersion.index}) created for chart $chartId")
 
@@ -177,19 +180,21 @@ fun Route.versionRoutes(
                     val version = versionRepository.getVersionById(versionId)
                         ?: throw NotFoundException("Version not found")
 
-                    val chart = chartRepository.getChartById(
-                        version.chartId.toULong(),
-                        ChartRepository.ChartAddons(versions = true)
+                    val chart = chartRepository.getChartByContentId(
+                        version.catalogItemId,
+                        ChartRepository.ChartAddons(versions = false)
                     ) ?: throw NotFoundException("Chart not found")
 
                     logger.info("Removing version $versionId from chart ${chart.id}")
 
-                    versionRepository.removeVersion(versionId, chart.latestVersion?.id, chart.versions.size)
+                    versionRepository.removeVersion(versionId, chart.latestVersion?.id, chart.versionsCount)
+
+                    val versions = versionRepository.getVersions(chart.contentId)
 
                     uploadService.deleteVersion(
                         messageId = chart.id,
-                        track = chart.track,
-                        versions = chart.versions,
+                        track = chart.track.title,
+                        versions = versions,
                         versionId = versionId.toString()
                     )
 

@@ -3,6 +3,7 @@ package org.bscm.repository
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
 import org.bscm.models.dao.CollectionEntity
+import org.bscm.models.dao.TrackEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.enums.CatalogItemType
@@ -25,7 +26,8 @@ import java.util.*
 class CollectionRepository(
     private val chartRepository: IChartRepository,
     private val themeRepository: IThemeRepository,
-    private val tourPassRepository: ITourPassRepository
+    private val tourPassRepository: ITourPassRepository,
+    private val trackRepository: TrackRepository,
 ) : ICollectionRepository {
 
     override suspend fun getContentType(contentId: String): CatalogItemType? = newSuspendedTransaction {
@@ -171,13 +173,18 @@ class CollectionRepository(
         // Step 3a — bulk-fetch Chart cover URLs
         byType[CatalogItemType.CHART]?.let { rows ->
             val ids = rows.map { it[CollectionItemTable.contentId].value }
-            ChartTable
-                .select(ChartTable.contentId, ChartTable.coverUrl)
-                .where { ChartTable.contentId inList ids }
+            val contentIds = ids.map { EntityID(it, CatalogItemTable) }
+            (ChartTable innerJoin TrackTable)
+                .select(ChartTable.catalogItemId, TrackTable.id)
+                .where { ChartTable.catalogItemId inList contentIds }
                 .forEach { row ->
-                    val contentId: String = row[ChartTable.contentId].value
+                    val contentId: String = row[ChartTable.catalogItemId].value
                     val colId = contentToCollection[contentId] ?: return@forEach
-                    result[colId] = row[ChartTable.coverUrl]
+                    val trackId = row[TrackTable.id].value
+                    result[colId] = trackRepository.toTrack(
+                        entity = TrackEntity[trackId],
+                        streamingRefs = emptyList()
+                    ).coverUrl
                 }
         }
 

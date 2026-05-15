@@ -16,7 +16,18 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
     val type = enumerationByName("type", 20, CatalogItemType::class)
     val status = enumerationByName("status", 20, CatalogItemStatus::class)
 
-    val previewUrl = varchar("preview_url", 100).nullable()
+    val versionsCount =
+        integer("versions_count")
+            .default(0)
+
+    val latestVersionId =
+        reference(
+            "latest_version_id",
+            VersionTable,
+            onDelete = ReferenceOption.SET_NULL
+        ).nullable()
+
+    val previewVideoId = varchar("preview_url", 12).nullable()
 
     val isPublic = bool("is_public").default(true)
     val isFeatured = bool("is_featured").default(false)
@@ -32,5 +43,7 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
 
     init {
         index(false, type)
+        index(false, status)
+        index(false, authorId)
     }
 }

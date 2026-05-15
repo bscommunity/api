@@ -4,7 +4,7 @@ import org.jetbrains.exposed.dao.id.ULongIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
 
 object TourPassTable : ULongIdTable("tour_passes") {
-    val catalogId =
+    val catalogItemId =
         reference("catalog_item_id", CatalogItemTable, onDelete = ReferenceOption.CASCADE)
             .uniqueIndex()
 

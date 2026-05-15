@@ -8,6 +8,7 @@ import org.jetbrains.exposed.dao.id.EntityID
 class TrackStreamingRefEntity(id: EntityID<Long>) : LongEntity(id) {
     companion object : LongEntityClass<TrackStreamingRefEntity>(TrackStreamingRefTable)
 
+    var track by TrackEntity referencedOn TrackStreamingRefTable.trackId
     var platform by TrackStreamingRefTable.platform
     var externalId by TrackStreamingRefTable.externalId
 }

@@ -1,14 +1,14 @@
 package org.bscm.models.interfaces
 
-import org.bscm.models.ChartVersion
+import org.bscm.models.Version
 import org.bscm.models.dto.version.CreateVersionRequest
 
 interface IVersionRepository {
-    suspend fun getVersionById(id: ULong): ChartVersion?
-    suspend fun getVersions(chartId: ULong): List<ChartVersion>
-    suspend fun getLatestVersionsByChartIds(chartIds: List<ULong>): List<ChartVersion>
+    suspend fun getVersionById(id: ULong): Version?
+    suspend fun getVersions(catalogItemId: String): List<Version>
+    suspend fun getLatestVersionsByChartIds(chartIds: List<ULong>): List<Version>
 
-    suspend fun addVersion(chartId: ULong, version: CreateVersionRequest): ChartVersion
+    suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version
 
     /**
      * Removes a version by its ID.

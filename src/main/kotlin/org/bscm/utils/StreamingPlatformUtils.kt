@@ -310,4 +310,24 @@ object StreamingPlatformUtils {
         val serializedSize = serializeLinks(links).length
         return Pair(originalSize, serializedSize)
     }
+
+    fun extractExternalId(platform: StreamingPlatform, url: String): String {
+        val cleanedUrl = stripTrackingParams(url)
+        var path = cleanedUrl.removePrefix("https://").removePrefix("http://")
+
+        val domainVariations = PLATFORM_DOMAIN_VARIATIONS[platform] ?: emptyList()
+        for (domain in domainVariations) {
+            if (path.startsWith(domain)) {
+                path = path.removePrefix(domain)
+                break
+            }
+        }
+
+        return path
+    }
+
+    fun buildUrl(platform: StreamingPlatform, externalId: String): String {
+        val baseDomain = PLATFORM_TO_BASE_DOMAIN[platform] ?: ""
+        return "https://$baseDomain$externalId"
+    }
 }

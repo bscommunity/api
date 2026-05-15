@@ -12,9 +12,9 @@ import org.bscm.clients.applicationHttpClient
 import org.bscm.clients.jsonClient
 import org.bscm.interactions.*
 import org.bscm.models.Chart
-import org.bscm.models.ChartVersion
 import org.bscm.models.StreamingRef
 import org.bscm.models.User
+import org.bscm.models.Version
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
@@ -469,39 +469,40 @@ class UploadService(
         version: CreateVersionRequest,
         author: User,
         chartBundle: ByteArray,
+        existingVersions: List<Version>,
     ): DiscordMessageResponse {
 
-        val normalizedTrack = getNormalizedTrackName(chart.track)
+        val normalizedTrack = getNormalizedTrackName(chart.track.title)
 
-        // Calculate the next version index (current versions count + 1)
-        val nextIndex = chart.versions.size + 1
+        val nextIndex = (existingVersions.maxOfOrNull { it.versionCode } ?: 0) + 1
 
         // We need to update the displayed info with the new version data
         val payloadJson = buildWebhookPayload(
-            CreateChartRequest(
-                track = version.track,
-                artist = version.artist,
-                duration = version.duration,
-                notesAmount = version.notesAmount,
-                effectsAmount = version.effectsAmount,
-                difficulty = version.difficulty,
-                isDeluxe = version.isDeluxe,
-                isExplicit = version.isExplicit,
-                trackPreviewUrl = chart.trackPreviewUrl,
-                bpm = version.bpm,
-                bundleUrl = version.bundleUrl,
-                previewUrl = version.previewUrl,
-                coverUrl = chart.coverUrl,
-                trackUrls = chart.trackUrls,
-                contentId = chart.contentId,
-            ),
+                CreateChartRequest(
+                    track = version.track,
+                    artist = version.artist,
+                    duration = version.duration,
+                    notesAmount = version.notesAmount,
+                    effectsAmount = version.effectsAmount,
+                    difficulty = version.difficulty,
+                    isDeluxe = version.isDeluxe,
+                    isExplicit = version.isExplicit,
+                    trackPreviewUrl = chart.track.previewUrl,
+                    bpm = version.bpm,
+                    bundleUrl = version.bundleUrl,
+                    previewUrl = version.previewUrl,
+                    coverUrl = chart.track.coverUrl ?: "",
+                    trackUrls = chart.track.streamingRefs,
+                    contentId = chart.contentId,
+                    fileSizeBytes = version.fileSizeBytes,
+                ),
             author,
-            attachments = chart.versions.map {
+                attachments = existingVersions.map {
                 SimpleAttachment(
                     id = it.id,
-                    filename = "${normalizedTrack}_v${it.index}.zip",
+                        filename = "${normalizedTrack}_v${it.versionCode}.zip",
                 )
-            })
+                })
 
         // println("Current message attachments: $payloadJson")
 
@@ -535,7 +536,7 @@ class UploadService(
     suspend fun deleteVersion(
         messageId: String,
         track: String,
-        versions: List<ChartVersion>,
+        versions: List<Version>,
         versionId: String
     ): Boolean {
         val remainingVersions = versions.filter { it.id != versionId }
@@ -546,7 +547,7 @@ class UploadService(
                 attachments = remainingVersions.map {
                     SimpleAttachment(
                         id = it.id,
-                        filename = "${normalizedTrack}_v${it.index}.zip",
+                        filename = "${normalizedTrack}_v${it.versionCode}.zip",
                     )
                 },
             )

@@ -1,40 +1,37 @@
 package org.bscm.models.dao
 
 import org.bscm.models.tables.ChartTable
-import org.bscm.models.tables.ContributorTable
-import org.bscm.models.tables.TrackStreamingRefTable
-import org.bscm.models.tables.VersionTable
 import org.jetbrains.exposed.dao.ULongEntity
 import org.jetbrains.exposed.dao.ULongEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 
-class ChartEntity(id: EntityID<ULong>) : ULongEntity(id) {
-    companion object : ULongEntityClass<ChartEntity>(ChartTable)
+class ChartEntity(
+    id: EntityID<ULong>
+) : ULongEntity(id) {
 
-    var catalogId by ChartTable.catalogId
-    val contributors by ContributorEntity referrersOn ContributorTable.chartId
+    companion object :
+        ULongEntityClass<ChartEntity>(ChartTable)
 
-    var artist by ChartTable.artist
-    var track by ChartTable.track
-    var album by ChartTable.album
-    var genre by ChartTable.genre
-    var trackPreviewUrl by ChartTable.trackPreviewUrl
+    var catalogItem by CatalogItemEntity referencedOn
+            ChartTable.catalogItemId
 
-    var normalizedArtist by ChartTable.normalizedArtist
-    var normalizedTrack by ChartTable.normalizedTrack
-    var normalizedAlbum by ChartTable.normalizedAlbum
+    var track by TrackEntity referencedOn
+            ChartTable.trackId
 
-    var coverUrl by ChartTable.coverUrl
-    var isPublic by ChartTable.isPublic
-    var isFeatured by ChartTable.isFeatured
-    var downloadsSum by ChartTable.downloadsSum
+    val latestVersion: VersionEntity?
+        get() = catalogItem.latestVersion
 
-    var createdAt by ChartTable.createdAt
-    var latestUpdatedAt by ChartTable.latestUpdatedAt
+    val versions
+        get() = catalogItem.versions
 
-    // Updated: Many-to-many relationship through junction table
-    val trackUrls by StreamingLinkEntity.via(TrackStreamingRefTable.chartId, TrackStreamingRefTable.streamingLinkId)
+    val versionsCount: Int
+        get() = catalogItem.versionsCount
 
-    val versions by VersionEntity referrersOn VersionTable.chartId
-    var latestVersion by VersionEntity optionalReferencedOn ChartTable.latestVersionId
+    var difficulty by ChartTable.difficulty
+
+    var notesAmount by ChartTable.notesAmount
+    var effectsAmount by ChartTable.effectsAmount
+
+    var isDeluxe by ChartTable.isDeluxe
+    var isExplicit by ChartTable.isExplicit
 }

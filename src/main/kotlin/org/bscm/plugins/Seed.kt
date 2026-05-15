@@ -142,6 +142,7 @@ private suspend fun generateRandomCharts(
                             genre = Genre.entries.toTypedArray().random(),
                             bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
                             previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
+                            fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
                             duration = Random.nextFloat() * 4 + 2, // 2-6 minutes
                             notesAmount = Random.nextInt(100, 1000),
                             effectsAmount = Random.nextInt(10, 100),
@@ -159,10 +160,10 @@ private suspend fun generateRandomCharts(
                                 val additionalVersionsCount = Random.nextInt(1, 3)
                                 repeat(additionalVersionsCount) {
                                     versionRepository.addVersion(
-                                        chartId = chart.id.toULong(),
+                                        catalogItemId = chart.contentId,
                                         CreateVersionRequest(
-                                            track = chart.track,
-                                            artist = chart.artist,
+                                            track = chart.track.title,
+                                            artist = chart.track.artist,
                                             duration = Random.nextFloat() * 4 + 2,
                                             notesAmount = Random.nextInt(100, 1000),
                                             effectsAmount = Random.nextInt(10, 100),
@@ -172,6 +173,7 @@ private suspend fun generateRandomCharts(
                                             isExplicit = Random.nextBoolean(),
                                             bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
                                             previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
+                                            fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
                                         )
                                     )
                                 }
@@ -197,10 +199,7 @@ private suspend fun generateRandomCharts(
                                 repeat(issuesCount) {
                                     knownIssueRepository.addIssue(
                                         chart.id.toULong(),
-                                        Changelog(
-                                            id = UUID.randomUUID(),
-                                            description = getRandomIssue(),
-                                        )
+                                        getRandomIssue()
                                     )
                                 }
                                 log.info("Added known issues for chart ID: ${chart.id}")

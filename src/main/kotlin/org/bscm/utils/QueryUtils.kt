@@ -48,47 +48,46 @@ object QueryUtils {
                     SELECT DISTINCT ON (LOWER(best_match_text)) best_match_text
                     FROM (
                         SELECT
-                            track,
-                            artist,
-                            album,
+                            t.title AS track,
+                            t.artist AS artist,
+                            t.album AS album,
                             GREATEST(
-                                similarity(normalized_track, ?),  -- param 1: dbQuery (for score)
-                                similarity(normalized_artist, ?), -- param 2: dbQuery (for score)
-                                similarity(normalized_album, ?)   -- param 3: dbQuery (for score)
+                                similarity(t.normalized_title, ?),  -- param 1: dbQuery (for score)
+                                similarity(t.normalized_artist, ?), -- param 2: dbQuery (for score)
+                                similarity(t.normalized_album, ?)   -- param 3: dbQuery (for score)
                             ) AS match_score,
                             CASE
-                                WHEN similarity(normalized_track, ?) >= similarity(normalized_artist, ?) -- param 4 & 5: dbQuery (for case)
-                                  AND similarity(normalized_track, ?) >= similarity(normalized_album, ?)  -- param 6 & 7: dbQuery (for case)
-                                THEN track
-                                WHEN similarity(normalized_artist, ?) >= similarity(normalized_album, ?) -- param 8 & 9: dbQuery (for case)
-                                THEN artist
-                                ELSE album
+                                WHEN similarity(t.normalized_title, ?) >= similarity(t.normalized_artist, ?) -- param 4 & 5
+                                  AND similarity(t.normalized_title, ?) >= similarity(t.normalized_album, ?)  -- param 6 & 7
+                                THEN t.title
+                                WHEN similarity(t.normalized_artist, ?) >= similarity(t.normalized_album, ?) -- param 8 & 9
+                                THEN t.artist
+                                ELSE t.album
                             END AS best_match_text
-                        FROM charts
-                        WHERE is_public = true AND (
-                            -- Condition 1: Trigram fuzzy match (uses pg_trgm.similarity_threshold, default 0.3)
-                            (normalized_track % ? OR      -- param 10: dbQuery (for %)
-                             normalized_artist % ? OR     -- param 11: dbQuery (for %)
-                             normalized_album % ?)        -- param 12: dbQuery (for %)
+                        FROM charts c
+                        INNER JOIN catalog_items ci ON c.catalog_item_id = ci.id
+                        INNER JOIN tracks t ON c.track_id = t.id
+                        WHERE ci.is_public = true AND (
+                            -- Condition 1: Trigram fuzzy match
+                            (t.normalized_title % ? OR      -- param 10
+                             t.normalized_artist % ? OR     -- param 11
+                             t.normalized_album % ?)        -- param 12
                             OR
-                            -- Condition 2: Exact substring match on normalized fields
-                            (STRPOS(normalized_track, ?) > 0 OR  -- param 13: dbQuery (for STRPOS)
-                             STRPOS(normalized_artist, ?) > 0 OR -- param 14: dbQuery (for STRPOS)
-                             STRPOS(normalized_album, ?) > 0)    -- param 15: dbQuery (for STRPOS)
+                            -- Condition 2: Exact substring match
+                            (STRPOS(t.normalized_title, ?) > 0 OR  -- param 13
+                             STRPOS(t.normalized_artist, ?) > 0 OR -- param 14
+                             STRPOS(t.normalized_album, ?) > 0)    -- param 15
                             OR
-                            -- Condition 3: Catch-all for items with at least some minimal similarity.
-                            -- This helps with typos in substrings where overall similarity is low but non-zero.
+                            -- Condition 3: minimal similarity
                             (GREATEST(
-                                similarity(normalized_track, ?),  -- param 16: dbQuery (for WHERE GREATEST)
-                                similarity(normalized_artist, ?), -- param 17: dbQuery (for WHERE GREATEST)
-                                similarity(normalized_album, ?)   -- param 18: dbQuery (for WHERE GREATEST)
-                             ) > $minimalSimilarityThreshold) -- Using the Kotlin variable directly in the string for clarity here.
-                                                             -- For PreparedStatement, this would be a literal or another '?' if dynamic.
-                                                             -- For this implementation, embedding the constant is fine.
+                                similarity(t.normalized_title, ?),  -- param 16
+                                similarity(t.normalized_artist, ?), -- param 17
+                                similarity(t.normalized_album, ?)   -- param 18
+                             ) > $minimalSimilarityThreshold)
                         )
                     ) ranked_matches
                     ORDER BY LOWER(best_match_text), match_score DESC
-                    LIMIT ? -- param 19: limit (this will be the 19th '?' if minimalSimilarityThreshold is also a '?')
+                    LIMIT ?
                 """.trimIndent()
             // Note: If minimalSimilarityThreshold were a parameter, there would be 19 '?' for dbQuery/threshold
             // and the limit would be the 20th.

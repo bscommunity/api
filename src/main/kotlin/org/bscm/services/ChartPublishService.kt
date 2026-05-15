@@ -160,6 +160,7 @@ class ChartPublishService(
             difficulty = difficultyEnum,
             isDeluxe = isDeluxe,
             bundleUrl = "",
+            fileSizeBytes = bundleBytes.size.toLong(),
             previewUrl = overrides.previewUrl,
             contentId = contentId,
         )

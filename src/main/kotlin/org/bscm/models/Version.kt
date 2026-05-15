@@ -9,8 +9,11 @@ import java.time.LocalDateTime
 
 @Serializable
 data class Version(
+    val id: String,
+    val catalogItemId: String,
+    val versionCode: Int,
     val downloadsAmount: Int = 0,
     val fileSizeBytes: Long,
-    val changelog: String,
+    val changelog: String?,
     val createdAt: LocalDateTime,
 )

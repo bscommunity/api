@@ -189,8 +189,8 @@ object PublishCommand {
                     embed {
                         title = "✅ ${I18n.t(locale, "publish_success_title")}"
                         description = I18n.t(locale, "publish_success_description")
-                        field(I18n.t(locale, "track_label"), result.chart.track, true)
-                        field(I18n.t(locale, "artist_label"), result.chart.artist, true)
+                        field(I18n.t(locale, "track_label"), result.chart.track.title, true)
+                        field(I18n.t(locale, "artist_label"), result.chart.track.artist, true)
                         field(I18n.t(locale, "difficulty_label"), v.difficulty.name, true)
                         field(I18n.t(locale, "duration_label"), String.format("%dm%ds", (v.duration / 60).toInt(), (v.duration % 60).toInt()), true)
                         field(I18n.t(locale, "notes_label"), v.notesAmount.toString(), true)
