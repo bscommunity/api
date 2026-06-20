@@ -225,20 +225,20 @@ class UserRepository(
     ): List<CatalogItem> = newSuspendedTransaction {
         // Get content IDs for the user's tour passes
         val contentQuery = CatalogItemTable
-            .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.contentId })
+            .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.catalogItemId })
             .select(CatalogItemTable.id, CatalogItemTable.type)
-            .where { TourPassTable.authorId eq userId }
+            .where { CatalogItemTable.authorId eq userId }
 
         // Apply text search on tour pass metadata if query is provided
         query?.let { searchQuery ->
             contentQuery.andWhere {
                 (TourPassTable.name like "%$searchQuery%") or
-                (TourPassTable.artist like "%$searchQuery%")
+                (TourPassTable.description like "%$searchQuery%")
             }
         }
 
         // Order by latest updated at
-        contentQuery.orderBy(TourPassTable.latestUpdatedAt to SortOrder.DESC)
+        contentQuery.orderBy(CatalogItemTable.updatedAt to SortOrder.DESC)
 
         // Apply limit and offset
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
@@ -270,9 +270,9 @@ class UserRepository(
     ): List<CatalogItem> = newSuspendedTransaction {
         // Get content IDs for the user's themes
         val contentQuery = CatalogItemTable
-            .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.contentId })
+            .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.catalogItemId })
             .select(CatalogItemTable.id, CatalogItemTable.type)
-            .where { ThemeTable.authorId eq userId }
+            .where { CatalogItemTable.authorId eq userId }
 
         // Apply text search on theme metadata if query is provided
         query?.let { searchQuery ->
@@ -283,7 +283,7 @@ class UserRepository(
         }
 
         // Order by latest updated at
-        contentQuery.orderBy(ThemeTable.latestUpdatedAt to SortOrder.DESC)
+        contentQuery.orderBy(CatalogItemTable.updatedAt to SortOrder.DESC)
 
         // Apply limit and offset
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
@@ -332,10 +332,22 @@ class UserRepository(
 
         // library: authored content (charts, tour passes, themes)
         val library: Triple<Int, Int, Int>? = if (all || "library" in requestedCounts) {
-            val charts = ChartTable.select(ChartTable.id).where { ChartTable.authorId eq userId }.count().toInt()
-            val tourPasses = TourPassTable.select(TourPassTable.id).where { TourPassTable.authorId eq userId }.count().toInt()
-            val themes = ThemeTable.select(ThemeTable.id).where { ThemeTable.authorId eq userId }.count().toInt()
-            Triple(charts, tourPasses, themes)
+            val charts = (CatalogItemTable innerJoin ChartTable)
+                .select(CatalogItemTable.id)
+                .where { CatalogItemTable.authorId eq userId }
+                .count()
+                .toInt()
+            val tourPasses = (CatalogItemTable innerJoin TourPassTable)
+                .select(CatalogItemTable.id)
+                .where { CatalogItemTable.authorId eq userId }
+                .count()
+                .toInt()
+            val themes = (CatalogItemTable innerJoin ThemeTable)
+                .select(CatalogItemTable.id)
+                .where { CatalogItemTable.authorId eq userId }
+                .count()
+                .toInt()
+             Triple(charts, tourPasses, themes)
         } else null
 
         val likes: Triple<Int, Int, Int>? = if (all || "likes" in requestedCounts) countByKind(CollectionKind.LIKES) else null
@@ -464,9 +476,21 @@ class UserRepository(
     }
 
     override suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int> = newSuspendedTransaction {
-        val charts = ChartTable.select(ChartTable.id).where { ChartTable.authorId eq userId }.count().toInt()
-        val tourPasses = TourPassTable.select(TourPassTable.id).where { TourPassTable.authorId eq userId }.count().toInt()
-        val themes = ThemeTable.select(ThemeTable.id).where { ThemeTable.authorId eq userId }.count().toInt()
+        val charts = (CatalogItemTable innerJoin ChartTable)
+            .select(CatalogItemTable.id)
+            .where { CatalogItemTable.authorId eq userId }
+            .count()
+            .toInt()
+        val tourPasses = (CatalogItemTable innerJoin TourPassTable)
+            .select(CatalogItemTable.id)
+            .where { CatalogItemTable.authorId eq userId }
+            .count()
+            .toInt()
+        val themes = (CatalogItemTable innerJoin ThemeTable)
+            .select(CatalogItemTable.id)
+            .where { CatalogItemTable.authorId eq userId }
+            .count()
+            .toInt()
         Triple(charts, tourPasses, themes)
     }
 }

@@ -3,7 +3,6 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import io.ktor.server.config.*
 import org.bscm.clients.*
-import org.bscm.models.dto.PreviewResponse
 import org.bscm.models.interfaces.*
 import org.bscm.repository.*
 import org.bscm.services.*
@@ -18,7 +17,6 @@ import org.bscm.services.preview.resolvers.PreviewResolverRegistry
 import org.bscm.storage.StaticUrlStorageAdapter
 import org.bscm.storage.StorageService
 import org.bscm.storage.SupabaseStorageAdapter
-import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
@@ -61,33 +59,6 @@ fun mainModule(config: ApplicationConfig) = module {
     single { applicationHttpClient }
     single { jsonClient }
 
-    /*// Allow lightweight tests to boot the application without external services.
-    if (config.propertyOrNull("redis.host") == null ||
-        config.propertyOrNull("redis.port") == null ||
-        config.propertyOrNull("redis.password") == null
-    ) {
-        return@module
-    }
-
-    val uri = RedisURI.Builder
-        .redis(config.property("redis.host").getString(), config.property("redis.port").getString().toInt())
-        .withAuthentication("default", config.property("redis.password").getString())
-        .build()
-
-    // Redis
-    single {
-        RedisClient.create(uri)
-    }*/
-
-    // Cache Repository for PreviewResponse
-    single<CacheRepository<PreviewResponse>> {
-        RedisCacheRepository(
-            redisClient = get(),
-            json = get(),
-            serializer = PreviewResponse.serializer()
-        )
-    }
-
     // API Clients
     single { DeezerClient(client = get(), json = get()) }
     single { ItunesClient(client = get(), json = get()) }
@@ -103,11 +74,11 @@ fun mainModule(config: ApplicationConfig) = module {
 
     // Repositories
     single {
-        val assetsConfig = config.configOrNull("assets")
-        val publicBucket = assetsConfig?.propertyOrNull("publicBucket")?.getString() ?: "public"
-        val publicBaseUrl = assetsConfig?.propertyOrNull("publicBaseUrl")?.getString()
+        val assetsConfig = config.config("assets")
+        val publicBucket = assetsConfig.propertyOrNull("publicBucket")?.getString() ?: "public"
+        val publicBaseUrl = assetsConfig.propertyOrNull("publicBaseUrl")?.getString()
 
-        val adapter = if (assetsConfig?.propertyOrNull("supabase.url") != null &&
+        val adapter = if (assetsConfig.propertyOrNull("supabase.url") != null &&
             assetsConfig.propertyOrNull("supabase.serviceKey") != null
         ) {
             SupabaseStorageAdapter(
@@ -129,12 +100,10 @@ fun mainModule(config: ApplicationConfig) = module {
 
     single { CatalogItemRepository() }
     single { TrackRepository(storageService = get()) }
+    single { BundleUrlCacheRepository() }
     single<IChartRepository> { ChartRepository(get(), get(), get()) }
     single<IContributorRepository> { ContributorRepository() }
-    single<IChangelogRepository> { ChangelogRepository() }
     single<IVersionRepository> { VersionRepository() }
-    single<ITourPassRepository> { TourPassRepository(get()) }
-    single<IThemeRepository> { ThemeRepository() }
     single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get()) }
     single<IActivityRepository> { ActivityRepository() }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
@@ -174,19 +143,19 @@ fun mainModule(config: ApplicationConfig) = module {
             channelId = config.property("workshop.channelId").getString(),
         )
     }
-    single(qualifier = named("support")) {
-        UploadService(
-            webhookId = config.property("support.webhookId").getString(),
-            webhookToken = config.property("support.webhookToken").getString(),
+    single {
+        BundleDownloadService(
+            cacheRepository = get(),
+            client = get(),
+            json = get(),
             botToken = config.property("discord.botToken").getString(),
-            channelId = config.property("support.channelId").getString(),
+            channelId = config.property("workshop.channelId").getString(),
         )
     }
     single {
         ChartPublishService(
             chartRepository = get(),
             uploadService = get(),
-            // supportUploadService = get(qualifier = named("support")),
             mediaInfoService = get(),
             activityRepository = get()
         )

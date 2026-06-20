@@ -175,7 +175,7 @@ class ChartRepository(
 
     override suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart = newSuspendedTransaction {
         val catalogItem = catalogItemRepository.create(
-            type = org.bscm.models.enums.CatalogItemType.CHART,
+            type = CatalogItemType.CHART,
             authorId = userId,
             previewVideoId = null,
             contentId = chart.contentId,

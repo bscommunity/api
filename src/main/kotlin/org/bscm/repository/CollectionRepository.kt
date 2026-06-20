@@ -189,29 +189,17 @@ class CollectionRepository(
         }
 
         // Step 3b — bulk-fetch Theme cover URLs
-        byType[CatalogItemType.THEME]?.let { rows ->
-            val ids = rows.map { it[CollectionItemTable.contentId].value }
-            ThemeTable
-                .select(ThemeTable.contentId, ThemeTable.coverUrl)
-                .where { ThemeTable.contentId inList ids }
-                .forEach { row ->
-                    val contentId: String = row[ThemeTable.contentId].value
-                    val colId = contentToCollection[contentId] ?: return@forEach
-                    result[colId] = row[ThemeTable.coverUrl]
-                }
+        byType[CatalogItemType.THEME]?.forEach { row ->
+            val contentId = row[CollectionItemTable.contentId].value
+            val colId = contentToCollection[contentId] ?: return@forEach
+            result[colId] = null
         }
 
         // Step 3c — bulk-fetch TourPass cover URLs
-        byType[CatalogItemType.TOUR_PASS]?.let { rows ->
-            val ids = rows.map { it[CollectionItemTable.contentId].value }
-            TourPassTable
-                .select(TourPassTable.contentId, TourPassTable.coverUrl)
-                .where { TourPassTable.contentId inList ids }
-                .forEach { row ->
-                    val contentId: String = row[TourPassTable.contentId].value
-                    val colId = contentToCollection[contentId] ?: return@forEach
-                    result[colId] = row[TourPassTable.coverUrl]
-                }
+        byType[CatalogItemType.TOUR_PASS]?.forEach { row ->
+            val contentId = row[CollectionItemTable.contentId].value
+            val colId = contentToCollection[contentId] ?: return@forEach
+            result[colId] = null
         }
 
         return result

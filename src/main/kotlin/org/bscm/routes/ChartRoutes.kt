@@ -13,6 +13,7 @@ import io.ktor.server.routing.openapi.*
 import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import org.bscm.clients.jsonClient
+import org.bscm.models.dto.chart.BundleDownloadResponse
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.enums.Difficulty
@@ -26,6 +27,7 @@ import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
+import org.bscm.services.BundleDownloadService
 import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
 import java.util.*
@@ -39,6 +41,7 @@ fun Route.chartRoutes(
     userRepository: IUserRepository,
     uploadService: UploadService,
     publishService: ChartPublishService,
+    bundleDownloadService: BundleDownloadService,
 ) {
 
     route("/charts") {
@@ -204,6 +207,58 @@ fun Route.chartRoutes(
                     }
 
                     call.respond(chart)
+                }
+
+                /**
+                 * Resolve bundle download URL for a chart.
+                 *
+                 * Tag: Charts
+                 *
+                 * Path: id [ULong] Chart ID.
+                 *
+                 * Responses:
+                 *   - 200 application/json [Object] Bundle URL.
+                 *   - 400 application/json [Error] Invalid or missing ID parameter.
+                 *   - 401 application/json [Error] Unauthorized access.
+                 *   - 404 application/json [Error] Chart not found.
+                 */
+                get("{id}/bundle") {
+                    val id = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing chart ID")
+
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
+                    val combinedPrincipal = call.principal<CombinedPrincipal>()
+
+                    if (jwtPrincipal == null && hmacPrincipal == null && combinedPrincipal == null) {
+                        throw UnauthorizedException("Unauthorized")
+                    }
+
+                    val numericId = id.toULongOrNull()
+                        ?: throw BadRequestException("Chart ID must be a valid number")
+
+                    val chart = chartRepository.getChartById(numericId)
+                        ?: throw NotFoundException("Chart not found")
+
+                    if (!chart.isPublic) {
+                        val requesterId = when {
+                            combinedPrincipal != null ->
+                                runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                            jwtPrincipal != null ->
+                                jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                            else -> null
+                        }
+                        val isContributor = requesterId != null &&
+                                chart.contributors.any { contributor -> contributor.user.id == requesterId }
+                        if (!isContributor) throw NotFoundException("Chart not found")
+                    }
+
+                    val url = bundleDownloadService.resolveBundleUrl(
+                        catalogItemId = chart.contentId,
+                        messageId = chart.id,
+                    )
+
+                    call.respond(BundleDownloadResponse(url = url))
                 }
 
                 /**
