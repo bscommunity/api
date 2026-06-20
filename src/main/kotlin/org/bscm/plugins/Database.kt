@@ -55,6 +55,69 @@ fun Application.configureDatabases(config: ApplicationConfig) {
                 org.bscm.models.tables.ChangelogTable,
             )
 
+            // Ensure shared-PK tables have a PRIMARY KEY before adding FKs.
+            // SchemaUtils.create() uses CREATE TABLE IF NOT EXISTS, so if a previous run left
+            // broken tables (missing PK), we need to add it here.
+            exec("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_constraint pc ON pc.conrelid = c.oid WHERE c.relname = 'tour_passes' AND pc.contype = 'p') THEN
+                        ALTER TABLE tour_passes ADD PRIMARY KEY (id);
+                    END IF;
+                END $$;
+            """.trimIndent())
+            exec("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_constraint pc ON pc.conrelid = c.oid WHERE c.relname = 'charts' AND pc.contype = 'p') THEN
+                        ALTER TABLE charts ADD PRIMARY KEY (id);
+                    END IF;
+                END $$;
+            """.trimIndent())
+            exec("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_constraint pc ON pc.conrelid = c.oid WHERE c.relname = 'themes' AND pc.contype = 'p') THEN
+                        ALTER TABLE themes ADD PRIMARY KEY (id);
+                    END IF;
+                END $$;
+            """.trimIndent())
+
+            // FK constraints for shared-PK tables (manual — Exposed has issues with composite
+            // IdTables referencing tables whose PK is also a FK). Idempotent via DO blocks.
+            exec("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_tour_passes_catalog_item') THEN
+                        ALTER TABLE tour_passes ADD CONSTRAINT fk_tour_passes_catalog_item FOREIGN KEY (id) REFERENCES catalog_items(id) ON DELETE CASCADE;
+                    END IF;
+                END $$;
+            """.trimIndent())
+            exec("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_charts_catalog_item') THEN
+                        ALTER TABLE charts ADD CONSTRAINT fk_charts_catalog_item FOREIGN KEY (id) REFERENCES catalog_items(id) ON DELETE CASCADE;
+                    END IF;
+                END $$;
+            """.trimIndent())
+            exec("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_themes_catalog_item') THEN
+                        ALTER TABLE themes ADD CONSTRAINT fk_themes_catalog_item FOREIGN KEY (id) REFERENCES catalog_items(id) ON DELETE CASCADE;
+                    END IF;
+                END $$;
+            """.trimIndent())
+            exec("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_tpc_tour_pass') THEN
+                        ALTER TABLE tour_pass_charts ADD CONSTRAINT fk_tpc_tour_pass FOREIGN KEY (tour_pass_id) REFERENCES tour_passes(id) ON DELETE CASCADE;
+                    END IF;
+                END $$;
+            """.trimIndent())
+            exec("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_tpc_chart') THEN
+                        ALTER TABLE tour_pass_charts ADD CONSTRAINT fk_tpc_chart FOREIGN KEY (chart_id) REFERENCES charts(id) ON DELETE CASCADE;
+                    END IF;
+                END $$;
+            """.trimIndent())
+
             exec("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_collections_user_kind_non_user
                 ON collections (user_id, kind)

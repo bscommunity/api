@@ -26,9 +26,6 @@ fun Application.configureDI() {
 
     // Keep lightweight tests working when external-service configuration is absent.
     val requiredKeys = listOf(
-        "redis.host",
-        "redis.port",
-        "redis.password",
         "jwt.secret",
         "discord.clientId",
         "discord.clientSecret",
