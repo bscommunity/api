@@ -51,7 +51,15 @@ fun Application.configureDatabases(config: ApplicationConfig) {
                 org.bscm.models.tables.TourPassTable,
                 org.bscm.models.tables.UserTable,
                 org.bscm.models.tables.VersionTable,
+                org.bscm.models.tables.BundleUrlCacheTable,
+                org.bscm.models.tables.ChangelogTable,
             )
+
+            exec("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_collections_user_kind_non_user
+                ON collections (user_id, kind)
+                WHERE kind != 'USER'
+            """.trimIndent())
         }
         log.info("Database initialized")
 
