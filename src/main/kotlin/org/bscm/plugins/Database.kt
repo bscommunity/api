@@ -80,29 +80,10 @@ fun Application.configureDatabases(config: ApplicationConfig) {
                 END $$;
             """.trimIndent())
 
-            // FK constraints for shared-PK tables (manual — Exposed has issues with composite
-            // IdTables referencing tables whose PK is also a FK). Idempotent via DO blocks.
-            exec("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_tour_passes_catalog_item') THEN
-                        ALTER TABLE tour_passes ADD CONSTRAINT fk_tour_passes_catalog_item FOREIGN KEY (id) REFERENCES catalog_items(id) ON DELETE CASCADE;
-                    END IF;
-                END $$;
-            """.trimIndent())
-            exec("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_charts_catalog_item') THEN
-                        ALTER TABLE charts ADD CONSTRAINT fk_charts_catalog_item FOREIGN KEY (id) REFERENCES catalog_items(id) ON DELETE CASCADE;
-                    END IF;
-                END $$;
-            """.trimIndent())
-            exec("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_themes_catalog_item') THEN
-                        ALTER TABLE themes ADD CONSTRAINT fk_themes_catalog_item FOREIGN KEY (id) REFERENCES catalog_items(id) ON DELETE CASCADE;
-                    END IF;
-                END $$;
-            """.trimIndent())
+            // FK for TourPassChartTable — cannot use reference() in CompositeIdTable because
+            // the referenced columns are themselves references (shared-PK pattern) and Exposed's
+            // DDL sorting creates them before the target tables' PKs are fully established.
+            // The PK DO blocks above ensure PKs exist before we add these FKs.
             exec("""
                 DO $$ BEGIN
                     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_tpc_tour_pass') THEN
