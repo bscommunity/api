@@ -1,33 +1,20 @@
 package org.bscm.models.tables
 
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.Json
 import org.bscm.models.enums.ContributorRole
-import org.jetbrains.exposed.dao.id.CompositeIdTable
+import org.jetbrains.exposed.dao.id.LongIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.CurrentDateTime
 import org.jetbrains.exposed.sql.javatime.datetime
-import org.jetbrains.exposed.sql.json.jsonb
 
-object ContributorTable : CompositeIdTable("contributors") {
+object ContributorTable : LongIdTable("contributors") {
+    val catalogItemId = reference("catalog_item_id", CatalogItemTable, onDelete = ReferenceOption.CASCADE)
     val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)
-    val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
+    val role = enumerationByName("role", 30, ContributorRole::class)
 
     val note = varchar("note", 280).nullable()
-
-    val roles = jsonb(
-        "roles",
-        Json { ignoreUnknownKeys = true },
-        ListSerializer(ContributorRole.serializer())
-    ).default(emptyList())
     val joinedAt = datetime("joined_at").defaultExpression(CurrentDateTime)
 
     init {
-        addIdColumn(userId)
-        addIdColumn(chartId)
-
-        index(false, userId, chartId)
+        uniqueIndex(catalogItemId, userId, role)
     }
-
-    override val primaryKey = PrimaryKey(userId, chartId)
 }

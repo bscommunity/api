@@ -1,6 +1,7 @@
 package org.bscm.repository
 
 import org.bscm.models.enums.SortOption
+import org.bscm.models.enums.Visibility
 import org.bscm.models.tables.*
 import org.bscm.utils.QueryUtils
 import org.jetbrains.exposed.dao.id.EntityID
@@ -18,12 +19,12 @@ class ChartQueryBuilder {
         columnsToSelect.addAll(TrackTable.columns)
 
         query.adjustColumnSet {
-            innerJoin(CatalogItemTable, { ChartTable.catalogItemId }, { CatalogItemTable.id })
+            innerJoin(CatalogItemTable, { ChartTable.id }, { CatalogItemTable.id })
                 .innerJoin(TrackTable, { ChartTable.trackId }, { TrackTable.id })
         }
 
         query.adjustColumnSet {
-            leftJoin(ContributorTable, { ChartTable.id }, { ContributorTable.chartId })
+            leftJoin(ContributorTable, { ChartTable.id }, { ContributorTable.catalogItemId })
                 .leftJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
         }
         columnsToSelect.addAll(ContributorTable.columns)
@@ -46,24 +47,21 @@ class ChartQueryBuilder {
 
     fun applyFilters(query: Query, filters: ChartRepository.ChartFilters?) {
         if (filters?.userId == null && filters?.includePrivate != true) {
-            query.andWhere { CatalogItemTable.isPublic eq true }
+            query.andWhere { CatalogItemTable.visibility eq Visibility.PUBLIC }
         }
 
         filters?.userId?.let { userId ->
+            val contributorChartIds = ContributorTable
+                .select(ContributorTable.catalogItemId)
+                .where { ContributorTable.userId eq userId }
+                .map { it[ContributorTable.catalogItemId] }
             query.andWhere {
-                ChartTable.id inSubQuery (
-                    ContributorTable.select(ContributorTable.chartId)
-                        .where { ContributorTable.userId eq userId }
-                )
+                ChartTable.id inList contributorChartIds
             }
         }
 
         filters?.chartIds?.takeIf { it.isNotEmpty() }?.let { ids ->
-            query.andWhere { ChartTable.id inList ids }
-        }
-
-        filters?.contentIds?.takeIf { it.isNotEmpty() }?.let { ids ->
-            query.andWhere { ChartTable.catalogItemId inList ids.map { EntityID(it, CatalogItemTable) } }
+            query.andWhere { ChartTable.id inList ids.map { EntityID(it, ChartTable) } }
         }
 
         if (!filters?.search.isNullOrBlank()) {

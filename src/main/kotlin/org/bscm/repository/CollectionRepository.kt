@@ -175,10 +175,10 @@ class CollectionRepository(
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             val contentIds = ids.map { EntityID(it, CatalogItemTable) }
             (ChartTable innerJoin TrackTable)
-                .select(ChartTable.catalogItemId, TrackTable.id)
-                .where { ChartTable.catalogItemId inList contentIds }
+                .select(ChartTable.id, TrackTable.id)
+                .where { ChartTable.id inList contentIds }
                 .forEach { row ->
-                    val contentId: String = row[ChartTable.catalogItemId].value
+                    val contentId: String = row[ChartTable.id].value
                     val colId = contentToCollection[contentId] ?: return@forEach
                     val trackId = row[TrackTable.id].value
                     result[colId] = trackRepository.toTrack(
@@ -529,7 +529,7 @@ class CollectionRepository(
         byType[CatalogItemType.CHART]?.let { rows ->
             val ids = rows.map { it[CollectionItemTable.contentId].value }
             val (charts, _) = chartRepository.getCharts(
-                filters = ChartRepository.ChartFilters(contentIds = ids),
+                filters = ChartRepository.ChartFilters(chartIds = ids),
                 addons = ChartRepository.ChartAddons(streamingLinks = true),
             )
             catalogItems.addAll(charts)

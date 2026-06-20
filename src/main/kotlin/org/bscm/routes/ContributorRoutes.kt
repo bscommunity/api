@@ -7,6 +7,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
+import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IContributorRepository
 import java.util.*
 
@@ -17,14 +18,14 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
          *
          * Tag: Contributors
          *
-         * Path: id [ULong] Chart ID.
+         * Path: id [String] Catalog item ID.
          *
          * Responses:
          *   - 400 Invalid or missing parameters.
          *   - 200 List of contributors.
          */
         get {
-            val id = call.parameters["id"]?.toULong()
+            val id = call.parameters["id"]
             if (id == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
                 return@get
@@ -39,7 +40,7 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
          *
          * Tag: Contributors
          *
-         * Path: id [UUID] Chart ID
+         * Path: id [String] Catalog item ID
          * Body: application/json Contributor information [CreateContributorRequest].
          *
          * Responses:
@@ -47,7 +48,7 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
          *   - 201 List of added contributors.
          */
         post {
-            val id = call.parameters["id"]?.toULong()
+            val id = call.parameters["id"]
 
             if (id == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
@@ -65,7 +66,7 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
          *
          * Tag: Contributors
          *
-         * Path: id [ULong] Chart ID.
+         * Path: id [String] Catalog item ID.
          * Path: userId [UUID] User ID of the contributor.
          * Body: application/json Updated roles [UpdateContributorRequest].
          *
@@ -74,7 +75,7 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
          *   - 200 Updated contributor.
          */
         put("{userId}") {
-            val id = call.parameters["id"]?.toULong()
+            val id = call.parameters["id"]
             val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
 
             if (id == null || userId == null) {
@@ -85,7 +86,7 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
             try {
                 val updatedRequest = call.receive<UpdateContributorRequest>()
 
-                val updated = contributorRepository.updateContributorRoles(id, userId, updatedRequest.roles)
+                val updated = contributorRepository.updateContributorRole(id, userId, updatedRequest.roles.first())
                 call.respond(updated)
             } catch (e: BadRequestException) {
                 call.respond(HttpStatusCode.BadRequest, e.message ?: "Bad Request")
@@ -97,8 +98,9 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
          *
          * Tag: Contributors
          *
-         * Path: id [ULong] Chart ID.
+         * Path: id [String] Catalog item ID.
          * Path: userId [UUID] User ID of the contributor.
+         * Query: role [String] Contributor role to remove.
          *
          * Responses:
          *   - 400 Invalid or missing parameters.
@@ -106,16 +108,18 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
          *   - 204 Contributor removed successfully.
          */
         delete("{userId}") {
-            val id = call.parameters["id"]?.toULong()
+            val id = call.parameters["id"]
             val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
-            if (id == null || userId == null) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
+            val role = call.request.queryParameters["role"]
+                ?.let { runCatching { ContributorRole.valueOf(it) }.getOrNull() }
+            if (id == null || userId == null || role == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID or role")
                 return@delete
             }
 
-            val removed = contributorRepository.removeContributor(id, userId)
+            val removed = contributorRepository.removeContributor(id, userId, role)
             if (removed) {
-                call.respond(HttpStatusCode.NoContent, "Contributor removed successfully")
+                call.respond(HttpStatusCode.NoContent)
             } else {
                 throw NotFoundException("Content or contributor not found")
             }

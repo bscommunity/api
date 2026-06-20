@@ -113,10 +113,4 @@ class TrackRepository(
                 url = StreamingPlatformUtils.buildUrl(it.platform, it.externalId)
             )
         }
-
-    fun toStreamingRefs(rows: List<Pair<Int, String>>): List<StreamingRef> = rows.mapNotNull { (platformId, externalId) ->
-        val platform = org.bscm.models.enums.StreamingPlatform.entries.firstOrNull { it.id == platformId }
-            ?: return@mapNotNull null
-        StreamingRef(platform = platform, url = StreamingPlatformUtils.buildUrl(platform, externalId))
-    }
 }

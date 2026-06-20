@@ -40,7 +40,7 @@ fun Route.versionRoutes(
         rateLimit(RateLimitName("restricted")) {
             route("/versions/chart") {
                 post("{chartId}") {
-                    val chartId = call.parameters["chartId"]?.toULongOrNull()
+                    val chartId = call.parameters["chartId"]
                         ?: throw BadRequestException("Invalid or missing chart ID")
 
                     val principal = call.principal<JWTPrincipal>()
@@ -106,7 +106,7 @@ fun Route.versionRoutes(
 
                     logger.info("Creating version for chart $chartId: $createRequest")
 
-                    val existingVersions = versionRepository.getVersions(chart.contentId)
+                    val existingVersions = versionRepository.getVersions(chart.id)
 
                     val discordResponse = uploadService.uploadVersion(
                         chart = chart,
@@ -124,9 +124,9 @@ fun Route.versionRoutes(
                         bundleUrl = attachment.url
                     )
 
-                    val createdVersion = versionRepository.addVersion(chart.contentId, createRequestWithUrl)
+                    val createdVersion = versionRepository.addVersion(chart.id, createRequestWithUrl)
 
-                    logger.info("Version ${createdVersion.id} (v${createdVersion.index}) created for chart $chartId")
+                    logger.info("Version ${createdVersion.id} (v${createdVersion.versionCode}) created for chart $chartId")
 
                     call.respond(HttpStatusCode.Created, createdVersion)
 
@@ -180,7 +180,7 @@ fun Route.versionRoutes(
                     val version = versionRepository.getVersionById(versionId)
                         ?: throw NotFoundException("Version not found")
 
-                    val chart = chartRepository.getChartByContentId(
+                    val chart = chartRepository.getChartById(
                         version.catalogItemId,
                         ChartRepository.ChartAddons(versions = false)
                     ) ?: throw NotFoundException("Chart not found")
@@ -189,7 +189,7 @@ fun Route.versionRoutes(
 
                     versionRepository.removeVersion(versionId, chart.latestVersion?.id, chart.versionsCount)
 
-                    val versions = versionRepository.getVersions(chart.contentId)
+                    val versions = versionRepository.getVersions(chart.id)
 
                     uploadService.deleteVersion(
                         messageId = chart.id,

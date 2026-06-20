@@ -28,7 +28,7 @@ class TourPassPublishService(
             throw BadRequestException("coverUrl or cover file is required")
         }
 
-        val chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() } ?: emptyList()
+        val chartIds = request.chartIds ?: emptyList()
         val charts = if (chartIds.isNotEmpty()) {
             chartRepository.getCharts(
                 filters = ChartRepository.ChartFilters(chartIds = chartIds),
@@ -41,12 +41,11 @@ class TourPassPublishService(
         }
 
         val tracklist = charts.mapIndexed { index, chart ->
-            val latest = chart.latestVersion
             val icons = buildString {
-                if (latest?.difficulty == Difficulty.HARD) append(" <:hard:1393411882282385458>")
-                if (latest?.difficulty == Difficulty.EXTREME) append(" <:extreme:1393411880067797115>")
-                if (latest?.isDeluxe == true) append(" <:deluxe:1393402180991586365>")
-                if (latest?.isExplicit == true) append(" <:explicit:1393412061786017862>")
+                if (chart.difficulty == Difficulty.HARD) append(" <:hard:1393411882282385458>")
+                if (chart.difficulty == Difficulty.EXTREME) append(" <:extreme:1393411880067797115>")
+                if (chart.isDeluxe) append(" <:deluxe:1393402180991586365>")
+                if (chart.isExplicit) append(" <:explicit:1393412061786017862>")
             }
             "${index + 1}. ${chart.track.artist} - ${chart.track.title}$icons"
         }
@@ -64,7 +63,7 @@ class TourPassPublishService(
                 ),
                 coverUrl = request.coverUrl,
                 coverImage = cover,
-                durationSeconds = charts.sumOf { (it.latestVersion?.duration ?: 0f).toInt() },
+                durationSeconds = charts.sumOf { it.track.duration.toInt() },
                 tracksAmount = charts.size,
                 tracklist = tracklist,
             )
@@ -83,20 +82,20 @@ class TourPassPublishService(
             coverUrl = resolvedCoverUrl,
             playlistUrls = normalizedPlaylistUrls,
             chartIds = chartIds,
-            id = discordResponse.id.toULong(),
+            id = discordResponse.id,
         )
 
         activityRepository.logActivity(
             userId = uploader.id,
             type = ActivityType.CREATED_TOUR_PASS,
-            targetId = tourPass.contentId
+            targetId = tourPass.id
         )
 
         return tourPass
     }
 
-    suspend fun deleteAndCleanup(id: ULong, userId: java.util.UUID): Boolean {
-        val contentId = tourPassRepository.getTourPassById(id, userId)?.contentId ?: return false
+    suspend fun deleteAndCleanup(id: String, userId: java.util.UUID): Boolean {
+        val contentId = tourPassRepository.getTourPassById(id, userId)?.id ?: return false
         val deleted = tourPassRepository.deleteTourPass(id, userId)
         if (!deleted) return false
 
@@ -106,12 +105,12 @@ class TourPassPublishService(
         )
 
         // Best effort cleanup - DB state is source of truth.
-        runCatching { uploadService.deleteMessage(id.toString()) }
+        runCatching { uploadService.deleteMessage(id) }
         return true
     }
 
     suspend fun updateAndPublish(
-        id: ULong,
+        id: String,
         userId: java.util.UUID,
         request: UpdateTourPassRequest,
         cover: UploadService.UploadImage?,
@@ -135,8 +134,7 @@ class TourPassPublishService(
             description = request.description,
             artist = request.artist,
             coverUrl = resolvedCoverUrl,
-            playlistUrls = normalizedPlaylistUrls,
-            chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() }
+            chartIds = request.chartIds
         )
     }
 }

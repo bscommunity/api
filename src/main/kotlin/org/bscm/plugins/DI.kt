@@ -107,6 +107,9 @@ fun mainModule(config: ApplicationConfig) = module {
     single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get()) }
     single<IActivityRepository> { ActivityRepository() }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
+    single<ITourPassRepository> { TourPassRepository(get()) }
+    single<IThemeRepository> { ThemeRepository() }
+    single<IChangelogRepository> { ChangelogRepository() }
     single {
         JWTService(
             secret = config.property("jwt.secret").getString()
@@ -147,7 +150,6 @@ fun mainModule(config: ApplicationConfig) = module {
         BundleDownloadService(
             cacheRepository = get(),
             client = get(),
-            json = get(),
             botToken = config.property("discord.botToken").getString(),
             channelId = config.property("workshop.channelId").getString(),
         )

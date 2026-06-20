@@ -18,7 +18,6 @@ data class CreateChartRequest (
     val isExplicit: Boolean,
 
     // Server-side properties
-    val id: ULong? = null,
     val versionId: ULong? = null,
     val contentId: String? = null,
 

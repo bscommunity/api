@@ -1,0 +1,128 @@
+package org.bscm.repository
+
+import org.bscm.models.Theme
+import org.bscm.models.dao.CatalogItemEntity
+import org.bscm.models.dao.ThemeEntity
+import org.bscm.models.dao.UserEntity
+import org.bscm.models.enums.CatalogItemStatus
+import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.interfaces.IThemeRepository
+import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import java.util.*
+
+class ThemeRepository : IThemeRepository {
+
+    private fun themeEntityToTheme(entity: ThemeEntity): Theme {
+        val catalogItem = CatalogItemEntity[entity.id.value]
+        return Theme(
+            name = entity.name,
+            replaces = entity.replaces,
+            displayArtUrl = entity.displayArtUrl,
+            previewUrl = entity.previewUrl,
+            coverUrl = entity.coverUrl,
+            contributors = emptyList(),
+            createdAt = catalogItem.createdAt,
+            publishedAt = catalogItem.publishedAt,
+            updatedAt = catalogItem.updatedAt,
+            likedAt = null,
+            bookmarkedAt = null,
+            id = entity.id.value,
+            type = CatalogItemType.THEME,
+            status = catalogItem.status,
+            visibility = catalogItem.visibility,
+            isFeatured = catalogItem.isFeatured,
+            downloadsSum = catalogItem.downloadsSum,
+            previewVideoId = catalogItem.previewVideoId,
+            discordChannelId = catalogItem.discordChannelId,
+            discordMessageId = catalogItem.discordMessageId,
+            authorId = catalogItem.author?.id?.value,
+        )
+    }
+
+    override suspend fun getThemes(
+        userId: UUID?,
+        contentIds: List<String>?,
+        search: String?,
+        limit: Int?,
+        offset: Int?,
+    ): List<Theme> = newSuspendedTransaction {
+        val pageSize = limit ?: 20
+        val pageOffset = offset ?: 0
+
+        val result: List<ThemeEntity> = if (contentIds != null && contentIds.isNotEmpty()) {
+            ThemeEntity.all().filter { it.id.value in contentIds }
+        } else {
+            ThemeEntity.all().limit(pageSize).offset(pageOffset.toLong()).toList()
+        }
+
+        val paged = if (contentIds != null && contentIds.isNotEmpty()) {
+            result.drop(pageOffset).take(pageSize)
+        } else {
+            result
+        }
+        paged.map { themeEntityToTheme(it) }
+    }
+
+    override suspend fun getThemeById(id: String, userId: UUID?): Theme? = newSuspendedTransaction {
+        ThemeEntity.findById(id)?.let { themeEntityToTheme(it) }
+    }
+
+    override suspend fun createTheme(
+        userId: UUID,
+        name: String,
+        replaces: String,
+        coverUrl: String,
+        displayArtUrl: String,
+        previewUrl: String,
+        id: String?,
+    ): Theme = newSuspendedTransaction {
+        val catalogItem = if (id != null) {
+            CatalogItemEntity.new(id) {
+                this.type = CatalogItemType.THEME
+                this.status = CatalogItemStatus.PUBLISHED
+                this.author = UserEntity[userId]
+            }
+        } else {
+            CatalogItemEntity.new {
+                this.type = CatalogItemType.THEME
+                this.status = CatalogItemStatus.PUBLISHED
+                this.author = UserEntity[userId]
+            }
+        }
+
+        val theme = ThemeEntity.new(catalogItem.id.value) {
+            this.name = name
+            this.replaces = replaces
+            this.coverUrl = coverUrl
+            this.displayArtUrl = displayArtUrl
+            this.previewUrl = previewUrl
+        }
+
+        themeEntityToTheme(theme)
+    }
+
+    override suspend fun updateTheme(
+        id: String,
+        userId: UUID,
+        name: String?,
+        replaces: String?,
+        coverUrl: String?,
+        displayArtUrl: String?,
+        previewUrl: String?,
+    ): Theme = newSuspendedTransaction {
+        val entity = ThemeEntity.findByIdAndUpdate(id) { entity ->
+            name?.let { entity.name = it }
+            replaces?.let { entity.replaces = it }
+            coverUrl?.let { entity.coverUrl = it }
+            displayArtUrl?.let { entity.displayArtUrl = it }
+            previewUrl?.let { entity.previewUrl = it }
+        } ?: throw IllegalArgumentException("Theme $id not found")
+
+        themeEntityToTheme(entity)
+    }
+
+    override suspend fun deleteTheme(id: String, userId: UUID): Boolean = newSuspendedTransaction {
+        CatalogItemEntity.findById(id)?.delete() ?: return@newSuspendedTransaction false
+        true
+    }
+}

@@ -16,4 +16,5 @@ data class Version(
     val fileSizeBytes: Long,
     val changelog: String?,
     val createdAt: LocalDateTime,
+    val discordAttachmentId: String? = null,
 )

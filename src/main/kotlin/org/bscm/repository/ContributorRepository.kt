@@ -1,24 +1,23 @@
 package org.bscm.repository
 
 import org.bscm.models.Contributor
-import org.bscm.models.dao.ChartEntity
+import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ContributorEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IContributorRepository
+import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ContributorTable
-import org.jetbrains.exposed.dao.id.CompositeID
+import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.util.*
 
 class ContributorRepository : IContributorRepository {
     companion object {
         fun contributorEntityToContributor(entity: ContributorEntity): Contributor {
-            val compositeId = entity.id.value // This is a CompositeID
-            val chartId = compositeId[ContributorTable.chartId].value
-
             return Contributor(
                 user = SimplifiedUser(
                     id = entity.user.id.value,
@@ -29,17 +28,14 @@ class ContributorRepository : IContributorRepository {
                     bio = entity.user.bio,
                     accentColor = entity.user.accentColor,
                 ),
-                chartId = chartId.toString(),
-                roles = entity.roles,
+                catalogItemId = entity.catalogItem.id.value,
+                role = entity.role,
                 note = entity.note,
                 joinedAt = entity.joinedAt,
             )
         }
 
         fun contributorEntityToContributor(entity: ContributorEntity, user: UserEntity): Contributor {
-            val compositeId = entity.id.value // This is a CompositeID
-            val chartId = compositeId[ContributorTable.chartId].value
-
             return Contributor(
                 user = SimplifiedUser(
                     id = user.id.value,
@@ -50,67 +46,72 @@ class ContributorRepository : IContributorRepository {
                     bio = user.bio,
                     accentColor = user.accentColor,
                 ),
-                chartId = chartId.toString(),
-                roles = entity.roles,
+                catalogItemId = entity.catalogItem.id.value,
+                role = entity.role,
+                note = entity.note,
                 joinedAt = entity.joinedAt,
             )
         }
     }
 
-    override suspend fun addContributors(chartId: ULong, contributors: List<SimplifiedContributor>): List<Contributor> = newSuspendedTransaction {
-            // Check if the user and chart exist
-            ChartEntity.findById(chartId) ?: throw IllegalArgumentException("Chart not found")
+    override suspend fun addContributors(catalogItemId: String, contributors: List<SimplifiedContributor>): List<Contributor> = newSuspendedTransaction {
+        CatalogItemEntity.findById(catalogItemId) ?: throw IllegalArgumentException("CatalogItem not found")
+        val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
 
-            val contributorEntities = contributors.map { contributor ->
-                UserEntity.findById(contributor.userId) ?: throw IllegalArgumentException("User not found")
+        val contributorEntities = contributors.map { contributor ->
+            UserEntity.findById(contributor.userId) ?: throw IllegalArgumentException("User not found")
 
-                val contributorId = CompositeID {
-                    it[ContributorTable.chartId] = chartId
-                    it[ContributorTable.userId] = contributor.userId
+            val existing = ContributorEntity.find {
+                (ContributorTable.catalogItemId eq catalogItemEntityId) and
+                    (ContributorTable.userId eq contributor.userId) and
+                    (ContributorTable.role eq contributor.role)
+            }.singleOrNull()
+
+            if (existing != null) {
+                contributorEntityToContributor(existing)
+            } else {
+                val newContributor = ContributorEntity.new {
+                    this.catalogItem = CatalogItemEntity[catalogItemId]
+                    this.user = UserEntity[contributor.userId]
+                    this.role = contributor.role
                 }
-
-                val newContributor = ContributorEntity.new(contributorId) {
-                    roles = contributor.roles
-                }
-
                 contributorEntityToContributor(newContributor)
             }
-
-            contributorEntities
         }
 
-    override suspend fun removeContributor(chartId: ULong, userId: UUID): Boolean = newSuspendedTransaction {
-        val contributorId = CompositeID {
-            it[ContributorTable.chartId] = chartId
-            it[ContributorTable.userId] = userId
-        }
+        contributorEntities
+    }
 
-        val contributor = ContributorEntity.findById(contributorId)
+    override suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole): Boolean = newSuspendedTransaction {
+        val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
+        val entity = ContributorEntity.find {
+            (ContributorTable.catalogItemId eq catalogItemEntityId) and
+                (ContributorTable.userId eq userId) and
+                (ContributorTable.role eq role)
+        }.singleOrNull() ?: throw IllegalArgumentException("Contributor not found")
 
-        contributor?.delete() ?: throw IllegalArgumentException("Contributor not found")
-
+        entity.delete()
         true
     }
 
-    override suspend fun updateContributorRoles(
-        chartId: ULong,
+    override suspend fun updateContributorRole(
+        catalogItemId: String,
         userId: UUID,
-        roles: List<ContributorRole>
+        role: ContributorRole
     ): Contributor = newSuspendedTransaction {
-        val contributorId = CompositeID {
-            it[ContributorTable.chartId] = chartId
-            it[ContributorTable.userId] = userId
-        }
+        val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
+        val entity = ContributorEntity.find {
+            (ContributorTable.catalogItemId eq catalogItemEntityId) and
+                (ContributorTable.userId eq userId) and
+                (ContributorTable.role eq role)
+        }.singleOrNull() ?: throw IllegalArgumentException("Contributor not found")
 
-        val contributor = ContributorEntity.findByIdAndUpdate(contributorId) {
-            it.roles = roles
-        } ?: throw IllegalArgumentException("Contributor not found")
-
-        contributorEntityToContributor(contributor)
+        contributorEntityToContributor(entity)
     }
 
-    override suspend fun getContributors(chartId: ULong): List<UUID> = newSuspendedTransaction {
-        ContributorEntity.find { ContributorTable.chartId eq chartId }
-            .map { it.id.value[ContributorTable.userId].value }
+    override suspend fun getContributors(catalogItemId: String): List<Contributor> = newSuspendedTransaction {
+        val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
+        ContributorEntity.find { ContributorTable.catalogItemId eq catalogItemEntityId }
+            .map { contributorEntityToContributor(it) }
     }
 }

@@ -203,7 +203,7 @@ object PublishCommand {
                             type = 2,
                             style = 5,
                             label = I18n.t(locale, "view_chart_button"),
-                            url = "https://bscm.netlify.app/link/chart/${result.chart.contentId}"
+                            url = "https://bscm.netlify.app/link/chart/${result.chart.id}"
                         ),
                         Button(
                             type = 2,

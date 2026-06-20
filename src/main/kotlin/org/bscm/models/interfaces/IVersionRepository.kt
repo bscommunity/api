@@ -6,7 +6,7 @@ import org.bscm.models.dto.version.CreateVersionRequest
 interface IVersionRepository {
     suspend fun getVersionById(id: ULong): Version?
     suspend fun getVersions(catalogItemId: String): List<Version>
-    suspend fun getLatestVersionsByChartIds(chartIds: List<ULong>): List<Version>
+    suspend fun getLatestVersionsByCatalogItemIds(catalogItemIds: List<String>): List<Version>
 
     suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version
 

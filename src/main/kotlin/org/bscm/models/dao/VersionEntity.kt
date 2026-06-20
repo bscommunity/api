@@ -22,5 +22,7 @@ class VersionEntity(
 
     var changelog by VersionTable.changelog
 
+    var discordAttachmentId by VersionTable.discordAttachmentId
+
     var createdAt by VersionTable.createdAt
 }

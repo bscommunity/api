@@ -1,4 +1,4 @@
-@file:UseSerializers(LocalDateTimeSerializer::class)
+@file:UseSerializers(LocalDateTimeSerializer::class, UUIDSerializer::class)
 
 package org.bscm.models
 
@@ -8,18 +8,20 @@ import kotlinx.serialization.UseSerializers
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.Difficulty
+import org.bscm.models.enums.Visibility
 import org.bscm.serialization.LocalDateTimeSerializer
+import org.bscm.serialization.UUIDSerializer
 import java.time.LocalDateTime
+import java.util.*
 
 @Serializable
 @SerialName("chart")
 data class Chart(
     override val id: String,
-    override val contentId: String,
     override val type: CatalogItemType = CatalogItemType.CHART,
     override val status: CatalogItemStatus,
+    override val visibility: Visibility,
 
-    override val isPublic: Boolean,
     override val isFeatured: Boolean,
 
     override val downloadsSum: Int,
@@ -34,6 +36,10 @@ data class Chart(
     override val bookmarkedAt: LocalDateTime?,
 
     override val previewVideoId: String?,
+
+    override val discordChannelId: String?,
+    override val discordMessageId: String?,
+    override val authorId: UUID?,
 
     val track: Track,
 

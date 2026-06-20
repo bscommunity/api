@@ -493,7 +493,7 @@ class UploadService(
                     previewUrl = version.previewUrl,
                     coverUrl = chart.track.coverUrl ?: "",
                     trackUrls = chart.track.streamingRefs,
-                    contentId = chart.contentId,
+                    contentId = chart.id,
                     fileSizeBytes = version.fileSizeBytes,
                 ),
             author,

@@ -5,6 +5,7 @@ import org.bscm.models.dao.UserEntity
 import org.bscm.models.dao.VersionEntity
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.enums.Visibility
 import org.bscm.utils.UserStatsUtils
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDateTime
@@ -47,9 +48,9 @@ class CatalogItemRepository {
         }
     }
 
-    suspend fun updateVisibility(catalogItemId: String, isPublic: Boolean): Unit = newSuspendedTransaction {
+    suspend fun updateVisibility(catalogItemId: String, visibility: Visibility): Unit = newSuspendedTransaction {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
-            it.isPublic = isPublic
+            it.visibility = visibility
         }
     }
 
@@ -72,4 +73,3 @@ class CatalogItemRepository {
         UserStatsUtils.fetchUserStats(userId, contentIds)
     }
 }
-

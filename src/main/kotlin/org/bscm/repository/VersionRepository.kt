@@ -7,7 +7,6 @@ import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.mappers.VersionMapper.entityToVersion
 import org.bscm.models.tables.CatalogItemTable
-import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.VersionTable
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
@@ -24,14 +23,14 @@ class VersionRepository : IVersionRepository {
             .map { entityToVersion(it) }
     }
 
-    override suspend fun getLatestVersionsByChartIds(chartIds: List<ULong>): List<Version> =
+    override suspend fun getLatestVersionsByCatalogItemIds(catalogItemIds: List<String>): List<Version> =
         newSuspendedTransaction {
-            if (chartIds.isEmpty()) return@newSuspendedTransaction emptyList()
+            if (catalogItemIds.isEmpty()) return@newSuspendedTransaction emptyList()
 
-            val rows = (ChartTable innerJoin CatalogItemTable leftJoin VersionTable)
+            val rows = (CatalogItemTable innerJoin VersionTable)
                 .select(VersionTable.columns)
                 .where {
-                    (ChartTable.id inList chartIds) and
+                    (CatalogItemTable.id inList catalogItemIds) and
                             (CatalogItemTable.latestVersionId eq VersionTable.id)
                 }
                 .toList()

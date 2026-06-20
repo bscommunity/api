@@ -26,10 +26,9 @@ class ChartResultAssembler(
     )
 
     fun toChart(result: ChartResult): Chart = Chart(
-        id = result.chart.id.value.toString(),
-        contentId = result.catalogItem.id.value,
+        id = result.chart.id.value,
         status = result.catalogItem.status,
-        isPublic = result.catalogItem.isPublic,
+        visibility = result.catalogItem.visibility,
         isFeatured = result.catalogItem.isFeatured,
         downloadsSum = result.catalogItem.downloadsSum,
         contributors = result.contributors.map { contributorEntityToContributor(it.first, it.second) },
@@ -39,6 +38,9 @@ class ChartResultAssembler(
         likedAt = result.userStats.first,
         bookmarkedAt = result.userStats.second,
         previewVideoId = result.catalogItem.previewVideoId,
+        discordChannelId = result.catalogItem.discordChannelId,
+        discordMessageId = result.catalogItem.discordMessageId,
+        authorId = result.catalogItem.author?.id?.value,
         track = trackRepository.toTrack(result.track, result.streamingRefs),
         versionsCount = result.catalogItem.versionsCount,
         difficulty = result.chart.difficulty,
@@ -54,8 +56,10 @@ class ChartResultAssembler(
         results: List<ResultRow>,
         includeStreamingRefs: Boolean,
     ): List<ChartResult> {
-        val groupedByChartId = results.groupBy { it[ChartTable.id].value }
-        val contentIds = groupedByChartId.values.map { it.first()[CatalogItemTable.id].value }
+        val groupedByChartId: Map<String, List<ResultRow>> = results.groupBy { row: ResultRow ->
+            row[ChartTable.id].value
+        }
+        val contentIds = groupedByChartId.keys.toList()
         val userStats = catalogItemRepository.fetchUserStats(requestingUserId, contentIds)
 
         return groupedByChartId.map { (_, rows) ->
@@ -99,4 +103,3 @@ class ChartResultAssembler(
         }
     }
 }
-

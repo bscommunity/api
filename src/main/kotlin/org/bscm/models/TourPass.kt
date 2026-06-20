@@ -1,4 +1,4 @@
-@file:UseSerializers(LocalDateTimeSerializer::class)
+@file:UseSerializers(LocalDateTimeSerializer::class, UUIDSerializer::class)
 
 package org.bscm.models
 
@@ -7,17 +7,20 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.enums.Visibility
 import org.bscm.serialization.LocalDateTimeSerializer
+import org.bscm.serialization.UUIDSerializer
 import java.time.LocalDateTime
+import java.util.*
 
 @Serializable
 @SerialName("tour_pass")
 data class TourPass(
     val name: String,
     val description: String? = null,
-    val artist: String?,
+    val artist: String? = null,
     val charts: List<Chart>,
-    val playlistUrls: List<StreamingRef> = emptyList(),
+    val coverId: String? = null,
 
     override val contributors: List<Contributor> = emptyList(),
 
@@ -28,13 +31,14 @@ data class TourPass(
     override val bookmarkedAt: LocalDateTime?,
 
     override val id: String,
-    override val contentId: String,
     override val type: CatalogItemType,
     override val status: CatalogItemStatus,
-    override val isPublic: Boolean,
+    override val visibility: Visibility,
     override val isFeatured: Boolean,
     override val downloadsSum: Int,
     override val previewVideoId: String?,
 
-    val coverUrl: String,
+    override val discordChannelId: String?,
+    override val discordMessageId: String?,
+    override val authorId: UUID?,
 ) : CatalogItem

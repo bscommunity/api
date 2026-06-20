@@ -68,20 +68,20 @@ class ThemePublishService(
             coverUrl = resolvedCoverUrl,
             displayArtUrl = resolvedDisplayArtUrl,
             previewUrl = request.previewUrl,
-            id = discordResponse.id.toULong(),
+            id = discordResponse.id,
         )
 
         activityRepository.logActivity(
             userId = uploader.id,
             type = ActivityType.CREATED_THEME,
-            targetId = theme.contentId
+            targetId = theme.id
         )
 
         return theme
     }
 
-    suspend fun deleteAndCleanup(id: ULong, userId: java.util.UUID): Boolean {
-        val contentId = themeRepository.getThemeById(id, userId)?.contentId ?: return false
+    suspend fun deleteAndCleanup(id: String, userId: java.util.UUID): Boolean {
+        val contentId = themeRepository.getThemeById(id, userId)?.id ?: return false
         val deleted = themeRepository.deleteTheme(id, userId)
         if (!deleted) return false
 
@@ -91,12 +91,12 @@ class ThemePublishService(
         )
 
         // Best effort cleanup - DB state is source of truth.
-        runCatching { uploadService.deleteMessage(id.toString()) }
+        runCatching { uploadService.deleteMessage(id) }
         return true
     }
 
     suspend fun updateAndPublish(
-        id: ULong,
+        id: String,
         userId: java.util.UUID,
         request: UpdateThemeRequest,
         assets: Assets,

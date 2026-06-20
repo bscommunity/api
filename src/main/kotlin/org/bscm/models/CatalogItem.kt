@@ -8,20 +8,21 @@ import kotlinx.serialization.UseSerializers
 import kotlinx.serialization.json.JsonClassDiscriminator
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.enums.Visibility
 import org.bscm.serialization.LocalDateTimeSerializer
 import java.time.LocalDateTime
+import java.util.*
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
 @JsonClassDiscriminator("type")
 sealed interface CatalogItem {
     val id: String
-    val contentId: String
 
     val type: CatalogItemType
     val status: CatalogItemStatus
+    val visibility: Visibility
 
-    val isPublic: Boolean
     val isFeatured: Boolean
 
     val downloadsSum: Int
@@ -38,4 +39,11 @@ sealed interface CatalogItem {
 
     // Optional external preview video
     val previewVideoId: String?
+
+    // Discord publishing coordinates (fixed per item)
+    val discordChannelId: String?
+    val discordMessageId: String?
+
+    // Author (nullable — ON DELETE SET NULL)
+    val authorId: UUID?
 }

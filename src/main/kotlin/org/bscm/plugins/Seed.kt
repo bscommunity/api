@@ -3,6 +3,7 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import io.ktor.util.logging.*
 import kotlinx.coroutines.*
+import org.bscm.models.Changelog
 import org.bscm.models.StreamingRef
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
@@ -160,7 +161,7 @@ private suspend fun generateRandomCharts(
                                 val additionalVersionsCount = Random.nextInt(1, 3)
                                 repeat(additionalVersionsCount) {
                                     versionRepository.addVersion(
-                                        catalogItemId = chart.contentId,
+                                        catalogItemId =                     chart.id,
                                         CreateVersionRequest(
                                             track = chart.track.title,
                                             artist = chart.track.artist,
@@ -186,8 +187,8 @@ private suspend fun generateRandomCharts(
                             val contributorsCount = Random.nextInt(1, 4)
                             val contributors = userIds.filter { it != ownerId }.shuffled().take(contributorsCount)
                             contributorRepository.addContributors(
-                                chart.id.toULong(),
-                                contributors.map { SimplifiedContributor(it, listOf(contributorRoles.random())) }
+                                chart.id,
+                                contributors.map { SimplifiedContributor(it, contributorRoles.random()) }
                             )
                             log.info("Added contributors for chart ID: ${chart.id}")
                         }
@@ -198,8 +199,13 @@ private suspend fun generateRandomCharts(
                                 val issuesCount = Random.nextInt(1, 3)
                                 repeat(issuesCount) {
                                     knownIssueRepository.addIssue(
-                                        chart.id.toULong(),
-                                        getRandomIssue()
+                                        chart.id,
+                                        Changelog(
+                                            id = UUID.randomUUID(),
+                                            chartId = chart.id,
+                                            title = getRandomIssue(),
+                                            createdAt = java.time.LocalDateTime.now()
+                                        )
                                     )
                                 }
                                 log.info("Added known issues for chart ID: ${chart.id}")

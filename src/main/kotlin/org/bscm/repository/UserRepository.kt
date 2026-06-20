@@ -179,7 +179,7 @@ class UserRepository(
     ): List<CatalogItem> = newSuspendedTransaction {
         // Get content IDs for the user's charts
         val contentQuery = CatalogItemTable
-            .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.catalogItemId })
+            .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
             .innerJoin(TrackTable, { ChartTable.trackId }, { TrackTable.id })
             .select(CatalogItemTable.id, CatalogItemTable.type)
             .where { CatalogItemTable.authorId eq userId }
@@ -206,14 +206,14 @@ class UserRepository(
         // Fetch Charts
         val (charts, _) = chartRepository.getCharts(
             filters = ChartRepository.ChartFilters(
-                contentIds = contentIds,
+                chartIds = contentIds,
                 includePrivate = requestingUserId == userId
             )
         )
 
         // Return in order of original query
         val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
-        charts.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
+        charts.sortedBy { orderMap[it.id] ?: Int.MAX_VALUE }
     }
 
     override suspend fun getUserTourPasses(
@@ -225,7 +225,7 @@ class UserRepository(
     ): List<CatalogItem> = newSuspendedTransaction {
         // Get content IDs for the user's tour passes
         val contentQuery = CatalogItemTable
-            .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.catalogItemId })
+            .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
             .select(CatalogItemTable.id, CatalogItemTable.type)
             .where { CatalogItemTable.authorId eq userId }
 
@@ -258,7 +258,7 @@ class UserRepository(
 
         // Return in order of original query
         val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
-        tourPasses.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
+        tourPasses.sortedBy { orderMap[it.id] ?: Int.MAX_VALUE }
     }
 
     override suspend fun getUserThemes(
@@ -270,7 +270,7 @@ class UserRepository(
     ): List<CatalogItem> = newSuspendedTransaction {
         // Get content IDs for the user's themes
         val contentQuery = CatalogItemTable
-            .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.catalogItemId })
+            .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
             .select(CatalogItemTable.id, CatalogItemTable.type)
             .where { CatalogItemTable.authorId eq userId }
 
@@ -303,7 +303,7 @@ class UserRepository(
 
         // Return in order of original query
         val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
-        themes.sortedBy { orderMap[it.contentId] ?: Int.MAX_VALUE }
+        themes.sortedBy { orderMap[it.id] ?: Int.MAX_VALUE }
     }
 
     override suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int, requestedCounts: Set<String>): UserProfileCounts = newSuspendedTransaction {

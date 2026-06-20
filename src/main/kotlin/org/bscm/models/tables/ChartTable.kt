@@ -1,23 +1,16 @@
 package org.bscm.models.tables
 
 import org.bscm.models.enums.Difficulty
-import org.jetbrains.exposed.dao.id.ULongIdTable
+import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.dao.id.IdTable
+import org.jetbrains.exposed.sql.Column
 import org.jetbrains.exposed.sql.ReferenceOption
 
-object ChartTable : ULongIdTable("charts") {
-    val catalogItemId =
-        reference(
-            "catalog_item_id",
-            CatalogItemTable,
-            onDelete = ReferenceOption.CASCADE
-        ).uniqueIndex()
+object ChartTable : IdTable<String>("charts") {
+    override val id: Column<EntityID<String>> =
+        reference("id", CatalogItemTable, onDelete = ReferenceOption.CASCADE)
 
-    val trackId =
-        reference(
-            "track_id",
-            TrackTable,
-            onDelete = ReferenceOption.CASCADE
-        )
+    val trackId = reference("track_id", TrackTable, onDelete = ReferenceOption.RESTRICT)
 
     val difficulty = enumerationByName("difficulty", 10, Difficulty::class)
     val notesAmount = integer("notes_amount")

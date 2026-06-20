@@ -3,8 +3,10 @@ package org.bscm.repository
 import io.ktor.server.plugins.*
 import io.ktor.util.logging.*
 import org.bscm.models.Chart
+import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ChartEntity
 import org.bscm.models.dao.ContributorEntity
+import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
@@ -12,11 +14,8 @@ import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ChartTable
-import org.bscm.models.tables.ContributorTable
 import org.bscm.models.tables.TrackTable
 import org.bscm.utils.QueryUtils
-import org.jetbrains.exposed.dao.id.CompositeID
-import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.Query
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.selectAll
@@ -36,8 +35,7 @@ class ChartRepository(
 
     data class ChartFilters(
         val userId: UUID? = null,
-        val chartIds: List<ULong>? = null,
-        val contentIds: List<String>? = null,
+        val chartIds: List<String>? = null,
         val search: String? = null,
         val difficulties: List<Difficulty>? = null,
         val genres: List<Genre>? = null,
@@ -63,22 +61,12 @@ class ChartRepository(
         return processedResults.firstOrNull()?.let { resultAssembler.toChart(it) }
     }
 
-    override suspend fun getChartById(id: ULong, addons: ChartAddons?): Chart? = newSuspendedTransaction {
+    override suspend fun getChartById(id: String, addons: ChartAddons?): Chart? = newSuspendedTransaction {
         getChart(
             query = ChartTable.selectAll().where { ChartTable.id eq id },
             addons = addons,
         )
     }
-
-    override suspend fun getChartByContentId(contentId: String, addons: ChartAddons?): Chart? =
-        newSuspendedTransaction {
-            getChart(
-                query = ChartTable.selectAll().where {
-                    ChartTable.catalogItemId eq EntityID(contentId, CatalogItemTable)
-                },
-                addons = addons,
-            )
-        }
 
     private suspend fun fetchChartEntities(
         sortBy: SortOption?,
@@ -95,10 +83,14 @@ class ChartRepository(
         queryBuilder.applyFilters(baseQuery, filters)
         queryBuilder.applySorting(baseQuery, sortBy ?: SortOption.LAST_UPDATED)
 
-        limit?.takeIf { it > 0 }?.let { baseQuery.limit(it) }
-        offset?.takeIf { it >= 0 }?.let { baseQuery.offset(it.toLong()) }
+        if (limit != null && limit > 0) {
+            baseQuery.limit(limit)
+        }
+        if (offset != null && offset >= 0) {
+            baseQuery.offset(offset.toLong())
+        }
 
-        val paginatedIds = baseQuery.map { it[ChartTable.id].value }
+        val paginatedIds = baseQuery.map { row -> row[ChartTable.id].value }
         if (paginatedIds.isEmpty()) return Pair(emptyList(), 0)
 
         val fullQuery = ChartTable.selectAll().where { ChartTable.id inList paginatedIds }
@@ -150,7 +142,7 @@ class ChartRepository(
             if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
 
             val query = ChartTable.selectAll().where {
-                ChartTable.catalogItemId inList contentIds.map { EntityID(it, CatalogItemTable) }
+                ChartTable.id inList contentIds
             }
             queryBuilder.applyJoinsAndSelect(query, fetchStreamingRefs = addons?.streamingLinks == true)
 
@@ -193,8 +185,7 @@ class ChartRepository(
 
         trackRepository.attachStreamingRefs(track.id.value, chart.trackUrls)
 
-        val newChart = ChartEntity.new(chart.id) {
-            this.catalogItem = catalogItem
+        val newChart = ChartEntity.new(catalogItem.id.value) {
             this.track = track
             this.difficulty = chart.difficulty
             this.notesAmount = chart.notesAmount
@@ -203,13 +194,10 @@ class ChartRepository(
             this.isExplicit = chart.isExplicit
         }
 
-        val contributorId = CompositeID {
-            it[ContributorTable.chartId] = newChart.id
-            it[ContributorTable.userId] = userId
-        }
-
-        ContributorEntity.new(contributorId) {
-            roles = listOf(ContributorRole.AUTHOR)
+        ContributorEntity.new {
+            this.catalogItem = CatalogItemEntity[catalogItem.id.value]
+            this.user = UserEntity[userId]
+            this.role = ContributorRole.AUTHOR
         }
 
         versionRepository.addVersion(
@@ -236,7 +224,9 @@ class ChartRepository(
             ?: throw IllegalStateException("Failed to load chart after creation")
     }
 
-    override suspend fun updateChart(id: ULong, chart: UpdateChartRequest): Chart = newSuspendedTransaction<Chart> {
+    override suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = true
+
+    override suspend fun updateChart(id: String, chart: UpdateChartRequest): Chart = newSuspendedTransaction<Chart> {
         val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
             it.difficulty = chart.difficulty ?: it.difficulty
             it.isDeluxe = chart.isDeluxe ?: it.isDeluxe
@@ -252,10 +242,10 @@ class ChartRepository(
         )
 
         chart.isFeatured?.let { featured ->
-            catalogItemRepository.updateFeatured(existingChart.catalogItem.id.value, featured)
+            catalogItemRepository.updateFeatured(id, featured)
         }
-        chart.isPublic?.let { isPublic ->
-            catalogItemRepository.updateVisibility(existingChart.catalogItem.id.value, isPublic)
+        chart.visibility?.let { visibility ->
+            catalogItemRepository.updateVisibility(id, visibility)
         }
 
         val query = ChartTable.selectAll().where { ChartTable.id eq id }
@@ -263,32 +253,22 @@ class ChartRepository(
             ?: throw IllegalStateException("Failed to load chart after update")
     }
 
-    override suspend fun deleteChartAndGetContentId(id: ULong): String? = newSuspendedTransaction {
-        val chart = ChartEntity.findById(id) ?: return@newSuspendedTransaction null
-        val contentId = chart.catalogItem.id.value
-        chart.delete()
-        contentId
+    override suspend fun deleteChart(id: String): Boolean = newSuspendedTransaction {
+        val catalogItem = CatalogItemEntity.findById(id) ?: return@newSuspendedTransaction false
+        catalogItem.delete()
+        true
     }
 
-    override suspend fun postAnalytics(chartId: ULong, action: OperationOption): Boolean = newSuspendedTransaction {
+    override suspend fun postAnalytics(chartId: String, action: OperationOption): Boolean = newSuspendedTransaction {
         when (action) {
             OperationOption.INSTALL, OperationOption.UPDATE -> {
                 val chart = ChartEntity.findById(chartId) ?: throw NotFoundException("Chart not found")
-                catalogItemRepository.incrementDownloads(chart.catalogItem.id.value)
+                catalogItemRepository.incrementDownloads(chart.id.value)
                 log.info("Download analytics recorded for chart $chartId")
                 true
             }
 
             OperationOption.DELETE -> throw NotFoundException("Cannot post analytics for deleted charts")
         }
-    }
-
-    override suspend fun refreshChartsBundles(
-        messages: Map<String, org.bscm.services.UploadService.RefreshData>
-    ): Boolean = newSuspendedTransaction {
-        if (messages.isNotEmpty()) {
-            log.warn("refreshChartsBundles is deprecated with the new storage model; no changes applied")
-        }
-        true
     }
 }

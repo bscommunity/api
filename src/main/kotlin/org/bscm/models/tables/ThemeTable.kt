@@ -1,26 +1,19 @@
 package org.bscm.models.tables
 
-import org.jetbrains.exposed.dao.id.ULongIdTable
+import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.dao.id.IdTable
+import org.jetbrains.exposed.sql.Column
 import org.jetbrains.exposed.sql.ReferenceOption
 
-object ThemeTable : ULongIdTable("themes") {
-    val catalogItemId =
-        reference("catalog_item_id", CatalogItemTable, onDelete = ReferenceOption.CASCADE)
-            .uniqueIndex()
-
-    val versionsCount = integer("versions_count").default(0)
-
-    val latestVersionId =
-        reference("latest_version_id", VersionTable, onDelete = ReferenceOption.SET_NULL)
-            .nullable()
+object ThemeTable : IdTable<String>("themes") {
+    override val id: Column<EntityID<String>> =
+        reference("id", CatalogItemTable, onDelete = ReferenceOption.CASCADE)
 
     val name = varchar("name", 255)
-    val description = varchar("description", 500).nullable()
-
-    // Theme-specific assets/metadata
-    val coverId = varchar("cover_id", 10).nullable()
-    val displayArtId = varchar("display_art_id", 20).nullable()
     val replaces = varchar("replaces", 255)
+    val displayArtUrl = varchar("display_art_url", 512).nullable()
+    val previewUrl = varchar("preview_url", 512).nullable()
+    val coverUrl = varchar("cover_url", 512).nullable()
 
     init {
         index(false, name)

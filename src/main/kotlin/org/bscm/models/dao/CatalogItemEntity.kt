@@ -14,15 +14,18 @@ class CatalogItemEntity(
 
     var type by CatalogItemTable.type
     var status by CatalogItemTable.status
+    var visibility by CatalogItemTable.visibility
 
     var previewVideoId by CatalogItemTable.previewVideoId
 
-    var isPublic by CatalogItemTable.isPublic
     var isFeatured by CatalogItemTable.isFeatured
 
     var downloadsSum by CatalogItemTable.downloadsSum
 
     var versionsCount by CatalogItemTable.versionsCount
+
+    var discordChannelId by CatalogItemTable.discordChannelId
+    var discordMessageId by CatalogItemTable.discordMessageId
 
     var latestVersion by VersionEntity optionalReferencedOn
             CatalogItemTable.latestVersionId
@@ -34,11 +37,9 @@ class CatalogItemEntity(
     var publishedAt by CatalogItemTable.publishedAt
     var updatedAt by CatalogItemTable.updatedAt
 
-    var author by UserEntity referencedOn CatalogItemTable.authorId
+    var author by UserEntity optionalReferencedOn CatalogItemTable.authorId
 
-    val contributors by ContributorEntity via ContributorTable
-
-    val chart by ChartEntity optionalBackReferencedOn ChartTable.catalogItemId
-    val theme by ThemeEntity optionalBackReferencedOn ThemeTable.catalogItemId
-    val tourPass by TourPassEntity optionalBackReferencedOn TourPassTable.catalogItemId
+    val chart by ChartEntity optionalReferencedOn ChartTable
+    val theme by ThemeEntity optionalReferencedOn ThemeTable
+    val tourPass by TourPassEntity optionalReferencedOn TourPassTable
 }

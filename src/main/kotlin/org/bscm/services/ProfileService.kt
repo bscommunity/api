@@ -115,23 +115,23 @@ class ProfileService(
             .distinct()
 
         val charts = if (chartContentIds.isNotEmpty()) {
-            chartRepository.getCharts(filters = ChartRepository.ChartFilters(contentIds = chartContentIds))
+            chartRepository.getCharts(filters = ChartRepository.ChartFilters(chartIds = chartContentIds))
                 .first
-                .associateBy { it.contentId }
+                .associateBy { it.id }
         } else {
             emptyMap()
         }
 
         val tourPasses = if (tourPassContentIds.isNotEmpty()) {
             tourPassRepository.getTourPasses(userId = requesterId, contentIds = tourPassContentIds, search = null, limit = null, offset = null)
-                .associateBy { it.contentId }
+                .associateBy { it.id }
         } else {
             emptyMap()
         }
 
         val themes = if (themeContentIds.isNotEmpty()) {
             themeRepository.getThemes(userId = requesterId, contentIds = themeContentIds, search = null, limit = null, offset = null)
-                .associateBy { it.contentId }
+                .associateBy { it.id }
         } else {
             emptyMap()
         }

@@ -1,31 +1,28 @@
 package org.bscm.models.dao
 
 import org.bscm.models.tables.ChartTable
-import org.jetbrains.exposed.dao.ULongEntity
-import org.jetbrains.exposed.dao.ULongEntityClass
+import org.jetbrains.exposed.dao.Entity
+import org.jetbrains.exposed.dao.EntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 
 class ChartEntity(
-    id: EntityID<ULong>
-) : ULongEntity(id) {
+    id: EntityID<String>
+) : Entity<String>(id) {
 
     companion object :
-        ULongEntityClass<ChartEntity>(ChartTable)
-
-    var catalogItem by CatalogItemEntity referencedOn
-            ChartTable.catalogItemId
+        EntityClass<String, ChartEntity>(ChartTable)
 
     var track by TrackEntity referencedOn
             ChartTable.trackId
 
     val latestVersion: VersionEntity?
-        get() = catalogItem.latestVersion
+        get() = CatalogItemEntity[id].latestVersion
 
     val versions
-        get() = catalogItem.versions
+        get() = CatalogItemEntity[id].versions
 
     val versionsCount: Int
-        get() = catalogItem.versionsCount
+        get() = CatalogItemEntity[id].versionsCount
 
     var difficulty by ChartTable.difficulty
 

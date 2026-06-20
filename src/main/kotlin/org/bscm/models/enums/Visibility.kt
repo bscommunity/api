@@ -3,6 +3,6 @@ package org.bscm.models.enums
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class CatalogItemStatus {
-    DRAFT, PUBLISHED, ARCHIVED, REMOVED
+enum class Visibility {
+    PUBLIC, UNLISTED, PRIVATE
 }

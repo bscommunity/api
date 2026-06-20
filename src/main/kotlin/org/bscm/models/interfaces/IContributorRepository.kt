@@ -6,8 +6,8 @@ import org.bscm.models.enums.ContributorRole
 import java.util.*
 
 interface IContributorRepository {
-    suspend fun addContributors(chartId: ULong, contributors: List<SimplifiedContributor>): List<Contributor>
-    suspend fun removeContributor(chartId: ULong, userId: UUID): Boolean
-    suspend fun updateContributorRoles(chartId: ULong, userId: UUID, roles: List<ContributorRole>): Contributor
-    suspend fun getContributors(chartId: ULong): List<UUID>
+    suspend fun addContributors(catalogItemId: String, contributors: List<SimplifiedContributor>): List<Contributor>
+    suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole): Boolean
+    suspend fun updateContributorRole(catalogItemId: String, userId: UUID, role: ContributorRole): Contributor
+    suspend fun getContributors(catalogItemId: String): List<Contributor>
 }

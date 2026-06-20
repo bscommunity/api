@@ -2,6 +2,7 @@ package org.bscm.models.tables
 
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.enums.Visibility
 import org.bscm.utils.NanoIdUtils
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.ReferenceOption
@@ -15,6 +16,8 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
         .uniqueIndex()
     val type = enumerationByName("type", 20, CatalogItemType::class)
     val status = enumerationByName("status", 20, CatalogItemStatus::class)
+    val visibility = enumerationByName("visibility", 20, Visibility::class)
+        .default(Visibility.PUBLIC)
 
     val versionsCount =
         integer("versions_count")
@@ -27,19 +30,20 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
             onDelete = ReferenceOption.SET_NULL
         ).nullable()
 
-    val previewVideoId = varchar("preview_url", 12).nullable()
+    val previewVideoId = varchar("preview_video_id", 12).nullable()
 
-    val isPublic = bool("is_public").default(true)
     val isFeatured = bool("is_featured").default(false)
 
-    // Aggregated/derived fields useful for queries
     val downloadsSum = integer("downloads_sum").default(0)
+
+    val discordChannelId = varchar("discord_channel_id", 255).nullable()
+    val discordMessageId = varchar("discord_message_id", 255).nullable()
 
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val publishedAt = datetime("published_at").nullable()
     val updatedAt = datetime("updated_at").nullable()
 
-    val authorId = reference("author_id", UserTable, ReferenceOption.CASCADE)
+    val authorId = reference("author_id", UserTable, ReferenceOption.SET_NULL).nullable()
 
     init {
         index(false, type)

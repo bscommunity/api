@@ -12,8 +12,8 @@ import java.time.LocalDateTime
 @Serializable
 data class Contributor(
     val user: SimplifiedUser,
-    val chartId: String,
+    val catalogItemId: String,
     val note: String? = null,
-    val roles: List<ContributorRole>,
+    val role: ContributorRole,
     val joinedAt: LocalDateTime
 )

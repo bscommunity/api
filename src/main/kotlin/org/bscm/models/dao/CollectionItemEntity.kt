@@ -9,7 +9,7 @@ class CollectionItemEntity(id: EntityID<Int>) : Entity<Int>(id) {
     companion object : EntityClass<Int, CollectionItemEntity>(CollectionItemTable)
 
     var collection by CollectionEntity referencedOn CollectionItemTable.collectionId
-    var content by ContentEntity referencedOn CollectionItemTable.contentId
+    var content by CatalogItemEntity referencedOn CollectionItemTable.contentId
 
     var addedAt by CollectionItemTable.addedAt
 }

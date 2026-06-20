@@ -49,11 +49,11 @@ class ChartPublishService(
      * Deletes a chart and removes its creation log in a single application-level flow.
      * Returns false when the chart does not exist.
      */
-    suspend fun deleteChartAndCleanup(chartId: ULong): Boolean {
-        val contentId = chartRepository.deleteChartAndGetContentId(chartId) ?: return false
+    suspend fun deleteChartAndCleanup(chartId: String): Boolean {
+        if (!chartRepository.deleteChart(chartId)) return false
         activityRepository.removeActivityByTypeAndTarget(
             type = ActivityType.CREATED_CHART,
-            targetId = contentId
+            targetId = chartId
         )
         return true
     }
@@ -171,7 +171,6 @@ class ChartPublishService(
         val coverUrlFinal = discordResponse.embeds.firstOrNull()?.image?.url ?: createForUpload.coverUrl
 
         val finalCreate = createForUpload.copy(
-            id = discordResponse.id.toULong(),
             versionId = bundleAttachment.id.toULong(),
             bundleUrl = bundleAttachment.url,
             coverUrl = coverUrlFinal,
@@ -196,7 +195,7 @@ class ChartPublishService(
         activityRepository.logActivity(
             userId = user.id,
             type = ActivityType.CREATED_CHART,
-            targetId = createdChart.contentId
+            targetId = createdChart.id
         )
 
         return result
