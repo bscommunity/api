@@ -9,6 +9,7 @@ import org.bscm.models.dao.TourPassEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.TourPassChartTable
@@ -22,7 +23,7 @@ import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransacti
 import java.util.*
 
 class TourPassRepository(
-    private val chartRepository: ChartRepository,
+    private val chartRepository: IChartRepository,
 ) : ITourPassRepository {
 
     private fun tourPassEntityToTourPass(entity: TourPassEntity): TourPass {

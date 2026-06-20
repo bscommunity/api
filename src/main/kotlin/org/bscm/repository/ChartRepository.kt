@@ -12,6 +12,7 @@ import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.TrackTable
@@ -27,7 +28,7 @@ private val log = KtorSimpleLogger("ChartRepository")
 class ChartRepository(
     private val trackRepository: TrackRepository,
     private val catalogItemRepository: CatalogItemRepository,
-    private val versionRepository: VersionRepository,
+    private val versionRepository: IVersionRepository,
 ) : BaseRepository(), IChartRepository {
 
     private val queryBuilder = ChartQueryBuilder()
