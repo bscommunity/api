@@ -7,30 +7,34 @@ import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.Visibility
 import org.bscm.utils.UserStatsUtils
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.time.LocalDateTime
 import java.util.*
 
 class CatalogItemRepository {
-    suspend fun getById(id: String): CatalogItemEntity? = newSuspendedTransaction {
+    fun getById(id: String): CatalogItemEntity? =
         CatalogItemEntity.findById(id)
-    }
 
-    suspend fun create(
+    fun create(
         type: CatalogItemType,
         authorId: UUID,
         previewVideoId: String? = null,
         contentId: String? = null,
-    ): CatalogItemEntity = newSuspendedTransaction {
-        if (contentId.isNullOrBlank()) {
-            CatalogItemEntity.new {
+    ): CatalogItemEntity {
+        val id =
+            if (!contentId.isNullOrBlank() && CatalogItemEntity.findById(contentId) == null)
+                contentId
+            else
+                null
+
+        return when {
+            id != null -> CatalogItemEntity.new(id) {
                 this.type = type
                 this.status = CatalogItemStatus.DRAFT
                 this.previewVideoId = previewVideoId
                 this.author = UserEntity[authorId]
             }
-        } else {
-            CatalogItemEntity.new(contentId) {
+
+            else -> CatalogItemEntity.new {
                 this.type = type
                 this.status = CatalogItemStatus.DRAFT
                 this.previewVideoId = previewVideoId
@@ -39,37 +43,42 @@ class CatalogItemRepository {
         }
     }
 
-    suspend fun updateLatestVersion(
+    fun updateLatestVersion(
         catalogItemId: String,
         version: VersionEntity,
-    ): Unit = newSuspendedTransaction {
+    ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.latestVersion = version
         }
     }
 
-    suspend fun updateVisibility(catalogItemId: String, visibility: Visibility): Unit = newSuspendedTransaction {
+    fun updateVisibility(
+        catalogItemId: String,
+        visibility: Visibility,
+    ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.visibility = visibility
         }
     }
 
-    suspend fun updateFeatured(catalogItemId: String, isFeatured: Boolean): Unit = newSuspendedTransaction {
+    fun updateFeatured(
+        catalogItemId: String,
+        isFeatured: Boolean,
+    ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.isFeatured = isFeatured
         }
     }
 
-    suspend fun incrementDownloads(catalogItemId: String): Unit = newSuspendedTransaction {
+    fun incrementDownloads(catalogItemId: String) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.downloadsSum += 1
         }
     }
 
-    suspend fun fetchUserStats(
+    fun fetchUserStats(
         userId: UUID?,
-        contentIds: List<String>
-    ): Map<String, Pair<LocalDateTime?, LocalDateTime?>> = newSuspendedTransaction {
+        contentIds: List<String>,
+    ): Map<String, Pair<LocalDateTime?, LocalDateTime?>> =
         UserStatsUtils.fetchUserStats(userId, contentIds)
-    }
 }

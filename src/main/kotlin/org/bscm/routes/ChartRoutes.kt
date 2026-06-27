@@ -27,6 +27,7 @@ import org.bscm.repository.ChartRepository
 import org.bscm.services.BundleDownloadService
 import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
+import org.bscm.utils.getUserIdOrNull
 import java.util.*
 
 private val logger = KtorSimpleLogger("ChartRoutes")
@@ -47,8 +48,6 @@ fun Route.chartRoutes(
         // Public + HMAC routes (workshop browsing, mobile app)
         // -----------------------------------------------------------------
         authenticate("auth-public") {
-            install(org.bscm.plugins.UserContext)
-
             rateLimit(RateLimitName("restricted")) {
 
                 /**
@@ -148,6 +147,7 @@ fun Route.chartRoutes(
                             ),
                             limit = resolvedLimit,
                             offset = resolvedOffset,
+                            requestingUserId = requesterId,
                         )
                     }
 
@@ -181,19 +181,20 @@ fun Route.chartRoutes(
                         throw UnauthorizedException("Unauthorized")
                     }
 
-                    val chart = chartRepository.getChartById(id)
+                    val requesterId = when {
+                        combinedPrincipal != null ->
+                            runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                        jwtPrincipal != null ->
+                            jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        else -> null
+                    }
+
+                    val chart = chartRepository.getChartById(id, requestingUserId = requesterId)
                         ?: throw NotFoundException("Chart not found")
 
                     // Private charts are only visible to their contributors.
                     // HMAC-only callers (mobile app without user context) cannot see private charts.
                     if (chart.visibility != Visibility.PUBLIC) {
-                        val requesterId = when {
-                            combinedPrincipal != null ->
-                                runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
-                            jwtPrincipal != null ->
-                                jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-                            else -> null
-                        }
                         val isContributor = requesterId != null &&
                                 chart.contributors.any { contributor -> contributor.user.id == requesterId }
                         if (!isContributor) throw NotFoundException("Chart not found")
@@ -228,17 +229,18 @@ fun Route.chartRoutes(
                         throw UnauthorizedException("Unauthorized")
                     }
 
-                    val chart = chartRepository.getChartById(id)
+                    val requesterId = when {
+                        combinedPrincipal != null ->
+                            runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                        jwtPrincipal != null ->
+                            jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        else -> null
+                    }
+
+                    val chart = chartRepository.getChartById(id, requestingUserId = requesterId)
                         ?: throw NotFoundException("Chart not found")
 
                     if (chart.visibility != Visibility.PUBLIC) {
-                        val requesterId = when {
-                            combinedPrincipal != null ->
-                                runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
-                            jwtPrincipal != null ->
-                                jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-                            else -> null
-                        }
                         val isContributor = requesterId != null &&
                                 chart.contributors.any { contributor -> contributor.user.id == requesterId }
                         if (!isContributor) throw NotFoundException("Chart not found")
@@ -493,7 +495,7 @@ fun Route.chartRoutes(
                         ?: throw BadRequestException("Invalid or missing chart ID")
 
                     val updateRequest = call.receive<UpdateChartRequest>()
-                    val updatedChart = chartRepository.updateChart(id, updateRequest)
+                    val updatedChart = chartRepository.updateChart(id, updateRequest, requestingUserId = call.getUserIdOrNull())
                     // Let StatusPages handle NotFoundException and any unexpected exceptions
                     // uniformly — no need for a local try/catch here.
 

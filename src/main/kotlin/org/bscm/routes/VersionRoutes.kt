@@ -23,6 +23,8 @@ import org.bscm.repository.ChartRepository
 import org.bscm.services.UploadService
 import org.bscm.utils.QueryUtils.getNormalizedQuery
 import org.bscm.utils.QueryUtils.similarity
+import org.bscm.utils.getUserIdOrNull
+import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.util.*
 
 private val logger = KtorSimpleLogger("VersionRoutes")
@@ -55,7 +57,8 @@ fun Route.versionRoutes(
 
                     val chart = chartRepository.getChartById(
                         chartId,
-                        ChartRepository.ChartAddons(versions = true)
+                        ChartRepository.ChartAddons(versions = true),
+                        requestingUserId = userId,
                     ) ?: throw NotFoundException("Chart not found")
 
                     logger.info("Received request to add version to chart $chartId")
@@ -124,7 +127,9 @@ fun Route.versionRoutes(
                         bundleUrl = attachment.url
                     )
 
-                    val createdVersion = versionRepository.addVersion(chart.id, createRequestWithUrl)
+                    val createdVersion = newSuspendedTransaction {
+                        versionRepository.addVersion(chart.id, createRequestWithUrl)
+                    }
 
                     logger.info("Version ${createdVersion.id} (v${createdVersion.versionCode}) created for chart $chartId")
 
@@ -182,7 +187,8 @@ fun Route.versionRoutes(
 
                     val chart = chartRepository.getChartById(
                         version.catalogItemId,
-                        ChartRepository.ChartAddons(versions = false)
+                        ChartRepository.ChartAddons(versions = false),
+                        requestingUserId = call.getUserIdOrNull(),
                     ) ?: throw NotFoundException("Chart not found")
 
                     logger.info("Removing version $versionId from chart ${chart.id}")

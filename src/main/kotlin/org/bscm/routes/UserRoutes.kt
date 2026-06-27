@@ -44,7 +44,6 @@ fun Route.userRoutes(
         }
 
         authenticate("auth-bearer", optional = true) {
-            install(org.bscm.plugins.UserContext)
 
             /**
              * Get user profile header by username.

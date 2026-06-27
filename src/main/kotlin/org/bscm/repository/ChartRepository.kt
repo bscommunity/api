@@ -29,7 +29,7 @@ class ChartRepository(
     private val trackRepository: TrackRepository,
     private val catalogItemRepository: CatalogItemRepository,
     private val versionRepository: IVersionRepository,
-) : BaseRepository(), IChartRepository {
+) : IChartRepository {
 
     private val queryBuilder = ChartQueryBuilder()
     private val resultAssembler = ChartResultAssembler(trackRepository, catalogItemRepository)
@@ -50,11 +50,11 @@ class ChartRepository(
         val count: Boolean = false,
     )
 
-    private suspend fun getChart(query: Query, addons: ChartAddons?): Chart? {
+    private suspend fun getChart(query: Query, addons: ChartAddons?, requestingUserId: UUID?): Chart? {
         queryBuilder.applyJoinsAndSelect(query, fetchStreamingRefs = addons?.streamingLinks == true)
 
         val processedResults = resultAssembler.processResultsInMemory(
-            requestingUserId = getUserContext()?.userId,
+            requestingUserId = requestingUserId,
             results = query.toList(),
             includeStreamingRefs = addons?.streamingLinks == true,
         )
@@ -62,10 +62,11 @@ class ChartRepository(
         return processedResults.firstOrNull()?.let { resultAssembler.toChart(it) }
     }
 
-    override suspend fun getChartById(id: String, addons: ChartAddons?): Chart? = newSuspendedTransaction {
+    override suspend fun getChartById(id: String, addons: ChartAddons?, requestingUserId: UUID?): Chart? = newSuspendedTransaction {
         getChart(
             query = ChartTable.selectAll().where { ChartTable.id eq id },
             addons = addons,
+            requestingUserId = requestingUserId,
         )
     }
 
@@ -75,6 +76,7 @@ class ChartRepository(
         addons: ChartAddons?,
         limit: Int? = 20,
         offset: Int? = null,
+        requestingUserId: UUID? = null,
     ): Pair<List<ChartResultAssembler.ChartResult>, Int> {
         val startTime = System.currentTimeMillis()
 
@@ -99,7 +101,7 @@ class ChartRepository(
 
         val results = fullQuery.toList()
         val processedResults = resultAssembler.processResultsInMemory(
-            requestingUserId = getUserContext()?.userId,
+            requestingUserId = requestingUserId,
             results = results,
             includeStreamingRefs = addons?.streamingLinks == true,
         )
@@ -123,6 +125,7 @@ class ChartRepository(
         addons: ChartAddons?,
         limit: Int?,
         offset: Int?,
+        requestingUserId: UUID?,
     ): Pair<List<Chart>, Int?> = newSuspendedTransaction {
         val (results, total) = fetchChartEntities(
             sortBy = sortBy,
@@ -130,6 +133,7 @@ class ChartRepository(
             addons = addons,
             limit = limit,
             offset = offset,
+            requestingUserId = requestingUserId,
         )
 
         if (results.isEmpty()) return@newSuspendedTransaction Pair(emptyList(), if (addons?.count == true) total else null)
@@ -138,7 +142,7 @@ class ChartRepository(
         Pair(charts, if (addons?.count == true) total else null)
     }
 
-    override suspend fun getChartsByContentIds(contentIds: List<String>, addons: ChartAddons?): List<Chart> =
+    override suspend fun getChartsByContentIds(contentIds: List<String>, addons: ChartAddons?, requestingUserId: UUID?): List<Chart> =
         newSuspendedTransaction {
             if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
 
@@ -149,7 +153,7 @@ class ChartRepository(
 
             val results = query.toList()
             resultAssembler.processResultsInMemory(
-                requestingUserId = getUserContext()?.userId,
+                requestingUserId = requestingUserId,
                 results = results,
                 includeStreamingRefs = addons?.streamingLinks == true,
             ).map { resultAssembler.toChart(it) }
@@ -221,13 +225,13 @@ class ChartRepository(
         )
 
         val query = ChartTable.selectAll().where { ChartTable.id eq newChart.id.value }
-        getChart(query, ChartAddons(streamingLinks = true))
+        getChart(query, ChartAddons(streamingLinks = true), requestingUserId = userId)
             ?: throw IllegalStateException("Failed to load chart after creation")
     }
 
     override suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = true
 
-    override suspend fun updateChart(id: String, chart: UpdateChartRequest): Chart = newSuspendedTransaction<Chart> {
+    override suspend fun updateChart(id: String, chart: UpdateChartRequest, requestingUserId: UUID?): Chart = newSuspendedTransaction<Chart> {
         val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
             it.difficulty = chart.difficulty ?: it.difficulty
             it.isDeluxe = chart.isDeluxe ?: it.isDeluxe
@@ -250,7 +254,7 @@ class ChartRepository(
         }
 
         val query = ChartTable.selectAll().where { ChartTable.id eq id }
-        getChart(query, ChartAddons(streamingLinks = true))
+        getChart(query, ChartAddons(streamingLinks = true), requestingUserId = requestingUserId)
             ?: throw IllegalStateException("Failed to load chart after update")
     }
 

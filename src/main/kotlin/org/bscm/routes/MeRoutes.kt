@@ -22,8 +22,6 @@ fun Route.meRoutes(
     chartRepository: IChartRepository
 ) {
     route("/me") {
-        install(org.bscm.plugins.UserContext)
-
         authenticate("auth-bearer") {
             // ===================== CHARTS ======================
 
@@ -50,6 +48,7 @@ fun Route.meRoutes(
                     addons = ChartRepository.ChartAddons(versions = true),
                     limit = limit,
                     offset = offset,
+                    requestingUserId = userId,
                 )
 
                 call.respond(charts)

@@ -19,7 +19,6 @@ import java.util.*
 fun Route.collectionRoutes(collectionService: CollectionService) {
     route("/collections") {
         authenticate("auth-bearer") {
-            install(org.bscm.plugins.UserContext)
             /**
              * Create a new collection.
              *

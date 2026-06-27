@@ -7,8 +7,7 @@ import org.jetbrains.exposed.sql.Column
 import org.jetbrains.exposed.sql.ReferenceOption
 
 object ChartTable : IdTable<String>("charts") {
-    override val id: Column<EntityID<String>> =
-        reference("id", CatalogItemTable, onDelete = ReferenceOption.CASCADE)
+    override val id: Column<EntityID<String>> = varchar("id", 255).entityId().uniqueIndex()
 
     val trackId = reference("track_id", TrackTable, onDelete = ReferenceOption.RESTRICT)
 

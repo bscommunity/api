@@ -10,13 +10,18 @@ import org.bscm.models.tables.TrackTable
 import org.bscm.storage.StorageService
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.StreamingPlatformUtils
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.sql.batchInsert
 import java.util.*
 
 class TrackRepository(
     private val storageService: StorageService,
 ) {
+    // NOTE: no longer opens its own newSuspendedTransaction.
+    // Must be called from within an existing transaction (e.g. ChartRepository.createChart).
+    // If this is called anywhere outside a transaction scope, wrap that call site in
+    // newSuspendedTransaction { ... } instead of restoring the transaction here — keeping it
+    // transaction-less lets callers batch multiple operations into a single round-trip set,
+    // which matters a lot with high DB latency.
     suspend fun findOrCreate(
         title: String,
         artist: String,
@@ -25,14 +30,14 @@ class TrackRepository(
         genre: Genre?,
         bpm: Int?,
         duration: Float,
-    ): TrackEntity = newSuspendedTransaction {
+    ): TrackEntity {
         isrc?.let { code ->
             TrackEntity.find { TrackTable.isrc eq code }
                 .firstOrNull()
-                ?.let { return@newSuspendedTransaction it }
+                ?.let { return it }
         }
 
-        TrackEntity.new {
+        return TrackEntity.new {
             this.title = title
             this.artist = artist
             this.album = album
@@ -46,27 +51,33 @@ class TrackRepository(
         }
     }
 
+    // NOTE: also no longer opens its own transaction — see note above.
+    // Single SELECT (inList) + single batched INSERT instead of one SELECT per ref.
     suspend fun attachStreamingRefs(
         trackId: UUID,
         refs: List<StreamingRef>
-    ) = newSuspendedTransaction {
-        if (refs.isEmpty()) return@newSuspendedTransaction
+    ) {
+        if (refs.isEmpty()) return
 
         val track = TrackEntity[trackId]
 
-        refs.forEach { ref ->
-            val existing = TrackStreamingRefEntity.find {
-                (TrackStreamingRefTable.trackId eq track.id) and
-                        (TrackStreamingRefTable.platform eq ref.platform)
-            }.firstOrNull()
+        val externalIds = refs.map { it.externalId }
+        val existingIds = TrackStreamingRefEntity.find {
+            TrackStreamingRefTable.externalId inList externalIds
+        }.map { it.externalId }.toSet()
 
-            if (existing == null) {
-                TrackStreamingRefEntity.new {
-                    this.track = track
-                    this.platform = ref.platform
-                    this.externalId = ref.externalId
-                }
-            }
+        val newRefs = refs
+            .filter { it.externalId !in existingIds }
+            // Guards the (trackId, platform) unique constraint — drop this line if the
+            // caller already guarantees at most one ref per platform.
+            .distinctBy { it.platform }
+
+        if (newRefs.isEmpty()) return
+
+        TrackStreamingRefTable.batchInsert(newRefs) { ref ->
+            this[TrackStreamingRefTable.trackId] = track.id
+            this[TrackStreamingRefTable.platform] = ref.platform
+            this[TrackStreamingRefTable.externalId] = ref.externalId
         }
     }
 

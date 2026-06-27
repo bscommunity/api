@@ -16,6 +16,7 @@ import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.models.interfaces.*
 import org.bscm.utils.NanoIdUtils
+import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.koin.ktor.ext.inject
 import java.util.*
 import kotlin.random.Random
@@ -160,23 +161,25 @@ private suspend fun generateRandomCharts(
                             if (Random.nextBoolean()) {
                                 val additionalVersionsCount = Random.nextInt(1, 3)
                                 repeat(additionalVersionsCount) {
-                                    versionRepository.addVersion(
-                                        catalogItemId =                     chart.id,
-                                        CreateVersionRequest(
-                                            track = chart.track.title,
-                                            artist = chart.track.artist,
-                                            duration = Random.nextFloat() * 4 + 2,
-                                            notesAmount = Random.nextInt(100, 1000),
-                                            effectsAmount = Random.nextInt(10, 100),
-                                            bpm = Random.nextInt(80, 180),
-                                            difficulty = difficulties.random(),
-                                            isDeluxe = Random.nextBoolean(),
-                                            isExplicit = Random.nextBoolean(),
-                                            bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                                            previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
-                                            fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
+                                    newSuspendedTransaction {
+                                        versionRepository.addVersion(
+                                            catalogItemId = chart.id,
+                                            CreateVersionRequest(
+                                                track = chart.track.title,
+                                                artist = chart.track.artist,
+                                                duration = Random.nextFloat() * 4 + 2,
+                                                notesAmount = Random.nextInt(100, 1000),
+                                                effectsAmount = Random.nextInt(10, 100),
+                                                bpm = Random.nextInt(80, 180),
+                                                difficulty = difficulties.random(),
+                                                isDeluxe = Random.nextBoolean(),
+                                                isExplicit = Random.nextBoolean(),
+                                                bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
+                                                previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
+                                                fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
+                                            )
                                         )
-                                    )
+                                    }
                                 }
                                 log.info("Added additional versions for chart ID: ${chart.id}")
                             }

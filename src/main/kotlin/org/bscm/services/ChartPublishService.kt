@@ -176,6 +176,8 @@ class ChartPublishService(
             coverUrl = coverUrlFinal,
         )
 
+        log.debug("finalCreate {}", finalCreate)
+
         val createdChart = chartRepository.createChart(user.id, finalCreate)
 
         val result = Result(

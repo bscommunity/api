@@ -42,8 +42,7 @@ class VersionRepository : IVersionRepository {
             }
         }
 
-    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version =
-        newSuspendedTransaction {
+    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version {
             val latestCode = VersionEntity.find { VersionTable.catalogItemId eq catalogItemId }
                 .maxOfOrNull { it.versionCode } ?: 0
 
@@ -68,7 +67,7 @@ class VersionRepository : IVersionRepository {
                 it.versionsCount += 1
             }
 
-            entityToVersion(newVersion)
+            return entityToVersion(newVersion)
         }
 
     override suspend fun removeVersion(versionId: ULong, currentLatestVersionId: String?, versionCount: Int): Boolean =
