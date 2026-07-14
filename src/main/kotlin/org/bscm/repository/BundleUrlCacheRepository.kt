@@ -8,7 +8,9 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 class BundleUrlCacheRepository {
     suspend fun getCachedUrl(catalogItemId: String): String? = suspendTransaction {
@@ -21,8 +23,9 @@ class BundleUrlCacheRepository {
         } else null
     }
 
-    suspend fun cacheUrl(catalogItemId: String, url: String) = suspendTransaction {
+    suspend fun cacheUrl(catalogItemId: String, url: String, expiresAt: Instant) = suspendTransaction {
         val entityId = EntityID(catalogItemId, CatalogItemTable)
+        val expiresAtLdt = LocalDateTime.ofInstant(expiresAt, ZoneId.systemDefault())
         val existing = BundleUrlCacheTable.selectAll()
             .where { BundleUrlCacheTable.catalogItemId eq entityId }
             .singleOrNull()
@@ -30,14 +33,14 @@ class BundleUrlCacheRepository {
         if (existing != null) {
             BundleUrlCacheTable.update({ BundleUrlCacheTable.catalogItemId eq entityId }) {
                 it[BundleUrlCacheTable.bundleUrl] = url
-                it[BundleUrlCacheTable.expiresAt] = LocalDateTime.now().plusHours(1)
+                it[BundleUrlCacheTable.expiresAt] = expiresAtLdt
                 it[BundleUrlCacheTable.lastValidatedAt] = LocalDateTime.now()
             }
         } else {
             BundleUrlCacheTable.insert {
                 it[BundleUrlCacheTable.catalogItemId] = entityId
                 it[BundleUrlCacheTable.bundleUrl] = url
-                it[BundleUrlCacheTable.expiresAt] = LocalDateTime.now().plusHours(1)
+                it[BundleUrlCacheTable.expiresAt] = expiresAtLdt
                 it[BundleUrlCacheTable.lastValidatedAt] = LocalDateTime.now()
             }
         }
