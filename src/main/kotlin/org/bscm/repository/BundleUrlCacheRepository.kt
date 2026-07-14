@@ -8,9 +8,9 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import kotlin.time.Instant
 
 class BundleUrlCacheRepository {
     suspend fun getCachedUrl(catalogItemId: String): String? = suspendTransaction {
@@ -25,7 +25,10 @@ class BundleUrlCacheRepository {
 
     suspend fun cacheUrl(catalogItemId: String, url: String, expiresAt: Instant) = suspendTransaction {
         val entityId = EntityID(catalogItemId, CatalogItemTable)
-        val expiresAtLdt = LocalDateTime.ofInstant(expiresAt, ZoneId.systemDefault())
+        val expiresAtLdt = LocalDateTime.ofInstant(
+            java.time.Instant.ofEpochSecond(expiresAt.epochSeconds),
+            ZoneId.systemDefault()
+        )
         val existing = BundleUrlCacheTable.selectAll()
             .where { BundleUrlCacheTable.catalogItemId eq entityId }
             .singleOrNull()

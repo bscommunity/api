@@ -1,6 +1,6 @@
 package org.bscm.models.interfaces
 
-import java.time.Duration
+import kotlin.time.Duration
 
 interface CacheRepository<T> {
     suspend fun get(key: String): T?

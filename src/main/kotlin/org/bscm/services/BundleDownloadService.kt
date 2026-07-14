@@ -14,8 +14,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.bscm.repository.BundleUrlCacheRepository
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.net.URI
-import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 private val log = KtorSimpleLogger("BundleDownloadService")
 private val discordJson = Json { ignoreUnknownKeys = true }
@@ -64,19 +66,19 @@ class BundleDownloadService(
 
         if (ex == null) return defaultExpiration()
 
-        val discordExpiry = Instant.ofEpochSecond(ex)
-        val safeExpiry = discordExpiry.minusSeconds(REFRESH_BUFFER)
-        val now = Instant.now()
+        val discordExpiry = Instant.fromEpochSeconds(ex)
+        val safeExpiry = discordExpiry - REFRESH_BUFFER.seconds
+        val now = Clock.System.now()
 
-        val ttl = safeExpiry.epochSecond - now.epochSecond
+        val ttl = safeExpiry.epochSeconds - now.epochSeconds
         return when {
-            ttl < MIN_TTL -> now.plusSeconds(MIN_TTL)
-            ttl > MAX_TTL -> now.plusSeconds(MAX_TTL)
+            ttl < MIN_TTL -> now + MIN_TTL.seconds
+            ttl > MAX_TTL -> now + MAX_TTL.seconds
             else -> safeExpiry
         }
     }
 
-    private fun defaultExpiration(): Instant = Instant.now().plusSeconds(FALLBACK_TTL)
+    private fun defaultExpiration(): Instant = Clock.System.now() + FALLBACK_TTL.seconds
 
     private suspend fun fetchAttachmentUrlFromDiscord(messageId: String): String {
         val response: HttpResponse = client.get(

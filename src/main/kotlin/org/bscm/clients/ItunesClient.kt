@@ -4,10 +4,12 @@ import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.bscm.services.MediaInfoService
-import java.time.LocalDate
+import kotlin.time.Clock
 
 class ItunesClient(
     private val client: HttpClient,
@@ -84,10 +86,10 @@ class ItunesClient(
                 releaseDate
                     ?.takeIf { it.length >= 10 }
                     ?.substring(0, 10)
-                    ?.let { LocalDate.parse(it).year }
+                    ?.let { kotlinx.datetime.LocalDate.parse(it).year }
                     ?: 0
 
-            if (releaseYear >= LocalDate.now().year - 2) {
+            if (releaseYear >= Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).year - 2) {
                 score += 5
             }
 

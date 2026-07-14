@@ -8,13 +8,13 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
-import java.time.Instant
+import kotlin.time.Clock
 
 @Serializable
 data class ErrorResponse(
     val message: String,
     val code: String,
-    val timestamp: String = Instant.now().toString(),
+    val timestamp: String = Clock.System.now().toString(),
     val path: String? = null,
     val details: Map<String, String>? = null
 )

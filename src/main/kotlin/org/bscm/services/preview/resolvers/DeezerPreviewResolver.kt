@@ -3,7 +3,7 @@ package org.bscm.services.preview.resolvers
 import org.bscm.clients.DeezerClient
 import org.bscm.models.dto.PreviewResponse
 import org.bscm.models.enums.PreviewProvider
-import java.time.Instant
+import kotlin.time.Instant
 
 class DeezerPreviewResolver(
     private val deezerApi: DeezerClient
@@ -25,6 +25,6 @@ class DeezerPreviewResolver(
     private fun extractExpiration(url: String): Instant? {
         val regex = Regex("exp=(\\d+)")
         val match = regex.find(url) ?: return null
-        return Instant.ofEpochSecond(match.groupValues[1].toLong())
+        return Instant.fromEpochSeconds(match.groupValues[1].toLong())
     }
 }

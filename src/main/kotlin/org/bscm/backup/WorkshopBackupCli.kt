@@ -12,7 +12,7 @@ import org.bscm.services.RefreshService
 import org.bscm.services.UploadService.RefreshData
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
-import java.time.Instant
+import kotlin.time.Clock
 
 private val log = KtorSimpleLogger("WorkshopBackupCLI")
 
@@ -32,7 +32,7 @@ fun main(args: Array<String>) = runBlocking {
         return@runBlocking
     }
 
-    val generatedAt = Instant.now().toString()
+    val generatedAt = Clock.System.now().toString()
     val buildResult = buildBackupPackage(
         channelId = options.channelId,
         generatedAt = generatedAt,
@@ -171,7 +171,7 @@ private suspend fun buildBackupPackage(
     val files = mutableListOf<WorkshopBackupFile>()
 
     refreshData.forEach { (messageId, data) ->
-        val downloadedAt = Instant.now().toString()
+        val downloadedAt = Clock.System.now().toString()
         val basePath = "messages/$messageId"
         val bundlePath = "$basePath/bundle.zip"
         val infoPath = "$basePath/info.json"

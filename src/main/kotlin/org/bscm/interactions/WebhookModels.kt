@@ -2,7 +2,7 @@ package org.bscm.interactions
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.time.Instant
+import kotlin.time.Clock
 
 @Serializable
 sealed class BaseAttachment
@@ -156,7 +156,7 @@ class EmbedBuilder {
     fun author(name: String, url: String? = null) = apply { this.authorName = name; this.authorUrl = url }
     fun field(name: String, value: String, inline: Boolean = false) = apply { fields += EmbedField(name, value, inline) }
     fun footer(text: String, iconUrl: String? = null) = apply { footerText = text; footerIcon = iconUrl }
-    fun timestamp(iso: String = Instant.now().toString()) = apply { timestamp = iso }
+    fun timestamp(iso: String = Clock.System.now().toString()) = apply { timestamp = iso }
 
     fun build(): Embed = Embed(
         title = title,
