@@ -1,8 +1,8 @@
 package org.bscm.interactions
 
+import kotlinx.datetime.Clock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlin.time.Clock
 
 @Serializable
 sealed class BaseAttachment

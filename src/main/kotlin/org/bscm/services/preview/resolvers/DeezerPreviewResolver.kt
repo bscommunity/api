@@ -1,9 +1,9 @@
 package org.bscm.services.preview.resolvers
 
+import kotlinx.datetime.Instant
 import org.bscm.clients.DeezerClient
 import org.bscm.models.dto.PreviewResponse
 import org.bscm.models.enums.PreviewProvider
-import kotlin.time.Instant
 
 class DeezerPreviewResolver(
     private val deezerApi: DeezerClient

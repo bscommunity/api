@@ -1,9 +1,11 @@
 package org.bscm.models.tables
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.Table
-import org.jetbrains.exposed.v1.javatime.CurrentDateTime
-import org.jetbrains.exposed.v1.javatime.datetime
+import org.jetbrains.exposed.v1.datetime.datetime
 
 object BundleUrlCacheTable : Table("bundle_url_cache") {
 
@@ -19,7 +21,7 @@ object BundleUrlCacheTable : Table("bundle_url_cache") {
 
     val lastValidatedAt =
         datetime("last_validated_at")
-            .defaultExpression(CurrentDateTime)
+            .clientDefault { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
 
     override val primaryKey =
         PrimaryKey(catalogItemId)

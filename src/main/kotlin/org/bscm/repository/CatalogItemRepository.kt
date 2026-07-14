@@ -1,5 +1,6 @@
 package org.bscm.repository
 
+import kotlinx.datetime.LocalDateTime
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dao.VersionEntity
@@ -7,7 +8,6 @@ import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.Visibility
 import org.bscm.utils.UserStatsUtils
-import java.time.LocalDateTime
 import java.util.*
 
 class CatalogItemRepository {

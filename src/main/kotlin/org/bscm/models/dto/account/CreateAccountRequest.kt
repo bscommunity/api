@@ -1,8 +1,8 @@
 package org.bscm.models.dto.account
 
+import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.Serializable
 import org.bscm.serialization.LocalDateTimeSerializer
-import java.time.LocalDateTime
 
 @Serializable
 data class CreateAccountRequest(

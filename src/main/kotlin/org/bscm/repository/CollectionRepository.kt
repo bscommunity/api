@@ -1,5 +1,8 @@
 package org.bscm.repository
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
 import org.bscm.models.dao.CollectionEntity
@@ -18,7 +21,6 @@ import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
-import java.time.LocalDateTime
 import java.util.*
 
 class CollectionRepository(
@@ -270,7 +272,7 @@ class CollectionRepository(
 
             existing?.get(CollectionTable.id)?.value
                 ?: try {
-                    val now = LocalDateTime.now()
+                    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                     CollectionTable.insertAndGetId {
                         it[CollectionTable.userId] = userId
                         it[CollectionTable.kind] = kind
@@ -289,7 +291,7 @@ class CollectionRepository(
 
     override suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection =
         suspendTransaction {
-            val now = LocalDateTime.now()
+            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
             val entity = CollectionEntity.new {
                 user = UserEntity[userId]
                 kind = CollectionKind.USER
@@ -404,7 +406,7 @@ class CollectionRepository(
         name?.let { entity.name = it }
         isPublic?.let { entity.isPublic = it }
         entity.slug = if (entity.isPublic) getSlug(entity.name) else null
-        entity.updatedAt = LocalDateTime.now()
+        entity.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 
         entity.slug
     }
@@ -425,7 +427,7 @@ class CollectionRepository(
         userId: UUID,
         contentId: String
     ): Boolean = suspendTransaction {
-        val now = LocalDateTime.now()
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         val result = CollectionItemTable.insertIgnore {
             it[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
             it[CollectionItemTable.contentId] = EntityID(contentId, CatalogItemTable)
@@ -462,7 +464,7 @@ class CollectionRepository(
             }
 
             if (deletedCount > 0) {
-                val now = LocalDateTime.now()
+                val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 CollectionTable.update({ CollectionTable.id eq collectionId }) {
                     it[updatedAt] = now
                 }
@@ -680,7 +682,7 @@ class CollectionRepository(
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@suspendTransaction 0 to contentIds
 
-        val now = LocalDateTime.now()
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 
         // Fetch which IDs already exist so we can report skipped ones accurately
         val alreadyExisting = CollectionItemTable
@@ -737,7 +739,7 @@ class CollectionRepository(
         }
 
         if (deletedCount > 0) {
-            collection.updatedAt = LocalDateTime.now()
+            collection.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         }
 
         deletedCount

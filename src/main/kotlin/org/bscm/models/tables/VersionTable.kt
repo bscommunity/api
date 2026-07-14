@@ -1,9 +1,11 @@
 package org.bscm.models.tables
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.dao.id.ULongIdTable
-import org.jetbrains.exposed.v1.javatime.CurrentDateTime
-import org.jetbrains.exposed.v1.javatime.datetime
+import org.jetbrains.exposed.v1.datetime.datetime
 
 object VersionTable : ULongIdTable("catalog_item_versions") {
     val catalogItemId = reference("catalog_item_id", CatalogItemTable, onDelete = ReferenceOption.CASCADE).index()
@@ -16,7 +18,7 @@ object VersionTable : ULongIdTable("catalog_item_versions") {
 
     val discordAttachmentId = varchar("discord_attachment_id", 255).nullable()
 
-    val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
+    val createdAt = datetime("created_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
 
     init {
         uniqueIndex(catalogItemId, versionCode)

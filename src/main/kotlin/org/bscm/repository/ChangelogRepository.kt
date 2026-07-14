@@ -1,5 +1,9 @@
 package org.bscm.repository
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Changelog
 import org.bscm.models.interfaces.IChangelogRepository
 import org.bscm.models.tables.CatalogItemTable
@@ -10,12 +14,11 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
-import java.time.LocalDateTime
 import java.util.*
 
 class ChangelogRepository : IChangelogRepository {
     override suspend fun addIssue(chartId: String, issue: Changelog): Changelog = suspendTransaction {
-        val now = if (issue.createdAt == LocalDateTime.MIN) LocalDateTime.now() else issue.createdAt
+        val now = if (issue.createdAt == LocalDateTime(1, 1, 1, 0, 0)) Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) else issue.createdAt
         ChangelogTable.insert {
             it[id] = issue.id
             it[ChangelogTable.chartId] = EntityID(chartId, CatalogItemTable)

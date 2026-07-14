@@ -1,10 +1,10 @@
 package org.bscm.models
 
+import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.Serializable
 import org.bscm.models.enums.ActivityType
 import org.bscm.serialization.LocalDateTimeSerializer
 import org.bscm.serialization.UUIDSerializer
-import java.time.LocalDateTime
 import java.util.*
 
 @Serializable

@@ -1,6 +1,7 @@
 package org.bscm.utils
 
 import io.ktor.util.logging.*
+import kotlinx.datetime.LocalDateTime
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.tables.CollectionItemTable
 import org.bscm.models.tables.CollectionTable
@@ -9,7 +10,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.select
-import java.time.LocalDateTime
 import java.util.*
 
 private val log = KtorSimpleLogger("UserStatsUtils")

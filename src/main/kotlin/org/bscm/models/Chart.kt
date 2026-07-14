@@ -2,6 +2,7 @@
 
 package org.bscm.models
 
+import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
@@ -11,7 +12,6 @@ import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Visibility
 import org.bscm.serialization.LocalDateTimeSerializer
 import org.bscm.serialization.UUIDSerializer
-import java.time.LocalDateTime
 import java.util.*
 
 @Serializable

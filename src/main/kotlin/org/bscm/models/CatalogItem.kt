@@ -2,6 +2,7 @@
 
 package org.bscm.models
 
+import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
@@ -10,7 +11,6 @@ import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.Visibility
 import org.bscm.serialization.LocalDateTimeSerializer
-import java.time.LocalDateTime
 import java.util.*
 
 @OptIn(ExperimentalSerializationApi::class)

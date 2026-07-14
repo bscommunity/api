@@ -1,5 +1,6 @@
 package org.bscm.repository
 
+import kotlinx.datetime.LocalDateTime
 import org.bscm.models.ActivityEntry
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
@@ -13,7 +14,6 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertAndGetId
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
-import java.time.LocalDateTime
 import java.util.*
 
 class ActivityRepository : IActivityRepository {

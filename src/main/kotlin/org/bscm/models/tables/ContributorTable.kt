@@ -1,10 +1,12 @@
 package org.bscm.models.tables
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.enums.ContributorRole
 import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.dao.id.LongIdTable
-import org.jetbrains.exposed.v1.javatime.CurrentDateTime
-import org.jetbrains.exposed.v1.javatime.datetime
+import org.jetbrains.exposed.v1.datetime.datetime
 
 object ContributorTable : LongIdTable("contributors") {
     val catalogItemId = reference("catalog_item_id", CatalogItemTable, onDelete = ReferenceOption.CASCADE)
@@ -12,7 +14,7 @@ object ContributorTable : LongIdTable("contributors") {
     val role = enumerationByName("role", 30, ContributorRole::class)
 
     val note = varchar("note", 280).nullable()
-    val joinedAt = datetime("joined_at").defaultExpression(CurrentDateTime)
+    val joinedAt = datetime("joined_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
 
     init {
         uniqueIndex(catalogItemId, userId, role)

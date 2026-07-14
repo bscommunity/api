@@ -1,9 +1,11 @@
 package org.bscm.models.tables
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.enums.UserRole
 import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
-import org.jetbrains.exposed.v1.javatime.datetime
-import java.time.LocalDateTime
+import org.jetbrains.exposed.v1.datetime.datetime
 
 object UserTable : UUIDTable("users") {
     val username = varchar("username", 255).uniqueIndex()
@@ -31,5 +33,5 @@ object UserTable : UUIDTable("users") {
     val followingCount = integer("following_count").default(0)
 
     val discordId = varchar("discord_id", 255).uniqueIndex()
-    val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
+    val createdAt = datetime("created_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
 }

@@ -1,8 +1,11 @@
 package org.bscm.models.interfaces
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.ActivityEntry
 import org.bscm.models.enums.ActivityType
-import java.time.LocalDateTime
 import java.util.*
 
 interface IActivityRepository {
@@ -10,13 +13,13 @@ interface IActivityRepository {
 		userId: UUID,
 		type: ActivityType,
 		targetId: String,
-		createdAt: LocalDateTime = LocalDateTime.now()
+		createdAt: LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 	): ActivityEntry
 	suspend fun batchLogActivity(
 		userId: UUID,
 		type: ActivityType,
 		targetIds: List<String>,
-		createdAt: LocalDateTime = LocalDateTime.now()
+		createdAt: LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 	): Int
 
 	suspend fun removeActivity(

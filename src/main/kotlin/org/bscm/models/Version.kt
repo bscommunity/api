@@ -2,10 +2,10 @@
 
 package org.bscm.models
 
+import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import org.bscm.serialization.LocalDateTimeSerializer
-import java.time.LocalDateTime
 
 @Serializable
 data class Version(

@@ -1,6 +1,9 @@
 package org.bscm.services
 
 import io.ktor.util.logging.*
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
 import org.bscm.models.dto.collection.BatchCollectionItemRequest
@@ -11,7 +14,6 @@ import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.ICollectionRepository
-import java.time.LocalDateTime
 import java.util.*
 
 private val log = KtorSimpleLogger("CollectionService")
@@ -98,7 +100,7 @@ class CollectionService(
                         ?: run { failCount += contentIds.size; null!! }
                 }
 
-                val activityTimestamp = items.firstNotNullOfOrNull { it.enqueuedAt } ?: LocalDateTime.now()
+                val activityTimestamp = items.firstNotNullOfOrNull { it.enqueuedAt } ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 
                 val (success, failed) = when (action) {
                     ActionType.ADD -> {

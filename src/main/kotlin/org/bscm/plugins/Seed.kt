@@ -3,6 +3,9 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import io.ktor.util.logging.*
 import kotlinx.coroutines.*
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Changelog
 import org.bscm.models.StreamingRef
 import org.bscm.models.dto.chart.CreateChartRequest
@@ -207,7 +210,7 @@ private suspend fun generateRandomCharts(
                                             id = UUID.randomUUID(),
                                             chartId = chart.id,
                                             title = getRandomIssue(),
-                                            createdAt = java.time.LocalDateTime.now()
+                                            createdAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                                         )
                                     )
                                 }
