@@ -155,6 +155,7 @@ fun mainModule(config: ApplicationConfig) = module {
         ChartPublishService(
             chartRepository = get(),
             uploadService = get(),
+            storageService = get(),
             mediaInfoService = get(),
             activityRepository = get()
         )
@@ -164,6 +165,7 @@ fun mainModule(config: ApplicationConfig) = module {
             tourPassRepository = get(),
             chartRepository = get(),
             uploadService = get(),
+            storageService = get(),
             activityRepository = get(),
         )
     }
@@ -171,6 +173,7 @@ fun mainModule(config: ApplicationConfig) = module {
         ThemePublishService(
             themeRepository = get(),
             uploadService = get(),
+            storageService = get(),
             activityRepository = get(),
         )
     }

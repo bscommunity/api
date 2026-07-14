@@ -5,7 +5,6 @@ import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.utils.io.*
-import org.bscm.services.UploadService
 
 /** Shared uploaded file payload for multipart route handlers. */
 internal class UploadedFile(
@@ -15,13 +14,6 @@ internal class UploadedFile(
 )
 
 internal typealias UploadedImage = UploadedFile
-
-internal fun UploadedFile.toUploadImage(): UploadService.UploadImage =
-    UploadService.UploadImage(
-        bytes = bytes,
-        filename = filename,
-        contentType = contentType,
-    )
 
 internal data class ParsedMultipartPayload(
     val fields: Map<String, String>,

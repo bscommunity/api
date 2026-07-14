@@ -12,6 +12,7 @@ import org.bscm.models.enums.Genre
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.protobuf.ChartParser
+import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
 import org.bscm.utils.NanoIdUtils
 import org.bscm.utils.StreamingPlatformUtils
@@ -22,6 +23,7 @@ private val log = KtorSimpleLogger("ChartPublishService")
 class ChartPublishService(
     private val chartRepository: IChartRepository,
     private val uploadService: UploadService,
+    private val storageService: StorageService,
     private val mediaInfoService: MediaInfoService,
     private val activityRepository: IActivityRepository
 ) {
@@ -96,8 +98,18 @@ class ChartPublishService(
             null
         }
 
-        // Cover final decision (blank placeholder if we'll attach coverBytes)
-        val coverUrlPlaceholder = overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
+        // Cover: upload extracted bytes to storage, fall back to override/mediaInfo URL
+        val coverUrl = if (coverBytes != null) {
+            try {
+                storageService.uploadAssetCover(contentId, coverBytes)
+                storageService.assetCoverUrl(contentId)
+            } catch (e: Exception) {
+                log.warn("Failed to upload cover to storage, falling back to URL: ${e.message}")
+                overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
+            }
+        } else {
+            overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
+        }
 
         // Streaming links resolution
         val streamingLinks = overrides.trackUrls ?: run {
@@ -125,7 +137,7 @@ class ChartPublishService(
             // Structure: username|hostId|path|roleId
             "contributors" to "${user.username}|${user.avatarUrl}|0",
             // Structure: host|url
-            "cover" to coverUrlPlaceholder,
+            "cover" to coverUrl,
             "publishedAt" to System.currentTimeMillis(),
         )
 
@@ -149,8 +161,7 @@ class ChartPublishService(
             track = mediaInfo?.track ?: trackName,
             album = overrides.album ?: mediaInfo?.album,
             trackUrls = streamingLinks,
-            // trackPreviewUrl = mediaInfo?.trackPreviewUrl,
-            coverUrl = coverUrlPlaceholder,
+            coverUrl = coverUrl,
             genre = overrides.genre ?: mediaInfo?.genre,
             isExplicit = isExplicit,
             duration = computedStats.duration,
@@ -165,15 +176,14 @@ class ChartPublishService(
             contentId = contentId,
         )
 
-        val discordResponse = uploadService.uploadChart(createForUpload, user, enhancedBundleBytes, coverBytes)
+        val discordResponse = uploadService.uploadChart(createForUpload, user, enhancedBundleBytes)
         val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
             ?: throw IllegalStateException("Discord response missing bundle attachment")
-        val coverUrlFinal = discordResponse.embeds.firstOrNull()?.image?.url ?: createForUpload.coverUrl
 
         val finalCreate = createForUpload.copy(
             versionId = bundleAttachment.id.toULong(),
             bundleUrl = bundleAttachment.url,
-            coverUrl = coverUrlFinal,
+            coverUrl = coverUrl,
         )
 
         log.debug("finalCreate {}", finalCreate)

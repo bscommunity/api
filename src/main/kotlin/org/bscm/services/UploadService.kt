@@ -32,12 +32,6 @@ class UploadService(
     private val workshopUsername = "bscm"
     private val workshopAvatarUrl = "https://i.imgur.com/7e4lzGf.png"
 
-    data class UploadImage(
-        val bytes: ByteArray,
-        val filename: String,
-        val contentType: ContentType,
-    )
-
     data class SubmittedBy(
         val username: String,
         val avatarUrl: String?,
@@ -61,7 +55,6 @@ class UploadService(
         val description: String?,
         val context: PublishContext,
         val coverUrl: String?,
-        val coverImage: UploadImage?,
         val durationSeconds: Int,
         val tracksAmount: Int,
         val difficultyLabel: String? = null,
@@ -76,9 +69,7 @@ class UploadService(
         val replaces: String,
         val trailerUrl: String?,
         val coverArtUrl: String?,
-        val coverArt: UploadImage?,
         val displayArtUrl: String?,
-        val displayArt: UploadImage?,
     )
 
     private val webhookUrl = "https://discord.com/api/webhooks/$webhookId/$webhookToken"
@@ -248,12 +239,11 @@ class UploadService(
         return rows
     }
 
-    // Extended to allow embedding of an attached cover image via Discord's attachment:// scheme
+    // Extended to allow embedding of a cover image via URL
     private fun buildWebhookPayload(
         chart: CreateChartRequest,
         author: User,
         attachments: List<BaseAttachment> = emptyList(),
-        embedCoverAsAttachment: Boolean = false,
     ): String {
         val durationFormatted =
             String.format("%dm%ds", (chart.duration / 60).toInt(), (chart.duration % 60).toInt())
@@ -289,8 +279,8 @@ class UploadService(
                 this.title = title
                 url = "https://bscm.netlify.app/link/chart/${chart.contentId}"
                 color = 3820816
-                // If we are attaching the cover image file, reference it using attachment://cover.png
-                if (embedCoverAsAttachment) image("attachment://cover.png") else image(chart.coverUrl)
+                // Use the hosted cover URL directly
+                if (chart.coverUrl.isNotBlank()) image(chart.coverUrl)
                 author("New chart submitted")
                 fields.forEach { field(it.name, it.value, it.inline) }
             }
@@ -304,17 +294,15 @@ class UploadService(
         chart: CreateChartRequest,
         author: User,
         chartBundle: ByteArray,
-        coverImage: ByteArray? = null,
     ): DiscordMessageResponse {
-        // Build payload referencing cover image attachment if provided
+        // Build payload — cover URL is already in chart.coverUrl (hosted externally)
         val payloadJson = buildWebhookPayload(
             chart,
             author,
-            embedCoverAsAttachment = coverImage != null
         )
         val normalizedTrack = getNormalizedTrackName(chart.track)
 
-        logger.info("Uploading chart: cover=${coverImage != null} (${coverImage?.size ?: 0} bytes), bundle=${chartBundle.size} bytes")
+        logger.info("Uploading chart: cover=${chart.coverUrl}, bundle=${chartBundle.size} bytes")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?with_components=true",
@@ -323,18 +311,10 @@ class UploadService(
                     "payload_json",
                     payloadJson,
                     Headers.build { append(HttpHeaders.ContentType, "application/json") })
-                // Attach cover image first so we can reliably identify it later
-                // Use unique field names (file0, file1) to avoid conflicts
-                coverImage?.let { bytes ->
-                    append("file0", bytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file0\"; filename=\"cover.png\"")
-                        append(HttpHeaders.ContentType, ContentType.Image.PNG.toString())
-                    })
-                }
-                append("file1", chartBundle, Headers.build {
+                append("file0", chartBundle, Headers.build {
                     append(
                         HttpHeaders.ContentDisposition,
-                        "form-data; name=\"file1\"; filename=\"${normalizedTrack}_v1.zip\""
+                        "form-data; name=\"file0\"; filename=\"${normalizedTrack}_v1.zip\""
                     )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
@@ -371,7 +351,7 @@ class UploadService(
                     timestamp()
                     author("New tour pass submitted")
                     footer("Submitted by @${data.context.submittedBy.username}", data.context.submittedBy.avatarUrl)
-                    image(if (data.coverImage != null) "attachment://tourpass-cover.png" else data.coverUrl)
+                    data.coverUrl?.takeIf { it.isNotBlank() }?.let { image(it) }
                     thumbnail("")
                     field("Duration", "$durationIcon ${formatDuration(data.durationSeconds)}", true)
                     field("Tracks", "$noteIcon ${data.tracksAmount} songs", true)
@@ -396,12 +376,6 @@ class UploadService(
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
                 })
-                data.coverImage?.let { image ->
-                    append("file", image.bytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"tourpass-cover.png\"")
-                        append(HttpHeaders.ContentType, image.contentType.toString())
-                    })
-                }
             }
         )
 
@@ -426,8 +400,8 @@ class UploadService(
                     timestamp()
                     author("New theme submitted")
                     footer("Submitted by @${data.context.submittedBy.username}", data.context.submittedBy.avatarUrl)
-                    image(if (data.displayArt != null) "attachment://theme-display-art.png" else data.displayArtUrl)
-                    thumbnail(if (data.coverArt != null) "attachment://theme-cover-art.png" else data.coverArtUrl)
+                    data.displayArtUrl?.takeIf { it.isNotBlank() }?.let { image(it) }
+                    data.coverArtUrl?.takeIf { it.isNotBlank() }?.let { thumbnail(it) }
                     field("<:refresh:1490158323197022449> Replaces", data.replaces, false)
                     data.trailerUrl?.takeIf { it.isNotBlank() }?.let { field("Trailer", it, false) }
                 }
@@ -441,18 +415,6 @@ class UploadService(
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
                 })
-                data.displayArt?.let { image ->
-                    append("file0", image.bytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file0\"; filename=\"theme-display-art.png\"")
-                        append(HttpHeaders.ContentType, image.contentType.toString())
-                    })
-                }
-                data.coverArt?.let { image ->
-                    append("file1", image.bytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "form-data; name=\"file1\"; filename=\"theme-cover-art.png\"")
-                        append(HttpHeaders.ContentType, image.contentType.toString())
-                    })
-                }
             }
         )
 
@@ -590,45 +552,6 @@ class UploadService(
         val coverUrl: String? = null,
         val audioUrl: String? = null
     )
-
-    /**
-     * Upload a generic cover image to Discord and return the resulting CDN URL.
-     */
-    suspend fun uploadCoverImage(
-        coverBytes: ByteArray,
-        filename: String = "cover.png",
-        contentType: ContentType = ContentType.Image.PNG,
-        context: String,
-    ): String {
-        val payload = jsonClient.encodeToString(
-            WebhookPayload.serializer(),
-            WebhookPayload(
-                content = "Cover upload: $context",
-                attachments = emptyList()
-            )
-        )
-
-        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
-            url = webhookUrl,
-            formData = formData {
-                append("payload_json", payload, Headers.build {
-                    append(HttpHeaders.ContentType, "application/json")
-                })
-                append("file", coverBytes, Headers.build {
-                    append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"$filename\"")
-                    append(HttpHeaders.ContentType, contentType.toString())
-                })
-            }
-        )
-
-        if (!response.status.isSuccess()) {
-            throw Exception("Failed to upload cover image: ${response.status}, ${response.bodyAsText()}")
-        }
-
-        val discordResponse = jsonClient.decodeFromString<DiscordMessageResponse>(response.bodyAsText())
-        return discordResponse.attachments.firstOrNull()?.url
-            ?: throw IllegalStateException("Discord response missing cover image attachment")
-    }
 
     /**
      * Upload an audio file to Discord and return the attachment URL

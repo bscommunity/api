@@ -1,5 +1,6 @@
 package org.bscm.services
 
+import io.ktor.http.*
 import io.ktor.server.plugins.*
 import org.bscm.models.TourPass
 import org.bscm.models.User
@@ -11,20 +12,24 @@ import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.repository.ChartRepository
+import org.bscm.storage.StorageService
 import org.bscm.utils.StreamingPlatformUtils
+import java.util.*
 
 class TourPassPublishService(
     private val tourPassRepository: ITourPassRepository,
     private val chartRepository: IChartRepository,
     private val uploadService: UploadService,
+    private val storageService: StorageService,
     private val activityRepository: IActivityRepository,
 ) {
     suspend fun createAndPublish(
         uploader: User,
         request: CreateTourPassRequest,
-        cover: UploadService.UploadImage?,
+        coverBytes: ByteArray?,
+        coverContentType: ContentType?,
     ): TourPass {
-        if (cover == null && request.coverUrl.isNullOrBlank()) {
+        if (coverBytes == null && request.coverUrl.isNullOrBlank()) {
             throw BadRequestException("coverUrl or cover file is required")
         }
 
@@ -53,6 +58,15 @@ class TourPassPublishService(
         val normalizedPlaylistUrls = request.playlistUrls
             ?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
 
+        // Upload cover to storage if raw bytes were provided
+        val coverUrl = if (coverBytes != null) {
+            val key = UUID.randomUUID().toString()
+            storageService.uploadAssetCover(key, coverBytes)
+            storageService.assetCoverUrl(key)
+        } else {
+            request.coverUrl
+        }
+
         val discordResponse = uploadService.uploadTourPass(
             UploadService.TourPassPublishData(
                 title = request.name,
@@ -61,25 +75,19 @@ class TourPassPublishService(
                     submittedBy = UploadService.SubmittedBy.fromUser(uploader),
                     trackUrls = normalizedPlaylistUrls ?: emptyList(),
                 ),
-                coverUrl = request.coverUrl,
-                coverImage = cover,
+                coverUrl = coverUrl,
                 durationSeconds = charts.sumOf { it.track.duration.toInt() },
                 tracksAmount = charts.size,
                 tracklist = tracklist,
             )
         )
 
-        val resolvedCoverUrl = discordResponse.attachments.firstOrNull { it.filename.contains("cover", true) }?.url
-            ?: discordResponse.embeds.firstOrNull()?.image?.url
-            ?: request.coverUrl
-            ?: throw IllegalStateException("Unable to resolve cover URL from Discord response")
-
         val tourPass = tourPassRepository.createTourPass(
             userId = uploader.id,
             name = request.name,
             description = request.description,
             artist = request.artist,
-            coverUrl = resolvedCoverUrl,
+            coverUrl = coverUrl!!,
             playlistUrls = normalizedPlaylistUrls,
             chartIds = chartIds,
             id = discordResponse.id,
@@ -94,7 +102,7 @@ class TourPassPublishService(
         return tourPass
     }
 
-    suspend fun deleteAndCleanup(id: String, userId: java.util.UUID): Boolean {
+    suspend fun deleteAndCleanup(id: String, userId: UUID): Boolean {
         val contentId = tourPassRepository.getTourPassById(id, userId)?.id ?: return false
         val deleted = tourPassRepository.deleteTourPass(id, userId)
         if (!deleted) return false
@@ -111,18 +119,17 @@ class TourPassPublishService(
 
     suspend fun updateAndPublish(
         id: String,
-        userId: java.util.UUID,
+        userId: UUID,
         request: UpdateTourPassRequest,
-        cover: UploadService.UploadImage?,
+        coverBytes: ByteArray?,
+        coverContentType: ContentType?,
     ): TourPass {
-        val resolvedCoverUrl = cover?.let {
-            uploadService.uploadCoverImage(
-                coverBytes = it.bytes,
-                filename = it.filename,
-                contentType = it.contentType,
-                context = "tourpass-update:$id"
-            )
-        } ?: request.coverUrl
+        val resolvedCoverUrl = if (coverBytes != null) {
+            storageService.uploadAssetCover(id, coverBytes)
+            storageService.assetCoverUrl(id)
+        } else {
+            request.coverUrl
+        }
 
         val normalizedPlaylistUrls = request.playlistUrls
             ?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
@@ -138,5 +145,3 @@ class TourPassPublishService(
         )
     }
 }
-
-

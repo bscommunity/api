@@ -1,5 +1,6 @@
 package org.bscm.services
 
+import io.ktor.http.*
 import io.ktor.server.plugins.*
 import org.bscm.models.Theme
 import org.bscm.models.User
@@ -8,15 +9,20 @@ import org.bscm.models.dto.theme.UpdateThemeRequest
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IThemeRepository
+import org.bscm.storage.StorageService
+import java.util.*
 
 class ThemePublishService(
     private val themeRepository: IThemeRepository,
     private val uploadService: UploadService,
+    private val storageService: StorageService,
     private val activityRepository: IActivityRepository,
 ) {
     data class Assets(
-        val coverArt: UploadService.UploadImage?,
-        val displayArt: UploadService.UploadImage?,
+        val coverArtBytes: ByteArray?,
+        val coverArtContentType: ContentType?,
+        val displayArtBytes: ByteArray?,
+        val displayArtContentType: ContentType?,
     )
 
     suspend fun createAndPublish(
@@ -24,11 +30,28 @@ class ThemePublishService(
         request: CreateThemeRequest,
         assets: Assets,
     ): Theme {
-        if (assets.coverArt == null && request.coverUrl.isNullOrBlank()) {
+        if (assets.coverArtBytes == null && request.coverUrl.isNullOrBlank()) {
             throw BadRequestException("coverUrl or coverArt file is required")
         }
-        if (assets.displayArt == null && request.displayArtUrl.isNullOrBlank()) {
+        if (assets.displayArtBytes == null && request.displayArtUrl.isNullOrBlank()) {
             throw BadRequestException("displayArtUrl or displayArt file is required")
+        }
+
+        // Upload assets to storage (using random UUIDs since theme ID isn't known yet)
+        val coverUrl = if (assets.coverArtBytes != null) {
+            val key = UUID.randomUUID().toString()
+            storageService.uploadAssetCover(key, assets.coverArtBytes)
+            storageService.assetCoverUrl(key)
+        } else {
+            request.coverUrl
+        }
+
+        val displayArtUrl = if (assets.displayArtBytes != null) {
+            val key = UUID.randomUUID().toString()
+            storageService.uploadThemeDisplay(key, assets.displayArtBytes)
+            storageService.themeDisplayUrl(key)
+        } else {
+            request.displayArtUrl
         }
 
         val discordResponse = uploadService.uploadTheme(
@@ -40,33 +63,17 @@ class ThemePublishService(
                 ),
                 replaces = request.replaces,
                 trailerUrl = request.previewUrl,
-                coverArtUrl = request.coverUrl,
-                coverArt = assets.coverArt,
-                displayArtUrl = request.displayArtUrl,
-                displayArt = assets.displayArt,
+                coverArtUrl = coverUrl,
+                displayArtUrl = displayArtUrl,
             )
         )
-
-        val resolvedDisplayArtUrl = discordResponse.attachments
-            .firstOrNull { it.filename.contains("display-art", ignoreCase = true) }
-            ?.url
-            ?: discordResponse.embeds.firstOrNull()?.image?.url
-            ?: request.displayArtUrl
-            ?: throw IllegalStateException("Unable to resolve displayArt URL from Discord response")
-
-        val resolvedCoverUrl = discordResponse.attachments
-            .firstOrNull { it.filename.contains("cover-art", ignoreCase = true) }
-            ?.url
-            ?: discordResponse.embeds.firstOrNull()?.thumbnail?.url
-            ?: request.coverUrl
-            ?: throw IllegalStateException("Unable to resolve cover URL from Discord response")
 
         val theme = themeRepository.createTheme(
             userId = uploader.id,
             name = request.name,
             replaces = request.replaces,
-            coverUrl = resolvedCoverUrl,
-            displayArtUrl = resolvedDisplayArtUrl,
+            coverUrl = coverUrl!!,
+            displayArtUrl = displayArtUrl!!,
             previewUrl = request.previewUrl,
             id = discordResponse.id,
         )
@@ -80,7 +87,7 @@ class ThemePublishService(
         return theme
     }
 
-    suspend fun deleteAndCleanup(id: String, userId: java.util.UUID): Boolean {
+    suspend fun deleteAndCleanup(id: String, userId: UUID): Boolean {
         val contentId = themeRepository.getThemeById(id, userId)?.id ?: return false
         val deleted = themeRepository.deleteTheme(id, userId)
         if (!deleted) return false
@@ -97,27 +104,24 @@ class ThemePublishService(
 
     suspend fun updateAndPublish(
         id: String,
-        userId: java.util.UUID,
+        userId: UUID,
         request: UpdateThemeRequest,
         assets: Assets,
     ): Theme {
-        val resolvedCoverUrl = assets.coverArt?.let {
-            uploadService.uploadCoverImage(
-                coverBytes = it.bytes,
-                filename = it.filename,
-                contentType = it.contentType,
-                context = "theme-update:$id"
-            )
-        } ?: request.coverUrl
+        // Upload assets to storage (using actual theme ID for stable paths)
+        val resolvedCoverUrl = if (assets.coverArtBytes != null) {
+            storageService.uploadAssetCover(id, assets.coverArtBytes)
+            storageService.assetCoverUrl(id)
+        } else {
+            request.coverUrl
+        }
 
-        val resolvedDisplayArtUrl = assets.displayArt?.let {
-            uploadService.uploadCoverImage(
-                coverBytes = it.bytes,
-                filename = it.filename,
-                contentType = it.contentType,
-                context = "theme-display-art-update:$id"
-            )
-        } ?: request.displayArtUrl
+        val resolvedDisplayArtUrl = if (assets.displayArtBytes != null) {
+            storageService.uploadThemeDisplay(id, assets.displayArtBytes)
+            storageService.themeDisplayUrl(id)
+        } else {
+            request.displayArtUrl
+        }
 
         return themeRepository.updateTheme(
             id = id,
@@ -130,5 +134,3 @@ class ThemePublishService(
         )
     }
 }
-
-

@@ -8,6 +8,8 @@ class StorageService(
 ) {
     fun publicUrl(path: String): String = adapter.publicUrl(publicBucket, path)
 
+    // ── Tracks ──────────────────────────────────────────────────────────
+
     fun trackCoverUrl(trackId: UUID): String = publicUrl(StoragePaths.trackCover(trackId))
 
     fun trackPreviewUrl(trackId: UUID): String = publicUrl(StoragePaths.trackPreview(trackId))
@@ -42,5 +44,39 @@ class StorageService(
             bytes = bytes,
             contentType = StorageContentTypes.AUDIO_OPUS,
         )
+    }
+
+    // ── Generic asset covers (charts, themes, tour passes) ──────────────
+
+    fun assetCoverUrl(key: String): String = publicUrl(StoragePaths.assetCover(key))
+
+    suspend fun uploadAssetCover(key: String, bytes: ByteArray) {
+        adapter.putObject(
+            bucket = publicBucket,
+            path = StoragePaths.assetCover(key),
+            bytes = bytes,
+            contentType = StorageContentTypes.IMAGE_PNG,
+        )
+    }
+
+    suspend fun deleteAssetCover(key: String) {
+        adapter.deleteObject(publicBucket, StoragePaths.assetCover(key))
+    }
+
+    // ── Themes (display art) ────────────────────────────────────────────
+
+    fun themeDisplayUrl(themeId: String): String = publicUrl(StoragePaths.themeDisplay(themeId))
+
+    suspend fun uploadThemeDisplay(themeId: String, bytes: ByteArray) {
+        adapter.putObject(
+            bucket = publicBucket,
+            path = StoragePaths.themeDisplay(themeId),
+            bytes = bytes,
+            contentType = StorageContentTypes.IMAGE_PNG,
+        )
+    }
+
+    suspend fun deleteThemeDisplay(themeId: String) {
+        adapter.deleteObject(publicBucket, StoragePaths.themeDisplay(themeId))
     }
 }
