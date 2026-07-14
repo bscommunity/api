@@ -14,12 +14,12 @@ import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.TourPassChartTable
 import org.bscm.models.tables.TourPassTable
-import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.deleteWhere
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 class TourPassRepository(
@@ -97,7 +97,7 @@ class TourPassRepository(
         search: String?,
         limit: Int?,
         offset: Int?,
-    ): List<TourPass> = newSuspendedTransaction {
+    ): List<TourPass> = suspendTransaction {
         val pageSize = limit ?: 20
         val pageOffset = offset ?: 0
 
@@ -117,7 +117,7 @@ class TourPassRepository(
         paged.map { tourPassEntityToTourPass(it) }
     }
 
-    override suspend fun getTourPassById(id: String, userId: UUID?): TourPass? = newSuspendedTransaction {
+    override suspend fun getTourPassById(id: String, userId: UUID?): TourPass? = suspendTransaction {
         TourPassEntity.findById(id)?.let { tourPassEntityToTourPass(it) }
     }
 
@@ -130,7 +130,7 @@ class TourPassRepository(
         playlistUrls: List<StreamingRef>?,
         chartIds: List<String>?,
         id: String?,
-    ): TourPass = newSuspendedTransaction {
+    ): TourPass = suspendTransaction {
         val catalogItem = if (id != null) {
             CatalogItemEntity.new(id) {
                 this.type = org.bscm.models.enums.CatalogItemType.TOUR_PASS
@@ -170,7 +170,7 @@ class TourPassRepository(
         artist: String?,
         coverUrl: String?,
         chartIds: List<String>?,
-    ): TourPass = newSuspendedTransaction {
+    ): TourPass = suspendTransaction {
         val entity = TourPassEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
             description?.let { entity.description = it }
@@ -191,12 +191,12 @@ class TourPassRepository(
         tourPassEntityToTourPass(entity)
     }
 
-    override suspend fun deleteTourPass(id: String, userId: UUID): Boolean = newSuspendedTransaction {
-        CatalogItemEntity.findById(id)?.delete() ?: return@newSuspendedTransaction false
+    override suspend fun deleteTourPass(id: String, userId: UUID): Boolean = suspendTransaction {
+        CatalogItemEntity.findById(id)?.delete() ?: return@suspendTransaction false
         true
     }
 
-    override suspend fun setTourPassCharts(id: String, userId: UUID, chartIds: List<String>): TourPass = newSuspendedTransaction {
+    override suspend fun setTourPassCharts(id: String, userId: UUID, chartIds: List<String>): TourPass = suspendTransaction {
         TourPassEntity.findById(id) ?: throw IllegalArgumentException("TourPass $id not found")
 
         TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq EntityID(id, TourPassTable) }
@@ -210,14 +210,14 @@ class TourPassRepository(
         tourPassEntityToTourPass(TourPassEntity[id])
     }
 
-    override suspend fun addChartToTourPass(tourPassId: String, chartId: String): Boolean = newSuspendedTransaction {
+    override suspend fun addChartToTourPass(tourPassId: String, chartId: String): Boolean = suspendTransaction {
         TourPassChartTable.insertIgnore {
             it[TourPassChartTable.tourPassId] = EntityID(tourPassId, TourPassTable)
             it[TourPassChartTable.chartId] = EntityID(chartId, ChartTable)
         }.insertedCount > 0
     }
 
-    override suspend fun removeChartFromTourPass(tourPassId: String, chartId: String): Boolean = newSuspendedTransaction {
+    override suspend fun removeChartFromTourPass(tourPassId: String, chartId: String): Boolean = suspendTransaction {
         TourPassChartTable.deleteWhere {
             (TourPassChartTable.tourPassId eq EntityID(tourPassId, TourPassTable)) and
                 (TourPassChartTable.chartId eq EntityID(chartId, ChartTable))

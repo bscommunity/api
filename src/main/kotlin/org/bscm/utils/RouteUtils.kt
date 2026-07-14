@@ -5,7 +5,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.plugins.UnauthorizedException
-import org.jetbrains.exposed.exceptions.ExposedSQLException
+import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import java.util.*
 
 /**

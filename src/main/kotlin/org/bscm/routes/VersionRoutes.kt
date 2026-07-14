@@ -24,7 +24,7 @@ import org.bscm.services.UploadService
 import org.bscm.utils.QueryUtils.getNormalizedQuery
 import org.bscm.utils.QueryUtils.similarity
 import org.bscm.utils.getUserIdOrNull
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 private val logger = KtorSimpleLogger("VersionRoutes")
@@ -127,7 +127,7 @@ fun Route.versionRoutes(
                         bundleUrl = attachment.url
                     )
 
-                    val createdVersion = newSuspendedTransaction {
+                    val createdVersion = suspendTransaction {
                         versionRepository.addVersion(chart.id, createRequestWithUrl)
                     }
 

@@ -7,7 +7,7 @@ import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IThemeRepository
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 class ThemeRepository : IThemeRepository {
@@ -45,7 +45,7 @@ class ThemeRepository : IThemeRepository {
         search: String?,
         limit: Int?,
         offset: Int?,
-    ): List<Theme> = newSuspendedTransaction {
+    ): List<Theme> = suspendTransaction {
         val pageSize = limit ?: 20
         val pageOffset = offset ?: 0
 
@@ -63,7 +63,7 @@ class ThemeRepository : IThemeRepository {
         paged.map { themeEntityToTheme(it) }
     }
 
-    override suspend fun getThemeById(id: String, userId: UUID?): Theme? = newSuspendedTransaction {
+    override suspend fun getThemeById(id: String, userId: UUID?): Theme? = suspendTransaction {
         ThemeEntity.findById(id)?.let { themeEntityToTheme(it) }
     }
 
@@ -75,7 +75,7 @@ class ThemeRepository : IThemeRepository {
         displayArtUrl: String,
         previewUrl: String,
         id: String?,
-    ): Theme = newSuspendedTransaction {
+    ): Theme = suspendTransaction {
         val catalogItem = if (id != null) {
             CatalogItemEntity.new(id) {
                 this.type = CatalogItemType.THEME
@@ -109,7 +109,7 @@ class ThemeRepository : IThemeRepository {
         coverUrl: String?,
         displayArtUrl: String?,
         previewUrl: String?,
-    ): Theme = newSuspendedTransaction {
+    ): Theme = suspendTransaction {
         val entity = ThemeEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
             replaces?.let { entity.replaces = it }
@@ -121,8 +121,8 @@ class ThemeRepository : IThemeRepository {
         themeEntityToTheme(entity)
     }
 
-    override suspend fun deleteTheme(id: String, userId: UUID): Boolean = newSuspendedTransaction {
-        CatalogItemEntity.findById(id)?.delete() ?: return@newSuspendedTransaction false
+    override suspend fun deleteTheme(id: String, userId: UUID): Boolean = suspendTransaction {
+        CatalogItemEntity.findById(id)?.delete() ?: return@suspendTransaction false
         true
     }
 }

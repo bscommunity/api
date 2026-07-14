@@ -1,7 +1,7 @@
 package org.bscm.models.tables
 
 import org.bscm.models.enums.Genre
-import org.jetbrains.exposed.dao.id.UUIDTable
+import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
 
 object TrackTable : UUIDTable("tracks") {
     val title = varchar("title", 200)

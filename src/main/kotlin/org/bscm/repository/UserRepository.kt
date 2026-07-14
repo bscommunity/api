@@ -16,9 +16,9 @@ import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.interfaces.*
 import org.bscm.models.tables.*
-import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 class UserRepository(
@@ -72,7 +72,7 @@ class UserRepository(
     }
 
 
-    override suspend fun getUsers(query: String?): List<User> = newSuspendedTransaction {
+    override suspend fun getUsers(query: String?): List<User> = suspendTransaction {
         // If query is null, return all users
         if (query.isNullOrBlank()) {
             UserEntity.all().map(::userEntityToUser)
@@ -82,23 +82,23 @@ class UserRepository(
         }
     }
 
-    override suspend fun getUserById(id: UUID): User? = newSuspendedTransaction {
+    override suspend fun getUserById(id: UUID): User? = suspendTransaction {
         UserEntity.findById(id)?.let { userEntityToUser(it) }
     }
 
-    override suspend fun getUserByDiscordId(discordId: String): User? = newSuspendedTransaction {
+    override suspend fun getUserByDiscordId(discordId: String): User? = suspendTransaction {
         UserEntity.find { UserTable.discordId eq discordId }.singleOrNull()?.let(::userEntityToUser)
     }
 
-    override suspend fun getUserByUsername(username: String): SimplifiedUser? = newSuspendedTransaction {
+    override suspend fun getUserByUsername(username: String): SimplifiedUser? = suspendTransaction {
         UserEntity.find { UserTable.username eq username }.singleOrNull()?.let(::userEntityToSimplifiedUser)
     }
 
-    override suspend fun getUserByUsernameAsFull(username: String): User? = newSuspendedTransaction {
+    override suspend fun getUserByUsernameAsFull(username: String): User? = suspendTransaction {
         UserEntity.find { UserTable.username eq username }.singleOrNull()?.let(::userEntityToUser)
     }
 
-    override suspend fun createUser(user: CreateUserRequest): User = newSuspendedTransaction {
+    override suspend fun createUser(user: CreateUserRequest): User = suspendTransaction {
         val newUser = UserEntity.new(UUID.randomUUID()) {
             this.username = user.username
             this.email = user.email
@@ -110,7 +110,7 @@ class UserRepository(
         userEntityToUser(newUser)
     }
 
-    override suspend fun updateUser(id: UUID, user: UpdateUserRequest): User = newSuspendedTransaction {
+    override suspend fun updateUser(id: UUID, user: UpdateUserRequest): User = suspendTransaction {
         val existingUser = UserEntity.findById(id) ?: throw NotFoundException("User not found")
         existingUser.apply {
             username = user.username.let { if (it.isNullOrBlank()) username else it }
@@ -124,13 +124,13 @@ class UserRepository(
         userEntityToUser(existingUser)
     }
 
-    override suspend fun deleteUser(id: UUID): Boolean = newSuspendedTransaction {
-        val user = UserEntity.findById(id) ?: return@newSuspendedTransaction false
+    override suspend fun deleteUser(id: UUID): Boolean = suspendTransaction {
+        val user = UserEntity.findById(id) ?: return@suspendTransaction false
         user.delete()
         true
     }
 
-    override suspend fun upsertAccount(id: UUID, account: CreateAccountRequest) = newSuspendedTransaction {
+    override suspend fun upsertAccount(id: UUID, account: CreateAccountRequest) = suspendTransaction {
         UserEntity.findById(id) ?: throw NotFoundException("User not found")
 
         AccountTable.upsert {
@@ -147,7 +147,7 @@ class UserRepository(
         true
     }
 
-    override suspend fun deleteAccount(id: UUID): Boolean = newSuspendedTransaction {
+    override suspend fun deleteAccount(id: UUID): Boolean = suspendTransaction {
         AccountTable.select(AccountTable.id).where { AccountTable.userId eq id }.singleOrNull()
             ?: throw NotFoundException("Account not found for user ID: $id")
 
@@ -156,7 +156,7 @@ class UserRepository(
         true
     }
 
-    override suspend fun getUserBadges(userId: UUID): List<Badge> = newSuspendedTransaction {
+    override suspend fun getUserBadges(userId: UUID): List<Badge> = suspendTransaction {
         UserBadgeTable.innerJoin(BadgeTable).selectAll().where {
             UserBadgeTable.userId eq userId
         }.map { row ->
@@ -176,7 +176,7 @@ class UserRepository(
         query: String?,
         limit: Int,
         offset: Int
-    ): List<CatalogItem> = newSuspendedTransaction {
+    ): List<CatalogItem> = suspendTransaction {
         // Get content IDs for the user's charts
         val contentQuery = CatalogItemTable
             .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
@@ -201,7 +201,7 @@ class UserRepository(
 
         val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
-        if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
+        if (contentIds.isEmpty()) return@suspendTransaction emptyList()
 
         // Fetch Charts
         val (charts, _) = chartRepository.getCharts(
@@ -222,7 +222,7 @@ class UserRepository(
         query: String?,
         limit: Int,
         offset: Int
-    ): List<CatalogItem> = newSuspendedTransaction {
+    ): List<CatalogItem> = suspendTransaction {
         // Get content IDs for the user's tour passes
         val contentQuery = CatalogItemTable
             .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
@@ -245,7 +245,7 @@ class UserRepository(
 
         val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
-        if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
+        if (contentIds.isEmpty()) return@suspendTransaction emptyList()
 
         // Fetch TourPasses
         val tourPasses = tourPassRepository.getTourPasses(
@@ -267,7 +267,7 @@ class UserRepository(
         query: String?,
         limit: Int,
         offset: Int
-    ): List<CatalogItem> = newSuspendedTransaction {
+    ): List<CatalogItem> = suspendTransaction {
         // Get content IDs for the user's themes
         val contentQuery = CatalogItemTable
             .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
@@ -290,7 +290,7 @@ class UserRepository(
 
         val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
-        if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
+        if (contentIds.isEmpty()) return@suspendTransaction emptyList()
 
         // Fetch Themes
         val themes = themeRepository.getThemes(
@@ -306,7 +306,7 @@ class UserRepository(
         themes.sortedBy { orderMap[it.id] ?: Int.MAX_VALUE }
     }
 
-    override suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int, requestedCounts: Set<String>): UserProfileCounts = newSuspendedTransaction {
+    override suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int, requestedCounts: Set<String>): UserProfileCounts = suspendTransaction {
         val all = requestedCounts.isEmpty()
 
         // Helper: count items in a system collection broken down by content type -> Triple(charts, tourPasses, themes)
@@ -332,17 +332,38 @@ class UserRepository(
 
         // library: authored content (charts, tour passes, themes)
         val library: Triple<Int, Int, Int>? = if (all || "library" in requestedCounts) {
-            val charts = (CatalogItemTable innerJoin ChartTable)
+            // val charts = CatalogItemTable
+            //                .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
+            //                .select(CatalogItemTable.id)
+            //                .where { CatalogItemTable.authorId eq userId }
+            //                .count()
+            //                .toInt()
+            //            val tourPasses = CatalogItemTable
+            //                .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
+            //                .select(CatalogItemTable.id)
+            //                .where { CatalogItemTable.authorId eq userId }
+            //                .count()
+            //                .toInt()
+            //            val themes = CatalogItemTable
+            //                .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
+            //                .select(CatalogItemTable.id)
+            //                .where { CatalogItemTable.authorId eq userId }
+            //                .count()
+            //                .toInt()
+            val charts = CatalogItemTable
+                .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
                 .select(CatalogItemTable.id)
                 .where { CatalogItemTable.authorId eq userId }
                 .count()
                 .toInt()
-            val tourPasses = (CatalogItemTable innerJoin TourPassTable)
+            val tourPasses = CatalogItemTable
+                .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
                 .select(CatalogItemTable.id)
                 .where { CatalogItemTable.authorId eq userId }
                 .count()
                 .toInt()
-            val themes = (CatalogItemTable innerJoin ThemeTable)
+            val themes = CatalogItemTable
+                .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
                 .select(CatalogItemTable.id)
                 .where { CatalogItemTable.authorId eq userId }
                 .count()
@@ -382,7 +403,7 @@ class UserRepository(
         collectionKind: CollectionKind,
         requestingUserId: UUID?,
         limit: Int
-    ): List<CatalogItem> = newSuspendedTransaction {
+    ): List<CatalogItem> = suspendTransaction {
         require(collectionKind != CollectionKind.USER) {
             "Cannot get system collection items for USER kind"
         }
@@ -395,7 +416,7 @@ class UserRepository(
                 (CollectionTable.kind eq collectionKind)
             }
             .singleOrNull()
-            ?: return@newSuspendedTransaction emptyList()
+            ?: return@suspendTransaction emptyList()
 
         val collectionId = collection[CollectionTable.id].value
 
@@ -407,9 +428,9 @@ class UserRepository(
         )
     }
 
-    override suspend fun followUser(followerId: UUID, followedId: UUID): Boolean = newSuspendedTransaction {
+    override suspend fun followUser(followerId: UUID, followedId: UUID): Boolean = suspendTransaction {
         // Cannot follow yourself
-        if (followerId == followedId) return@newSuspendedTransaction false
+        if (followerId == followedId) return@suspendTransaction false
 
         // Verify both users exist in a single query
         val foundIds = UserTable
@@ -429,7 +450,7 @@ class UserRepository(
         }.insertedCount > 0
     }
 
-    override suspend fun unfollowUser(followerId: UUID, followedId: UUID): Boolean = newSuspendedTransaction {
+    override suspend fun unfollowUser(followerId: UUID, followedId: UUID): Boolean = suspendTransaction {
         val deletedCount = UserFollowTable.deleteWhere {
             (UserFollowTable.follower eq followerId) and (UserFollowTable.followed eq followedId)
         }
@@ -437,7 +458,7 @@ class UserRepository(
         deletedCount > 0
     }
 
-    override suspend fun getFollowers(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser> = newSuspendedTransaction {
+    override suspend fun getFollowers(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser> = suspendTransaction {
         UserFollowTable
             .innerJoin(UserTable, { UserFollowTable.follower }, { UserTable.id })
             .selectAll()
@@ -453,7 +474,7 @@ class UserRepository(
             .filterNotNull()
     }
 
-    override suspend fun getFollowing(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser> = newSuspendedTransaction {
+    override suspend fun getFollowing(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser> = suspendTransaction {
         UserFollowTable
             .innerJoin(UserTable, { UserFollowTable.followed }, { UserTable.id })
             .selectAll()
@@ -469,24 +490,27 @@ class UserRepository(
             .filterNotNull()
     }
 
-    override suspend fun isFollowing(followerId: UUID, followedId: UUID): Boolean = newSuspendedTransaction {
+    override suspend fun isFollowing(followerId: UUID, followedId: UUID): Boolean = suspendTransaction {
         UserFollowTable.selectAll().where {
             (UserFollowTable.follower eq followerId) and (UserFollowTable.followed eq followedId)
         }.empty().not()
     }
 
-    override suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int> = newSuspendedTransaction {
-        val charts = (CatalogItemTable innerJoin ChartTable)
+    override suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int> = suspendTransaction {
+        val charts = CatalogItemTable
+            .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
             .select(CatalogItemTable.id)
             .where { CatalogItemTable.authorId eq userId }
             .count()
             .toInt()
-        val tourPasses = (CatalogItemTable innerJoin TourPassTable)
+        val tourPasses = CatalogItemTable
+            .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
             .select(CatalogItemTable.id)
             .where { CatalogItemTable.authorId eq userId }
             .count()
             .toInt()
-        val themes = (CatalogItemTable innerJoin ThemeTable)
+        val themes = CatalogItemTable
+            .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
             .select(CatalogItemTable.id)
             .where { CatalogItemTable.authorId eq userId }
             .count()

@@ -16,7 +16,7 @@ import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.models.interfaces.*
 import org.bscm.utils.NanoIdUtils
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.koin.ktor.ext.inject
 import java.util.*
 import kotlin.random.Random
@@ -161,7 +161,7 @@ private suspend fun generateRandomCharts(
                             if (Random.nextBoolean()) {
                                 val additionalVersionsCount = Random.nextInt(1, 3)
                                 repeat(additionalVersionsCount) {
-                                    newSuspendedTransaction {
+                                    suspendTransaction {
                                         versionRepository.addVersion(
                                             catalogItemId = chart.id,
                                             CreateVersionRequest(

@@ -2,15 +2,16 @@ package org.bscm.repository
 
 import org.bscm.models.tables.BundleUrlCacheTable
 import org.bscm.models.tables.CatalogItemTable
-import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDateTime
 
 class BundleUrlCacheRepository {
-    suspend fun getCachedUrl(catalogItemId: String): String? = newSuspendedTransaction {
+    suspend fun getCachedUrl(catalogItemId: String): String? = suspendTransaction {
         val row = BundleUrlCacheTable.selectAll()
             .where { BundleUrlCacheTable.catalogItemId eq EntityID(catalogItemId, CatalogItemTable) }
             .singleOrNull()
@@ -20,7 +21,7 @@ class BundleUrlCacheRepository {
         } else null
     }
 
-    suspend fun cacheUrl(catalogItemId: String, url: String) = newSuspendedTransaction {
+    suspend fun cacheUrl(catalogItemId: String, url: String) = suspendTransaction {
         val entityId = EntityID(catalogItemId, CatalogItemTable)
         val existing = BundleUrlCacheTable.selectAll()
             .where { BundleUrlCacheTable.catalogItemId eq entityId }

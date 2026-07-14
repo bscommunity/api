@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ktor.plugin)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.exposed.gradle)
 }
 
 group = "org.bscm"
@@ -28,6 +29,23 @@ ktor {
         enabled = true
         codeInferenceEnabled = false
         onlyCommented = false
+    }
+}
+
+val pgUrl = System.getenv("POSTGRES_URL")
+val pgUser = System.getenv("POSTGRES_USER")
+val pgPassword = System.getenv("POSTGRES_PASSWORD")
+
+exposed {
+    migrations {
+        tablesPackage.set("org.bscm.models.tables")
+        if (pgUrl != null && pgUser != null && pgPassword != null) {
+            databaseUrl.set("jdbc:$pgUrl")
+            databaseUser.set(pgUser)
+            databasePassword.set(pgPassword)
+        } else {
+            testContainersImageName.set("postgres:latest")
+        }
     }
 }
 
@@ -71,7 +89,8 @@ dependencies {
     implementation(libs.exposed.jdbc)
     implementation(libs.exposed.json)
     implementation(libs.exposed.java.time)
-    implementation(libs.exposed.migration)
+    implementation(libs.exposed.migration.core)
+    implementation(libs.exposed.migration.jdbc)
     implementation(libs.postgresql)
 
     // Database Migration
@@ -86,7 +105,6 @@ dependencies {
 
     // Utils
     implementation(libs.bouncycastle) // For cryptographic operations (e.g., NanoId)
-    implementation(libs.classgraph) // For classpath scanning (e.g., loading Exposed tables)
 
     // Decoding
     implementation(libs.unitykt)

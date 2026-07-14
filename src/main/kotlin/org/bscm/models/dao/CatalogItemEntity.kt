@@ -1,9 +1,10 @@
 package org.bscm.models.dao
 
-import org.bscm.models.tables.*
-import org.jetbrains.exposed.dao.Entity
-import org.jetbrains.exposed.dao.EntityClass
-import org.jetbrains.exposed.dao.id.EntityID
+import org.bscm.models.tables.CatalogItemTable
+import org.bscm.models.tables.VersionTable
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.Entity
+import org.jetbrains.exposed.v1.dao.EntityClass
 
 class CatalogItemEntity(
     id: EntityID<String>
@@ -39,7 +40,15 @@ class CatalogItemEntity(
 
     var author by UserEntity optionalReferencedOn CatalogItemTable.authorId
 
+    /*
     val chart by ChartEntity optionalReferencedOn ChartTable
     val theme by ThemeEntity optionalReferencedOn ThemeTable
     val tourPass by TourPassEntity optionalReferencedOn TourPassTable
+    */
+    val chart: ChartEntity?
+        get() = ChartEntity.findById(id)
+    val theme: ThemeEntity?
+        get() = ThemeEntity.findById(id)
+    val tourPass: TourPassEntity?
+        get() = TourPassEntity.findById(id)
 }

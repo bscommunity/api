@@ -1,9 +1,9 @@
 package org.bscm.models.dao
 
 import org.bscm.models.tables.ThemeTable
-import org.jetbrains.exposed.dao.Entity
-import org.jetbrains.exposed.dao.EntityClass
-import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.Entity
+import org.jetbrains.exposed.v1.dao.EntityClass
 
 class ThemeEntity(id: EntityID<String>) : Entity<String>(id) {
     companion object : EntityClass<String, ThemeEntity>(ThemeTable)

@@ -3,7 +3,7 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import io.ktor.server.config.*
 import org.flywaydb.core.Flyway
-import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.v1.jdbc.Database
 
 fun Application.configureDatabases(config: ApplicationConfig) {
     val jdbcProp = config.propertyOrNull("storage.jdbcURL") ?: run {

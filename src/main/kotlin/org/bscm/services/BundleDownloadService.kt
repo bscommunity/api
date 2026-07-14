@@ -10,7 +10,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.bscm.repository.BundleUrlCacheRepository
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 
 private val log = KtorSimpleLogger("BundleDownloadService")
 private val discordJson = Json { ignoreUnknownKeys = true }
@@ -21,9 +21,9 @@ class BundleDownloadService(
     private val botToken: String,
     private val channelId: String,
 ) {
-    suspend fun resolveBundleUrl(catalogItemId: String, messageId: String): String = newSuspendedTransaction {
+    suspend fun resolveBundleUrl(catalogItemId: String, messageId: String): String = suspendTransaction {
         val cached = cacheRepository.getCachedUrl(catalogItemId)
-        if (cached != null) return@newSuspendedTransaction cached
+        if (cached != null) return@suspendTransaction cached
 
         val url = fetchAttachmentUrlFromDiscord(messageId)
         cacheRepository.cacheUrl(catalogItemId, url)

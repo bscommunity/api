@@ -1,6 +1,6 @@
 package org.bscm.utils
 
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.sql.Connection
 import java.text.Normalizer
 

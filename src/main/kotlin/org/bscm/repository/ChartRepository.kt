@@ -17,10 +17,13 @@ import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.TrackTable
 import org.bscm.utils.QueryUtils
-import org.jetbrains.exposed.sql.Query
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.jdbc.Query
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 private val log = KtorSimpleLogger("ChartRepository")
@@ -62,7 +65,7 @@ class ChartRepository(
         return processedResults.firstOrNull()?.let { resultAssembler.toChart(it) }
     }
 
-    override suspend fun getChartById(id: String, addons: ChartAddons?, requestingUserId: UUID?): Chart? = newSuspendedTransaction {
+    override suspend fun getChartById(id: String, addons: ChartAddons?, requestingUserId: UUID?): Chart? = suspendTransaction {
         getChart(
             query = ChartTable.selectAll().where { ChartTable.id eq id },
             addons = addons,
@@ -80,7 +83,11 @@ class ChartRepository(
     ): Pair<List<ChartResultAssembler.ChartResult>, Int> {
         val startTime = System.currentTimeMillis()
 
-        val baseQuery = (ChartTable innerJoin CatalogItemTable innerJoin TrackTable)
+        // val baseQuery = (ChartTable innerJoin CatalogItemTable innerJoin TrackTable)
+        //            .select(ChartTable.id)
+        val baseQuery = ChartTable
+            .innerJoin(CatalogItemTable, { ChartTable.id }, { CatalogItemTable.id })
+            .innerJoin(TrackTable, { ChartTable.trackId }, { TrackTable.id })
             .select(ChartTable.id)
 
         queryBuilder.applyFilters(baseQuery, filters)
@@ -126,7 +133,7 @@ class ChartRepository(
         limit: Int?,
         offset: Int?,
         requestingUserId: UUID?,
-    ): Pair<List<Chart>, Int?> = newSuspendedTransaction {
+    ): Pair<List<Chart>, Int?> = suspendTransaction {
         val (results, total) = fetchChartEntities(
             sortBy = sortBy,
             filters = filters,
@@ -136,15 +143,15 @@ class ChartRepository(
             requestingUserId = requestingUserId,
         )
 
-        if (results.isEmpty()) return@newSuspendedTransaction Pair(emptyList(), if (addons?.count == true) total else null)
+        if (results.isEmpty()) return@suspendTransaction Pair(emptyList(), if (addons?.count == true) total else null)
 
         val charts = results.map { resultAssembler.toChart(it) }
         Pair(charts, if (addons?.count == true) total else null)
     }
 
     override suspend fun getChartsByContentIds(contentIds: List<String>, addons: ChartAddons?, requestingUserId: UUID?): List<Chart> =
-        newSuspendedTransaction {
-            if (contentIds.isEmpty()) return@newSuspendedTransaction emptyList()
+        suspendTransaction {
+            if (contentIds.isEmpty()) return@suspendTransaction emptyList()
 
             val query = ChartTable.selectAll().where {
                 ChartTable.id inList contentIds
@@ -159,8 +166,8 @@ class ChartRepository(
             ).map { resultAssembler.toChart(it) }
         }
 
-    override suspend fun getSuggestions(query: String, limit: Int): List<String> = newSuspendedTransaction {
-        if (query.isBlank()) return@newSuspendedTransaction emptyList()
+    override suspend fun getSuggestions(query: String, limit: Int): List<String> = suspendTransaction {
+        if (query.isBlank()) return@suspendTransaction emptyList()
 
         val startTime = System.currentTimeMillis()
         val result = QueryUtils.getSearchMatches(query, kotlin.math.max(20, limit))
@@ -170,7 +177,7 @@ class ChartRepository(
         result
     }
 
-    override suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart = newSuspendedTransaction {
+    override suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart = suspendTransaction {
         val catalogItem = catalogItemRepository.create(
             type = CatalogItemType.CHART,
             authorId = userId,
@@ -231,7 +238,7 @@ class ChartRepository(
 
     override suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = true
 
-    override suspend fun updateChart(id: String, chart: UpdateChartRequest, requestingUserId: UUID?): Chart = newSuspendedTransaction<Chart> {
+    override suspend fun updateChart(id: String, chart: UpdateChartRequest, requestingUserId: UUID?): Chart = suspendTransaction<Chart> {
         val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
             it.difficulty = chart.difficulty ?: it.difficulty
             it.isDeluxe = chart.isDeluxe ?: it.isDeluxe
@@ -258,13 +265,13 @@ class ChartRepository(
             ?: throw IllegalStateException("Failed to load chart after update")
     }
 
-    override suspend fun deleteChart(id: String): Boolean = newSuspendedTransaction {
-        val catalogItem = CatalogItemEntity.findById(id) ?: return@newSuspendedTransaction false
+    override suspend fun deleteChart(id: String): Boolean = suspendTransaction {
+        val catalogItem = CatalogItemEntity.findById(id) ?: return@suspendTransaction false
         catalogItem.delete()
         true
     }
 
-    override suspend fun postAnalytics(chartId: String, action: OperationOption): Boolean = newSuspendedTransaction {
+    override suspend fun postAnalytics(chartId: String, action: OperationOption): Boolean = suspendTransaction {
         when (action) {
             OperationOption.INSTALL, OperationOption.UPDATE -> {
                 val chart = ChartEntity.findById(chartId) ?: throw NotFoundException("Chart not found")

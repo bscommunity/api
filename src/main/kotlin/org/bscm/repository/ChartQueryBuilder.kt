@@ -4,9 +4,11 @@ import org.bscm.models.enums.SortOption
 import org.bscm.models.enums.Visibility
 import org.bscm.models.tables.*
 import org.bscm.utils.QueryUtils
-import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.Query
+import org.jetbrains.exposed.v1.jdbc.andWhere
+import org.jetbrains.exposed.v1.jdbc.select
 
 class ChartQueryBuilder {
     fun applyJoinsAndSelect(

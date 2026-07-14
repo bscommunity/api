@@ -10,9 +10,10 @@ import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IContributorRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ContributorTable
-import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 class ContributorRepository : IContributorRepository {
@@ -54,7 +55,7 @@ class ContributorRepository : IContributorRepository {
         }
     }
 
-    override suspend fun addContributors(catalogItemId: String, contributors: List<SimplifiedContributor>): List<Contributor> = newSuspendedTransaction {
+    override suspend fun addContributors(catalogItemId: String, contributors: List<SimplifiedContributor>): List<Contributor> = suspendTransaction {
         CatalogItemEntity.findById(catalogItemId) ?: throw IllegalArgumentException("CatalogItem not found")
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
 
@@ -82,7 +83,7 @@ class ContributorRepository : IContributorRepository {
         contributorEntities
     }
 
-    override suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole): Boolean = newSuspendedTransaction {
+    override suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole): Boolean = suspendTransaction {
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
         val entity = ContributorEntity.find {
             (ContributorTable.catalogItemId eq catalogItemEntityId) and
@@ -98,7 +99,7 @@ class ContributorRepository : IContributorRepository {
         catalogItemId: String,
         userId: UUID,
         role: ContributorRole
-    ): Contributor = newSuspendedTransaction {
+    ): Contributor = suspendTransaction {
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
         val entity = ContributorEntity.find {
             (ContributorTable.catalogItemId eq catalogItemEntityId) and
@@ -109,7 +110,7 @@ class ContributorRepository : IContributorRepository {
         contributorEntityToContributor(entity)
     }
 
-    override suspend fun getContributors(catalogItemId: String): List<Contributor> = newSuspendedTransaction {
+    override suspend fun getContributors(catalogItemId: String): List<Contributor> = suspendTransaction {
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
         ContributorEntity.find { ContributorTable.catalogItemId eq catalogItemEntityId }
             .map { contributorEntityToContributor(it) }

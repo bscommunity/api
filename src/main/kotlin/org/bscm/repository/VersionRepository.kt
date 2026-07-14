@@ -8,24 +8,27 @@ import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.mappers.VersionMapper.entityToVersion
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.VersionTable
-import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 
 class VersionRepository : IVersionRepository {
-    override suspend fun getVersionById(id: ULong): Version? = newSuspendedTransaction {
+    override suspend fun getVersionById(id: ULong): Version? = suspendTransaction {
         VersionEntity.findById(id)?.let { entityToVersion(it) }
     }
 
-    override suspend fun getVersions(catalogItemId: String): List<Version> = newSuspendedTransaction {
+    override suspend fun getVersions(catalogItemId: String): List<Version> = suspendTransaction {
         VersionEntity.find { VersionTable.catalogItemId eq catalogItemId }
             .orderBy(VersionTable.versionCode to SortOrder.ASC)
             .map { entityToVersion(it) }
     }
 
     override suspend fun getLatestVersionsByCatalogItemIds(catalogItemIds: List<String>): List<Version> =
-        newSuspendedTransaction {
-            if (catalogItemIds.isEmpty()) return@newSuspendedTransaction emptyList()
+        suspendTransaction {
+            if (catalogItemIds.isEmpty()) return@suspendTransaction emptyList()
 
             val rows = (CatalogItemTable innerJoin VersionTable)
                 .select(VersionTable.columns)
@@ -71,7 +74,7 @@ class VersionRepository : IVersionRepository {
         }
 
     override suspend fun removeVersion(versionId: ULong, currentLatestVersionId: String?, versionCount: Int): Boolean =
-        newSuspendedTransaction {
+        suspendTransaction {
             if (currentLatestVersionId != versionId.toString()) {
                 throw IllegalArgumentException(
                     "Only the latest version can be removed. " +

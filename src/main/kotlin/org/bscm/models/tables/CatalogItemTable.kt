@@ -4,16 +4,15 @@ import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.Visibility
 import org.bscm.utils.NanoIdUtils
-import org.jetbrains.exposed.dao.id.IdTable
-import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.javatime.CurrentDateTime
-import org.jetbrains.exposed.sql.javatime.datetime
+import org.jetbrains.exposed.v1.core.ReferenceOption
+import org.jetbrains.exposed.v1.core.dao.id.IdTable
+import org.jetbrains.exposed.v1.javatime.CurrentDateTime
+import org.jetbrains.exposed.v1.javatime.datetime
 
 object CatalogItemTable : IdTable<String>("catalog_items") {
     override val id = varchar("id", 10)
         .clientDefault { NanoIdUtils.generateOptimized(10, "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 63, 16) }
         .entityId()
-        .uniqueIndex()
     val type = enumerationByName("type", 20, CatalogItemType::class)
     val status = enumerationByName("status", 20, CatalogItemStatus::class)
     val visibility = enumerationByName("visibility", 20, Visibility::class)
@@ -44,6 +43,8 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
     val updatedAt = datetime("updated_at").nullable()
 
     val authorId = reference("author_id", UserTable, ReferenceOption.SET_NULL).nullable()
+
+    override val primaryKey = PrimaryKey(id)
 
     init {
         index(false, type)

@@ -1,13 +1,13 @@
 package org.bscm.models.tables
 
 import org.bscm.models.enums.Difficulty
-import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.dao.id.IdTable
-import org.jetbrains.exposed.sql.Column
-import org.jetbrains.exposed.sql.ReferenceOption
+import org.jetbrains.exposed.v1.core.Column
+import org.jetbrains.exposed.v1.core.ReferenceOption
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.IdTable
 
 object ChartTable : IdTable<String>("charts") {
-    override val id: Column<EntityID<String>> = varchar("id", 255).entityId().uniqueIndex()
+    override val id: Column<EntityID<String>> = varchar("id", 10).entityId()
 
     val trackId = reference("track_id", TrackTable, onDelete = ReferenceOption.RESTRICT)
 
@@ -17,4 +17,6 @@ object ChartTable : IdTable<String>("charts") {
 
     val isDeluxe = bool("is_deluxe").default(false)
     val isExplicit = bool("is_explicit").default(false)
+
+    override val primaryKey = PrimaryKey(id)
 }

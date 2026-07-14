@@ -13,13 +13,11 @@ import org.bscm.models.interfaces.ICollectionRepository
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.*
-import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.exceptions.ExposedSQLException
-import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.inSubQuery
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.time.LocalDateTime
 import java.util.*
 
@@ -30,7 +28,7 @@ class CollectionRepository(
     private val trackRepository: TrackRepository,
 ) : ICollectionRepository {
 
-    override suspend fun getContentType(contentId: String): CatalogItemType? = newSuspendedTransaction {
+    override suspend fun getContentType(contentId: String): CatalogItemType? = suspendTransaction {
         CatalogItemTable
             .select(CatalogItemTable.type)
             .where { CatalogItemTable.id eq contentId }
@@ -264,7 +262,7 @@ class CollectionRepository(
      * fall back to a fresh read
      */
     override suspend fun getOrCreateSystemCollectionId(userId: UUID, kind: CollectionKind): UUID =
-        newSuspendedTransaction {
+        suspendTransaction {
             val existing = CollectionTable
                 .select(CollectionTable.id)
                 .where { (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind) }
@@ -290,7 +288,7 @@ class CollectionRepository(
         }
 
     override suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection =
-        newSuspendedTransaction {
+        suspendTransaction {
             val now = LocalDateTime.now()
             val entity = CollectionEntity.new {
                 user = UserEntity[userId]
@@ -309,7 +307,7 @@ class CollectionRepository(
         limit: Int?,
         offset: Int?,
         onlyPublic: Boolean
-    ): List<Collection> = newSuspendedTransaction {
+    ): List<Collection> = suspendTransaction {
         // Build the base query — a LEFT JOIN so collections with zero items still appear,
         // and COUNT(collectionId) gives us item counts without a second query.
         var baseQuery = CollectionTable
@@ -329,7 +327,7 @@ class CollectionRepository(
         }
 
         val rows = baseQuery.toList()
-        if (rows.isEmpty()) return@newSuspendedTransaction emptyList()
+        if (rows.isEmpty()) return@suspendTransaction emptyList()
 
         // Batch-resolve cover URLs for ALL collections in one go (max 4 DB queries total)
         // instead of one getLatestItemCoverUrl() call per row.
@@ -345,7 +343,7 @@ class CollectionRepository(
     }
 
     override suspend fun getCollection(collectionId: UUID, userId: UUID?): Collection? =
-        newSuspendedTransaction {
+        suspendTransaction {
             val filter = if (userId != null) {
                 (CollectionTable.id eq collectionId) and
                         ((CollectionTable.userId eq userId) or (CollectionTable.isPublic eq true))
@@ -358,7 +356,7 @@ class CollectionRepository(
                 .select(CollectionTable.columns + UserTable.columns)
                 .where { filter }
                 .firstOrNull()
-                ?: return@newSuspendedTransaction null
+                ?: return@suspendTransaction null
 
             val coverUrl = getLatestItemCoverUrl(collectionId)
             val itemsCount = getItemsCount(collectionId)
@@ -366,7 +364,7 @@ class CollectionRepository(
         }
 
     override suspend fun getCollectionBySlug(username: String, slug: String, userId: UUID?): Collection? =
-        newSuspendedTransaction {
+        suspendTransaction {
             val filter = if (userId != null) {
                 (CollectionTable.slug eq slug) and
                         ((CollectionTable.userId eq UserTable.id).and(UserTable.username eq username) or
@@ -382,7 +380,7 @@ class CollectionRepository(
                 .select(CollectionTable.columns + UserTable.columns)
                 .where { filter }
                 .firstOrNull()
-                ?: return@newSuspendedTransaction null
+                ?: return@suspendTransaction null
 
             val collectionId = row[CollectionTable.id].value
             val coverUrl = getLatestItemCoverUrl(collectionId)
@@ -395,13 +393,13 @@ class CollectionRepository(
         userId: UUID,
         name: String?,
         isPublic: Boolean?
-    ): String? = newSuspendedTransaction {
+    ): String? = suspendTransaction {
         // Early-exit if there's nothing to update — avoids a pointless write.
-        if (name == null && isPublic == null) return@newSuspendedTransaction null
+        if (name == null && isPublic == null) return@suspendTransaction null
 
         val entity = CollectionEntity.find {
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER)
-        }.firstOrNull() ?: return@newSuspendedTransaction null
+        }.firstOrNull() ?: return@suspendTransaction null
 
         name?.let { entity.name = it }
         isPublic?.let { entity.isPublic = it }
@@ -412,10 +410,10 @@ class CollectionRepository(
     }
 
     override suspend fun deleteCollection(collectionId: UUID, userId: UUID): Boolean =
-        newSuspendedTransaction {
+        suspendTransaction {
             val entity = CollectionEntity.find {
                 (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId) and (CollectionTable.kind eq CollectionKind.USER)
-            }.firstOrNull() ?: return@newSuspendedTransaction false
+            }.firstOrNull() ?: return@suspendTransaction false
 
             entity.delete()
             true
@@ -426,7 +424,7 @@ class CollectionRepository(
         collectionKind: CollectionKind,
         userId: UUID,
         contentId: String
-    ): Boolean = newSuspendedTransaction {
+    ): Boolean = suspendTransaction {
         val now = LocalDateTime.now()
         val result = CollectionItemTable.insertIgnore {
             it[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
@@ -447,7 +445,7 @@ class CollectionRepository(
     }
 
     override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
-        newSuspendedTransaction {
+        suspendTransaction {
             // Verify collection exists and belongs to user
             val collectionRow = CollectionTable
                 .select(CollectionTable.id)
@@ -456,7 +454,7 @@ class CollectionRepository(
                             (CollectionTable.userId eq userId)
                 }
                 .limit(1)
-                .firstOrNull() ?: return@newSuspendedTransaction false
+                .firstOrNull() ?: return@suspendTransaction false
 
             val deletedCount = CollectionItemTable.deleteWhere {
                 (CollectionItemTable.collectionId eq collectionId) and
@@ -479,7 +477,7 @@ class CollectionRepository(
         categories: List<CatalogItemType>?,
         limit: Int?,
         offset: Int?
-    ): List<CatalogItem> = newSuspendedTransaction {
+    ): List<CatalogItem> = suspendTransaction {
 
         val collectionExists = CollectionTable
             .select(CollectionTable.id)             // SELECT 1 equivalent — minimal projection
@@ -487,7 +485,7 @@ class CollectionRepository(
             .limit(1)
             .count() > 0                                     // no need to scan beyond the first match
 
-        if (!collectionExists) return@newSuspendedTransaction emptyList()
+        if (!collectionExists) return@suspendTransaction emptyList()
 
         // Category filter — when no categories, Op.TRUE is a no-op for the DB planner.
         val categoryFilter: Op<Boolean> = when {
@@ -513,7 +511,7 @@ class CollectionRepository(
         }
 
         val items = itemsQuery.toList()
-        if (items.isEmpty()) return@newSuspendedTransaction emptyList()
+        if (items.isEmpty()) return@suspendTransaction emptyList()
 
         // Track insertion order BEFORE dispatching to child repositories, because they
         // don't guarantee returning items in our requested order.
@@ -609,7 +607,7 @@ class CollectionRepository(
 
     private suspend fun getCountsByCondition(
         condition: Op<Boolean>
-    ): Triple<Int, Int, Int> = newSuspendedTransaction {
+    ): Triple<Int, Int, Int> = suspendTransaction {
 
         val countColumn = CollectionItemTable.id.count()
 
@@ -644,7 +642,7 @@ class CollectionRepository(
         )
 
     override suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean =
-        newSuspendedTransaction {
+        suspendTransaction {
             // COUNT is lighter than fetching a full row — the DB can use an index-only scan.
             CollectionItemTable
                 .select(CollectionItemTable.collectionId.count())
@@ -674,13 +672,13 @@ class CollectionRepository(
         collectionId: UUID,
         userId: UUID,
         contentIds: List<String>
-    ): Pair<Int, List<String>> = newSuspendedTransaction {
-        if (contentIds.isEmpty()) return@newSuspendedTransaction 0 to emptyList()
+    ): Pair<Int, List<String>> = suspendTransaction {
+        if (contentIds.isEmpty()) return@suspendTransaction 0 to emptyList()
 
         // Verify the collection exists and belongs to the user.
         val collection = CollectionEntity.find {
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-        }.firstOrNull() ?: return@newSuspendedTransaction 0 to contentIds
+        }.firstOrNull() ?: return@suspendTransaction 0 to contentIds
 
         val now = LocalDateTime.now()
 
@@ -724,7 +722,7 @@ class CollectionRepository(
         collectionId: UUID,
         userId: UUID,
         contentIds: List<String>
-    ) = newSuspendedTransaction {
+    ) = suspendTransaction {
         if (contentIds.isEmpty()) throw IllegalArgumentException("No contentIds provided for batch removal")
 
         // Verify the collection exists and belongs to the user.

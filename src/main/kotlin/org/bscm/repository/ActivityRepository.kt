@@ -4,10 +4,15 @@ import org.bscm.models.ActivityEntry
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.tables.UserActivityTable
-import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insertAndGetId
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.time.LocalDateTime
 import java.util.*
 
@@ -17,7 +22,7 @@ class ActivityRepository : IActivityRepository {
 		type: ActivityType,
 		targetId: String,
 		createdAt: LocalDateTime
-	): ActivityEntry = newSuspendedTransaction {
+	): ActivityEntry = suspendTransaction {
 		val id = UserActivityTable.insertAndGetId {
 			it[UserActivityTable.userId] = userId
 			it[UserActivityTable.type] = type
@@ -45,8 +50,8 @@ class ActivityRepository : IActivityRepository {
 		type: ActivityType,
 		targetIds: List<String>,
 		createdAt: LocalDateTime
-	): Int = newSuspendedTransaction {
-		if (targetIds.isEmpty()) return@newSuspendedTransaction 0
+	): Int = suspendTransaction {
+		if (targetIds.isEmpty()) return@suspendTransaction 0
 
 		UserActivityTable.batchInsert(targetIds, ignore = true) { targetId ->
 			this[UserActivityTable.userId] = userId
@@ -60,7 +65,7 @@ class ActivityRepository : IActivityRepository {
 		userId: UUID,
 		type: ActivityType,
 		targetId: String
-	): Int = newSuspendedTransaction {
+	): Int = suspendTransaction {
 		UserActivityTable.deleteWhere {
 			(UserActivityTable.userId eq userId) and
 				(UserActivityTable.type eq type) and
@@ -72,8 +77,8 @@ class ActivityRepository : IActivityRepository {
 		userId: UUID,
 		type: ActivityType,
 		targetIds: List<String>
-	): Int = newSuspendedTransaction {
-		if (targetIds.isEmpty()) return@newSuspendedTransaction 0
+	): Int = suspendTransaction {
+		if (targetIds.isEmpty()) return@suspendTransaction 0
 
 		UserActivityTable.deleteWhere {
 			(UserActivityTable.userId eq userId) and
@@ -85,7 +90,7 @@ class ActivityRepository : IActivityRepository {
 	override suspend fun removeActivityByTypeAndTarget(
 		type: ActivityType,
 		targetId: String
-	): Int = newSuspendedTransaction {
+	): Int = suspendTransaction {
 		UserActivityTable.deleteWhere {
 			(UserActivityTable.type eq type) and
 				(UserActivityTable.targetId eq targetId)
@@ -93,7 +98,7 @@ class ActivityRepository : IActivityRepository {
 	}
 
 	override suspend fun getUserActivity(userId: UUID, limit: Int, offset: Int): List<ActivityEntry> =
-		newSuspendedTransaction {
+		suspendTransaction {
 			UserActivityTable
 				.selectAll()
 				.where { UserActivityTable.userId eq userId }

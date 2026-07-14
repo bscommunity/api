@@ -2,9 +2,9 @@ package org.bscm.models.dao
 
 import org.bscm.models.tables.TourPassChartTable
 import org.bscm.models.tables.TourPassTable
-import org.jetbrains.exposed.dao.Entity
-import org.jetbrains.exposed.dao.EntityClass
-import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.Entity
+import org.jetbrains.exposed.v1.dao.EntityClass
 
 class TourPassEntity(id: EntityID<String>) : Entity<String>(id) {
     companion object : EntityClass<String, TourPassEntity>(TourPassTable)

@@ -1,8 +1,8 @@
 package org.bscm.models.tables
 
 import org.bscm.models.enums.StreamingPlatform
-import org.jetbrains.exposed.dao.id.LongIdTable
-import org.jetbrains.exposed.sql.ReferenceOption
+import org.jetbrains.exposed.v1.core.ReferenceOption
+import org.jetbrains.exposed.v1.core.dao.id.LongIdTable
 
 object TrackStreamingRefTable : LongIdTable("track_streaming_refs") {
     val trackId = reference("track_id", TrackTable, onDelete = ReferenceOption.CASCADE)

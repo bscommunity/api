@@ -88,6 +88,27 @@ It’s built with [Ktor](https://ktor.io/) and [Exposed](https://github.com/JetB
 
 > See the [`application.yaml`](./src/main/resources/application.yaml) file for all required fields
 
+### Database Schema Migrations
+
+Schema changes are managed by the **Exposed Gradle Plugin**, which generates Flyway-compatible SQL migration scripts automatically from your Exposed table definitions.
+
+**Workflow:**
+
+1. Edit the Exposed table definitions in `src/main/kotlin/org/bscm/models/tables/`
+2. Run the migration generator:
+   ```bash
+   ./gradlew generateMigrations
+   ```
+3. Commit the generated file (e.g., `src/main/resources/db/migration/V2__...sql`)
+4. Flyway applies pending migrations automatically on the next server start
+
+**Connection strategy:**
+
+- If `POSTGRES_URL`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` environment variables are set, the plugin connects directly to that database to compute the diff.
+- Otherwise, it falls back to **Testcontainers**, which starts a temporary PostgreSQL container (requires [Docker](https://docker.com/)).
+
+> The first run creates `V1__initial_schema.sql`. All subsequent schema edits produce incremental migration files.
+
 ## 🤝 Contributing
 
 Contributions are welcome!

@@ -1,9 +1,9 @@
 package org.bscm.models.tables
 
 import org.bscm.models.enums.CollectionKind
-import org.jetbrains.exposed.dao.id.UUIDTable
-import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.javatime.datetime
+import org.jetbrains.exposed.v1.core.ReferenceOption
+import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
+import org.jetbrains.exposed.v1.javatime.datetime
 
 object CollectionTable : UUIDTable("collections") {
     val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)

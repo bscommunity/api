@@ -7,7 +7,7 @@ import org.bscm.models.mappers.VersionMapper
 import org.bscm.models.tables.*
 import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
 import org.bscm.utils.StreamingPlatformUtils
-import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.v1.core.ResultRow
 import java.time.LocalDateTime
 import java.util.*
 

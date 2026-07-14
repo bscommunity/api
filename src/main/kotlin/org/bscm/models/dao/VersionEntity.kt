@@ -1,9 +1,9 @@
 package org.bscm.models.dao
 
 import org.bscm.models.tables.VersionTable
-import org.jetbrains.exposed.dao.EntityClass
-import org.jetbrains.exposed.dao.ULongEntity
-import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.EntityClass
+import org.jetbrains.exposed.v1.dao.ULongEntity
 
 class VersionEntity(
     id: EntityID<ULong>

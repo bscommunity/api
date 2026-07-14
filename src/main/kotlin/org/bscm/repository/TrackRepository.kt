@@ -10,16 +10,18 @@ import org.bscm.models.tables.TrackTable
 import org.bscm.storage.StorageService
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.StreamingPlatformUtils
-import org.jetbrains.exposed.sql.batchInsert
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.jdbc.batchInsert
 import java.util.*
 
 class TrackRepository(
     private val storageService: StorageService,
 ) {
-    // NOTE: no longer opens its own newSuspendedTransaction.
+    // NOTE: no longer opens its own suspendTransaction.
     // Must be called from within an existing transaction (e.g. ChartRepository.createChart).
     // If this is called anywhere outside a transaction scope, wrap that call site in
-    // newSuspendedTransaction { ... } instead of restoring the transaction here — keeping it
+    // suspendTransaction { ... } instead of restoring the transaction here — keeping it
     // transaction-less lets callers batch multiple operations into a single round-trip set,
     // which matters a lot with high DB latency.
     suspend fun findOrCreate(
