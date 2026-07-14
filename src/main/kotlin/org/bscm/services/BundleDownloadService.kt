@@ -5,12 +5,15 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.util.logging.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.bscm.repository.BundleUrlCacheRepository
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
+import java.util.concurrent.ConcurrentHashMap
 
 private val log = KtorSimpleLogger("BundleDownloadService")
 private val discordJson = Json { ignoreUnknownKeys = true }
@@ -21,13 +24,23 @@ class BundleDownloadService(
     private val botToken: String,
     private val channelId: String,
 ) {
-    suspend fun resolveBundleUrl(catalogItemId: String, messageId: String): String = suspendTransaction {
-        val cached = cacheRepository.getCachedUrl(catalogItemId)
-        if (cached != null) return@suspendTransaction cached
+    companion object {
+        private val locks = ConcurrentHashMap<String, Mutex>()
+    }
 
-        val url = fetchAttachmentUrlFromDiscord(messageId)
-        cacheRepository.cacheUrl(catalogItemId, url)
-        url
+    suspend fun resolveBundleUrl(catalogItemId: String, messageId: String): String {
+        val cached = suspendTransaction { cacheRepository.getCachedUrl(catalogItemId) }
+        if (cached != null) return cached
+
+        val mutex = locks.computeIfAbsent(messageId) { Mutex() }
+        return mutex.withLock {
+            val cachedAgain = suspendTransaction { cacheRepository.getCachedUrl(catalogItemId) }
+            if (cachedAgain != null) return@withLock cachedAgain
+
+            val url = fetchAttachmentUrlFromDiscord(messageId)
+            suspendTransaction { cacheRepository.cacheUrl(catalogItemId, url) }
+            url
+        }
     }
 
     private suspend fun fetchAttachmentUrlFromDiscord(messageId: String): String {
