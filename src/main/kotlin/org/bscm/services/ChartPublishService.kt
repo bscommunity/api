@@ -72,7 +72,7 @@ class ChartPublishService(
         // 1. Extract info.json metadata
         val bundleInfo = DecodingUtils.extractBundleInfo(bundleBytes)
 
-        // 2. Extract cover image (raw bytes) if any
+        // 2. Extract cover image from bundle (will be uploaded to storage after track creation)
         val coverBytes = DecodingUtils.extractCoverImage(bundleBytes)
 
         // 3. Extract chart.bytes and parse
@@ -98,18 +98,10 @@ class ChartPublishService(
             null
         }
 
-        // Cover: upload extracted bytes to storage, fall back to override/mediaInfo URL
-        val coverUrl = if (coverBytes != null) {
-            try {
-                storageService.uploadChartCover(contentId, coverBytes)
-                storageService.chartCoverUrl(contentId)
-            } catch (e: Exception) {
-                log.warn("Failed to upload cover to storage, falling back to URL: ${e.message}")
-                overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
-            }
-        } else {
-            overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
-        }
+        // Cover: use override/mediaInfo URL for the bundle's info.json injection.
+        // The actual cover image bytes from the bundle will be uploaded to storage
+        // after the track is created, giving the track a permanent cover URL.
+        val coverUrl = overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
 
         // Streaming links resolution
         val streamingLinks = overrides.trackUrls ?: run {
@@ -189,6 +181,16 @@ class ChartPublishService(
         log.debug("finalCreate {}", finalCreate)
 
         val createdChart = chartRepository.createChart(user.id, finalCreate)
+
+        // Upload cover image to storage using the track ID from the created chart.
+        // This populates tracks/{trackId}/cover.avif so the track's coverUrl resolves.
+        if (coverBytes != null) {
+            try {
+                storageService.uploadTrackCover(createdChart.track.id, coverBytes)
+            } catch (e: Exception) {
+                log.warn("Failed to upload track cover to storage: ${e.message}")
+            }
+        }
 
         val result = Result(
             chart = createdChart,

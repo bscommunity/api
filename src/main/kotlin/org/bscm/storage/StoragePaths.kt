@@ -7,8 +7,6 @@ object StoragePaths {
 
     fun trackPreview(trackId: UUID): String = "tracks/$trackId/preview.opus"
 
-    fun chartCover(contentId: String): String = "charts/$contentId/cover.avif"
-
     fun themeCover(themeId: String): String = "themes/$themeId/cover.avif"
 
     fun themeDisplay(themeId: String): String = "themes/$themeId/display.avif"

@@ -46,23 +46,6 @@ class StorageService(
         )
     }
 
-    // ── Charts ──────────────────────────────────────────────────────────
-
-    fun chartCoverUrl(contentId: String): String = publicUrl(StoragePaths.chartCover(contentId))
-
-    suspend fun uploadChartCover(contentId: String, bytes: ByteArray) {
-        adapter.putObject(
-            bucket = publicBucket,
-            path = StoragePaths.chartCover(contentId),
-            bytes = bytes,
-            contentType = StorageContentTypes.IMAGE_AVIF,
-        )
-    }
-
-    suspend fun deleteChartCover(contentId: String) {
-        adapter.deleteObject(publicBucket, StoragePaths.chartCover(contentId))
-    }
-
     // ── Themes ──────────────────────────────────────────────────────────
 
     fun themeCoverUrl(themeId: String): String = publicUrl(StoragePaths.themeCover(themeId))
