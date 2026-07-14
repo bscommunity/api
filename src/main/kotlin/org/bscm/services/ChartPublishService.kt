@@ -101,8 +101,8 @@ class ChartPublishService(
         // Cover: upload extracted bytes to storage, fall back to override/mediaInfo URL
         val coverUrl = if (coverBytes != null) {
             try {
-                storageService.uploadAssetCover(contentId, coverBytes)
-                storageService.assetCoverUrl(contentId)
+                storageService.uploadChartCover(contentId, coverBytes)
+                storageService.chartCoverUrl(contentId)
             } catch (e: Exception) {
                 log.warn("Failed to upload cover to storage, falling back to URL: ${e.message}")
                 overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""

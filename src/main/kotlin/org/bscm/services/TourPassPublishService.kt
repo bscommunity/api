@@ -61,8 +61,8 @@ class TourPassPublishService(
         // Upload cover to storage if raw bytes were provided
         val coverUrl = if (coverBytes != null) {
             val key = UUID.randomUUID().toString()
-            storageService.uploadAssetCover(key, coverBytes)
-            storageService.assetCoverUrl(key)
+            storageService.uploadTourPassCover(key, coverBytes)
+            storageService.tourPassCoverUrl(key)
         } else {
             request.coverUrl
         }
@@ -125,8 +125,8 @@ class TourPassPublishService(
         coverContentType: ContentType?,
     ): TourPass {
         val resolvedCoverUrl = if (coverBytes != null) {
-            storageService.uploadAssetCover(id, coverBytes)
-            storageService.assetCoverUrl(id)
+            storageService.uploadTourPassCover(id, coverBytes)
+            storageService.tourPassCoverUrl(id)
         } else {
             request.coverUrl
         }

@@ -46,37 +46,69 @@ class StorageService(
         )
     }
 
-    // ── Generic asset covers (charts, themes, tour passes) ──────────────
+    // ── Charts ──────────────────────────────────────────────────────────
 
-    fun assetCoverUrl(key: String): String = publicUrl(StoragePaths.assetCover(key))
+    fun chartCoverUrl(contentId: String): String = publicUrl(StoragePaths.chartCover(contentId))
 
-    suspend fun uploadAssetCover(key: String, bytes: ByteArray) {
+    suspend fun uploadChartCover(contentId: String, bytes: ByteArray) {
         adapter.putObject(
             bucket = publicBucket,
-            path = StoragePaths.assetCover(key),
+            path = StoragePaths.chartCover(contentId),
             bytes = bytes,
-            contentType = StorageContentTypes.IMAGE_PNG,
+            contentType = StorageContentTypes.IMAGE_AVIF,
         )
     }
 
-    suspend fun deleteAssetCover(key: String) {
-        adapter.deleteObject(publicBucket, StoragePaths.assetCover(key))
+    suspend fun deleteChartCover(contentId: String) {
+        adapter.deleteObject(publicBucket, StoragePaths.chartCover(contentId))
     }
 
-    // ── Themes (display art) ────────────────────────────────────────────
+    // ── Themes ──────────────────────────────────────────────────────────
+
+    fun themeCoverUrl(themeId: String): String = publicUrl(StoragePaths.themeCover(themeId))
 
     fun themeDisplayUrl(themeId: String): String = publicUrl(StoragePaths.themeDisplay(themeId))
+
+    suspend fun uploadThemeCover(themeId: String, bytes: ByteArray) {
+        adapter.putObject(
+            bucket = publicBucket,
+            path = StoragePaths.themeCover(themeId),
+            bytes = bytes,
+            contentType = StorageContentTypes.IMAGE_AVIF,
+        )
+    }
 
     suspend fun uploadThemeDisplay(themeId: String, bytes: ByteArray) {
         adapter.putObject(
             bucket = publicBucket,
             path = StoragePaths.themeDisplay(themeId),
             bytes = bytes,
-            contentType = StorageContentTypes.IMAGE_PNG,
+            contentType = StorageContentTypes.IMAGE_AVIF,
         )
+    }
+
+    suspend fun deleteThemeCover(themeId: String) {
+        adapter.deleteObject(publicBucket, StoragePaths.themeCover(themeId))
     }
 
     suspend fun deleteThemeDisplay(themeId: String) {
         adapter.deleteObject(publicBucket, StoragePaths.themeDisplay(themeId))
+    }
+
+    // ── Tour Passes ─────────────────────────────────────────────────────
+
+    fun tourPassCoverUrl(tourPassId: String): String = publicUrl(StoragePaths.tourPassCover(tourPassId))
+
+    suspend fun uploadTourPassCover(tourPassId: String, bytes: ByteArray) {
+        adapter.putObject(
+            bucket = publicBucket,
+            path = StoragePaths.tourPassCover(tourPassId),
+            bytes = bytes,
+            contentType = StorageContentTypes.IMAGE_AVIF,
+        )
+    }
+
+    suspend fun deleteTourPassCover(tourPassId: String) {
+        adapter.deleteObject(publicBucket, StoragePaths.tourPassCover(tourPassId))
     }
 }

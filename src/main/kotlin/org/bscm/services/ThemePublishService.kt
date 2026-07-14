@@ -40,8 +40,8 @@ class ThemePublishService(
         // Upload assets to storage (using random UUIDs since theme ID isn't known yet)
         val coverUrl = if (assets.coverArtBytes != null) {
             val key = UUID.randomUUID().toString()
-            storageService.uploadAssetCover(key, assets.coverArtBytes)
-            storageService.assetCoverUrl(key)
+            storageService.uploadThemeCover(key, assets.coverArtBytes)
+            storageService.themeCoverUrl(key)
         } else {
             request.coverUrl
         }
@@ -110,8 +110,8 @@ class ThemePublishService(
     ): Theme {
         // Upload assets to storage (using actual theme ID for stable paths)
         val resolvedCoverUrl = if (assets.coverArtBytes != null) {
-            storageService.uploadAssetCover(id, assets.coverArtBytes)
-            storageService.assetCoverUrl(id)
+            storageService.uploadThemeCover(id, assets.coverArtBytes)
+            storageService.themeCoverUrl(id)
         } else {
             request.coverUrl
         }
