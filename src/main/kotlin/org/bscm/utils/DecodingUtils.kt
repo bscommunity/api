@@ -165,6 +165,94 @@ object DecodingUtils {
         val duration: Float,
     )
 
+    data class BscmContributor(
+        val username: String,
+        val avatarUrl: String?,
+        val role: String,
+    )
+
+    data class BscmMetadata(
+        val version: Int = 1,
+        val chartId: String,
+        val track: String,
+        val artist: String,
+        val difficulty: Int,
+        val isDeluxe: Boolean,
+        val isExplicit: Boolean,
+        val bpm: Int,
+        val duration: Float,
+        val notes: Int,
+        val effects: Int,
+        val contributors: List<BscmContributor>,
+        val cover: String?,
+    ) {
+        fun toJson(): String {
+            val sb = StringBuilder()
+            sb.appendLine("{")
+            sb.appendLine("  \"version\": $version,")
+            sb.appendLine("  \"chartId\": \"${chartId.escapeJson()}\",")
+            sb.appendLine("  \"track\": \"${track.escapeJson()}\",")
+            sb.appendLine("  \"artist\": \"${artist.escapeJson()}\",")
+            sb.appendLine("  \"difficulty\": $difficulty,")
+            sb.appendLine("  \"isDeluxe\": $isDeluxe,")
+            sb.appendLine("  \"isExplicit\": $isExplicit,")
+            sb.appendLine("  \"bpm\": $bpm,")
+            sb.appendLine("  \"duration\": $duration,")
+            sb.appendLine("  \"notes\": $notes,")
+            sb.appendLine("  \"effects\": $effects,")
+            sb.append("  \"contributors\": [")
+            contributors.forEachIndexed { i, c ->
+                val comma = if (i < contributors.lastIndex) "," else ""
+                sb.appendLine()
+                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"role\": \"${c.role.escapeJson()}\"}$comma")
+            }
+            sb.appendLine()
+            sb.appendLine("  ],")
+            sb.appendLine("  \"cover\": ${cover?.let { "\"${it.escapeJson()}\"" } ?: "null"}")
+            sb.append("}")
+            return sb.toString()
+        }
+
+        private fun String.escapeJson(): String = this
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+    }
+
+    /**
+     * Injects a `bscm.json` file into the zip bundle.
+     * Returns modified zip bytes with the new entry added.
+     */
+    fun injectBscmMetadata(zipBytes: ByteArray, metadata: BscmMetadata): ByteArray {
+        val bscmJson = metadata.toJson().encodeToByteArray()
+
+        val outputBuffer = ByteArrayOutputStream()
+        ZipArchiveOutputStream(outputBuffer).use { zipOut ->
+            ZipFile.Builder().setByteArray(zipBytes).get().use { zipIn ->
+                // Copy all existing entries
+                for (entry in zipIn.entries) {
+                    if (entry.isDirectory) continue
+                    val entryData = zipIn.getInputStream(entry).use { it.readBytes() }
+                    val newEntry = ZipArchiveEntry(entry.name)
+                    newEntry.size = entryData.size.toLong()
+                    zipOut.putArchiveEntry(newEntry)
+                    zipOut.write(entryData)
+                    zipOut.closeArchiveEntry()
+                }
+
+                // Add bscm.json
+                val bscmEntry = ZipArchiveEntry("bscm.json")
+                bscmEntry.size = bscmJson.size.toLong()
+                zipOut.putArchiveEntry(bscmEntry)
+                zipOut.write(bscmJson)
+                zipOut.closeArchiveEntry()
+            }
+        }
+        return outputBuffer.toByteArray()
+    }
+
     /**
      * Injects/appends additional data to the info.json file within the zip bundle.
      * Returns modified zip bytes with updated info.json.

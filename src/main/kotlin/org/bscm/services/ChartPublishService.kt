@@ -5,6 +5,7 @@ import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.User
 import org.bscm.models.dto.chart.CreateChartRequest
+import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.dto.version.SimplifiedVersion
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.enums.Difficulty
@@ -15,7 +16,6 @@ import org.bscm.protobuf.ChartParser
 import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
 import org.bscm.utils.NanoIdUtils
-import org.bscm.utils.StreamingPlatformUtils
 
 private val log = KtorSimpleLogger("ChartPublishService")
 
@@ -88,19 +88,16 @@ class ChartPublishService(
             else -> Difficulty.NORMAL
         }
 
-        // 5. Resolve metadata with override precedence
+        // 4. Resolve metadata with override precedence
         val trackName = overrides.track ?: bundleInfo?.title ?: "Unknown"
         val artistName = overrides.artist ?: bundleInfo?.artist ?: "Unknown"
 
-        // 6. Media info enrichment
+        // 5. Media info enrichment
         val mediaInfo = try { mediaInfoService.getMediaInfo(trackName, artistName) } catch (e: Exception) {
             log.error("Media info fetch failed: ${e.message}")
             null
         }
 
-        // Cover: use override/mediaInfo URL for the bundle's info.json injection.
-        // The actual cover image bytes from the bundle will be uploaded to storage
-        // after the track is created, giving the track a permanent cover URL.
         val coverUrl = overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
 
         // Streaming links resolution
@@ -120,35 +117,8 @@ class ChartPublishService(
         val isDeluxe = overrides.isDeluxe ?: (bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false)
         val isExplicit = overrides.isExplicit ?: mediaInfo?.isExplicit ?: false
 
-        // 4. Inject metadata back into the bundle (append computed/enhanced info to info.json)
-        val infoToInject = mutableMapOf(
-            "contentId" to contentId,
-            "duration" to computedStats.duration,
-            "notes" to computedStats.notesAmount,
-            "effects" to computedStats.effectsAmount,
-            // Structure: username|hostId|path|roleId
-            "contributors" to "${user.username}|${user.avatarUrl}|0",
-            // Structure: host|url
-            "cover" to coverUrl,
-            "publishedAt" to System.currentTimeMillis(),
-        )
-
-        // Optional fields
-        if (overrides.previewUrl != null) {
-            infoToInject["gameplay"] = overrides.previewUrl
-        }
-
-        if (isExplicit) {
-            infoToInject["explicit"] = true
-        }
-
-        if (streamingLinks.isNotEmpty()) {
-            infoToInject["streaming"] = StreamingPlatformUtils.serializeLinks(streamingLinks)
-        }
-
-        val enhancedBundleBytes = DecodingUtils.injectInfoToBundle(bundleBytes, infoToInject)
-
-        val createForUpload = CreateChartRequest(
+        // 6. Create DB entities first (without version)
+        val createForDb = CreateChartRequest(
             artist = mediaInfo?.artist ?: artistName,
             track = mediaInfo?.track ?: trackName,
             album = overrides.album ?: mediaInfo?.album,
@@ -168,22 +138,59 @@ class ChartPublishService(
             contentId = contentId,
         )
 
-        val discordResponse = uploadService.uploadChart(createForUpload, user, enhancedBundleBytes)
+        val createdChart = chartRepository.createChart(user.id, createForDb)
+
+        log.info("Created chart ${createdChart.id}")
+
+        // 7. Inject bscm.json into the bundle (basic display data + cover art)
+        val bscmMetadata = DecodingUtils.BscmMetadata(
+            chartId = createdChart.id,
+            track = trackName,
+            artist = artistName,
+            difficulty = difficultyEnum.ordinal,
+            isDeluxe = isDeluxe,
+            isExplicit = isExplicit,
+            bpm = bpm,
+            duration = computedStats.duration,
+            notes = computedStats.notesAmount,
+            effects = computedStats.effectsAmount,
+            contributors = listOf(
+                DecodingUtils.BscmContributor(
+                    username = user.username,
+                    avatarUrl = user.avatarUrl,
+                    role = "author",
+                )
+            ),
+            cover = coverUrl.ifEmpty { null },
+        )
+        val enrichedBundleBytes = DecodingUtils.injectBscmMetadata(bundleBytes, bscmMetadata)
+
+        // 9. Upload enriched bundle to Discord (single call)
+        val discordResponse = uploadService.uploadChart(createForDb, user, enrichedBundleBytes)
         val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
             ?: throw IllegalStateException("Discord response missing bundle attachment")
 
-        val finalCreate = createForUpload.copy(
-            versionId = bundleAttachment.id.toULong(),
-            bundleUrl = bundleAttachment.url,
-            coverUrl = coverUrl,
+        // 10. Finalize: add version with Discord bundle URL
+        chartRepository.addVersion(
+            catalogItemId = createdChart.id,
+            version = CreateVersionRequest(
+                id = bundleAttachment.id.toULong(),
+                track = createForDb.track,
+                artist = createForDb.artist,
+                duration = createForDb.duration,
+                notesAmount = createForDb.notesAmount,
+                effectsAmount = createForDb.effectsAmount,
+                bpm = createForDb.bpm,
+                difficulty = createForDb.difficulty,
+                isDeluxe = createForDb.isDeluxe,
+                isExplicit = createForDb.isExplicit,
+                bundleUrl = bundleAttachment.url,
+                previewUrl = createForDb.previewUrl,
+                fileSizeBytes = createForDb.fileSizeBytes,
+            )
         )
 
-        log.debug("finalCreate {}", finalCreate)
-
-        val createdChart = chartRepository.createChart(user.id, finalCreate)
-
-        // Upload cover image to storage using the track ID from the created chart.
-        // This populates tracks/{trackId}/cover.avif so the track's coverUrl resolves.
+        // 11. Upload cover image to storage
         if (coverBytes != null) {
             try {
                 storageService.uploadTrackCover(createdChart.track.id, coverBytes)
@@ -195,12 +202,12 @@ class ChartPublishService(
         val result = Result(
             chart = createdChart,
             initialVersion = SimplifiedVersion(
-                difficulty = finalCreate.difficulty,
-                duration = finalCreate.duration,
-                notesAmount = finalCreate.notesAmount,
-                effectsAmount = finalCreate.effectsAmount,
-                isDeluxe = finalCreate.isDeluxe,
-                isExplicit = finalCreate.isExplicit,
+                difficulty = createForDb.difficulty,
+                duration = createForDb.duration,
+                notesAmount = createForDb.notesAmount,
+                effectsAmount = createForDb.effectsAmount,
+                isDeluxe = createForDb.isDeluxe,
+                isExplicit = createForDb.isExplicit,
             ),
             discordMessageId = discordResponse.id,
             versionAttachmentId = bundleAttachment.id,

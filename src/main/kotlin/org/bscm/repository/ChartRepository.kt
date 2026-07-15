@@ -3,6 +3,7 @@ package org.bscm.repository
 import io.ktor.server.plugins.*
 import io.ktor.util.logging.*
 import org.bscm.models.Chart
+import org.bscm.models.Version
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ChartEntity
 import org.bscm.models.dao.ContributorEntity
@@ -212,28 +213,13 @@ class ChartRepository(
             this.role = ContributorRole.AUTHOR
         }
 
-        versionRepository.addVersion(
-            catalogItemId = catalogItem.id.value,
-            version = CreateVersionRequest(
-                id = chart.versionId,
-                track = chart.track,
-                artist = chart.artist,
-                duration = chart.duration,
-                notesAmount = chart.notesAmount,
-                effectsAmount = chart.effectsAmount,
-                bpm = chart.bpm,
-                difficulty = chart.difficulty,
-                isDeluxe = chart.isDeluxe,
-                isExplicit = chart.isExplicit,
-                bundleUrl = chart.bundleUrl,
-                previewUrl = chart.previewUrl,
-                fileSizeBytes = chart.fileSizeBytes,
-            )
-        )
-
         val query = ChartTable.selectAll().where { ChartTable.id eq newChart.id.value }
         getChart(query, ChartAddons(streamingLinks = true), requestingUserId = userId)
             ?: throw IllegalStateException("Failed to load chart after creation")
+    }
+
+    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version = suspendTransaction {
+        versionRepository.addVersion(catalogItemId, version)
     }
 
     override suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = true
