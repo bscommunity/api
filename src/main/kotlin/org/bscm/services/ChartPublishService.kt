@@ -185,7 +185,7 @@ class ChartPublishService(
         )
 
         // 10. Finalize: add version with Discord bundle URL
-        chartRepository.addVersion(
+        val version = chartRepository.addVersion(
             catalogItemId = createdChart.id,
             version = CreateVersionRequest(
                 id = bundleAttachment.id.toULong(),
@@ -204,6 +204,11 @@ class ChartPublishService(
             )
         )
 
+        val updatedChart = createdChart.copy(
+            latestVersion = version,
+            versionsCount = createdChart.versionsCount + 1,
+        )
+
         // 11. Upload cover image to storage
         if (coverBytes != null) {
             try {
@@ -214,7 +219,7 @@ class ChartPublishService(
         }
 
         val result = Result(
-            chart = createdChart,
+            chart = updatedChart,
             initialVersion = SimplifiedVersion(
                 difficulty = createForDb.difficulty,
                 duration = createForDb.duration,

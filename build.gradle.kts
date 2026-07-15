@@ -112,4 +112,7 @@ dependencies {
 
     // Caching
     implementation(libs.lettuce.core)
+
+    // S3-compatible storage (Supabase, Cloudflare R2, etc.)
+    implementation(libs.aws.s3)
 }

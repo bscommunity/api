@@ -13,6 +13,7 @@ bouncycastle = "1.78.1"
 unitykt="0.1.0_alpha.15"
 compress="1.28.0"
 lettuce="7.2.1.RELEASE"
+aws-s3="2.31.25"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -82,3 +83,6 @@ bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "boun
 unitykt = { module = "com.github.Deficuet:UnityKt", version.ref = "unitykt" }
 compress = { module = "org.apache.commons:commons-compress", version.ref = "compress" }
 lettuce-core = { module = "io.lettuce:lettuce-core", version.ref = "lettuce" }
+
+# AWS S3
+aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-s3" }

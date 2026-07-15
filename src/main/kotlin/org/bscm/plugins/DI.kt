@@ -14,9 +14,9 @@ import org.bscm.services.preview.PreviewService
 import org.bscm.services.preview.resolvers.DeezerPreviewResolver
 import org.bscm.services.preview.resolvers.ItunesPreviewResolver
 import org.bscm.services.preview.resolvers.PreviewResolverRegistry
+import org.bscm.storage.S3StorageAdapter
 import org.bscm.storage.StaticUrlStorageAdapter
 import org.bscm.storage.StorageService
-import org.bscm.storage.SupabaseStorageAdapter
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
@@ -73,20 +73,21 @@ fun mainModule(config: ApplicationConfig) = module {
     single {
         val assetsConfig = config.config("assets")
         val publicBucket = assetsConfig.propertyOrNull("publicBucket")?.getString() ?: "public"
-        val publicBaseUrl = assetsConfig.propertyOrNull("publicBaseUrl")?.getString()
+        val publicBaseUrl = assetsConfig.propertyOrNull("publicBaseUrl")?.getString() ?: "https://bscm-assets.s3.amazonaws.com"
 
-        val adapter = if (assetsConfig.propertyOrNull("supabase.url") != null &&
-            assetsConfig.propertyOrNull("supabase.serviceKey") != null
+        val adapter = if (assetsConfig.propertyOrNull("s3.endpoint") != null &&
+            assetsConfig.propertyOrNull("s3.accessKey") != null &&
+            assetsConfig.propertyOrNull("s3.secretKey") != null
         ) {
-            SupabaseStorageAdapter(
-                client = get(),
-                baseUrl = assetsConfig.property("supabase.url").getString(),
-                serviceKey = assetsConfig.property("supabase.serviceKey").getString(),
+            S3StorageAdapter(
+                endpoint = assetsConfig.property("s3.endpoint").getString(),
+                accessKey = assetsConfig.property("s3.accessKey").getString(),
+                secretKey = assetsConfig.property("s3.secretKey").getString(),
+                region = assetsConfig.propertyOrNull("s3.region")?.getString() ?: "us-east-1",
                 publicBaseUrl = publicBaseUrl,
             )
         } else {
-            val fallbackUrl = publicBaseUrl ?: "https://bscm-assets.s3.amazonaws.com"
-            StaticUrlStorageAdapter(publicBaseUrl = fallbackUrl)
+            StaticUrlStorageAdapter(publicBaseUrl = publicBaseUrl)
         }
 
         StorageService(

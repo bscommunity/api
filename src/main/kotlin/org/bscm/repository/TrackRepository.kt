@@ -10,6 +10,7 @@ import org.bscm.models.tables.TrackTable
 import org.bscm.storage.StorageService
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.StreamingPlatformUtils
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.batchInsert
@@ -43,6 +44,16 @@ class TrackRepository(
                 ?.let { return it }
         }
 
+        val normTitle = QueryUtils.getNormalizedQuery(title)
+        val normArtist = QueryUtils.getNormalizedQuery(artist)
+        val normAlbum = album?.let(QueryUtils::getNormalizedQuery)
+
+        TrackEntity.find {
+            (TrackTable.normalizedTitle eq normTitle) and
+            (TrackTable.normalizedArtist eq normArtist) and
+            (TrackTable.normalizedAlbum eq normAlbum)
+        }.firstOrNull()?.let { return it }
+
         return TrackEntity.new {
             this.title = title
             this.artist = artist
@@ -51,9 +62,9 @@ class TrackRepository(
             this.genre = genre
             this.bpm = bpm
             this.duration = duration
-            this.normalizedTitle = QueryUtils.getNormalizedQuery(title)
-            this.normalizedArtist = QueryUtils.getNormalizedQuery(artist)
-            this.normalizedAlbum = album?.let(QueryUtils::getNormalizedQuery)
+            this.normalizedTitle = normTitle
+            this.normalizedArtist = normArtist
+            this.normalizedAlbum = normAlbum
         }
     }
 
