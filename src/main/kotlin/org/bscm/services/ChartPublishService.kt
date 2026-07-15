@@ -143,6 +143,7 @@ class ChartPublishService(
         log.info("Created chart ${createdChart.id}")
 
         // 7. Inject bscm.json into the bundle (basic display data + cover art)
+        val coverCdnUrl = storageService.trackCoverUrl(createdChart.track.id)
         val bscmMetadata = DecodingUtils.BscmMetadata(
             chartId = createdChart.id,
             track = trackName,
@@ -161,7 +162,7 @@ class ChartPublishService(
                     role = "author",
                 )
             ),
-            cover = coverUrl.ifEmpty { null },
+            cover = coverCdnUrl.ifEmpty { null },
         )
         val enrichedBundleBytes = DecodingUtils.injectBscmMetadata(bundleBytes, bscmMetadata)
 
