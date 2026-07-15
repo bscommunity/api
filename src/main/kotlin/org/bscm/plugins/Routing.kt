@@ -7,6 +7,7 @@ import io.ktor.openapi.*
 import io.ktor.server.application.*
 import io.ktor.server.http.content.*
 import io.ktor.server.plugins.swagger.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
@@ -139,5 +140,22 @@ fun Application.configureRouting() {
         interactionsRoutes(
             application.environment.config.propertyOrNull("discord.publicKey")?.getString(),
         )
+
+        // Internal cleanup endpoint (protected by Bearer token)
+        val cleanupSecret = cfg.propertyOrNull("cleanup.secret")?.getString()
+        if (!cleanupSecret.isNullOrBlank()) {
+            val trackCleanupService by inject<TrackCleanupService>()
+
+            post("/internal/cleanup/tracks") {
+                val bearer = call.request.authorization()?.removePrefix("Bearer ")
+                if (bearer != cleanupSecret) {
+                    call.respond(HttpStatusCode.Unauthorized)
+                    return@post
+                }
+
+                val deleted = trackCleanupService.cleanupOrphanedTracks()
+                call.respond(mapOf("deleted" to deleted))
+            }
+        }
     }
 }

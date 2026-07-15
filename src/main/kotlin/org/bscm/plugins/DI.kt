@@ -219,4 +219,7 @@ fun mainModule(config: ApplicationConfig) = module {
             applicationId = config.property("discord.clientId").getString(),
         )
     }
+    single {
+        TrackCleanupService(storageService = get())
+    }
 }
