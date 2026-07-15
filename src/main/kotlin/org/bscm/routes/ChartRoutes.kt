@@ -248,7 +248,8 @@ fun Route.chartRoutes(
 
                     val url = bundleDownloadService.resolveBundleUrl(
                         catalogItemId = chart.id,
-                        messageId = chart.id,
+                        messageId = chart.discordMessageId
+                            ?: throw IllegalStateException("Chart ${chart.id} has no Discord message ID"),
                     )
 
                     call.respond(BundleDownloadResponse(url = url))
@@ -530,21 +531,16 @@ fun Route.chartRoutes(
                     userRepository.getUserById(userId)
                         ?: throw UnauthorizedException("User not found")
 
-                    // Bug fix: order of operations was reversed — Discord was deleted first,
-                    // then the DB row. If the DB delete failed, the Discord message was
-                    // already gone permanently with no way to recover.
-                    //
                     // Correct order: delete from DB first, then clean up Discord.
                     // A failed Discord delete is recoverable (re-run or ignore stale message).
                     // A failed DB delete after Discord cleanup is not.
-                    val deleted = publishService.deleteChartAndCleanup(id)
+                    //
+                    // deleteChartAndCleanup reads the chart (capturing the Discord message ID),
+                    // then deletes the DB row and activity log in one pass.
+                    val discordMessageId = publishService.deleteChartAndCleanup(id)
 
-                    if (!deleted) throw NotFoundException("Chart not found")
-
-                    val discordSuccess = runCatching { uploadService.deleteMessage(id.toString()) }
+                    val discordSuccess = runCatching { uploadService.deleteMessage(discordMessageId) }
                         .getOrElse { e ->
-                            // Discord cleanup failing is non-fatal — the chart is already
-                            // removed from the DB. Log and continue rather than returning 500.
                             logger.warn("Chart $id deleted from DB but Discord cleanup failed", e)
                             false
                         }

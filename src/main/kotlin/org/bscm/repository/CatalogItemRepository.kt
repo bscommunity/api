@@ -70,6 +70,17 @@ class CatalogItemRepository {
         }
     }
 
+    fun updateDiscordCoordinates(
+        catalogItemId: String,
+        channelId: String,
+        messageId: String,
+    ) {
+        CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
+            it.discordChannelId = channelId
+            it.discordMessageId = messageId
+        }
+    }
+
     fun incrementDownloads(catalogItemId: String) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.downloadsSum += 1

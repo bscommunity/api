@@ -1,5 +1,6 @@
 package org.bscm.services
 
+import io.ktor.server.plugins.*
 import io.ktor.util.logging.*
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
@@ -49,15 +50,20 @@ class ChartPublishService(
 
     /**
      * Deletes a chart and removes its creation log in a single application-level flow.
-     * Returns false when the chart does not exist.
+     * Returns the Discord message ID for cleanup.
+     * @throws NotFoundException if the chart does not exist.
      */
-    suspend fun deleteChartAndCleanup(chartId: String): Boolean {
-        if (!chartRepository.deleteChart(chartId)) return false
+    suspend fun deleteChartAndCleanup(chartId: String): String {
+        val chart = chartRepository.getChartById(chartId)
+            ?: throw NotFoundException("Chart not found")
+        val discordMessageId = chart.discordMessageId
+            ?: throw IllegalStateException("Chart $chartId has no Discord message ID")
+        chartRepository.deleteChart(chartId)
         activityRepository.removeActivityByTypeAndTarget(
             type = ActivityType.CREATED_CHART,
             targetId = chartId
         )
-        return true
+        return discordMessageId
     }
 
 
@@ -170,6 +176,13 @@ class ChartPublishService(
         val discordResponse = uploadService.uploadChart(createForDb, user, enrichedBundleBytes)
         val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
             ?: throw IllegalStateException("Discord response missing bundle attachment")
+
+        // 9b. Persist Discord message/channel IDs so delete/edit operations use the snowflake
+        chartRepository.updateDiscordCoordinates(
+            catalogItemId = createdChart.id,
+            channelId = discordResponse.channelId,
+            messageId = discordResponse.id,
+        )
 
         // 10. Finalize: add version with Discord bundle URL
         chartRepository.addVersion(

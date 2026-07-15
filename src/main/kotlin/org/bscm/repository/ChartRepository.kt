@@ -251,6 +251,10 @@ class ChartRepository(
             ?: throw IllegalStateException("Failed to load chart after update")
     }
 
+    override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) = suspendTransaction {
+        catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
+    }
+
     override suspend fun deleteChart(id: String): Boolean = suspendTransaction {
         val catalogItem = CatalogItemEntity.findById(id) ?: return@suspendTransaction false
         catalogItem.delete()

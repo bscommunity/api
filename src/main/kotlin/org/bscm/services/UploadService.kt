@@ -469,7 +469,7 @@ class UploadService(
         // println("Current message attachments: $payloadJson")
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
-            url = "${editWebhookUrl}/${chart.id}?with_components=true",
+            url = "${editWebhookUrl}/${chart.discordMessageId}?with_components=true",
             formData = formData {
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
@@ -496,13 +496,14 @@ class UploadService(
     }
 
     suspend fun deleteVersion(
-        messageId: String,
-        track: String,
+        chart: Chart,
         versions: List<Version>,
         versionId: String
     ): Boolean {
+        val messageId = chart.discordMessageId
+            ?: throw IllegalStateException("Chart ${chart.id} has no Discord message ID")
         val remainingVersions = versions.filter { it.id != versionId }
-        val normalizedTrack = getNormalizedTrackName(track)
+        val normalizedTrack = getNormalizedTrackName(chart.track.title)
 
         val payloadJson = jsonClient.encodeToString(
             SimpleWebhookPayload.serializer(), SimpleWebhookPayload(

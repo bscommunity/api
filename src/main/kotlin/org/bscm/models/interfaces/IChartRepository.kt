@@ -28,6 +28,7 @@ interface IChartRepository {
     suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart
     suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version
     suspend fun updateChart(id: String, chart: UpdateChartRequest, requestingUserId: UUID? = null): Chart
+    suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String)
     suspend fun deleteChart(id: String): Boolean
     suspend fun postAnalytics(chartId: String, action: OperationOption): Boolean
     suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean

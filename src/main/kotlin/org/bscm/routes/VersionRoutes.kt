@@ -198,8 +198,7 @@ fun Route.versionRoutes(
                     val versions = versionRepository.getVersions(chart.id)
 
                     uploadService.deleteVersion(
-                        messageId = chart.id,
-                        track = chart.track.title,
+                        chart = chart,
                         versions = versions,
                         versionId = versionId.toString()
                     )
