@@ -39,7 +39,8 @@ class DeezerClient(
         val preview: String? = null,
         val artist: DeezerArtist? = null,
         val album: DeezerAlbum? = null,
-        @SerialName("explicit_lyrics") val explicitLyrics: Boolean? = false
+        @SerialName("explicit_lyrics") val explicitLyrics: Boolean? = false,
+        val isrc: String? = null
     )
 
     suspend fun search(track: String, artist: String): List<DeezerTrack> {

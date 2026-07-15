@@ -67,7 +67,8 @@ class MediaInfoService(
                     link = StreamingRef(StreamingPlatform.APPLE_MUSIC, match.trackViewUrl),
                     previewProvider = PreviewProvider.ITUNES,
                     previewProviderTrackId = match.trackId.toString(),
-                    isExplicit = match.trackExplicitness == "explicit"
+                    isExplicit = match.trackExplicitness == "explicit",
+                    isrc = match.isrc
                 )
             }
 
@@ -84,7 +85,8 @@ class MediaInfoService(
                     link = StreamingRef(StreamingPlatform.DEEZER, track.link),
                     previewProvider = PreviewProvider.DEEZER,
                     previewProviderTrackId = track.id.toString(),
-                    isExplicit = track.explicitLyrics == true
+                    isExplicit = track.explicitLyrics == true,
+                    isrc = track.isrc
                 )
             }
 

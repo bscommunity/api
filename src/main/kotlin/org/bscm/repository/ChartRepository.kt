@@ -199,7 +199,7 @@ class ChartRepository(
             title = chart.track,
             artist = chart.artist,
             album = chart.album,
-            isrc = null,
+            isrc = chart.isrc,
             genre = chart.genre,
             bpm = chart.bpm,
             duration = chart.duration,

@@ -17,6 +17,7 @@ import org.bscm.protobuf.ChartParser
 import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
 import org.bscm.utils.NanoIdUtils
+import java.util.*
 
 private val log = KtorSimpleLogger("ChartPublishService")
 
@@ -50,20 +51,26 @@ class ChartPublishService(
 
     /**
      * Deletes a chart and removes its creation log in a single application-level flow.
-     * Returns the Discord message ID for cleanup.
+     * Returns the Discord message ID for cleanup, or null if no Discord message exists.
      * @throws NotFoundException if the chart does not exist.
+     * @throws ForbiddenException if the user is not the chart author.
      */
-    suspend fun deleteChartAndCleanup(chartId: String): String {
+    suspend fun deleteChartAndCleanup(chartId: String, requestingUserId: UUID): String? {
         val chart = chartRepository.getChartById(chartId)
             ?: throw NotFoundException("Chart not found")
-        val discordMessageId = chart.discordMessageId
-            ?: throw IllegalStateException("Chart $chartId has no Discord message ID")
+        if (chart.authorId != requestingUserId) {
+            throw SecurityException("You are not the author of this chart")
+        }
+
+        storageService.deleteTrackCover(chart.track.id)
+        storageService.deleteTrackPreview(chart.track.id)
+
         chartRepository.deleteChart(chartId)
         activityRepository.removeActivityByTypeAndTarget(
             type = ActivityType.CREATED_CHART,
             targetId = chartId
         )
-        return discordMessageId
+        return chart.discordMessageId
     }
 
 
@@ -142,6 +149,7 @@ class ChartPublishService(
             fileSizeBytes = bundleBytes.size.toLong(),
             previewUrl = overrides.previewUrl,
             contentId = contentId,
+            isrc = mediaInfo?.isrc,
         )
 
         val createdChart = chartRepository.createChart(user.id, createForDb)

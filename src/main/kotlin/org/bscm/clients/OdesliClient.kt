@@ -16,7 +16,7 @@ class OdesliClient(
     private val baseUrl = "https://api.song.link/v1-alpha.1"
 
     @Serializable
-    data class OdesliResponse(val linksByPlatform: Map<String, OdesliLink>)
+    data class OdesliResponse(val linksByPlatform: Map<String, OdesliLink>, val isrc: String? = null)
 
     @Serializable
     data class OdesliLink(val url: String)

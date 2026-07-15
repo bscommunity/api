@@ -33,7 +33,8 @@ class ItunesClient(
         val previewUrl: String? = null,
         val trackCount: Int? = null,
         val releaseDate: String? = null,
-        val trackExplicitness: String? = null
+        val trackExplicitness: String? = null,
+        val isrc: String? = null
     ) {
         fun matchScore(ctx: MediaInfoService.TrackMatchContext): Int {
             var score = 0

@@ -537,16 +537,18 @@ fun Route.chartRoutes(
                     //
                     // deleteChartAndCleanup reads the chart (capturing the Discord message ID),
                     // then deletes the DB row and activity log in one pass.
-                    val discordMessageId = publishService.deleteChartAndCleanup(id)
+                    val discordMessageId = publishService.deleteChartAndCleanup(id, userId)
 
-                    val discordSuccess = runCatching { uploadService.deleteMessage(discordMessageId) }
-                        .getOrElse { e ->
-                            logger.warn("Chart $id deleted from DB but Discord cleanup failed", e)
-                            false
+                    if (discordMessageId != null) {
+                        val discordSuccess = runCatching { uploadService.deleteMessage(discordMessageId) }
+                            .getOrElse { e ->
+                                logger.warn("Chart $id deleted from DB but Discord cleanup failed", e)
+                                false
+                            }
+
+                        if (!discordSuccess) {
+                            logger.warn("Discord message for chart $id could not be deleted — may require manual cleanup")
                         }
-
-                    if (!discordSuccess) {
-                        logger.warn("Discord message for chart $id could not be deleted — may require manual cleanup")
                     }
 
                     call.respond(HttpStatusCode.NoContent)

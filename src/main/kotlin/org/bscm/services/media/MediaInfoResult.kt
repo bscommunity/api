@@ -13,5 +13,6 @@ data class MediaInfoResult(
     val link: StreamingRef,
     val previewProvider: PreviewProvider?,
     val previewProviderTrackId: String?,
-    val isExplicit: Boolean
+    val isExplicit: Boolean,
+    val isrc: String? = null
 )
