@@ -24,6 +24,10 @@ class TrackRepository(
     // suspendTransaction { ... } instead of restoring the transaction here — keeping it
     // transaction-less lets callers batch multiple operations into a single round-trip set,
     // which matters a lot with high DB latency.
+    //
+    // Callers that build raw DSL queries after calling these methods must flush the
+    // EntityCache first (see DbUtils.flushEntityCache) to ensure the buffered writes
+    // are visible to the subsequent read.
     suspend fun findOrCreate(
         title: String,
         artist: String,

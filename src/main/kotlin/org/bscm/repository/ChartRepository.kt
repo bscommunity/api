@@ -18,6 +18,7 @@ import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.TrackTable
 import org.bscm.utils.QueryUtils
+import org.bscm.utils.flushEntityCache
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
@@ -55,6 +56,11 @@ class ChartRepository(
     )
 
     private suspend fun getChart(query: Query, addons: ChartAddons?, requestingUserId: UUID?): Chart? {
+        // Flush pending DAO writes so raw DSL queries see entities created/mutated
+        // earlier in the same transaction (EntityCache is not flushed automatically
+        // by hand-built Query.toList calls, unlike DAO reads like Entity.find).
+        flushEntityCache()
+
         queryBuilder.applyJoinsAndSelect(query, fetchStreamingRefs = addons?.streamingLinks == true)
 
         val processedResults = resultAssembler.processResultsInMemory(
@@ -84,8 +90,9 @@ class ChartRepository(
     ): Pair<List<ChartResultAssembler.ChartResult>, Int> {
         val startTime = System.currentTimeMillis()
 
-        // val baseQuery = (ChartTable innerJoin CatalogItemTable innerJoin TrackTable)
-        //            .select(ChartTable.id)
+        // Flush any pending DAO writes so the following DSL queries see all committed data.
+        flushEntityCache()
+
         val baseQuery = ChartTable
             .innerJoin(CatalogItemTable, { ChartTable.id }, { CatalogItemTable.id })
             .innerJoin(TrackTable, { ChartTable.trackId }, { TrackTable.id })
@@ -153,6 +160,8 @@ class ChartRepository(
     override suspend fun getChartsByContentIds(contentIds: List<String>, addons: ChartAddons?, requestingUserId: UUID?): List<Chart> =
         suspendTransaction {
             if (contentIds.isEmpty()) return@suspendTransaction emptyList()
+
+            flushEntityCache()
 
             val query = ChartTable.selectAll().where {
                 ChartTable.id inList contentIds
