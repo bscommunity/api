@@ -71,9 +71,9 @@ class MusicLinkClient(
         val scraped = tryScrapeHtml(artist, track)
         if (scraped != null) return scraped
 
-        // 2. Fallback to API
-        if (apiKey != null) {
-            val apiResult = tryApiLookup(artist, track, isrc)
+        // 2. Fallback to API by ISRC
+        if (apiKey != null && !isrc.isNullOrBlank()) {
+            val apiResult = apiLookupByIsrc(isrc)
             if (apiResult != null) return apiResult
         }
 
@@ -128,22 +128,6 @@ class MusicLinkClient(
         return null
     }
 
-    private suspend fun tryApiLookup(artist: String, track: String, isrc: String?): MusicLinkResult? {
-        // Try ISRC first if available
-        if (!isrc.isNullOrBlank()) {
-            val isrcResult = apiLookupByIsrc(isrc)
-            if (isrcResult != null) return isrcResult
-        }
-
-        // Try MusicLink slug lookup
-        val normalizedArtist = normalizeForUrl(artist)
-        val normalizedTrack = normalizeForUrl(track)
-        val slugResult = apiLookupBySlug(normalizedArtist, normalizedTrack)
-        if (slugResult != null) return slugResult
-
-        return null
-    }
-
     private suspend fun apiLookupByIsrc(isrc: String): MusicLinkResult? {
         return try {
             val response = client.get("$apiBaseUrl/lookup/isrc/$isrc") {
@@ -152,20 +136,6 @@ class MusicLinkClient(
             if (!response.status.isSuccess()) return null
 
             parseApiResponse(response.bodyAsText())
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private suspend fun apiLookupBySlug(artist: String, track: String): MusicLinkResult? {
-        return try {
-            val response = client.get("$htmlBaseUrl/song/$artist/$track") {
-                header("Accept", "application/json")
-            }
-            if (!response.status.isSuccess()) return null
-
-            val body = response.bodyAsText()
-            parseApiResponse(body)
         } catch (_: Exception) {
             null
         }

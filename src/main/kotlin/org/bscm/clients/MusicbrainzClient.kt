@@ -16,7 +16,11 @@ class MusicbrainzClient(
     private val baseUrl = "https://musicbrainz.org/ws/2"
 
     @Serializable
-    private data class MBRecording(val id: String? = null)
+    private data class MBRecording(
+        val id: String? = null,
+        val score: Int? = null,
+        val disambiguation: String? = null
+    )
 
     @Serializable
     private data class MBUrl(val resource: String? = null)
@@ -30,14 +34,14 @@ class MusicbrainzClient(
     @Serializable
     private data class MBRecordingDetailsResponse(val relations: List<MBRelation> = emptyList())
 
-    private suspend fun fetchMusicBrainzRecordingIds(query: String): List<String> {
-        val response = client.get("$baseUrl/recording?query=$query&fmt=json") {
+    private suspend fun fetchMusicBrainzRecordings(query: String): List<MBRecording> {
+        val response = client.get("$baseUrl/recording?query=$query&fmt=json&limit=5") {
             header("User-Agent", "bscm/1.0 (app.bscm@gmail.com)")
         }
         if (!response.status.isSuccess()) return emptyList()
 
         val data = json.decodeFromString<MBRecordingResponse>(response.bodyAsText())
-        return data.recordings.mapNotNull { it.id }
+        return data.recordings
     }
 
     private suspend fun fetchMusicBrainzRelations(recordingId: String): List<MBRelation> {
@@ -51,20 +55,23 @@ class MusicbrainzClient(
     }
 
     suspend fun resolve(query: String): List<StreamingRef> {
-        val recordingIds = fetchMusicBrainzRecordingIds(query)
-        if (recordingIds.isEmpty()) return emptyList()
+        val recordings = fetchMusicBrainzRecordings(query)
+        if (recordings.isEmpty()) return emptyList()
 
-        val streamingLinks = mutableListOf<StreamingRef>()
-        for (recordingId in recordingIds) {
-            val relations = fetchMusicBrainzRelations(recordingId)
-            relations.forEach { relation ->
-                relation.url?.resource?.let { url ->
-                    StreamingPlatformUtils.fromKey(relation.type ?: "unknown")?.let { platform ->
-                        streamingLinks.add(StreamingRef(platform, url))
-                    }
+        val bestMatch = recordings
+            .filter { it.disambiguation.isNullOrBlank() }
+            .maxByOrNull { it.score ?: 0 }
+            ?: recordings.maxByOrNull { it.score ?: 0 }
+
+        val recordingId = bestMatch?.id ?: return emptyList()
+
+        val relations = fetchMusicBrainzRelations(recordingId)
+        return relations.mapNotNull { relation ->
+            relation.url?.resource?.let { url ->
+                StreamingPlatformUtils.fromKey(relation.type ?: "unknown")?.let { platform ->
+                    StreamingRef(platform, url)
                 }
             }
         }
-        return streamingLinks
     }
 }

@@ -73,7 +73,7 @@ class MediaInfoService(
                 )
             }
 
-        //2. Deezer fallback
+        // 2. Deezer fallback
         deezer.search(ctx.track, ctx.artist)
             .firstOrNull()
             ?.let { track ->
@@ -115,10 +115,15 @@ class MediaInfoService(
     }
 
     suspend fun getTrackStreamingLinks(url: String, track: String, artist: String, isrc: String? = null): List<StreamingRef> {
+        if (isrc.isNullOrBlank()) {
+            logger.info("No ISRC found for '$track' by '$artist' — skipping streaming link resolution")
+            return emptyList()
+        }
+
         val cleanedTrack = cleanTrackName(track)
         val cleanedArtist = cleanArtistName(artist)
 
-        // Try MusicLink first (HTML scraping + API fallback)
+        // 1. MusicLink (HTML scraping + API by ISRC)
         try {
             val musicLinkResult = musicLink.resolve(cleanedArtist, cleanedTrack, isrc)
             if (musicLinkResult.links.isNotEmpty()) {
@@ -126,21 +131,10 @@ class MediaInfoService(
                 return StreamingPlatformUtils.processLinksWithPrioritization(musicLinkResult.links, false)
             }
         } catch (error: Exception) {
-            // MusicLink failed, continue to Odesli
+            logger.warn("MusicLink failed: ${error.message}")
         }
 
-        // Try Odesli with a music URL query
-        try {
-            val odesliLinks = odesli.resolve(url)
-            if (odesliLinks.isNotEmpty()) {
-                logger.info("Raw Odesli links: $odesliLinks")
-                return StreamingPlatformUtils.processLinksWithPrioritization(odesliLinks, true)
-            }
-        } catch (error: Exception) {
-            // Odesli failed, continue to MusicBrainz
-        }
-
-        // Fallback to MusicBrainz
+        // 2. MusicBrainz
         try {
             val musicbrainzLinks = musicbrainz.resolve("recording:\"$cleanedTrack\" AND artist:\"$cleanedArtist\"")
             if (musicbrainzLinks.isNotEmpty()) {
@@ -148,7 +142,30 @@ class MediaInfoService(
                 return StreamingPlatformUtils.processLinksWithPrioritization(musicbrainzLinks, false)
             }
         } catch (error: Exception) {
-            // MusicBrainz also failed
+            logger.warn("MusicBrainz failed: ${error.message}")
+        }
+
+        // 3. Last.fm (metadata fallback)
+        try {
+            val lastFmTrack = lastFm.getTrackInfo(cleanedTrack, cleanedArtist)
+            if (lastFmTrack != null) {
+                val lastFmLink = StreamingRef(StreamingPlatform.LAST_FM, lastFmTrack.url)
+                logger.info("Raw Last.fm link: $lastFmLink")
+                return listOf(lastFmLink)
+            }
+        } catch (error: Exception) {
+            logger.warn("Last.fm failed: ${error.message}")
+        }
+
+        // 4. Odesli (API soon deprecated)
+        try {
+            val odesliLinks = odesli.resolve(url)
+            if (odesliLinks.isNotEmpty()) {
+                logger.info("Raw Odesli links: $odesliLinks")
+                return StreamingPlatformUtils.processLinksWithPrioritization(odesliLinks, true)
+            }
+        } catch (error: Exception) {
+            logger.warn("Odesli failed: ${error.message}")
         }
 
         return emptyList()
