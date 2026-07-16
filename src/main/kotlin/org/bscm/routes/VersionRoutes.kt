@@ -13,7 +13,6 @@ import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
 import io.ktor.util.logging.*
 import io.ktor.utils.io.*
-import org.bscm.clients.jsonClient
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IUserRepository
@@ -21,6 +20,7 @@ import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
 import org.bscm.services.UploadService
+import org.bscm.services.track.resolvers.jsonClient
 import org.bscm.utils.QueryUtils.getNormalizedQuery
 import org.bscm.utils.QueryUtils.similarity
 import org.bscm.utils.getUserIdOrNull

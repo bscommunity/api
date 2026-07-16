@@ -7,8 +7,8 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.bscm.clients.applicationHttpClient
 import org.bscm.routes.AuthRequest
+import org.bscm.services.track.resolvers.applicationHttpClient
 
 class DiscordOAuthService(
     private val clientId: String,

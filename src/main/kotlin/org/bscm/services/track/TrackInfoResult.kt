@@ -1,10 +1,10 @@
-package org.bscm.services.media
+package org.bscm.services.track
 
 import org.bscm.models.StreamingRef
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.PreviewProvider
 
-data class MediaInfoResult(
+data class TrackInfoResult(
     val coverUrl: String?,
     val album: String?,
     val track: String,

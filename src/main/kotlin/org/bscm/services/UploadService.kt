@@ -8,8 +8,6 @@ import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.bscm.clients.applicationHttpClient
-import org.bscm.clients.jsonClient
 import org.bscm.interactions.*
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
@@ -19,6 +17,8 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
+import org.bscm.services.track.resolvers.applicationHttpClient
+import org.bscm.services.track.resolvers.jsonClient
 import java.util.*
 
 private val logger = KtorSimpleLogger("UploadService")

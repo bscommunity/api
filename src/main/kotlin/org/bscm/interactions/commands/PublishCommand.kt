@@ -9,7 +9,6 @@ import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
-import org.bscm.clients.applicationHttpClient
 import org.bscm.interactions.Button
 import org.bscm.interactions.CommandHandler.immediateEphemeralResponse
 import org.bscm.interactions.I18n
@@ -17,6 +16,7 @@ import org.bscm.interactions.message
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.ChartPublishService
 import org.bscm.services.InteractionResponseService
+import org.bscm.services.track.resolvers.applicationHttpClient
 import org.koin.ktor.ext.getKoin
 
 private val log = KtorSimpleLogger("PublishCommand")

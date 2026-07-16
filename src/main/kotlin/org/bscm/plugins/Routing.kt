@@ -11,13 +11,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
-import org.bscm.clients.applicationHttpClient
 import org.bscm.models.interfaces.*
 import org.bscm.routes.*
 import org.bscm.services.*
 import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.JWTService
+import org.bscm.services.preview.PreviewService
+import org.bscm.services.track.TrackInfoService
+import org.bscm.services.track.resolvers.applicationHttpClient
 import org.koin.ktor.ext.inject
 
 // Disclaimer: Dependency Injection can't be made inside 'routing { }' block
@@ -97,26 +99,27 @@ fun Application.configureRouting() {
 
         val refreshService by inject<RefreshService>()
         val uploadService by inject<UploadService>()
-        val supportUploadService by inject<UploadService>(qualifier = org.koin.core.qualifier.named("support"))
         val jwtService by inject<JWTService>()
 
         val userRepository by inject<IUserRepository>()
-        val chartRepository by inject<IChartRepository>()
         val contributorRepository by inject<IContributorRepository>()
-        val knownIssueRepository by inject<IChangelogRepository>()
+        val changelogRepository by inject<IChangelogRepository>()
         val versionRepository by inject<IVersionRepository>()
-        val tourPassRepository by inject<ITourPassRepository>()
-        val themeRepository by inject<IThemeRepository>()
         val collectionService by inject<CollectionService>()
         val activityRepository by inject<IActivityRepository>()
+
         val profileService by inject<ProfileService>()
-        val chartPublishService by inject<ChartPublishService>()
         val bundleDownloadService by inject<BundleDownloadService>()
+        val trackInfoService by inject<TrackInfoService>()
+        val previewService by inject<PreviewService>()
+
+        val chartRepository by inject<IChartRepository>()
+        val tourPassRepository by inject<ITourPassRepository>()
+        val themeRepository by inject<IThemeRepository>()
+
+        val chartPublishService by inject<ChartPublishService>()
         val tourPassPublishService by inject<TourPassPublishService>()
         val themePublishService by inject<ThemePublishService>()
-
-        val mediaInfoService by inject<MediaInfoService>()
-        // val previewService by inject<PreviewService>()
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
         userRoutes(userRepository, profileService, collectionService, activityRepository)
@@ -130,11 +133,11 @@ fun Application.configureRouting() {
             chartPublishService,
             bundleDownloadService,
         )
-        versionRoutes(versionRepository, chartRepository, userRepository, uploadService, /*supportUploadService*/)
+        versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
         contributorRoutes(contributorRepository)
-        debugRoutes(mediaInfoService, refreshService, jwtService, chartRepository)
+        debugRoutes(trackInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)
-        // changelogRoutes(knownIssueRepository)
+        changelogRoutes(changelogRepository)
 
         // Discord interactions (slash commands, buttons, etc.)
         interactionsRoutes(

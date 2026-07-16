@@ -1,15 +1,16 @@
-package org.bscm.clients
+package org.bscm.services.track.resolvers
 
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.bscm.services.MediaInfoService
+import org.bscm.services.track.TrackInfoService
 
 class ItunesClient(
     private val client: HttpClient,
@@ -36,7 +37,7 @@ class ItunesClient(
         val trackExplicitness: String? = null,
         val isrc: String? = null
     ) {
-        fun matchScore(ctx: MediaInfoService.TrackMatchContext): Int {
+        fun matchScore(ctx: TrackInfoService.TrackMatchContext): Int {
             var score = 0
 
             val trackName = trackName.lowercase()
@@ -87,7 +88,7 @@ class ItunesClient(
                 releaseDate
                     ?.takeIf { it.length >= 10 }
                     ?.substring(0, 10)
-                    ?.let { kotlinx.datetime.LocalDate.parse(it).year }
+                    ?.let { LocalDate.parse(it).year }
                     ?: 0
 
             if (releaseYear >= Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).year - 2) {
@@ -126,7 +127,7 @@ class ItunesClient(
     }
 }
 
-fun List<ItunesClient.ITunesTrack>.bestMatch(ctx: MediaInfoService.TrackMatchContext): ItunesClient.ITunesTrack? =
+fun List<ItunesClient.ITunesTrack>.bestMatch(ctx: TrackInfoService.TrackMatchContext): ItunesClient.ITunesTrack? =
     this
         .map { track -> track to track.matchScore(ctx) }
         .filter { (_, score) -> score > 0 }

@@ -7,15 +7,15 @@ import io.ktor.server.routing.*
 import io.ktor.util.logging.*
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.plugins.UnauthorizedException
-import org.bscm.services.MediaInfoService
 import org.bscm.services.RefreshService
 import org.bscm.services.auth.JWTService
+import org.bscm.services.track.TrackInfoService
 import java.util.*
 
 private val log = KtorSimpleLogger("DebugRoutes")
 
 fun Route.debugRoutes(
-    mediaInfoService: MediaInfoService,
+    trackInfoService: TrackInfoService,
     refreshService: RefreshService,
     jwtService: JWTService,
     chartRepository: IChartRepository,
@@ -43,19 +43,19 @@ fun Route.debugRoutes(
                 "Missing 'artist' query parameter"
             )
 
-            val cleanedTrackName = mediaInfoService.cleanTrackName(trackName)
-            val cleanedArtistName = mediaInfoService.cleanArtistName(artistName)
+            val cleanedTrackName = trackInfoService.cleanTrackName(trackName)
+            val cleanedArtistName = trackInfoService.cleanArtistName(artistName)
 
             log.info("Fetching media info for track: '$cleanedTrackName', artist: '$cleanedArtistName'")
 
-            val mediaInfo = try { mediaInfoService.getMediaInfo(cleanedTrackName, cleanedArtistName) } catch (e: Exception) {
+            val mediaInfo = try { trackInfoService.getTrackInfo(cleanedTrackName, cleanedArtistName) } catch (e: Exception) {
                 log.info("Media info fetch failed: ${e.message}")
                 throw e
             }
 
             // Streaming links resolution
             val streamingLinks = try {
-                mediaInfoService.getTrackStreamingLinks(mediaInfo.link.url, cleanedTrackName, cleanedArtistName, mediaInfo.isrc)
+                trackInfoService.getTrackStreamingLinks(mediaInfo.link.url, cleanedTrackName, cleanedArtistName, mediaInfo.isrc)
             } catch (_: Exception) {
                 listOf(mediaInfo.link)
             }

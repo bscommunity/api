@@ -1,4 +1,4 @@
-package org.bscm.clients
+package org.bscm.services.track.resolvers
 
 import io.ktor.client.*
 import io.ktor.client.request.*

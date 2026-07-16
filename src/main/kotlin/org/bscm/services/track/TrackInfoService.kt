@@ -1,17 +1,16 @@
-package org.bscm.services
+package org.bscm.services.track
 
 import io.ktor.util.logging.*
-import org.bscm.clients.*
 import org.bscm.models.StreamingRef
 import org.bscm.models.enums.PreviewProvider
 import org.bscm.models.enums.StreamingPlatform
-import org.bscm.services.media.MediaInfoResult
+import org.bscm.services.track.resolvers.*
 import org.bscm.utils.GenresUtils
 import org.bscm.utils.StreamingPlatformUtils
 
-private val logger = KtorSimpleLogger("MediaInfoService")
+private val logger = KtorSimpleLogger("TrackInfoService")
 
-class MediaInfoService(
+class TrackInfoService(
     private val itunes: ItunesClient,
     private val deezer: DeezerClient,
     private val lastFm: LastFmClient,
@@ -48,7 +47,7 @@ class MediaInfoService(
             .trim()
     }
 
-    suspend fun getMediaInfo(track: String, artist: String): MediaInfoResult {
+    suspend fun getTrackInfo(track: String, artist: String): TrackInfoResult {
         val ctx = TrackMatchContext(
             cleanTrackName(track),
             cleanArtistName(artist)
@@ -59,7 +58,7 @@ class MediaInfoService(
             .search(ctx.track, ctx.artist)
             .bestMatch(ctx)
             ?.let { match ->
-                return MediaInfoResult(
+                return TrackInfoResult(
                     coverUrl = match.artworkUrl100.replace("100x100", "600x600"),
                     album = match.collectionName,
                     track = match.trackName,
@@ -77,7 +76,7 @@ class MediaInfoService(
         deezer.search(ctx.track, ctx.artist)
             .firstOrNull()
             ?.let { track ->
-                return MediaInfoResult(
+                return TrackInfoResult(
                     coverUrl = track.album?.cover_big,
                     album = track.album?.title,
                     track = track.title,
@@ -96,7 +95,7 @@ class MediaInfoService(
             ?.let { lf ->
                 val genre = lf.toptags?.tag?.firstNotNullOfOrNull { GenresUtils.normalizeGenre(it.name) }
 
-                return MediaInfoResult(
+                return TrackInfoResult(
                     coverUrl = lf.album?.image?.getOrNull(3)?.url,
                     album = lf.album?.title,
                     track = lf.name,

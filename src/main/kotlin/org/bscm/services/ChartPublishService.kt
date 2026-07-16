@@ -14,8 +14,10 @@ import org.bscm.models.enums.Genre
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.protobuf.ChartParser
+import org.bscm.services.track.TrackInfoService
 import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
+import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils
 import java.util.*
 
@@ -26,7 +28,7 @@ class ChartPublishService(
     private val chartRepository: IChartRepository,
     private val uploadService: UploadService,
     private val storageService: StorageService,
-    private val mediaInfoService: MediaInfoService,
+    private val trackInfoService: TrackInfoService,
     private val previewStorageService: PreviewStorageService,
     private val activityRepository: IActivityRepository
 ) {
@@ -106,8 +108,8 @@ class ChartPublishService(
         val trackName = overrides.track ?: bundleInfo?.title ?: "Unknown"
         val artistName = overrides.artist ?: bundleInfo?.artist ?: "Unknown"
 
-        // 5. Media info enrichment
-        val mediaInfo = try { mediaInfoService.getMediaInfo(trackName, artistName) } catch (e: Exception) {
+        // 5. Track info enrichment
+        val mediaInfo = try { trackInfoService.getTrackInfo(trackName, artistName) } catch (e: Exception) {
             log.error("Media info fetch failed: ${e.message}")
             null
         }
@@ -118,7 +120,7 @@ class ChartPublishService(
         val streamingLinks = overrides.trackUrls ?: run {
             try {
                 if (mediaInfo?.link != null) {
-                    mediaInfoService.getTrackStreamingLinks(mediaInfo.link.url, trackName, artistName, mediaInfo.isrc)
+                    trackInfoService.getTrackStreamingLinks(mediaInfo.link.url, trackName, artistName, mediaInfo.isrc)
                 } else emptyList()
             } catch (_: Exception) {
                 listOfNotNull(mediaInfo?.link)
@@ -218,10 +220,11 @@ class ChartPublishService(
             versionsCount = createdChart.versionsCount + 1,
         )
 
-        // 11. Upload cover image to storage
+        // 11. Convert and upload cover image to storage
         if (coverBytes != null) {
             try {
-                storageService.uploadTrackCover(createdChart.track.id, coverBytes)
+                val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
+                storageService.uploadTrackCover(createdChart.track.id, avifBytes)
             } catch (e: Exception) {
                 log.warn("Failed to upload track cover to storage: ${e.message}")
             }

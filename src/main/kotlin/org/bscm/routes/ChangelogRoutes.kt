@@ -8,7 +8,7 @@ import io.ktor.server.routing.*
 import org.bscm.models.interfaces.IChangelogRepository
 import java.util.*
 
-fun Route.changelogRoutes(knownIssueRepository: IChangelogRepository) {
+fun Route.changelogRoutes(changelogRepository: IChangelogRepository) {
     route("/charts") {
         post("{id}/issues") {
             val id = call.parameters["id"] ?: run {
@@ -18,7 +18,7 @@ fun Route.changelogRoutes(knownIssueRepository: IChangelogRepository) {
 
             val receivedIssue = call.receive<org.bscm.models.Changelog>()
 
-            val createdIssue = knownIssueRepository.addIssue(id, receivedIssue)
+            val createdIssue = changelogRepository.addIssue(id, receivedIssue)
             call.respond(HttpStatusCode.Created, createdIssue)
         }
 
@@ -33,7 +33,7 @@ fun Route.changelogRoutes(knownIssueRepository: IChangelogRepository) {
                 return@delete
             }
 
-            val removed = knownIssueRepository.removeIssue(id, issueId)
+            val removed = changelogRepository.removeIssue(id, issueId)
             if (removed) {
                 call.respond(HttpStatusCode.NoContent, true)
             } else {

@@ -3,7 +3,7 @@ package org.bscm.backup
 import io.ktor.util.logging.*
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
-import org.bscm.clients.jsonClient
+import org.bscm.services.track.resolvers.jsonClient
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path

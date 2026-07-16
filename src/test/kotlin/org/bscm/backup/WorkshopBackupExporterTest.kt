@@ -1,6 +1,6 @@
 package org.bscm.backup
 
-import org.bscm.clients.jsonClient
+import org.bscm.services.track.resolvers.jsonClient
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.zip.ZipFile

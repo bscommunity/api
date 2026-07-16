@@ -12,7 +12,6 @@ import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
 import io.ktor.util.logging.*
 import io.ktor.utils.io.*
-import org.bscm.clients.jsonClient
 import org.bscm.models.dto.chart.BundleDownloadResponse
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
@@ -27,6 +26,7 @@ import org.bscm.repository.ChartRepository
 import org.bscm.services.BundleDownloadService
 import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
+import org.bscm.services.track.resolvers.jsonClient
 import org.bscm.utils.getUserIdOrNull
 import java.util.*
 
