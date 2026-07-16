@@ -35,7 +35,10 @@ class MusicbrainzClient(
     private data class MBRecordingDetailsResponse(val relations: List<MBRelation> = emptyList())
 
     private suspend fun fetchMusicBrainzRecordings(query: String): List<MBRecording> {
-        val response = client.get("$baseUrl/recording?query=$query&fmt=json&limit=5") {
+        val response = client.get("$baseUrl/recording") {
+            parameter("query", query)
+            parameter("fmt", "json")
+            parameter("limit", "5")
             header("User-Agent", "bscm/1.0 (app.bscm@gmail.com)")
         }
         if (!response.status.isSuccess()) return emptyList()

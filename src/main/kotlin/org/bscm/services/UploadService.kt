@@ -164,10 +164,17 @@ class UploadService(
                 url = url,
             )
 
+            StreamingPlatform.LAST_FM -> Button(
+                type = 2,
+                style = 5,
+                label = "Last.fm",
+                url = url,
+            )
+
             else -> Button(
                 type = 2,
                 style = 5,
-                label = platform.name,
+                label = platform.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
                 url = url,
             )
         }
