@@ -1,6 +1,7 @@
 package org.bscm.services.track
 
 import io.ktor.util.logging.*
+import kotlinx.serialization.Serializable
 import org.bscm.models.StreamingRef
 import org.bscm.models.enums.PreviewProvider
 import org.bscm.models.enums.StreamingPlatform
@@ -116,7 +117,13 @@ class TrackInfoService(
         )
     }
 
-    suspend fun getTrackStreamingLinks(url: String, track: String, artist: String, isrc: String? = null, platform: StreamingPlatform? = null): List<StreamingRef> {
+    @Serializable
+    data class StreamingLinksResult(
+        val links: List<StreamingRef>,
+        val isrc: String? = null
+    )
+
+    suspend fun getTrackStreamingLinks(url: String, track: String, artist: String, isrc: String? = null, platform: StreamingPlatform? = null): StreamingLinksResult {
         val cleanedTrack = cleanTrackName(track)
         val cleanedArtist = cleanArtistName(artist)
 
@@ -125,7 +132,10 @@ class TrackInfoService(
             val musicLinkResult = musicLink.resolve(cleanedArtist, cleanedTrack, isrc)
             if (musicLinkResult.links.isNotEmpty()) {
                 logger.info("Raw MusicLink links: ${musicLinkResult.links}")
-                return StreamingPlatformUtils.processLinksWithPrioritization(musicLinkResult.links, false)
+                return StreamingLinksResult(
+                    links = StreamingPlatformUtils.processLinksWithPrioritization(musicLinkResult.links, false),
+                    isrc = musicLinkResult.isrc
+                )
             }
         } catch (error: Exception) {
             logger.warn("MusicLink failed: ${error.message}")
@@ -137,7 +147,10 @@ class TrackInfoService(
                 val platformResult = musicLink.resolveByPlatformUrl(platform, url)
                 if (platformResult.links.isNotEmpty()) {
                     logger.info("Raw MusicLink platform URL links: ${platformResult.links}")
-                    return StreamingPlatformUtils.processLinksWithPrioritization(platformResult.links, false)
+                    return StreamingLinksResult(
+                        links = StreamingPlatformUtils.processLinksWithPrioritization(platformResult.links, false),
+                        isrc = platformResult.isrc
+                    )
                 }
             } catch (error: Exception) {
                 logger.warn("MusicLink platform URL lookup failed: ${error.message}")
@@ -149,35 +162,39 @@ class TrackInfoService(
             val musicbrainzLinks = musicbrainz.resolve("recording:\"$cleanedTrack\" AND artist:\"$cleanedArtist\"")
             if (musicbrainzLinks.isNotEmpty()) {
                 logger.info("Raw MusicBrainz links: $musicbrainzLinks")
-                return StreamingPlatformUtils.processLinksWithPrioritization(musicbrainzLinks, false)
+                return StreamingLinksResult(
+                    links = StreamingPlatformUtils.processLinksWithPrioritization(musicbrainzLinks, false)
+                )
             }
         } catch (error: Exception) {
             logger.warn("MusicBrainz failed: ${error.message}")
         }
 
-        // 3. Last.fm (metadata fallback)
+        // 4. Last.fm (metadata fallback)
         try {
             val lastFmTrack = lastFm.getTrackInfo(cleanedTrack, cleanedArtist)
             if (lastFmTrack != null) {
                 val lastFmLink = StreamingRef(StreamingPlatform.LAST_FM, lastFmTrack.url)
                 logger.info("Raw Last.fm link: $lastFmLink")
-                return listOf(lastFmLink)
+                return StreamingLinksResult(links = listOf(lastFmLink))
             }
         } catch (error: Exception) {
             logger.warn("Last.fm failed: ${error.message}")
         }
 
-        // 4. Odesli (API soon deprecated)
+        // 5. Odesli (API soon deprecated)
         try {
             val odesliLinks = odesli.resolve(url)
             if (odesliLinks.isNotEmpty()) {
                 logger.info("Raw Odesli links: $odesliLinks")
-                return StreamingPlatformUtils.processLinksWithPrioritization(odesliLinks, true)
+                return StreamingLinksResult(
+                    links = StreamingPlatformUtils.processLinksWithPrioritization(odesliLinks, true)
+                )
             }
         } catch (error: Exception) {
             logger.warn("Odesli failed: ${error.message}")
         }
 
-        return emptyList()
+        return StreamingLinksResult(emptyList())
     }
 }

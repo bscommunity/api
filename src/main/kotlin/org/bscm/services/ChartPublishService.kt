@@ -116,16 +116,19 @@ class ChartPublishService(
 
         val coverUrl = overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
 
-        // Streaming links resolution
-        val streamingLinks = overrides.trackUrls ?: run {
+        // Track streaming links resolution
+        val streamingResult = overrides.trackUrls?.let { TrackInfoService.StreamingLinksResult(it) } ?: run {
             try {
                 if (mediaInfo?.link != null) {
                     trackInfoService.getTrackStreamingLinks(mediaInfo.link.url, trackName, artistName, mediaInfo.isrc, mediaInfo.link.platform)
-                } else emptyList()
+                } else TrackInfoService.StreamingLinksResult(emptyList())
             } catch (_: Exception) {
-                listOfNotNull(mediaInfo?.link)
+                TrackInfoService.StreamingLinksResult(listOfNotNull(mediaInfo?.link))
             }
         }
+
+        val streamingLinks = streamingResult.links
+        val resolvedIsrc = mediaInfo?.isrc ?: streamingResult.isrc
 
         log.info("Resolved streaming links: $streamingLinks")
 
@@ -152,7 +155,7 @@ class ChartPublishService(
             fileSizeBytes = bundleBytes.size.toLong(),
             previewUrl = overrides.previewUrl,
             contentId = contentId,
-            isrc = mediaInfo?.isrc,
+            isrc = resolvedIsrc,
         )
 
         val createdChart = chartRepository.createChart(user.id, createForDb)

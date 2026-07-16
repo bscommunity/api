@@ -4,6 +4,7 @@ import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.util.logging.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -12,6 +13,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.bscm.models.StreamingRef
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.utils.StreamingPlatformUtils
+
+private val logger = KtorSimpleLogger("MusicLinkClient")
 
 class MusicLinkClient(
     private val client: HttpClient,
@@ -141,6 +144,8 @@ class MusicLinkClient(
                         StreamingRef(platform, url)
                     }
                 }
+
+                logger.debug { "Extracted links from HTML: $links, ISRC: $isrc" }
 
                 MusicLinkResult(links, isrc)
             } catch (_: Exception) {
