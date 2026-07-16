@@ -16,7 +16,7 @@ import org.bscm.interactions.message
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.ChartPublishService
 import org.bscm.services.InteractionResponseService
-import org.bscm.services.track.resolvers.applicationHttpClient
+import org.bscm.services.track.clients.applicationHttpClient
 import org.koin.ktor.ext.getKoin
 
 private val log = KtorSimpleLogger("PublishCommand")

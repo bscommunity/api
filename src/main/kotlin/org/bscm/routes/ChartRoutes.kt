@@ -26,7 +26,7 @@ import org.bscm.repository.ChartRepository
 import org.bscm.services.BundleDownloadService
 import org.bscm.services.ChartPublishService
 import org.bscm.services.UploadService
-import org.bscm.services.track.resolvers.jsonClient
+import org.bscm.services.track.clients.jsonClient
 import org.bscm.utils.getUserIdOrNull
 import java.util.*
 

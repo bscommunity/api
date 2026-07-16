@@ -29,7 +29,7 @@ class ChartPublishService(
     private val uploadService: UploadService,
     private val storageService: StorageService,
     private val trackInfoService: TrackInfoService,
-    private val previewStorageService: PreviewStorageService,
+    private val audioPreviewService: AudioPreviewService,
     private val activityRepository: IActivityRepository
 ) {
     data class Overrides(
@@ -232,7 +232,7 @@ class ChartPublishService(
 
         // 12. Download, convert, and upload audio preview to storage
         if (mediaInfo != null) {
-            previewStorageService.publishPreview(createdChart.track.id, mediaInfo)
+            audioPreviewService.publish(createdChart.track.id, mediaInfo)
         }
 
         val result = Result(

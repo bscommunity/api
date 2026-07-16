@@ -2,7 +2,7 @@ package org.bscm.services.preview.resolvers
 
 import org.bscm.models.dto.PreviewResponse
 import org.bscm.models.enums.PreviewProvider
-import org.bscm.services.track.resolvers.ItunesClient
+import org.bscm.services.track.clients.ItunesClient
 
 class ItunesPreviewResolver(
     private val itunesApi: ItunesClient

@@ -20,7 +20,7 @@ import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
 import org.bscm.services.UploadService
-import org.bscm.services.track.resolvers.jsonClient
+import org.bscm.services.track.clients.jsonClient
 import org.bscm.utils.QueryUtils.getNormalizedQuery
 import org.bscm.utils.QueryUtils.similarity
 import org.bscm.utils.getUserIdOrNull

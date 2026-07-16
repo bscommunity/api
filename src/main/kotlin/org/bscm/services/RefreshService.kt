@@ -10,8 +10,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.bscm.services.UploadService.RefreshData
-import org.bscm.services.track.resolvers.applicationHttpClient
-import org.bscm.services.track.resolvers.jsonClient
+import org.bscm.services.track.clients.applicationHttpClient
+import org.bscm.services.track.clients.jsonClient
 import kotlin.math.min
 import kotlin.math.pow
 

@@ -17,9 +17,8 @@ import org.bscm.services.*
 import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.JWTService
-import org.bscm.services.preview.PreviewService
 import org.bscm.services.track.TrackInfoService
-import org.bscm.services.track.resolvers.applicationHttpClient
+import org.bscm.services.track.clients.applicationHttpClient
 import org.koin.ktor.ext.inject
 
 // Disclaimer: Dependency Injection can't be made inside 'routing { }' block
@@ -111,7 +110,6 @@ fun Application.configureRouting() {
         val profileService by inject<ProfileService>()
         val bundleDownloadService by inject<BundleDownloadService>()
         val trackInfoService by inject<TrackInfoService>()
-        val previewService by inject<PreviewService>()
 
         val chartRepository by inject<IChartRepository>()
         val tourPassRepository by inject<ITourPassRepository>()

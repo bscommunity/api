@@ -2,7 +2,6 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
-import org.bscm.models.dto.PreviewResponse
 import org.bscm.models.interfaces.*
 import org.bscm.repository.*
 import org.bscm.services.*
@@ -10,12 +9,11 @@ import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.HMACService
 import org.bscm.services.auth.JWTService
-import org.bscm.services.preview.PreviewService
 import org.bscm.services.preview.resolvers.DeezerPreviewResolver
 import org.bscm.services.preview.resolvers.ItunesPreviewResolver
 import org.bscm.services.preview.resolvers.PreviewResolverRegistry
 import org.bscm.services.track.TrackInfoService
-import org.bscm.services.track.resolvers.*
+import org.bscm.services.track.clients.*
 import org.bscm.storage.S3StorageAdapter
 import org.bscm.storage.StaticUrlStorageAdapter
 import org.bscm.storage.StorageService
@@ -162,20 +160,19 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
     single {
-        PreviewStorageService(
-            previewService = get(),
+        AudioPreviewService(
+            registry = get(),
             storageService = get(),
             client = get()
         )
     }
-    single<CacheRepository<PreviewResponse>> { InMemoryCacheRepository() }
     single {
         ChartPublishService(
             chartRepository = get(),
             uploadService = get(),
             storageService = get(),
             trackInfoService = get(),
-            previewStorageService = get(),
+            audioPreviewService = get(),
             activityRepository = get()
         )
     }
@@ -224,12 +221,6 @@ fun mainModule(config: ApplicationConfig) = module {
     single {
         PreviewResolverRegistry(
             resolvers = listOf(DeezerPreviewResolver(get()), ItunesPreviewResolver(get()))
-        )
-    }
-    single {
-        PreviewService(
-            registry = get(),
-            cache = get(),
         )
     }
     single {

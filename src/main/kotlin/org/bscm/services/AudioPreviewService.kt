@@ -5,16 +5,16 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.util.logging.*
-import org.bscm.services.preview.PreviewService
+import org.bscm.services.preview.resolvers.PreviewResolverRegistry
 import org.bscm.services.track.TrackInfoResult
 import org.bscm.storage.StorageService
 import org.bscm.utils.MediaConverter
 import java.util.*
 
-private val log = KtorSimpleLogger("PreviewStorageService")
+private val log = KtorSimpleLogger("AudioPreviewService")
 
-class PreviewStorageService(
-    private val previewService: PreviewService,
+class AudioPreviewService(
+    private val registry: PreviewResolverRegistry,
     private val storageService: StorageService,
     private val client: HttpClient
 ) {
@@ -23,12 +23,13 @@ class PreviewStorageService(
      * Resolves, downloads, converts, and uploads the audio preview for a track.
      * Returns the CDN URL on success, null on failure.
      */
-    suspend fun publishPreview(trackId: UUID, mediaInfo: TrackInfoResult): String? {
+    suspend fun publish(trackId: UUID, mediaInfo: TrackInfoResult): String? {
         val provider = mediaInfo.previewProvider ?: return null
         val providerTrackId = mediaInfo.previewProviderTrackId ?: return null
 
         return try {
-            val preview = previewService.getPreview(provider, providerTrackId) ?: return null
+            val resolver = registry.get(provider)
+            val preview = resolver.resolve(providerTrackId) ?: return null
 
             val audioBytes = downloadAudio(preview.url) ?: return null
 

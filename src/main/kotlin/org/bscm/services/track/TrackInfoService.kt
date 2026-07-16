@@ -4,7 +4,7 @@ import io.ktor.util.logging.*
 import org.bscm.models.StreamingRef
 import org.bscm.models.enums.PreviewProvider
 import org.bscm.models.enums.StreamingPlatform
-import org.bscm.services.track.resolvers.*
+import org.bscm.services.track.clients.*
 import org.bscm.utils.GenresUtils
 import org.bscm.utils.StreamingPlatformUtils
 
@@ -58,6 +58,7 @@ class TrackInfoService(
             .search(ctx.track, ctx.artist)
             .bestMatch(ctx)
             ?.let { match ->
+                logger.debug { "Best iTunes match for '$track' by '$artist': ${match.trackName} by ${match.artistName}" }
                 return TrackInfoResult(
                     coverUrl = match.artworkUrl100.replace("100x100", "600x600"),
                     album = match.collectionName,
@@ -76,6 +77,7 @@ class TrackInfoService(
         deezer.search(ctx.track, ctx.artist)
             .firstOrNull()
             ?.let { track ->
+                logger.debug { "Deezer found for '$track' by '$artist'" }
                 return TrackInfoResult(
                     coverUrl = track.album?.cover_big,
                     album = track.album?.title,
@@ -95,6 +97,7 @@ class TrackInfoService(
             ?.let { lf ->
                 val genre = lf.toptags?.tag?.firstNotNullOfOrNull { GenresUtils.normalizeGenre(it.name) }
 
+                logger.debug { "LastFM found for '$track' by '$artist': ${lf.name} by ${lf.artist.name}" }
                 return TrackInfoResult(
                     coverUrl = lf.album?.image?.getOrNull(3)?.url,
                     album = lf.album?.title,

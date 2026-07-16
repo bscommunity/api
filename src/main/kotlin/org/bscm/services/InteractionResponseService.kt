@@ -10,8 +10,8 @@ import kotlinx.serialization.json.put
 import org.bscm.interactions.ActionRow
 import org.bscm.interactions.Embed
 import org.bscm.interactions.WebhookPayload
-import org.bscm.services.track.resolvers.applicationHttpClient
-import org.bscm.services.track.resolvers.jsonClient
+import org.bscm.services.track.clients.applicationHttpClient
+import org.bscm.services.track.clients.jsonClient
 
 /**
  * Service to handle Discord interaction responses including deferred responses and follow-ups.

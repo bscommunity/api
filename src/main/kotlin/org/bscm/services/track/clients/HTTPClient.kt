@@ -1,4 +1,4 @@
-package org.bscm.services.track.resolvers
+package org.bscm.services.track.clients
 
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*

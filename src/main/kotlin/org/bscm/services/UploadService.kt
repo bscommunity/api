@@ -17,8 +17,8 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
-import org.bscm.services.track.resolvers.applicationHttpClient
-import org.bscm.services.track.resolvers.jsonClient
+import org.bscm.services.track.clients.applicationHttpClient
+import org.bscm.services.track.clients.jsonClient
 import java.util.*
 
 private val logger = KtorSimpleLogger("UploadService")
