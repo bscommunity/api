@@ -27,6 +27,7 @@ class ChartPublishService(
     private val uploadService: UploadService,
     private val storageService: StorageService,
     private val mediaInfoService: MediaInfoService,
+    private val previewStorageService: PreviewStorageService,
     private val activityRepository: IActivityRepository
 ) {
     data class Overrides(
@@ -224,6 +225,11 @@ class ChartPublishService(
             } catch (e: Exception) {
                 log.warn("Failed to upload track cover to storage: ${e.message}")
             }
+        }
+
+        // 12. Download, convert, and upload audio preview to storage
+        if (mediaInfo != null) {
+            previewStorageService.publishPreview(createdChart.track.id, mediaInfo)
         }
 
         val result = Result(

@@ -160,11 +160,19 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
     single {
+        PreviewStorageService(
+            previewService = get(),
+            storageService = get(),
+            client = get()
+        )
+    }
+    single {
         ChartPublishService(
             chartRepository = get(),
             uploadService = get(),
             storageService = get(),
             mediaInfoService = get(),
+            previewStorageService = get(),
             activityRepository = get()
         )
     }
