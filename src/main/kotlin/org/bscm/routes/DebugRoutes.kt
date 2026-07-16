@@ -55,7 +55,7 @@ fun Route.debugRoutes(
 
             // Streaming links resolution
             val streamingLinks = try {
-                mediaInfoService.getTrackStreamingLinks(mediaInfo.link.url, cleanedTrackName, cleanedArtistName)
+                mediaInfoService.getTrackStreamingLinks(mediaInfo.link.url, cleanedTrackName, cleanedArtistName, mediaInfo.isrc)
             } catch (_: Exception) {
                 listOf(mediaInfo.link)
             }

@@ -68,6 +68,13 @@ fun mainModule(config: ApplicationConfig) = module {
     }
     single { OdesliClient(client = get(), json = get()) }
     single { MusicbrainzClient(client = get(), json = get()) }
+    single {
+        MusicLinkClient(
+            client = get(),
+            json = get(),
+            apiKey = config.propertyOrNull("musiclink.apiKey")?.getString()
+        )
+    }
 
     // Repositories
     single {
@@ -199,7 +206,8 @@ fun mainModule(config: ApplicationConfig) = module {
             deezer = get(),
             lastFm = get(),
             odesli = get(),
-            musicbrainz = get()
+            musicbrainz = get(),
+            musicLink = get()
         )
     }
     single {

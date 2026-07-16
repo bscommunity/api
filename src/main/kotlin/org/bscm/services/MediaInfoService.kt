@@ -16,7 +16,8 @@ class MediaInfoService(
     private val deezer: DeezerClient,
     private val lastFm: LastFmClient,
     private val odesli: OdesliClient,
-    private val musicbrainz: MusicbrainzClient
+    private val musicbrainz: MusicbrainzClient,
+    private val musicLink: MusicLinkClient
 ) {
 
     data class TrackMatchContext(
@@ -113,11 +114,22 @@ class MediaInfoService(
         )
     }
 
-    suspend fun getTrackStreamingLinks(url: String, track: String, artist: String): List<StreamingRef> {
+    suspend fun getTrackStreamingLinks(url: String, track: String, artist: String, isrc: String? = null): List<StreamingRef> {
         val cleanedTrack = cleanTrackName(track)
         val cleanedArtist = cleanArtistName(artist)
 
-        // Try Odesli first with a music URL query
+        // Try MusicLink first (HTML scraping + API fallback)
+        try {
+            val musicLinkResult = musicLink.resolve(cleanedArtist, cleanedTrack, isrc)
+            if (musicLinkResult.links.isNotEmpty()) {
+                logger.info("Raw MusicLink links: ${musicLinkResult.links}")
+                return StreamingPlatformUtils.processLinksWithPrioritization(musicLinkResult.links, false)
+            }
+        } catch (error: Exception) {
+            // MusicLink failed, continue to Odesli
+        }
+
+        // Try Odesli with a music URL query
         try {
             val odesliLinks = odesli.resolve(url)
             if (odesliLinks.isNotEmpty()) {
