@@ -170,12 +170,19 @@ class TrackInfoService(
             logger.warn("MusicBrainz failed: ${error.message}")
         }
 
-        // 4. Last.fm (metadata fallback)
+        // 4. Last.fm (metadata fallback + HTML scraping)
         try {
             val lastFmTrack = lastFm.getTrackInfo(cleanedTrack, cleanedArtist)
             if (lastFmTrack != null) {
+                val scrapedLinks = lastFm.getTrackStreamingLinks(lastFmTrack.url)
+                if (scrapedLinks.isNotEmpty()) {
+                    logger.info("Raw Last.fm scraped links: $scrapedLinks")
+                    return StreamingLinksResult(
+                        links = StreamingPlatformUtils.processLinksWithPrioritization(scrapedLinks, false)
+                    )
+                }
                 val lastFmLink = StreamingRef(StreamingPlatform.LAST_FM, lastFmTrack.url)
-                logger.info("Raw Last.fm link: $lastFmLink")
+                logger.info("Raw Last.fm link (no scraped playlinks): $lastFmLink")
                 return StreamingLinksResult(links = listOf(lastFmLink))
             }
         } catch (error: Exception) {

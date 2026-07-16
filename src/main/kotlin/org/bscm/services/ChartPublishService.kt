@@ -127,7 +127,10 @@ class ChartPublishService(
             }
         }
 
-        val streamingLinks = streamingResult.links
+        val streamingLinks = buildList {
+            mediaInfo?.link?.let { add(it) }
+            addAll(streamingResult.links.filter { it.platform != mediaInfo?.link?.platform })
+        }
         val resolvedIsrc = mediaInfo?.isrc ?: streamingResult.isrc
 
         log.info("Resolved streaming links: $streamingLinks")
