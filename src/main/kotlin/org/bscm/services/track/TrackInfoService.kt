@@ -117,11 +117,6 @@ class TrackInfoService(
     }
 
     suspend fun getTrackStreamingLinks(url: String, track: String, artist: String, isrc: String? = null): List<StreamingRef> {
-        if (isrc.isNullOrBlank()) {
-            logger.info("No ISRC found for '$track' by '$artist' — skipping streaming link resolution")
-            return emptyList()
-        }
-
         val cleanedTrack = cleanTrackName(track)
         val cleanedArtist = cleanArtistName(artist)
 
@@ -136,7 +131,20 @@ class TrackInfoService(
             logger.warn("MusicLink failed: ${error.message}")
         }
 
-        // 2. MusicBrainz
+        // 2. MusicLink by platform URL (fallback when no ISRC)
+        if (isrc.isNullOrBlank() && url.isNotBlank()) {
+            try {
+                val platformResult = musicLink.resolveByPlatformUrl(url)
+                if (platformResult.links.isNotEmpty()) {
+                    logger.info("Raw MusicLink platform URL links: ${platformResult.links}")
+                    return StreamingPlatformUtils.processLinksWithPrioritization(platformResult.links, false)
+                }
+            } catch (error: Exception) {
+                logger.warn("MusicLink platform URL lookup failed: ${error.message}")
+            }
+        }
+
+        // 3. MusicBrainz
         try {
             val musicbrainzLinks = musicbrainz.resolve("recording:\"$cleanedTrack\" AND artist:\"$cleanedArtist\"")
             if (musicbrainzLinks.isNotEmpty()) {

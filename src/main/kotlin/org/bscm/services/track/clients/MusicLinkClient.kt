@@ -80,6 +80,45 @@ class MusicLinkClient(
         return MusicLinkResult(emptyList(), null)
     }
 
+    suspend fun resolveByPlatformUrl(platformUrl: String): MusicLinkResult {
+        val (platform, id) = parsePlatformUrl(platformUrl) ?: return MusicLinkResult(emptyList(), null)
+        return apiLookupByPlatform(platform, id) ?: MusicLinkResult(emptyList(), null)
+    }
+
+    private fun parsePlatformUrl(url: String): Pair<String, String>? {
+        val stripped = url.removePrefix("https://").removePrefix("http://")
+
+        // Apple Music: music.apple.com/us/album/.../1867307508?i=1867307509 or geo.music.apple.com/...
+        if (stripped.contains("music.apple.com/") || stripped.contains("itunes.apple.com/")) {
+            // Extract the ?i= parameter (track ID), or fall back to last path segment
+            val trackId = Regex("""[?&]i=(\d+)""").find(url)?.groupValues?.get(1)
+                ?: stripped.split("/").lastOrNull { it.all { c -> c.isDigit() } }
+            if (trackId != null) return "apple" to trackId
+        }
+
+        // Deezer: www.deezer.com/track/3761677052 or deezer.com/track/...
+        if (stripped.contains("deezer.com/")) {
+            val trackId = Regex("""/track/(\d+)""").find(stripped)?.groupValues?.get(1)
+            if (trackId != null) return "deezer" to trackId
+        }
+
+        return null
+    }
+
+    private suspend fun apiLookupByPlatform(platform: String, id: String): MusicLinkResult? {
+        if (apiKey == null) return null
+        return try {
+            val response = client.get("$apiBaseUrl/lookup/$platform/$id") {
+                header("Authorization", "Bearer $apiKey")
+            }
+            if (!response.status.isSuccess()) return null
+
+            parseApiResponse(response.bodyAsText())
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private suspend fun tryScrapeHtml(artist: String, track: String): MusicLinkResult? {
         val normalizedArtist = normalizeForUrl(artist)
         val normalizedTrack = normalizeForUrl(track)
