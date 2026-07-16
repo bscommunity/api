@@ -116,7 +116,7 @@ class TrackInfoService(
         )
     }
 
-    suspend fun getTrackStreamingLinks(url: String, track: String, artist: String, isrc: String? = null): List<StreamingRef> {
+    suspend fun getTrackStreamingLinks(url: String, track: String, artist: String, isrc: String? = null, platform: StreamingPlatform? = null): List<StreamingRef> {
         val cleanedTrack = cleanTrackName(track)
         val cleanedArtist = cleanArtistName(artist)
 
@@ -132,9 +132,9 @@ class TrackInfoService(
         }
 
         // 2. MusicLink by platform URL (fallback when no ISRC)
-        if (isrc.isNullOrBlank() && url.isNotBlank()) {
+        if (isrc.isNullOrBlank() && url.isNotBlank() && platform != null) {
             try {
-                val platformResult = musicLink.resolveByPlatformUrl(url)
+                val platformResult = musicLink.resolveByPlatformUrl(platform, url)
                 if (platformResult.links.isNotEmpty()) {
                     logger.info("Raw MusicLink platform URL links: ${platformResult.links}")
                     return StreamingPlatformUtils.processLinksWithPrioritization(platformResult.links, false)

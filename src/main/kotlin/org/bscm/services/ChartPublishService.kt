@@ -120,7 +120,7 @@ class ChartPublishService(
         val streamingLinks = overrides.trackUrls ?: run {
             try {
                 if (mediaInfo?.link != null) {
-                    trackInfoService.getTrackStreamingLinks(mediaInfo.link.url, trackName, artistName, mediaInfo.isrc)
+                    trackInfoService.getTrackStreamingLinks(mediaInfo.link.url, trackName, artistName, mediaInfo.isrc, mediaInfo.link.platform)
                 } else emptyList()
             } catch (_: Exception) {
                 listOfNotNull(mediaInfo?.link)

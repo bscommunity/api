@@ -10,6 +10,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.bscm.models.StreamingRef
+import org.bscm.models.enums.StreamingPlatform
 import org.bscm.utils.StreamingPlatformUtils
 
 class MusicLinkClient(
@@ -80,42 +81,25 @@ class MusicLinkClient(
         return MusicLinkResult(emptyList(), null)
     }
 
-    suspend fun resolveByPlatformUrl(platformUrl: String): MusicLinkResult {
-        val (platform, id) = parsePlatformUrl(platformUrl) ?: return MusicLinkResult(emptyList(), null)
-        return apiLookupByPlatform(platform, id) ?: MusicLinkResult(emptyList(), null)
-    }
+    suspend fun resolveByPlatformUrl(platform: StreamingPlatform, platformUrl: String): MusicLinkResult {
+        if (apiKey == null) return MusicLinkResult(emptyList(), null)
 
-    private fun parsePlatformUrl(url: String): Pair<String, String>? {
-        val stripped = url.removePrefix("https://").removePrefix("http://")
-
-        // Apple Music: music.apple.com/us/album/.../1867307508?i=1867307509 or geo.music.apple.com/...
-        if (stripped.contains("music.apple.com/") || stripped.contains("itunes.apple.com/")) {
-            // Extract the ?i= parameter (track ID), or fall back to last path segment
-            val trackId = Regex("""[?&]i=(\d+)""").find(url)?.groupValues?.get(1)
-                ?: stripped.split("/").lastOrNull { it.all { c -> c.isDigit() } }
-            if (trackId != null) return "apple" to trackId
+        val mlPlatform = when (platform) {
+            StreamingPlatform.APPLE_MUSIC -> "apple"
+            StreamingPlatform.DEEZER -> "deezer"
+            else -> return MusicLinkResult(emptyList(), null)
         }
 
-        // Deezer: www.deezer.com/track/3761677052 or deezer.com/track/...
-        if (stripped.contains("deezer.com/")) {
-            val trackId = Regex("""/track/(\d+)""").find(stripped)?.groupValues?.get(1)
-            if (trackId != null) return "deezer" to trackId
-        }
-
-        return null
-    }
-
-    private suspend fun apiLookupByPlatform(platform: String, id: String): MusicLinkResult? {
-        if (apiKey == null) return null
         return try {
-            val response = client.get("$apiBaseUrl/lookup/$platform/$id") {
+            val encodedUrl = platformUrl.encodeURLPath()
+            val response = client.get("$apiBaseUrl/lookup/$mlPlatform/$encodedUrl") {
                 header("Authorization", "Bearer $apiKey")
             }
-            if (!response.status.isSuccess()) return null
+            if (!response.status.isSuccess()) return MusicLinkResult(emptyList(), null)
 
-            parseApiResponse(response.bodyAsText())
+            parseApiResponse(response.bodyAsText()) ?: MusicLinkResult(emptyList(), null)
         } catch (_: Exception) {
-            null
+            MusicLinkResult(emptyList(), null)
         }
     }
 
