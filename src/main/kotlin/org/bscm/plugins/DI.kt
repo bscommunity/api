@@ -2,6 +2,10 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.bscm.models.interfaces.*
 import org.bscm.repository.*
 import org.bscm.services.*
@@ -24,7 +28,6 @@ import org.koin.logger.slf4jLogger
 fun Application.configureDI() {
     val config = environment.config
 
-    // Keep lightweight tests working when external-service configuration is absent.
     val requiredKeys = listOf(
         "jwt.secret",
         "discord.clientId",
@@ -45,13 +48,26 @@ fun Application.configureDI() {
         return
     }
 
+    // Criado aqui, onde "environment" e "log" de fato existem (extension de Application)
+    val audioPreviewScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    monitor.subscribe(ApplicationStopping) {
+        log.info("Application stopping, cancelling background preview jobs")
+        audioPreviewScope.cancel()
+    }
+
     install(Koin) {
         slf4jLogger()
-        modules(mainModule(config))
+        modules(mainModule(config, audioPreviewScope))
     }
 }
 
-fun mainModule(config: ApplicationConfig) = module {
+// Recebe o scope já pronto — não cria mais nada aqui dentro
+fun mainModule(config: ApplicationConfig, audioPreviewScope: CoroutineScope) = module {
+
+    // Registra o scope como dependência resolvível via get()
+    single { audioPreviewScope }
+
     // HTTP Client & JSON
     single { applicationHttpClient }
     single { jsonClient }
@@ -173,7 +189,8 @@ fun mainModule(config: ApplicationConfig) = module {
             storageService = get(),
             trackInfoService = get(),
             audioPreviewService = get(),
-            activityRepository = get()
+            activityRepository = get(),
+            backgroundScope = get()
         )
     }
     single {

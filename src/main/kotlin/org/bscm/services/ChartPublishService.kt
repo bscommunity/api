@@ -2,6 +2,9 @@ package org.bscm.services
 
 import io.ktor.server.plugins.*
 import io.ktor.util.logging.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.User
@@ -30,7 +33,8 @@ class ChartPublishService(
     private val storageService: StorageService,
     private val trackInfoService: TrackInfoService,
     private val audioPreviewService: AudioPreviewService,
-    private val activityRepository: IActivityRepository
+    private val activityRepository: IActivityRepository,
+    private val backgroundScope: CoroutineScope
 ) {
     data class Overrides(
         val track: String? = null,
@@ -233,9 +237,15 @@ class ChartPublishService(
             }
         }
 
-        // 12. Download, convert, and upload audio preview to storage
+        // 12. Download, convert, and upload audio preview to storage (fire-and-forget)
         if (mediaInfo != null) {
-            audioPreviewService.publish(createdChart.track.id, mediaInfo)
+            backgroundScope.launch(Dispatchers.IO) {
+                try {
+                    audioPreviewService.publish(createdChart.track.id, mediaInfo)
+                } catch (e: Exception) {
+                    log.warn("Background audio preview publish failed: ${e.message}")
+                }
+            }
         }
 
         val result = Result(
