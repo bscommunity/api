@@ -14,7 +14,7 @@ class TrackEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     var artist by TrackTable.artist
     var album by TrackTable.album
     var isrc by TrackTable.isrc
-    var genre by TrackTable.genre
+    var genres by TrackTable.genres
     var bpm by TrackTable.bpm
     var duration by TrackTable.duration
     var normalizedTitle by TrackTable.normalizedTitle

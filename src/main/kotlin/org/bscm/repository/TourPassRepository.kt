@@ -55,7 +55,7 @@ class TourPassRepository(
                         artist = chartEntity.track.artist,
                         album = chartEntity.track.album,
                         isrc = chartEntity.track.isrc,
-                        genre = chartEntity.track.genre,
+                        genres = chartEntity.track.genres.orEmpty(),
                         bpm = chartEntity.track.bpm,
                         duration = chartEntity.track.duration,
                         streamingRefs = emptyList(),

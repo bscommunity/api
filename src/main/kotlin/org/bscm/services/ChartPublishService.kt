@@ -42,7 +42,7 @@ class ChartPublishService(
         val isDeluxe: Boolean? = null,
         val trackUrls: List<StreamingRef>? = null,
         val album: String? = null,
-        val genre: Genre? = null,
+        val genres: List<Genre>? = null,
     )
 
     data class Result(
@@ -146,7 +146,7 @@ class ChartPublishService(
             album = overrides.album ?: mediaInfo?.album,
             trackUrls = streamingLinks,
             coverUrl = coverUrl,
-            genre = overrides.genre ?: mediaInfo?.genre,
+            genres = (overrides.genres ?: mediaInfo?.genres).orEmpty(),
             isExplicit = isExplicit,
             duration = computedStats.duration,
             notesAmount = computedStats.notesAmount,

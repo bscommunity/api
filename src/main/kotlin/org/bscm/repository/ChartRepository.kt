@@ -200,7 +200,7 @@ class ChartRepository(
             artist = chart.artist,
             album = chart.album,
             isrc = chart.isrc,
-            genre = chart.genre,
+            genres = chart.genres,
             bpm = chart.bpm,
             duration = chart.duration,
         )
@@ -245,7 +245,7 @@ class ChartRepository(
             title = chart.track,
             artist = chart.artist,
             album = chart.album,
-            genre = chart.genre,
+            genres = chart.genres,
         )
 
         chart.isFeatured?.let { featured ->

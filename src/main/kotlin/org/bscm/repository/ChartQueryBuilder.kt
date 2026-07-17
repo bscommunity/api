@@ -75,7 +75,11 @@ class ChartQueryBuilder {
         }
 
         filters?.genres?.takeIf { it.isNotEmpty() }?.let { genres ->
-            query.andWhere { TrackTable.genre inList genres }
+            query.andWhere {
+                genres.map { genre ->
+                    stringParam(genre.name) eq anyFrom(TrackTable.genres)
+                }.fold(Op.FALSE as Op<Boolean>) { acc, next -> acc.or(next) }
+            }
         }
 
         filters?.isDeluxe?.let { deluxe ->

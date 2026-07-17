@@ -18,7 +18,7 @@ data class Track(
     val artist: String,
     val album: String?,
     val isrc: String?,
-    val genre: Genre? = null,
+    val genres: List<Genre> = emptyList(),
     val bpm: Int? = null,
     val duration: Float,
     val streamingRefs: List<StreamingRef> = emptyList(),

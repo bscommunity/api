@@ -11,7 +11,7 @@ data class TrackInfoResult(
     val album: String?,
     val track: String,
     val artist: String,
-    val genre: Genre?,
+    val genres: List<Genre> = emptyList(),
     val link: StreamingRef,
     val previewProvider: PreviewProvider?,
     val previewProviderTrackId: String?,

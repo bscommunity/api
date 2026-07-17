@@ -144,7 +144,7 @@ private suspend fun generateRandomCharts(
                             difficulty = difficulties.random(),
                             isDeluxe = Random.nextBoolean(),
                             isExplicit = Random.nextBoolean(),
-                            genre = Genre.entries.toTypedArray().random(),
+                            genres = listOf(Genre.entries.random()),
                             bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
                             previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
                             fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),

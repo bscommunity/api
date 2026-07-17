@@ -34,7 +34,7 @@ class TrackRepository(
         artist: String,
         album: String?,
         isrc: String?,
-        genre: Genre?,
+        genres: List<Genre>,
         bpm: Int?,
         duration: Float,
     ): TrackEntity {
@@ -59,7 +59,7 @@ class TrackRepository(
             this.artist = artist
             this.album = album
             this.isrc = isrc
-            this.genre = genre
+            this.genres = genres
             this.bpm = bpm
             this.duration = duration
             this.normalizedTitle = normTitle
@@ -103,7 +103,7 @@ class TrackRepository(
         title: String?,
         artist: String?,
         album: String?,
-        genre: Genre?,
+        genres: List<Genre>?,
     ) {
         title?.let {
             track.title = it
@@ -117,7 +117,7 @@ class TrackRepository(
             track.album = it
             track.normalizedAlbum = QueryUtils.getNormalizedQuery(it)
         }
-        genre?.let { track.genre = it }
+        genres?.let { track.genres = it }
     }
 
     fun toTrack(entity: TrackEntity, streamingRefs: List<StreamingRef>): Track = Track(
@@ -126,7 +126,7 @@ class TrackRepository(
         artist = entity.artist,
         album = entity.album,
         isrc = entity.isrc,
-        genre = entity.genre,
+        genres = entity.genres.orEmpty(),
         bpm = entity.bpm,
         duration = entity.duration,
         streamingRefs = streamingRefs,

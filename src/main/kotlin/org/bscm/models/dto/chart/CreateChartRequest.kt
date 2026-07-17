@@ -14,7 +14,7 @@ data class CreateChartRequest (
     val previewUrl: String? = null,
     val trackPreviewUrl: String? = null,
     val coverUrl: String,
-    val genre: Genre? = null,
+    val genres: List<Genre> = emptyList(),
     val isExplicit: Boolean,
 
     // Server-side properties

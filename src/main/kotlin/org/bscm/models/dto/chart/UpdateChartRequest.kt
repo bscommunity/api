@@ -12,7 +12,7 @@ data class UpdateChartRequest (
     val album: String? = null,
     val coverUrl: String? = null,
     val difficulty: Difficulty? = null,
-    val genre: Genre? = null,
+    val genres: List<Genre>? = null,
     val isDeluxe: Boolean? = null,
     val isExplicit: Boolean? = null,
     val isFeatured: Boolean? = null,

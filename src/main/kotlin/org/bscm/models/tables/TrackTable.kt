@@ -1,6 +1,7 @@
 package org.bscm.models.tables
 
 import org.bscm.models.enums.Genre
+import org.jetbrains.exposed.v1.core.EnumerationNameColumnType
 import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
 
 object TrackTable : UUIDTable("tracks") {
@@ -8,7 +9,7 @@ object TrackTable : UUIDTable("tracks") {
     val artist = varchar("artist", 100)
     val album = varchar("album", 200).nullable()
     val isrc = varchar("isrc", 15).nullable()
-    val genre = enumerationByName("genres", 20, Genre::class).nullable()
+    val genres = array<Genre>("genres", EnumerationNameColumnType(Genre::class, 255), 255).nullable()
     val bpm = integer("bpm").nullable()
     val duration = float("duration")
 
