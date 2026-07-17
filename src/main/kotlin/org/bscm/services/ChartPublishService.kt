@@ -1,5 +1,8 @@
 package org.bscm.services
 
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
 import io.ktor.server.plugins.*
 import io.ktor.util.logging.*
 import org.bscm.models.Chart
@@ -16,6 +19,7 @@ import org.bscm.models.interfaces.IChartRepository
 import org.bscm.plugins.ConflictException
 import org.bscm.protobuf.ChartParser
 import org.bscm.services.track.TrackInfoService
+import org.bscm.services.track.clients.applicationHttpClient
 import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
 import org.bscm.utils.MediaConverter
@@ -38,7 +42,7 @@ class ChartPublishService(
     enum class CoverSource { BUNDLE, MEDIA_INFO }
 
     companion object {
-        private val COVER_SOURCE = CoverSource.BUNDLE
+        private val COVER_SOURCE = CoverSource.MEDIA_INFO
     }
 
     data class Overrides(
@@ -115,8 +119,8 @@ class ChartPublishService(
         // 1. Extract info.json metadata
         val bundleInfo = DecodingUtils.extractBundleInfo(bundleBytes)
 
-        // 2. Extract cover image from bundle (will be uploaded to storage after track creation)
-        val coverBytes = DecodingUtils.extractCoverImage(bundleBytes)
+        // 2. Extract cover image from bundle (may be overridden by COVER_SOURCE after media info)
+        val bundleCoverBytes = DecodingUtils.extractCoverImage(bundleBytes)
 
         emitEvent(PublishStep.PARSING_CHART)
 
@@ -145,7 +149,29 @@ class ChartPublishService(
             null
         }
 
-        val coverUrl = overrides.coverUrl ?: mediaInfo?.coverUrl ?: ""
+        val coverUrl = overrides.coverUrl ?: when (COVER_SOURCE) {
+            CoverSource.BUNDLE -> ""
+            CoverSource.MEDIA_INFO -> mediaInfo?.coverUrl ?: ""
+        }
+
+        // Resolve cover bytes based on COVER_SOURCE
+        val coverBytes = when (COVER_SOURCE) {
+            CoverSource.BUNDLE -> bundleCoverBytes
+            CoverSource.MEDIA_INFO -> {
+                val mediaCoverUrl = overrides.coverUrl ?: mediaInfo?.coverUrl
+                if (mediaCoverUrl.isNullOrBlank()) {
+                    bundleCoverBytes
+                } else {
+                    try {
+                        val imgResponse: HttpResponse = applicationHttpClient.get(mediaCoverUrl)
+                        if (imgResponse.status.isSuccess()) imgResponse.readBytes() else bundleCoverBytes
+                    } catch (e: Exception) {
+                        log.warn("Failed to download media cover, falling back to bundle: ${e.message}")
+                        bundleCoverBytes
+                    }
+                }
+            }
+        }
 
         // Track streaming links resolution
         val streamingResult = overrides.trackUrls?.let { TrackInfoService.StreamingLinksResult(it) } ?: run {
