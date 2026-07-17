@@ -107,7 +107,7 @@ Schema changes are managed by the **Exposed Gradle Plugin**, which generates Fly
 - If `POSTGRES_URL`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` environment variables are set, the plugin connects directly to that database to compute the diff.
 - Otherwise, it falls back to **Testcontainers**, which starts a temporary PostgreSQL container (requires [Docker](https://docker.com/)).
 
-> The first run creates `V0__initialize_schema.sql`. All subsequent schema edits produce incremental migration files.
+> The first run creates `V0__initial_schema.sql`. All subsequent schema edits produce incremental migration files.
 
 ## 🤝 Contributing
 

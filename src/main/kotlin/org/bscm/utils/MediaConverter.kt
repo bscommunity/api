@@ -26,7 +26,7 @@ object MediaConverter {
                 "-t", previewDurationSeconds.toString(),
                 "-vn",
                 "-c:a", "libopus",
-                "-b:a", "48k",
+                "-b:a", "24k",
                 "-vbr", "on",
                 "-compression_level", "10",
                 "-frame_duration", "60",
