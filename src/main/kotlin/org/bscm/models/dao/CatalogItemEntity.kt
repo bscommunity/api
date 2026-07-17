@@ -38,6 +38,8 @@ class CatalogItemEntity(
     var publishedAt by CatalogItemTable.publishedAt
     var updatedAt by CatalogItemTable.updatedAt
 
+    var bundleHash by CatalogItemTable.bundleHash
+
     var author by UserEntity optionalReferencedOn CatalogItemTable.authorId
 
     /*

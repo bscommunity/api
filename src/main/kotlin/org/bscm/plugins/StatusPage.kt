@@ -20,6 +20,7 @@ data class ErrorResponse(
 )
 
 class UnauthorizedException(message: String) : Exception(message)
+class ConflictException(message: String) : Exception(message)
 
 fun Application.configureStatusPages() {
     val logger: org.slf4j.Logger = LoggerFactory.getLogger("StatusPages")
@@ -47,6 +48,12 @@ fun Application.configureStatusPages() {
                 is BadRequestException -> HttpStatusCode.BadRequest to ErrorResponse(
                     message = cause.message ?: "Invalid request",
                     code = "BAD_REQUEST",
+                    path = call.request.path()
+                )
+
+                is ConflictException -> HttpStatusCode.Conflict to ErrorResponse(
+                    message = cause.message ?: "Resource conflict",
+                    code = "CONFLICT",
                     path = call.request.path()
                 )
 

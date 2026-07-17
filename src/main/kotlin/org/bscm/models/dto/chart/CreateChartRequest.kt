@@ -30,5 +30,6 @@ data class CreateChartRequest (
     val isDeluxe: Boolean,
     val bundleUrl: String,
     val fileSizeBytes: Long = 0,
+    val bundleHash: String? = null,
     val isrc: String? = null,
 )

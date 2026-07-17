@@ -124,7 +124,7 @@ class EntityCacheFlushTest {
             val track = TrackEntity.new {
                 title = "My Song"
                 artist = "My Artist"
-                genre = Genre.ROCK
+                genres = listOf(Genre.ROCK)
                 bpm = 120
                 duration = 210f
                 normalizedTitle = "my song"

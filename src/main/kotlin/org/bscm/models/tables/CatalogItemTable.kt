@@ -44,6 +44,8 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
     val publishedAt = datetime("published_at").nullable()
     val updatedAt = datetime("updated_at").nullable()
 
+    val bundleHash = varchar("bundle_hash", 64).nullable()
+
     val authorId = reference("author_id", UserTable, ReferenceOption.SET_NULL).nullable()
 
     override val primaryKey = PrimaryKey(id)
@@ -52,5 +54,6 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
         index(false, type)
         index(false, status)
         index(false, authorId)
+        uniqueIndex(bundleHash)
     }
 }

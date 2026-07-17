@@ -26,6 +26,7 @@ interface IChartRepository {
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: String, addons: ChartAddons? = null, requestingUserId: UUID? = null): Chart?
     suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart
+    suspend fun findChartByBundleHash(hash: String): Chart?
     suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version
     suspend fun updateChart(id: String, chart: UpdateChartRequest, requestingUserId: UUID? = null): Chart
     suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String)

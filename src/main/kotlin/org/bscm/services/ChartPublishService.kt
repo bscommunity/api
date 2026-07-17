@@ -13,12 +13,14 @@ import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
+import org.bscm.plugins.ConflictException
 import org.bscm.protobuf.ChartParser
 import org.bscm.services.track.TrackInfoService
 import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
 import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils
+import java.security.MessageDigest
 import java.util.*
 
 private val log = KtorSimpleLogger("ChartPublishService")
@@ -86,6 +88,16 @@ class ChartPublishService(
         }
 
         emitEvent(PublishStep.EXTRACTING_BUNDLE)
+
+        val bundleHash = MessageDigest.getInstance("SHA-256")
+            .digest(bundleBytes)
+            .joinToString("") { "%02x".format(it) }
+
+        chartRepository.findChartByBundleHash(bundleHash)?.let { existing ->
+            throw ConflictException(
+                "A chart with this bundle already exists (id: ${existing.id})",
+            )
+        }
 
         val contentId = NanoIdUtils.generateOptimized(
             10,
@@ -171,6 +183,7 @@ class ChartPublishService(
             isDeluxe = isDeluxe,
             bundleUrl = "",
             fileSizeBytes = bundleBytes.size.toLong(),
+            bundleHash = bundleHash,
             previewUrl = overrides.previewUrl,
             contentId = contentId,
             isrc = resolvedIsrc,

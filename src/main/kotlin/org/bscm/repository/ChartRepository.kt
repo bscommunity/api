@@ -195,6 +195,10 @@ class ChartRepository(
             contentId = chart.contentId,
         )
 
+        chart.bundleHash?.let { hash ->
+            catalogItem.bundleHash = hash
+        }
+
         val track = trackRepository.findOrCreate(
             title = chart.track,
             artist = chart.artist,
@@ -225,6 +229,17 @@ class ChartRepository(
         val query = ChartTable.selectAll().where { ChartTable.id eq newChart.id.value }
         getChart(query, ChartAddons(streamingLinks = true), requestingUserId = userId)
             ?: throw IllegalStateException("Failed to load chart after creation")
+    }
+
+    override suspend fun findChartByBundleHash(hash: String): Chart? = suspendTransaction {
+        val catalogItem = CatalogItemEntity.find { CatalogItemTable.bundleHash eq hash }.firstOrNull()
+            ?: return@suspendTransaction null
+
+        getChart(
+            query = ChartTable.selectAll().where { ChartTable.id eq catalogItem.id.value },
+            addons = ChartAddons(streamingLinks = false),
+            requestingUserId = null,
+        )
     }
 
     override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version = suspendTransaction {
