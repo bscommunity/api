@@ -93,13 +93,12 @@ object MediaConverter {
                 "-hide_banner",
                 "-loglevel", "error",
                 "-i", tmpIn.toAbsolutePath().toString(),
-                "-c:v", "libaom-av1",
+                "-c:v", "libsvtav1",
+                "-preset", "6",
                 "-crf", "40",
                 "-b:v", "0",
-                "-strict", "experimental",
                 "-pix_fmt", "yuv420p",
-                "-still-picture", "1",
-                "-row-mt", "1",
+                "-svtav1-params", "tune=0",
                 tmpOut.toAbsolutePath().toString()
             ).start()
 
