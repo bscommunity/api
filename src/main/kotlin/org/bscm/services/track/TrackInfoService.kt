@@ -65,7 +65,10 @@ class TrackInfoService(
                     album = match.collectionName,
                     track = match.trackName,
                     artist = match.artistName,
-                    genres = listOfNotNull(GenresUtils.normalizeGenre(match.primaryGenreName)),
+                    genres = (match.genreNames.takeIf { it.isNotEmpty() }
+                        ?: listOf(match.primaryGenreName))
+                        .mapNotNull { GenresUtils.normalizeGenre(it) }
+                        .distinct(),
                     link = StreamingRef(StreamingPlatform.APPLE_MUSIC, match.trackViewUrl),
                     previewProvider = PreviewProvider.ITUNES,
                     previewProviderTrackId = match.trackId.toString(),
@@ -96,7 +99,10 @@ class TrackInfoService(
         // 3. Last.fm (metadata fallback)
         lastFm.getTrackInfo(ctx.track, ctx.artist)
             ?.let { lf ->
-                    val genre = lf.toptags?.tag?.firstNotNullOfOrNull { GenresUtils.normalizeGenre(it.name) }
+                val genres = lf.toptags?.tag
+                    ?.mapNotNull { GenresUtils.normalizeGenre(it.name) }
+                    ?.distinct()
+                    .orEmpty()
 
                 logger.debug { "LastFM found for '$track' by '$artist': ${lf.name} by ${lf.artist.name}" }
                 return TrackInfoResult(
@@ -104,7 +110,7 @@ class TrackInfoService(
                     album = lf.album?.title,
                     track = lf.name,
                     artist = lf.artist.name,
-                    genres = listOfNotNull(genre),
+                    genres = genres,
                     link = StreamingRef(StreamingPlatform.LAST_FM, lf.url),
                     previewProvider = null,
                     previewProviderTrackId = null,
