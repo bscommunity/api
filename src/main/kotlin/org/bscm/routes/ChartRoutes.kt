@@ -400,7 +400,7 @@ fun Route.chartRoutes(
         // JWT-only routes (dashboard: create, update, delete)
         // -----------------------------------------------------------------
         authenticate("auth-bearer") {
-            sse("/charts/publish/events") {
+            sse("/publish/events") {
                 val sessionId = call.request.queryParameters["sessionId"]
                     ?: throw BadRequestException("Missing sessionId parameter")
 

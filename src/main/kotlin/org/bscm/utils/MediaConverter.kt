@@ -25,7 +25,7 @@ object MediaConverter {
                 "-i", tmpIn.toAbsolutePath().toString(),
                 "-vn",
                 "-c:a", "libopus",
-                "-b:a", "64k",
+                "-b:a", "48k",
                 "-vbr", "on",
                 "-compression_level", "10",
                 "-frame_duration", "60",

@@ -20,5 +20,6 @@ fun Application.configureHTTP() {
         allowHeader(HttpHeaders.AccessControlAllowOrigin)
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
+        allowHeader("X-Publish-Session-Id")
     }
 }
