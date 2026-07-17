@@ -30,7 +30,8 @@ class ChartPublishService(
     private val storageService: StorageService,
     private val trackInfoService: TrackInfoService,
     private val audioPreviewService: AudioPreviewService,
-    private val activityRepository: IActivityRepository
+    private val activityRepository: IActivityRepository,
+    private val publishEventService: PublishEventService
 ) {
     data class Overrides(
         val track: String? = null,
@@ -77,7 +78,15 @@ class ChartPublishService(
     }
 
 
-    suspend fun publish(user: User, bundleBytes: ByteArray, overrides: Overrides = Overrides()): Result {
+    suspend fun publish(user: User, bundleBytes: ByteArray, overrides: Overrides = Overrides(), publishSessionId: String? = null): Result {
+        fun emitEvent(step: PublishStep) {
+            if (publishSessionId != null) {
+                publishEventService.emit(publishSessionId, step)
+            }
+        }
+
+        emitEvent(PublishStep.EXTRACTING_BUNDLE)
+
         val contentId = NanoIdUtils.generateOptimized(
             10,
             "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -90,6 +99,8 @@ class ChartPublishService(
 
         // 2. Extract cover image from bundle (will be uploaded to storage after track creation)
         val coverBytes = DecodingUtils.extractCoverImage(bundleBytes)
+
+        emitEvent(PublishStep.PARSING_CHART)
 
         // 3. Extract chart.bytes and parse
         val chartBytes = DecodingUtils.extractChartFileFromBundle(bundleBytes)
@@ -107,6 +118,8 @@ class ChartPublishService(
         // 4. Resolve metadata with override precedence
         val trackName = overrides.track ?: bundleInfo?.title ?: "Unknown"
         val artistName = overrides.artist ?: bundleInfo?.artist ?: "Unknown"
+
+        emitEvent(PublishStep.FETCHING_MEDIA_INFO)
 
         // 5. Track info enrichment
         val mediaInfo = try { trackInfoService.getTrackInfo(trackName, artistName) } catch (e: Exception) {
@@ -139,6 +152,8 @@ class ChartPublishService(
         val isDeluxe = overrides.isDeluxe ?: (bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false)
         val isExplicit = overrides.isExplicit ?: mediaInfo?.isExplicit ?: false
 
+        emitEvent(PublishStep.CREATING_CHART)
+
         // 6. Create DB entities first (without version)
         val createForDb = CreateChartRequest(
             artist = mediaInfo?.artist ?: artistName,
@@ -165,6 +180,8 @@ class ChartPublishService(
 
         log.info("Created chart ${createdChart.id}")
 
+        emitEvent(PublishStep.PREPARING_BUNDLE)
+
         // 7. Inject bscm.json into the bundle (basic display data + cover art)
         val coverCdnUrl = storageService.trackCoverUrl(createdChart.track.id)
         val bscmMetadata = DecodingUtils.BscmMetadata(
@@ -189,6 +206,8 @@ class ChartPublishService(
         )
         val enrichedBundleBytes = DecodingUtils.injectBscmMetadata(bundleBytes, bscmMetadata)
 
+        emitEvent(PublishStep.UPLOADING_TO_DISCORD)
+
         // 9. Upload enriched bundle to Discord (single call)
         val discordResponse = uploadService.uploadChart(createForDb, user, enrichedBundleBytes)
         val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
@@ -200,6 +219,8 @@ class ChartPublishService(
             channelId = discordResponse.channelId,
             messageId = discordResponse.id,
         )
+
+        emitEvent(PublishStep.FINALIZING_VERSION)
 
         // 10. Finalize: add version with Discord bundle URL
         val version = chartRepository.addVersion(
@@ -226,6 +247,8 @@ class ChartPublishService(
             versionsCount = createdChart.versionsCount + 1,
         )
 
+        emitEvent(PublishStep.UPLOADING_COVER)
+
         // 11. Convert and upload cover image to storage
         if (coverBytes != null) {
             try {
@@ -235,6 +258,8 @@ class ChartPublishService(
                 log.warn("Failed to upload track cover to storage: ${e.message}")
             }
         }
+
+        emitEvent(PublishStep.GENERATING_PREVIEW)
 
         // 12. Download, convert, and upload audio preview to storage
         if (mediaInfo != null) {
@@ -255,11 +280,15 @@ class ChartPublishService(
             versionAttachmentId = bundleAttachment.id,
         )
 
+        emitEvent(PublishStep.LOGGING_ACTIVITY)
+
         activityRepository.logActivity(
             userId = user.id,
             type = ActivityType.CREATED_CHART,
             targetId = createdChart.id
         )
+
+        emitEvent(PublishStep.COMPLETED)
 
         return result
     }

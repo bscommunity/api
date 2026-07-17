@@ -118,6 +118,7 @@ fun Application.configureRouting() {
         val chartPublishService by inject<ChartPublishService>()
         val tourPassPublishService by inject<TourPassPublishService>()
         val themePublishService by inject<ThemePublishService>()
+        val publishEventService by inject<PublishEventService>()
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
         userRoutes(userRepository, profileService, collectionService, activityRepository)
@@ -130,6 +131,7 @@ fun Application.configureRouting() {
             uploadService,
             chartPublishService,
             bundleDownloadService,
+            publishEventService,
         )
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
         contributorRoutes(contributorRepository)

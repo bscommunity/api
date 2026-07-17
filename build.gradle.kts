@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.ktor.server.openapi)
     implementation(libs.ktor.server.swagger)
     implementation(libs.ktor.server.routing.openapi)
+    implementation(libs.ktor.server.sse)
 
     testImplementation(libs.ktor.server.test.host.jvm)
     testImplementation(libs.kotlin.test.junit)

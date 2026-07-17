@@ -1,6 +1,7 @@
 package org.bscm
 
 import io.ktor.server.application.*
+import io.ktor.server.sse.*
 import org.bscm.plugins.*
 import org.bscm.utils.CommandUtils.registerDiscordCommands
 
@@ -25,6 +26,7 @@ fun Application.module() {
     configureSerialization()
     configureHTTP()
     configureStatusPages()
+    install(SSE)
     if (hasAll("jwt.secret", "hmac.secret", "refresh.secret")) {
         configureSecurity(cfg)
     } else {

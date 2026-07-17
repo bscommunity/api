@@ -167,13 +167,17 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
     single {
+        PublishEventService()
+    }
+    single {
         ChartPublishService(
             chartRepository = get(),
             uploadService = get(),
             storageService = get(),
             trackInfoService = get(),
             audioPreviewService = get(),
-            activityRepository = get()
+            activityRepository = get(),
+            publishEventService = get()
         )
     }
     single {

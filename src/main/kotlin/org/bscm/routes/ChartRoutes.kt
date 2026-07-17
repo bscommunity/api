@@ -10,6 +10,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
+import io.ktor.server.sse.*
 import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import org.bscm.models.dto.chart.BundleDownloadResponse
@@ -25,6 +26,7 @@ import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
 import org.bscm.services.BundleDownloadService
 import org.bscm.services.ChartPublishService
+import org.bscm.services.PublishEventService
 import org.bscm.services.UploadService
 import org.bscm.services.track.clients.jsonClient
 import org.bscm.utils.getUserIdOrNull
@@ -40,6 +42,7 @@ fun Route.chartRoutes(
     uploadService: UploadService,
     publishService: ChartPublishService,
     bundleDownloadService: BundleDownloadService,
+    publishEventService: PublishEventService,
 ) {
 
     route("/charts") {
@@ -397,6 +400,23 @@ fun Route.chartRoutes(
         // JWT-only routes (dashboard: create, update, delete)
         // -----------------------------------------------------------------
         authenticate("auth-bearer") {
+            sse("/charts/publish/events") {
+                val sessionId = call.request.queryParameters["sessionId"]
+                    ?: throw BadRequestException("Missing sessionId parameter")
+
+                try {
+                    publishEventService.events(sessionId).collect { event ->
+                        send(
+                            data = event.message,
+                            event = event.step,
+                            id = event.timestamp.toString(),
+                        )
+                    }
+                } finally {
+                    publishEventService.cleanup(sessionId)
+                }
+            }
+
             rateLimit(RateLimitName("restricted")) {
                 post {
                     val userId = call.principal<JWTPrincipal>()
@@ -433,13 +453,16 @@ fun Route.chartRoutes(
                     // Bug fix: was a bare catch(e: Exception) that called println() and
                     // responded with e.message — leaking internal details to the client.
                     // Let the StatusPages plugin handle unexpected exceptions uniformly.
+                    val publishSessionId = call.request.headers["X-Publish-Session-Id"]
+
                     val result = publishService.publish(
                         user = user,
                         bundleBytes = bundleFileBytes,
                         overrides = ChartPublishService.Overrides(
                             isExplicit = overrides?.isExplicit,
                             previewUrl = overrides?.previewUrl,
-                        )
+                        ),
+                        publishSessionId = publishSessionId,
                     )
 
                     logger.info("Chart ${result.chart.id} published by user $userId")
