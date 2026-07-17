@@ -29,7 +29,7 @@ class TrackRepository(
     // Callers that build raw DSL queries after calling these methods must flush the
     // EntityCache first (see DbUtils.flushEntityCache) to ensure the buffered writes
     // are visible to the subsequent read.
-    suspend fun findOrCreate(
+    fun findOrCreate(
         title: String,
         artist: String,
         album: String?,

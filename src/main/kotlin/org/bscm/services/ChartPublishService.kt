@@ -35,6 +35,12 @@ class ChartPublishService(
     private val activityRepository: IActivityRepository,
     private val publishEventService: PublishEventService
 ) {
+    enum class CoverSource { BUNDLE, MEDIA_INFO }
+
+    companion object {
+        private val COVER_SOURCE = CoverSource.BUNDLE
+    }
+
     data class Overrides(
         val track: String? = null,
         val artist: String? = null,
@@ -221,8 +227,8 @@ class ChartPublishService(
 
         emitEvent(PublishStep.UPLOADING_TO_DISCORD)
 
-        // 9. Upload enriched bundle to Discord (single call)
-        val discordResponse = uploadService.uploadChart(createForDb, user, enrichedBundleBytes)
+        // 10. Upload enriched bundle to Discord (single call)
+        val discordResponse = uploadService.uploadChart(createForDb, user, enrichedBundleBytes, coverBytes)
         val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
             ?: throw IllegalStateException("Discord response missing bundle attachment")
 

@@ -25,6 +25,12 @@ data class SimpleAttachment(
 ) : BaseAttachment()
 
 @Serializable
+data class PresetAttachment(
+    val id: String,
+    val filename: String,
+) : BaseAttachment()
+
+@Serializable
 data class WebhookPayload(
     val username: String = "bscm",
     @SerialName("avatar_url") val avatarUrl: String? = null,

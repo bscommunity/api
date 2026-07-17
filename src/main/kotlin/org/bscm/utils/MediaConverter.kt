@@ -93,6 +93,7 @@ object MediaConverter {
                 "-hide_banner",
                 "-loglevel", "error",
                 "-i", tmpIn.toAbsolutePath().toString(),
+                "-vf", "scale=w='min(512,iw)':h='min(512,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
                 "-c:v", "libsvtav1",
                 "-preset", "6",
                 "-crf", "40",
