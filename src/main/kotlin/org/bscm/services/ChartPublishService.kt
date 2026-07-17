@@ -42,7 +42,7 @@ class ChartPublishService(
     enum class CoverSource { BUNDLE, MEDIA_INFO }
 
     companion object {
-        private val COVER_SOURCE = CoverSource.MEDIA_INFO
+        private val COVER_SOURCE = CoverSource.BUNDLE
     }
 
     data class Overrides(
@@ -122,7 +122,7 @@ class ChartPublishService(
         // 2. Extract cover image from bundle (may be overridden by COVER_SOURCE after media info)
         val bundleCoverBytes = DecodingUtils.extractCoverImage(bundleBytes)
 
-        emitEvent(PublishStep.PARSING_CHART)
+        // emitEvent(PublishStep.PARSING_CHART)
 
         // 3. Extract chart.bytes and parse
         val chartBytes = DecodingUtils.extractChartFileFromBundle(bundleBytes)
@@ -172,6 +172,8 @@ class ChartPublishService(
                 }
             }
         }
+
+        // log.info("Cover resolved: source=$COVER_SOURCE, coverBytes=${coverBytes?.size ?: 0} bytes, coverUrl=$coverUrl")
 
         // Track streaming links resolution
         val streamingResult = overrides.trackUrls?.let { TrackInfoService.StreamingLinksResult(it) } ?: run {
@@ -225,7 +227,7 @@ class ChartPublishService(
 
         log.info("Created chart ${createdChart.id}")
 
-        emitEvent(PublishStep.PREPARING_BUNDLE)
+        // emitEvent(PublishStep.PREPARING_BUNDLE)
 
         // 7. Inject bscm.json into the bundle (basic display data + cover art)
         val coverCdnUrl = storageService.trackCoverUrl(createdChart.track.id)
