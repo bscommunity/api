@@ -22,8 +22,8 @@ class ThemePublishService(
     data class Assets(
         val coverArtBytes: ByteArray?,
         val coverArtContentType: ContentType?,
-        val displayArtBytes: ByteArray?,
-        val displayArtContentType: ContentType?,
+        val skinBytes: ByteArray?,
+        val skinContentType: ContentType?,
     )
 
     suspend fun createAndPublish(
@@ -34,8 +34,8 @@ class ThemePublishService(
         if (assets.coverArtBytes == null && request.coverUrl.isNullOrBlank()) {
             throw BadRequestException("coverUrl or coverArt file is required")
         }
-        if (assets.displayArtBytes == null && request.displayArtUrl.isNullOrBlank()) {
-            throw BadRequestException("displayArtUrl or displayArt file is required")
+        if (assets.skinBytes == null && request.skinUrl.isNullOrBlank()) {
+            throw BadRequestException("skinUrl or skin file is required")
         }
 
         val contentId = NanoIdUtils.generateContentId()
@@ -43,12 +43,12 @@ class ThemePublishService(
         if (assets.coverArtBytes != null) {
             storageService.uploadThemeCover(contentId, assets.coverArtBytes)
         }
-        if (assets.displayArtBytes != null) {
-            storageService.uploadThemeDisplay(contentId, assets.displayArtBytes)
+        if (assets.skinBytes != null) {
+            storageService.uploadThemeSkin(contentId, assets.skinBytes)
         }
 
         val coverUrl = storageService.themeCoverUrl(contentId)
-        val displayArtUrl = storageService.themeDisplayUrl(contentId)
+        val skinUrl = storageService.themeSkinUrl(contentId)
 
         val discordResponse = uploadService.uploadTheme(
             UploadService.ThemePublishData(
@@ -61,7 +61,9 @@ class ThemePublishService(
                 replaces = request.replaces,
                 trailerUrl = request.previewUrl,
                 coverArtUrl = coverUrl,
-                displayArtUrl = displayArtUrl,
+                skinUrl = skinUrl,
+                coverBytes = assets.coverArtBytes,
+                skinBytes = assets.skinBytes,
             )
         )
 
@@ -113,8 +115,8 @@ class ThemePublishService(
         if (assets.coverArtBytes != null) {
             storageService.uploadThemeCover(id, assets.coverArtBytes)
         }
-        if (assets.displayArtBytes != null) {
-            storageService.uploadThemeDisplay(id, assets.displayArtBytes)
+        if (assets.skinBytes != null) {
+            storageService.uploadThemeSkin(id, assets.skinBytes)
         }
 
         return themeRepository.updateTheme(

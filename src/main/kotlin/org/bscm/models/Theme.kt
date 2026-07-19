@@ -18,7 +18,7 @@ import java.util.*
 data class Theme(
     val name: String,
     val replaces: String,
-    val displayArtUrl: String? = null,
+    val skinUrl: String? = null,
     val previewUrl: String? = null,
     val coverUrl: String? = null,
 

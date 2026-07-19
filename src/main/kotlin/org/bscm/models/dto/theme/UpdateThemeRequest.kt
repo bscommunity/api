@@ -8,6 +8,6 @@ data class UpdateThemeRequest(
     val description: String? = null,
     val replaces: String? = null,
     val coverUrl: String? = null,
-    val displayArtUrl: String? = null,
+    val skinUrl: String? = null,
     val previewUrl: String? = null
 )
