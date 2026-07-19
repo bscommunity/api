@@ -10,6 +10,7 @@ import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.storage.StorageService
+import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils
 import java.util.*
 
@@ -41,10 +42,12 @@ class ThemePublishService(
         val contentId = NanoIdUtils.generateContentId()
 
         if (assets.coverArtBytes != null) {
-            storageService.uploadThemeCover(contentId, assets.coverArtBytes)
+            val avifBytes = MediaConverter.convertToAvif(assets.coverArtBytes) ?: assets.coverArtBytes
+            storageService.uploadThemeCover(contentId, avifBytes)
         }
         if (assets.displayArtBytes != null) {
-            storageService.uploadThemeDisplay(contentId, assets.displayArtBytes)
+            val avifBytes = MediaConverter.convertToAvif(assets.displayArtBytes) ?: assets.displayArtBytes
+            storageService.uploadThemeDisplay(contentId, avifBytes)
         }
 
         val coverUrl = storageService.themeCoverUrl(contentId)
@@ -98,6 +101,9 @@ class ThemePublishService(
             targetId = theme.id
         )
 
+        // Best effort cleanup - DB state is source of truth.
+        runCatching { storageService.deleteThemeCover(id) }
+        runCatching { storageService.deleteThemeDisplay(id) }
         theme.discordMessageId?.let { messageId ->
             runCatching { uploadService.deleteMessage(messageId) }
         }
@@ -111,10 +117,12 @@ class ThemePublishService(
         assets: Assets,
     ): Theme {
         if (assets.coverArtBytes != null) {
-            storageService.uploadThemeCover(id, assets.coverArtBytes)
+            val avifBytes = MediaConverter.convertToAvif(assets.coverArtBytes) ?: assets.coverArtBytes
+            storageService.uploadThemeCover(id, avifBytes)
         }
         if (assets.displayArtBytes != null) {
-            storageService.uploadThemeDisplay(id, assets.displayArtBytes)
+            val avifBytes = MediaConverter.convertToAvif(assets.displayArtBytes) ?: assets.displayArtBytes
+            storageService.uploadThemeDisplay(id, avifBytes)
         }
 
         return themeRepository.updateTheme(

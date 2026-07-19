@@ -13,6 +13,7 @@ import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.repository.ChartRepository
 import org.bscm.storage.StorageService
+import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils
 import org.bscm.utils.StreamingPlatformUtils
 import java.util.*
@@ -71,7 +72,8 @@ class TourPassPublishService(
 
         // Upload cover to storage if raw bytes were provided
         if (coverBytes != null) {
-            storageService.uploadTourPassCover(contentId, coverBytes)
+            val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
+            storageService.uploadTourPassCover(contentId, avifBytes)
         }
 
         val difficultyLabel = if (charts.isNotEmpty()) {
@@ -156,6 +158,7 @@ class TourPassPublishService(
         )
 
         // Best effort cleanup - DB state is source of truth.
+        runCatching { storageService.deleteTourPassCover(id) }
         tourPass.discordMessageId?.let { messageId ->
             runCatching { uploadService.deleteMessage(messageId) }
         }
@@ -170,7 +173,8 @@ class TourPassPublishService(
         coverContentType: ContentType?,
     ): TourPass {
         if (coverBytes != null) {
-            storageService.uploadTourPassCover(id, coverBytes)
+            val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
+            storageService.uploadTourPassCover(id, avifBytes)
         }
 
         val normalizedPlaylistUrls = request.playlistUrls

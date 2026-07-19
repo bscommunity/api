@@ -16,6 +16,7 @@ import org.bscm.models.interfaces.ICollectionRepository
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.*
+import org.bscm.storage.StorageService
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
@@ -28,6 +29,7 @@ class CollectionRepository(
     private val themeRepository: IThemeRepository,
     private val tourPassRepository: ITourPassRepository,
     private val trackRepository: TrackRepository,
+    private val storageService: StorageService,
 ) : ICollectionRepository {
 
     override suspend fun getContentType(contentId: String): CatalogItemType? = suspendTransaction {
@@ -192,14 +194,14 @@ class CollectionRepository(
         byType[CatalogItemType.THEME]?.forEach { row ->
             val contentId = row[CollectionItemTable.contentId].value
             val colId = contentToCollection[contentId] ?: return@forEach
-            result[colId] = null
+            result[colId] = storageService.themeCoverUrl(contentId)
         }
 
         // Step 3c — bulk-fetch TourPass cover URLs
         byType[CatalogItemType.TOUR_PASS]?.forEach { row ->
             val contentId = row[CollectionItemTable.contentId].value
             val colId = contentToCollection[contentId] ?: return@forEach
-            result[colId] = null
+            result[colId] = storageService.tourPassCoverUrl(contentId)
         }
 
         return result

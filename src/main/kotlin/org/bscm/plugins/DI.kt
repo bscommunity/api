@@ -110,7 +110,7 @@ fun mainModule(config: ApplicationConfig) = module {
     single<IChartRepository> { ChartRepository(get(), get(), get(), get()) }
     single<IContributorRepository> { ContributorRepository() }
     single<IVersionRepository> { VersionRepository() }
-    single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get()) }
+    single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get(), get()) }
     single<IActivityRepository> { ActivityRepository() }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
     single<ITourPassRepository> { TourPassRepository(get(), get(), get()) }
