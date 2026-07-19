@@ -4,10 +4,7 @@ import io.ktor.server.plugins.*
 import io.ktor.util.logging.*
 import org.bscm.models.Chart
 import org.bscm.models.Version
-import org.bscm.models.dao.CatalogItemEntity
-import org.bscm.models.dao.ChartEntity
-import org.bscm.models.dao.ContributorEntity
-import org.bscm.models.dao.UserEntity
+import org.bscm.models.dao.*
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
@@ -34,6 +31,7 @@ class ChartRepository(
     private val trackRepository: TrackRepository,
     private val catalogItemRepository: CatalogItemRepository,
     private val versionRepository: IVersionRepository,
+    private val albumRepository: AlbumRepository,
 ) : IChartRepository {
 
     private val queryBuilder = ChartQueryBuilder()
@@ -199,10 +197,12 @@ class ChartRepository(
             catalogItem.bundleHash = hash
         }
 
+        val album = chart.albumId?.let { AlbumEntity.findById(it) }
+
         val track = trackRepository.findOrCreate(
             title = chart.track,
             artist = chart.artist,
-            album = chart.album,
+            album = album,
             isrc = chart.isrc,
             genres = chart.genres,
             bpm = chart.bpm,
@@ -259,7 +259,7 @@ class ChartRepository(
             track = existingChart.track,
             title = chart.track,
             artist = chart.artist,
-            album = chart.album,
+            album = chart.album?.let { albumRepository.findOrCreate(it, null) },
             genres = chart.genres,
         )
 

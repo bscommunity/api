@@ -181,6 +181,7 @@ class UserRepository(
         val contentQuery = CatalogItemTable
             .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
             .innerJoin(TrackTable, { ChartTable.trackId }, { TrackTable.id })
+            .leftJoin(AlbumTable, { TrackTable.albumId }, { AlbumTable.id })
             .select(CatalogItemTable.id, CatalogItemTable.type)
             .where { CatalogItemTable.authorId eq userId }
 
@@ -189,7 +190,7 @@ class UserRepository(
             contentQuery.andWhere {
                 (TrackTable.artist like "%$searchQuery%") or
                 (TrackTable.title like "%$searchQuery%") or
-                (TrackTable.album like "%$searchQuery%")
+                (AlbumTable.name like "%$searchQuery%")
             }
         }
 

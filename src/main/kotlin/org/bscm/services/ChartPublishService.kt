@@ -8,6 +8,7 @@ import io.ktor.util.logging.*
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.User
+import org.bscm.models.dao.AlbumEntity
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.dto.version.SimplifiedVersion
@@ -18,6 +19,7 @@ import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.plugins.ConflictException
 import org.bscm.protobuf.ChartParser
+import org.bscm.repository.AlbumRepository
 import org.bscm.services.track.TrackInfoService
 import org.bscm.services.track.clients.applicationHttpClient
 import org.bscm.storage.StorageService
@@ -37,7 +39,8 @@ class ChartPublishService(
     private val trackInfoService: TrackInfoService,
     private val audioPreviewService: AudioPreviewService,
     private val activityRepository: IActivityRepository,
-    private val publishEventService: PublishEventService
+    private val publishEventService: PublishEventService,
+    private val albumRepository: AlbumRepository,
 ) {
     enum class CoverSource { BUNDLE, MEDIA_INFO }
 
@@ -78,7 +81,6 @@ class ChartPublishService(
             throw SecurityException("You are not the author of this chart")
         }
 
-        storageService.deleteTrackCover(chart.track.id)
         storageService.deleteTrackPreview(chart.track.id)
 
         chartRepository.deleteChart(chartId)
@@ -170,6 +172,13 @@ class ChartPublishService(
 
         // log.info("Cover resolved: source=$COVER_SOURCE, coverBytes=${coverBytes?.size ?: 0} bytes, coverUrl=$coverUrl")
 
+        // 5b. Resolve album entity
+        val albumName = overrides.album ?: mediaInfo?.album
+        val albumEntity: AlbumEntity? = albumName?.let { name ->
+            val resolvedCoverUrl = coverUrl.ifBlank { null }
+            albumRepository.findOrCreate(name, resolvedCoverUrl)
+        }
+
         // Track streaming links resolution
         val streamingResult = overrides.trackUrls?.let { TrackInfoService.StreamingLinksResult(it) } ?: run {
             try {
@@ -199,7 +208,8 @@ class ChartPublishService(
         val createForDb = CreateChartRequest(
             artist = mediaInfo?.artist ?: artistName,
             track = mediaInfo?.track ?: trackName,
-            album = overrides.album ?: mediaInfo?.album,
+            album = albumName,
+            albumId = albumEntity?.id?.value,
             trackUrls = streamingLinks,
             coverUrl = coverUrl,
             genres = (overrides.genres ?: mediaInfo?.genres).orEmpty(),
@@ -225,7 +235,7 @@ class ChartPublishService(
         // emitEvent(PublishStep.PREPARING_BUNDLE)
 
         // 7. Inject bscm.json into the bundle (basic display data + cover art)
-        val coverCdnUrl = storageService.trackCoverUrl(createdChart.track.id)
+        val coverCdnUrl = albumEntity?.coverUrl
         val bscmMetadata = DecodingUtils.BscmMetadata(
             chartId = createdChart.id,
             track = trackName,
@@ -244,7 +254,7 @@ class ChartPublishService(
                     role = "author",
                 )
             ),
-            cover = coverCdnUrl.ifEmpty { null },
+            cover = coverCdnUrl?.ifEmpty { null },
         )
         val enrichedBundleBytes = DecodingUtils.injectBscmMetadata(bundleBytes, bscmMetadata)
 
@@ -292,12 +302,15 @@ class ChartPublishService(
         emitEvent(PublishStep.UPLOADING_COVER)
 
         // 11. Convert and upload cover image to storage
-        if (coverBytes != null) {
+        if (coverBytes != null && albumEntity != null) {
             try {
                 val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
-                storageService.uploadTrackCover(createdChart.track.id, avifBytes)
+                if (albumEntity.coverUrl.isNullOrBlank()) {
+                    storageService.uploadAlbumCover(albumEntity.id.value, avifBytes)
+                    albumEntity.coverUrl = storageService.albumCoverUrl(albumEntity.id.value)
+                }
             } catch (e: Exception) {
-                log.warn("Failed to upload track cover to storage: ${e.message}")
+                log.warn("Failed to upload album cover to storage: ${e.message}")
             }
         }
 

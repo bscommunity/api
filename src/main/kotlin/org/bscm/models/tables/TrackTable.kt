@@ -2,12 +2,13 @@ package org.bscm.models.tables
 
 import org.bscm.models.enums.Genre
 import org.jetbrains.exposed.v1.core.EnumerationNameColumnType
+import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
 
 object TrackTable : UUIDTable("tracks") {
     val title = varchar("title", 200)
     val artist = varchar("artist", 100)
-    val album = varchar("album", 200).nullable()
+    val albumId = reference("album_id", AlbumTable, onDelete = ReferenceOption.SET_NULL).nullable()
     val isrc = varchar("isrc", 15).nullable()
     val genres = array<Genre>("genres", EnumerationNameColumnType(Genre::class, 255), 255).nullable()
     val bpm = integer("bpm").nullable()
@@ -15,5 +16,4 @@ object TrackTable : UUIDTable("tracks") {
 
     val normalizedTitle = varchar("normalized_title", 200).nullable().index()
     val normalizedArtist = varchar("normalized_artist", 200).nullable().index()
-    val normalizedAlbum = varchar("normalized_album", 200).nullable().index()
 }

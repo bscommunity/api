@@ -8,6 +8,23 @@ class StorageService(
 ) {
     fun publicUrl(path: String): String = adapter.publicUrl(publicBucket, path)
 
+    // ── Albums ──────────────────────────────────────────────────────────
+
+    fun albumCoverUrl(albumId: UUID): String = publicUrl(StoragePaths.albumCover(albumId))
+
+    suspend fun uploadAlbumCover(albumId: UUID, bytes: ByteArray) {
+        adapter.putObject(
+            bucket = publicBucket,
+            path = StoragePaths.albumCover(albumId),
+            bytes = bytes,
+            contentType = StorageContentTypes.IMAGE_AVIF,
+        )
+    }
+
+    suspend fun deleteAlbumCover(albumId: UUID) {
+        adapter.deleteObject(publicBucket, StoragePaths.albumCover(albumId))
+    }
+
     // ── Tracks ──────────────────────────────────────────────────────────
 
     fun trackCoverUrl(trackId: UUID): String = publicUrl(StoragePaths.trackCover(trackId))

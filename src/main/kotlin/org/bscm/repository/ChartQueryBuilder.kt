@@ -26,6 +26,11 @@ class ChartQueryBuilder {
         }
 
         query.adjustColumnSet {
+            leftJoin(AlbumTable, { TrackTable.albumId }, { AlbumTable.id })
+        }
+        columnsToSelect.addAll(AlbumTable.columns)
+
+        query.adjustColumnSet {
             leftJoin(ContributorTable, { ChartTable.id }, { ContributorTable.catalogItemId })
                 .leftJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
         }
@@ -95,14 +100,14 @@ class ChartQueryBuilder {
 
         val exactPhraseMatchCondition = (TrackTable.normalizedArtist like "%$normalizedSearchTerm%") or
             (TrackTable.normalizedTitle like "%$normalizedSearchTerm%") or
-            (TrackTable.normalizedAlbum like "%$normalizedSearchTerm%")
+            (AlbumTable.normalizedName like "%$normalizedSearchTerm%")
         whereConditions.add(exactPhraseMatchCondition)
 
         if (searchTerms.isNotEmpty()) {
             val allTermsPresentCondition = searchTerms.map { term ->
                 (TrackTable.normalizedArtist like "%$term%") or
                     (TrackTable.normalizedTitle like "%$term%") or
-                    (TrackTable.normalizedAlbum like "%$term%")
+                    (AlbumTable.normalizedName like "%$term%")
             }.reduce { acc, cond -> acc and cond }
             whereConditions.add(allTermsPresentCondition)
         }

@@ -50,39 +50,40 @@ object QueryUtils {
                         SELECT
                             t.title AS track,
                             t.artist AS artist,
-                            t.album AS album,
+                            a.name AS album,
                             GREATEST(
                                 similarity(t.normalized_title, ?),  -- param 1: dbQuery (for score)
                                 similarity(t.normalized_artist, ?), -- param 2: dbQuery (for score)
-                                similarity(t.normalized_album, ?)   -- param 3: dbQuery (for score)
+                                similarity(a.normalized_name, ?)    -- param 3: dbQuery (for score)
                             ) AS match_score,
                             CASE
                                 WHEN similarity(t.normalized_title, ?) >= similarity(t.normalized_artist, ?) -- param 4 & 5
-                                  AND similarity(t.normalized_title, ?) >= similarity(t.normalized_album, ?)  -- param 6 & 7
+                                  AND similarity(t.normalized_title, ?) >= similarity(a.normalized_name, ?)  -- param 6 & 7
                                 THEN t.title
-                                WHEN similarity(t.normalized_artist, ?) >= similarity(t.normalized_album, ?) -- param 8 & 9
+                                WHEN similarity(t.normalized_artist, ?) >= similarity(a.normalized_name, ?) -- param 8 & 9
                                 THEN t.artist
-                                ELSE t.album
+                                ELSE a.name
                             END AS best_match_text
                         FROM charts c
                         INNER JOIN catalog_items ci ON c.catalog_item_id = ci.id
                         INNER JOIN tracks t ON c.track_id = t.id
+                        LEFT JOIN albums a ON t.album_id = a.id
                         WHERE ci.is_public = true AND (
                             -- Condition 1: Trigram fuzzy match
                             (t.normalized_title % ? OR      -- param 10
                              t.normalized_artist % ? OR     -- param 11
-                             t.normalized_album % ?)        -- param 12
+                             a.normalized_name % ?)         -- param 12
                             OR
                             -- Condition 2: Exact substring match
                             (STRPOS(t.normalized_title, ?) > 0 OR  -- param 13
                              STRPOS(t.normalized_artist, ?) > 0 OR -- param 14
-                             STRPOS(t.normalized_album, ?) > 0)    -- param 15
+                             STRPOS(a.normalized_name, ?) > 0)     -- param 15
                             OR
                             -- Condition 3: minimal similarity
                             (GREATEST(
                                 similarity(t.normalized_title, ?),  -- param 16
                                 similarity(t.normalized_artist, ?), -- param 17
-                                similarity(t.normalized_album, ?)   -- param 18
+                                similarity(a.normalized_name, ?)    -- param 18
                              ) > $minimalSimilarityThreshold)
                         )
                     ) ranked_matches
