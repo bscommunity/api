@@ -17,10 +17,8 @@ interface IThemeRepository {
         userId: UUID,
         name: String,
         replaces: String,
-        coverUrl: String,
-        displayArtUrl: String,
-        previewUrl: String,
-        id: String? = null,
+        previewUrl: String?,
+        id: String?,
     ): Theme
 
     suspend fun updateTheme(
@@ -28,10 +26,9 @@ interface IThemeRepository {
         userId: UUID,
         name: String?,
         replaces: String?,
-        coverUrl: String?,
-        displayArtUrl: String?,
         previewUrl: String?,
     ): Theme
 
     suspend fun deleteTheme(id: String, userId: UUID): Boolean
+    suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String)
 }

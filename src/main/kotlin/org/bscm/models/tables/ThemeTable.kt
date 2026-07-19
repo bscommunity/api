@@ -9,9 +9,7 @@ object ThemeTable : IdTable<String>("themes") {
 
     val name = varchar("name", 255)
     val replaces = varchar("replaces", 255)
-    val displayArtUrl = varchar("display_art_url", 512).nullable()
     val previewUrl = varchar("preview_url", 512).nullable()
-    val coverUrl = varchar("cover_url", 512).nullable()
 
     override val primaryKey = PrimaryKey(id)
 

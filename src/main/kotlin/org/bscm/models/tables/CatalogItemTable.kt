@@ -13,7 +13,7 @@ import org.jetbrains.exposed.v1.datetime.datetime
 
 object CatalogItemTable : IdTable<String>("catalog_items") {
     override val id = varchar("id", 10)
-        .clientDefault { NanoIdUtils.generateOptimized(10, "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 63, 16) }
+        .clientDefault { NanoIdUtils.generateContentId() }
         .entityId()
     val type = enumerationByName("type", 20, CatalogItemType::class)
     val status = enumerationByName("status", 20, CatalogItemStatus::class)

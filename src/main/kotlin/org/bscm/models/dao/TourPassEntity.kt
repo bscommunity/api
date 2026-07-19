@@ -12,7 +12,6 @@ class TourPassEntity(id: EntityID<String>) : Entity<String>(id) {
     var name by TourPassTable.name
     var description by TourPassTable.description
     var artist by TourPassTable.artist
-    var coverId by TourPassTable.coverId
 
     val charts by ChartEntity via TourPassChartTable
 }

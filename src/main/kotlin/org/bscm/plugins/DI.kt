@@ -112,8 +112,8 @@ fun mainModule(config: ApplicationConfig) = module {
     single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get()) }
     single<IActivityRepository> { ActivityRepository() }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
-    single<ITourPassRepository> { TourPassRepository(get()) }
-    single<IThemeRepository> { ThemeRepository() }
+    single<ITourPassRepository> { TourPassRepository(get(), get(), get()) }
+    single<IThemeRepository> { ThemeRepository(get(), get()) }
     single<IChangelogRepository> { ChangelogRepository() }
     single {
         JWTService(
@@ -143,6 +143,7 @@ fun mainModule(config: ApplicationConfig) = module {
             webhookToken = config.property("workshop.webhookToken").getString(),
             botToken = config.property("discord.botToken").getString(),
             channelId = config.property("workshop.channelId").getString(),
+            guildId = config.property("workshop.guildId").getString(),
         )
     }
     single {

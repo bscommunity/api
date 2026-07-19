@@ -20,7 +20,7 @@ data class TourPass(
     val description: String? = null,
     val artist: String? = null,
     val charts: List<Chart>,
-    val coverId: String? = null,
+    val coverUrl: String? = null,
 
     override val contributors: List<Contributor> = emptyList(),
 

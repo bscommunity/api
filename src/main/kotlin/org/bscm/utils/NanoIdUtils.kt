@@ -122,4 +122,15 @@ object NanoIdUtils {
         repeat(decimals) { multiplier *= 10 }
         return kotlin.math.round(this * multiplier) / multiplier
     }
+
+    private const val CONTENT_ID_ALPHABET = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    private const val SAFE_FIRST_CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    private val FULL_MASK = calculateMask(CONTENT_ID_ALPHABET)
+    private val FULL_STEP = calculateStep(9, CONTENT_ID_ALPHABET)
+
+    fun generateContentId(): String {
+        val first = generate(1, SAFE_FIRST_CHARS)
+        val rest = generateOptimized(9, CONTENT_ID_ALPHABET, FULL_MASK, FULL_STEP)
+        return first + rest
+    }
 }

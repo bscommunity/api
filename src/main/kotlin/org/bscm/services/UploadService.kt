@@ -28,6 +28,7 @@ class UploadService(
     private val webhookToken: String,
     private val botToken: String,
     private val channelId: String,
+    val guildId: String,
 ) {
     private val workshopUsername = "bscm"
     private val workshopAvatarUrl = "https://i.imgur.com/7e4lzGf.png"
@@ -359,8 +360,8 @@ class UploadService(
         return discordResponse
     }
 
-    suspend fun uploadTourPass(data: TourPassPublishData): DiscordMessageResponse {
-        val payloadJson = jsonClient.encodeToString(
+    private fun buildTourPassPayload(data: TourPassPublishData): String {
+        return jsonClient.encodeToString(
             WebhookPayload.serializer(),
             message {
                 username(workshopUsername)
@@ -368,7 +369,6 @@ class UploadService(
                 embed {
                     title = data.title
                     description = data.description
-                    url = getWorkshopContentUrl("tourpass", data.context.contentId)
                     color = 3820816
                     timestamp()
                     author("New tour pass submitted")
@@ -389,11 +389,17 @@ class UploadService(
                     }
                 }
                 buildComponents(data.context.trackUrls).forEach { component(it) }
+                val appUrl = getWorkshopContentUrl("tourpass", data.context.contentId)
+                buttonRow(Button(type = 2, style = 5, label = "Check in the app", url = appUrl))
             }
         )
+    }
+
+    suspend fun uploadTourPass(data: TourPassPublishData): DiscordMessageResponse {
+        val payloadJson = buildTourPassPayload(data)
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
-            url = "${webhookUrl}?with_components=true",
+            url = "${webhookUrl}?wait=true&with_components=true",
             formData = formData {
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
@@ -423,7 +429,6 @@ class UploadService(
                 embed {
                     title = data.title
                     description = data.description
-                    url = getWorkshopContentUrl("theme", data.context.contentId)
                     color = 3820816
                     timestamp()
                     author("New theme submitted")
@@ -434,6 +439,8 @@ class UploadService(
                     data.trailerUrl?.takeIf { it.isNotBlank() }?.let { field("Trailer", it, false) }
                 }
                 buildComponents(data.context.trackUrls).forEach { component(it) }
+                val appUrl = getWorkshopContentUrl("theme", data.context.contentId)
+                buttonRow(Button(type = 2, style = 5, label = "Check in the app", url = appUrl))
             }
         )
 

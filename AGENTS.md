@@ -53,6 +53,61 @@ TransactionManager.current().flushCache()
 TransactionManager.current().entityCache.flush()
 ```
 
+## Content Identity & Discord Coordinates
+
+### Shared ID Pattern
+
+Every catalog subtype (`chart`, `tour_pass`, `theme`) shares the **same ID** as its parent `catalog_items` row. The `CatalogItemEntity` resolves subtypes via `XxxEntity.findById(id)`.
+
+**Rule:** The content ID must be generated **before** the Discord upload. This decouples the content's identity from Discord's response and allows building Discord-facing URLs (button links, message links) upfront.
+
+**Correct flow (all content types):**
+```
+1. Generate Nano ID (client-side)
+2. Build Discord payload using the ID (e.g., app link button URL)
+3. Upload to Discord → get discordMessageId + discordChannelId
+4. Create DB rows (catalog_items + subtype) with the Nano ID
+5. Store Discord coordinates via updateDiscordCoordinates(id, channelId, messageId)
+```
+
+**Wrong flow (never do this):**
+```
+1. Upload to Discord → get discordMessageId
+2. Use discordMessageId as the content ID  ← couples identity to Discord
+3. Create DB rows
+```
+
+### Nano ID Generation
+
+Use `org.bscm.utils.NanoIdUtils.generateContentId()` — generates a 10-char ID where the first character is alphanumeric only (`0-9a-zA-Z`), never `-` or `_`:
+
+```kotlin
+val contentId = NanoIdUtils.generateContentId()
+```
+
+This is also the `clientDefault` on `CatalogItemTable`, so `CatalogItemEntity.new { ... }` (without explicit ID) uses the same safe format.
+
+### Discord Coordinate Storage
+
+After uploading to Discord, store the message metadata on the catalog item:
+
+```kotlin
+catalogItemRepository.updateDiscordCoordinates(contentId, channelId, messageId)
+```
+
+- `discordMessageId` — the webhook message snowflake (used for edits, deletes, message links)
+- `discordChannelId` — the channel where the message lives (required for Discord message link format: `https://discord.com/channels/{guildId}/{channelId}/{messageId}`)
+
+### Deleting Discord Messages
+
+When cleaning up content, always use `discordMessageId` (not the content ID) to delete the Discord message:
+
+```kotlin
+tourPass.discordMessageId?.let { messageId ->
+    runCatching { uploadService.deleteMessage(messageId) }
+}
+```
+
 ## Testing
 
 - Tests use JUnit 4 (`@Test`, `@Before`, `@After`)

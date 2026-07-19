@@ -7,26 +7,31 @@ import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IThemeRepository
+import org.bscm.storage.StorageService
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
-class ThemeRepository : IThemeRepository {
+class ThemeRepository(
+    private val catalogItemRepository: CatalogItemRepository,
+    private val storageService: StorageService,
+) : IThemeRepository {
 
     private fun themeEntityToTheme(entity: ThemeEntity): Theme {
         val catalogItem = CatalogItemEntity[entity.id.value]
+        val id = entity.id.value
         return Theme(
             name = entity.name,
             replaces = entity.replaces,
-            displayArtUrl = entity.displayArtUrl,
+            displayArtUrl = storageService.themeDisplayUrl(id),
             previewUrl = entity.previewUrl,
-            coverUrl = entity.coverUrl,
+            coverUrl = storageService.themeCoverUrl(id),
             contributors = emptyList(),
             createdAt = catalogItem.createdAt,
             publishedAt = catalogItem.publishedAt,
             updatedAt = catalogItem.updatedAt,
             likedAt = null,
             bookmarkedAt = null,
-            id = entity.id.value,
+            id = id,
             type = CatalogItemType.THEME,
             status = catalogItem.status,
             visibility = catalogItem.visibility,
@@ -71,9 +76,7 @@ class ThemeRepository : IThemeRepository {
         userId: UUID,
         name: String,
         replaces: String,
-        coverUrl: String,
-        displayArtUrl: String,
-        previewUrl: String,
+        previewUrl: String?,
         id: String?,
     ): Theme = suspendTransaction {
         val catalogItem = if (id != null) {
@@ -93,8 +96,6 @@ class ThemeRepository : IThemeRepository {
         val theme = ThemeEntity.new(catalogItem.id.value) {
             this.name = name
             this.replaces = replaces
-            this.coverUrl = coverUrl
-            this.displayArtUrl = displayArtUrl
             this.previewUrl = previewUrl
         }
 
@@ -106,15 +107,11 @@ class ThemeRepository : IThemeRepository {
         userId: UUID,
         name: String?,
         replaces: String?,
-        coverUrl: String?,
-        displayArtUrl: String?,
         previewUrl: String?,
     ): Theme = suspendTransaction {
         val entity = ThemeEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
             replaces?.let { entity.replaces = it }
-            coverUrl?.let { entity.coverUrl = it }
-            displayArtUrl?.let { entity.displayArtUrl = it }
             previewUrl?.let { entity.previewUrl = it }
         } ?: throw IllegalArgumentException("Theme $id not found")
 
@@ -124,5 +121,9 @@ class ThemeRepository : IThemeRepository {
     override suspend fun deleteTheme(id: String, userId: UUID): Boolean = suspendTransaction {
         CatalogItemEntity.findById(id)?.delete() ?: return@suspendTransaction false
         true
+    }
+
+    override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) {
+        catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
     }
 }

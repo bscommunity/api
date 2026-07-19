@@ -10,7 +10,6 @@ object TourPassTable : IdTable<String>("tour_passes") {
     val name = varchar("name", 255)
     val description = varchar("description", 500).nullable()
     val artist = varchar("artist", 255).nullable()
-    val coverId = varchar("cover_id", 10).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }

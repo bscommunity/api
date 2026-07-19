@@ -10,6 +10,7 @@ import org.bscm.models.enums.ActivityType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.storage.StorageService
+import org.bscm.utils.NanoIdUtils
 import java.util.*
 
 class ThemePublishService(
@@ -37,28 +38,24 @@ class ThemePublishService(
             throw BadRequestException("displayArtUrl or displayArt file is required")
         }
 
-        // Upload assets to storage (using random UUIDs since theme ID isn't known yet)
-        val coverUrl = if (assets.coverArtBytes != null) {
-            val key = UUID.randomUUID().toString()
-            storageService.uploadThemeCover(key, assets.coverArtBytes)
-            storageService.themeCoverUrl(key)
-        } else {
-            request.coverUrl
+        val contentId = NanoIdUtils.generateContentId()
+
+        if (assets.coverArtBytes != null) {
+            storageService.uploadThemeCover(contentId, assets.coverArtBytes)
+        }
+        if (assets.displayArtBytes != null) {
+            storageService.uploadThemeDisplay(contentId, assets.displayArtBytes)
         }
 
-        val displayArtUrl = if (assets.displayArtBytes != null) {
-            val key = UUID.randomUUID().toString()
-            storageService.uploadThemeDisplay(key, assets.displayArtBytes)
-            storageService.themeDisplayUrl(key)
-        } else {
-            request.displayArtUrl
-        }
+        val coverUrl = storageService.themeCoverUrl(contentId)
+        val displayArtUrl = storageService.themeDisplayUrl(contentId)
 
         val discordResponse = uploadService.uploadTheme(
             UploadService.ThemePublishData(
                 title = request.name,
                 description = request.description,
                 context = UploadService.PublishContext(
+                    contentId = contentId,
                     submittedBy = UploadService.SubmittedBy.fromUser(uploader)
                 ),
                 replaces = request.replaces,
@@ -72,10 +69,14 @@ class ThemePublishService(
             userId = uploader.id,
             name = request.name,
             replaces = request.replaces,
-            coverUrl = coverUrl!!,
-            displayArtUrl = displayArtUrl!!,
             previewUrl = request.previewUrl,
-            id = discordResponse.id,
+            id = contentId,
+        )
+
+        themeRepository.updateDiscordCoordinates(
+            contentId,
+            discordResponse.channelId,
+            discordResponse.id,
         )
 
         activityRepository.logActivity(
@@ -88,17 +89,18 @@ class ThemePublishService(
     }
 
     suspend fun deleteAndCleanup(id: String, userId: UUID): Boolean {
-        val contentId = themeRepository.getThemeById(id, userId)?.id ?: return false
+        val theme = themeRepository.getThemeById(id, userId) ?: return false
         val deleted = themeRepository.deleteTheme(id, userId)
         if (!deleted) return false
 
         activityRepository.removeActivityByTypeAndTarget(
             type = ActivityType.CREATED_THEME,
-            targetId = contentId
+            targetId = theme.id
         )
 
-        // Best effort cleanup - DB state is source of truth.
-        runCatching { uploadService.deleteMessage(id) }
+        theme.discordMessageId?.let { messageId ->
+            runCatching { uploadService.deleteMessage(messageId) }
+        }
         return true
     }
 
@@ -108,19 +110,11 @@ class ThemePublishService(
         request: UpdateThemeRequest,
         assets: Assets,
     ): Theme {
-        // Upload assets to storage (using actual theme ID for stable paths)
-        val resolvedCoverUrl = if (assets.coverArtBytes != null) {
+        if (assets.coverArtBytes != null) {
             storageService.uploadThemeCover(id, assets.coverArtBytes)
-            storageService.themeCoverUrl(id)
-        } else {
-            request.coverUrl
         }
-
-        val resolvedDisplayArtUrl = if (assets.displayArtBytes != null) {
+        if (assets.displayArtBytes != null) {
             storageService.uploadThemeDisplay(id, assets.displayArtBytes)
-            storageService.themeDisplayUrl(id)
-        } else {
-            request.displayArtUrl
         }
 
         return themeRepository.updateTheme(
@@ -128,8 +122,6 @@ class ThemePublishService(
             userId = userId,
             name = request.name,
             replaces = request.replaces,
-            coverUrl = resolvedCoverUrl,
-            displayArtUrl = resolvedDisplayArtUrl,
             previewUrl = request.previewUrl
         )
     }

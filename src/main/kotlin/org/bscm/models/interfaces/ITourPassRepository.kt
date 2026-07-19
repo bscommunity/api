@@ -19,7 +19,6 @@ interface ITourPassRepository {
         name: String,
         description: String?,
         artist: String?,
-        coverUrl: String,
         playlistUrls: List<StreamingRef>? = null,
         chartIds: List<String>? = null,
         id: String? = null,
@@ -31,7 +30,6 @@ interface ITourPassRepository {
         name: String?,
         description: String?,
         artist: String?,
-        coverUrl: String?,
         chartIds: List<String>? = null,
     ): TourPass
 
@@ -39,4 +37,5 @@ interface ITourPassRepository {
     suspend fun setTourPassCharts(id: String, userId: UUID, chartIds: List<String>): TourPass
     suspend fun addChartToTourPass(tourPassId: String, chartId: String): Boolean
     suspend fun removeChartFromTourPass(tourPassId: String, chartId: String): Boolean
+    suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String)
 }

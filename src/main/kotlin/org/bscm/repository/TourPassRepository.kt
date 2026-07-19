@@ -14,6 +14,7 @@ import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.TourPassChartTable
 import org.bscm.models.tables.TourPassTable
+import org.bscm.storage.StorageService
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
@@ -24,6 +25,8 @@ import java.util.*
 
 class TourPassRepository(
     private val chartRepository: IChartRepository,
+    private val catalogItemRepository: CatalogItemRepository,
+    private val storageService: StorageService,
 ) : ITourPassRepository {
 
     private fun tourPassEntityToTourPass(entity: TourPassEntity): TourPass {
@@ -71,7 +74,7 @@ class TourPassRepository(
                     },
                 )
             },
-            coverId = entity.coverId,
+            coverUrl = storageService.tourPassCoverUrl(entity.id.value),
             contributors = emptyList(),
             createdAt = catalogItem.createdAt,
             publishedAt = catalogItem.publishedAt,
@@ -126,7 +129,6 @@ class TourPassRepository(
         name: String,
         description: String?,
         artist: String?,
-        coverUrl: String,
         playlistUrls: List<StreamingRef>?,
         chartIds: List<String>?,
         id: String?,
@@ -149,7 +151,6 @@ class TourPassRepository(
             this.name = name
             this.description = description
             this.artist = artist
-            this.coverId = coverUrl
         }
 
         chartIds?.forEach { cid ->
@@ -168,14 +169,12 @@ class TourPassRepository(
         name: String?,
         description: String?,
         artist: String?,
-        coverUrl: String?,
         chartIds: List<String>?,
     ): TourPass = suspendTransaction {
         val entity = TourPassEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
             description?.let { entity.description = it }
             artist?.let { entity.artist = it }
-            coverUrl?.let { entity.coverId = it }
         } ?: throw IllegalArgumentException("TourPass $id not found")
 
         chartIds?.let { newChartIds ->
@@ -222,5 +221,9 @@ class TourPassRepository(
             (TourPassChartTable.tourPassId eq EntityID(tourPassId, TourPassTable)) and
                 (TourPassChartTable.chartId eq EntityID(chartId, ChartTable))
         } > 0
+    }
+
+    override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) {
+        catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
     }
 }

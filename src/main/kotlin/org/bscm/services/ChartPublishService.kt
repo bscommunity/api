@@ -109,12 +109,7 @@ class ChartPublishService(
             )
         }
 
-        val contentId = NanoIdUtils.generateOptimized(
-            10,
-            "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-            63,
-            16
-        )
+        val contentId = NanoIdUtils.generateContentId()
 
         // 1. Extract info.json metadata
         val bundleInfo = DecodingUtils.extractBundleInfo(bundleBytes)
