@@ -172,7 +172,7 @@ class ChartPublishService(
         // log.info("Cover resolved: source=$COVER_SOURCE, coverBytes=${coverBytes?.size ?: 0} bytes, coverUrl=$coverUrl")
 
         // 5b. Resolve album entity — always create one so cover has a home
-        val albumName = overrides.album ?: mediaInfo?.album ?: "$artistName – Singles"
+        val albumName = overrides.album ?: mediaInfo?.album ?: "$trackName – Single"
         val resolvedCoverUrl = coverUrl.ifBlank { null }
         val albumEntity = albumRepository.findOrCreate(albumName, resolvedCoverUrl)
 
