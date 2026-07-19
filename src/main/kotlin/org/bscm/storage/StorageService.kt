@@ -50,7 +50,7 @@ class StorageService(
 
     fun themeCoverUrl(themeId: String): String = publicUrl(StoragePaths.themeCover(themeId))
 
-    fun themeSkinUrl(themeId: String): String = publicUrl(StoragePaths.themeSkin(themeId))
+    fun themeDisplayUrl(themeId: String): String = publicUrl(StoragePaths.themeDisplay(themeId))
 
     suspend fun uploadThemeCover(themeId: String, bytes: ByteArray) {
         adapter.putObject(
@@ -61,10 +61,10 @@ class StorageService(
         )
     }
 
-    suspend fun uploadThemeSkin(themeId: String, bytes: ByteArray) {
+    suspend fun uploadThemeDisplay(themeId: String, bytes: ByteArray) {
         adapter.putObject(
             bucket = publicBucket,
-            path = StoragePaths.themeSkin(themeId),
+            path = StoragePaths.themeDisplay(themeId),
             bytes = bytes,
             contentType = StorageContentTypes.IMAGE_AVIF,
         )
@@ -74,8 +74,8 @@ class StorageService(
         adapter.deleteObject(publicBucket, StoragePaths.themeCover(themeId))
     }
 
-    suspend fun deleteThemeSkin(themeId: String) {
-        adapter.deleteObject(publicBucket, StoragePaths.themeSkin(themeId))
+    suspend fun deleteThemeDisplay(themeId: String) {
+        adapter.deleteObject(publicBucket, StoragePaths.themeDisplay(themeId))
     }
 
     // ── Tour Passes ─────────────────────────────────────────────────────

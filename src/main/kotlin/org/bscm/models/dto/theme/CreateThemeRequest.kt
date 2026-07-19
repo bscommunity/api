@@ -8,6 +8,6 @@ data class CreateThemeRequest(
     val description: String? = null,
     val replaces: String,
     val coverUrl: String? = null,
-    val skinUrl: String? = null,
+    val displayArtUrl: String? = null,
     val previewUrl: String
 )

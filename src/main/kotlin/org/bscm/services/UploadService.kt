@@ -56,35 +56,12 @@ class UploadService(
         val description: String?,
         val context: PublishContext,
         val coverUrl: String?,
-        val coverBytes: ByteArray? = null,
         val durationSeconds: Int,
         val tracksAmount: Int,
         val difficultyLabel: String? = null,
         val trailerUrl: String? = null,
         val tracklist: List<String> = emptyList(),
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (other !is TourPassPublishData) return false
-            return title == other.title && description == other.description && context == other.context &&
-                coverUrl == other.coverUrl && coverBytes.contentEquals(other.coverBytes) &&
-                durationSeconds == other.durationSeconds && tracksAmount == other.tracksAmount &&
-                difficultyLabel == other.difficultyLabel && trailerUrl == other.trailerUrl && tracklist == other.tracklist
-        }
-        override fun hashCode(): Int {
-            var result = title.hashCode()
-            result = 31 * result + (description?.hashCode() ?: 0)
-            result = 31 * result + context.hashCode()
-            result = 31 * result + (coverUrl?.hashCode() ?: 0)
-            result = 31 * result + (coverBytes?.contentHashCode() ?: 0)
-            result = 31 * result + durationSeconds
-            result = 31 * result + tracksAmount
-            result = 31 * result + (difficultyLabel?.hashCode() ?: 0)
-            result = 31 * result + (trailerUrl?.hashCode() ?: 0)
-            result = 31 * result + tracklist.hashCode()
-            return result
-        }
-    }
+    )
 
     data class ThemePublishData(
         val title: String,
@@ -93,31 +70,8 @@ class UploadService(
         val replaces: String,
         val trailerUrl: String?,
         val coverArtUrl: String?,
-        val skinUrl: String?,
-        val coverBytes: ByteArray? = null,
-        val skinBytes: ByteArray? = null,
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (other !is ThemePublishData) return false
-            return title == other.title && description == other.description && context == other.context &&
-                replaces == other.replaces && trailerUrl == other.trailerUrl &&
-                coverArtUrl == other.coverArtUrl && skinUrl == other.skinUrl &&
-                coverBytes.contentEquals(other.coverBytes) && skinBytes.contentEquals(other.skinBytes)
-        }
-        override fun hashCode(): Int {
-            var result = title.hashCode()
-            result = 31 * result + (description?.hashCode() ?: 0)
-            result = 31 * result + context.hashCode()
-            result = 31 * result + replaces.hashCode()
-            result = 31 * result + (trailerUrl?.hashCode() ?: 0)
-            result = 31 * result + (coverArtUrl?.hashCode() ?: 0)
-            result = 31 * result + (skinUrl?.hashCode() ?: 0)
-            result = 31 * result + (coverBytes?.contentHashCode() ?: 0)
-            result = 31 * result + (skinBytes?.contentHashCode() ?: 0)
-            return result
-        }
-    }
+        val displayArtUrl: String?,
+    )
 
     private val webhookUrl = "https://discord.com/api/webhooks/$webhookId/$webhookToken"
     private val editWebhookUrl = "https://discord.com/api/v10/webhooks/$webhookId/$webhookToken/messages"
@@ -407,15 +361,11 @@ class UploadService(
     }
 
     private fun buildTourPassPayload(data: TourPassPublishData): String {
-        val hasCoverBytes = data.coverBytes != null
         return jsonClient.encodeToString(
             WebhookPayload.serializer(),
             message {
                 username(workshopUsername)
                 avatar(workshopAvatarUrl)
-                if (hasCoverBytes) {
-                    attachment(PresetAttachment(id = "0", filename = "cover.png"))
-                }
                 embed {
                     title = data.title
                     description = data.description
@@ -423,11 +373,7 @@ class UploadService(
                     timestamp()
                     author("New tour pass submitted")
                     footer("Submitted by @${data.context.submittedBy.username}", data.context.submittedBy.avatarUrl)
-                    if (hasCoverBytes) {
-                        image("attachment://cover.png")
-                    } else {
-                        data.coverUrl?.takeIf { it.isNotBlank() }?.let { image(it) }
-                    }
+                    data.coverUrl?.takeIf { it.isNotBlank() }?.let { image(it) }
                     thumbnail("")
                     field("Duration", "$durationIcon ${formatDuration(data.durationSeconds)}", true)
                     field("Tracks", "$noteIcon ${data.tracksAmount} songs", true)
@@ -451,7 +397,6 @@ class UploadService(
 
     suspend fun uploadTourPass(data: TourPassPublishData): DiscordMessageResponse {
         val payloadJson = buildTourPassPayload(data)
-        val hasCoverBytes = data.coverBytes != null
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
             url = "${webhookUrl}?wait=true&with_components=true",
@@ -459,12 +404,6 @@ class UploadService(
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
                 })
-                if (hasCoverBytes) {
-                    append("files[0]", data.coverBytes!!, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "form-data; name=\"files[0]\"; filename=\"cover.png\"")
-                        append(HttpHeaders.ContentType, "image/png")
-                    })
-                }
             }
         )
 
@@ -482,21 +421,11 @@ class UploadService(
     }
 
     suspend fun uploadTheme(data: ThemePublishData): DiscordMessageResponse {
-        val hasCoverBytes = data.coverBytes != null
-        val hasSkinBytes = data.skinBytes != null
-
         val payloadJson = jsonClient.encodeToString(
             WebhookPayload.serializer(),
             message {
                 username(workshopUsername)
                 avatar(workshopAvatarUrl)
-                if (hasCoverBytes) {
-                    attachment(PresetAttachment(id = "0", filename = "cover.png"))
-                }
-                if (hasSkinBytes) {
-                    val skinId = if (hasCoverBytes) "1" else "0"
-                    attachment(PresetAttachment(id = skinId, filename = "skin.png"))
-                }
                 embed {
                     title = data.title
                     description = data.description
@@ -504,16 +433,8 @@ class UploadService(
                     timestamp()
                     author("New theme submitted")
                     footer("Submitted by @${data.context.submittedBy.username}", data.context.submittedBy.avatarUrl)
-                    if (hasSkinBytes) {
-                        image("attachment://skin.png")
-                    } else {
-                        data.skinUrl?.takeIf { it.isNotBlank() }?.let { image(it) }
-                    }
-                    if (hasCoverBytes) {
-                        thumbnail("attachment://cover.png")
-                    } else {
-                        data.coverArtUrl?.takeIf { it.isNotBlank() }?.let { thumbnail(it) }
-                    }
+                    data.displayArtUrl?.takeIf { it.isNotBlank() }?.let { image(it) }
+                    data.coverArtUrl?.takeIf { it.isNotBlank() }?.let { thumbnail(it) }
                     field("<:refresh:1490158323197022449> Replaces", data.replaces, false)
                     data.trailerUrl?.takeIf { it.isNotBlank() }?.let { field("Trailer", it, false) }
                 }
@@ -529,19 +450,6 @@ class UploadService(
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
                 })
-                if (hasCoverBytes) {
-                    append("files[0]", data.coverBytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "form-data; name=\"files[0]\"; filename=\"cover.png\"")
-                        append(HttpHeaders.ContentType, "image/png")
-                    })
-                }
-                if (hasSkinBytes) {
-                    val skinIndex = if (hasCoverBytes) "1" else "0"
-                    append("files[$skinIndex]", data.skinBytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "form-data; name=\"files[$skinIndex]\"; filename=\"skin.png\"")
-                        append(HttpHeaders.ContentType, "image/png")
-                    })
-                }
             }
         )
 

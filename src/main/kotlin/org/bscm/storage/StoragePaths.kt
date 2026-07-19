@@ -9,7 +9,7 @@ object StoragePaths {
 
     fun themeCover(themeId: String): String = "themes/$themeId/cover.avif"
 
-    fun themeSkin(themeId: String): String = "themes/$themeId/skin.avif"
+    fun themeDisplay(themeId: String): String = "themes/$themeId/display.avif"
 
     fun tourPassCover(tourPassId: String): String = "tour-passes/$tourPassId/cover.avif"
 }

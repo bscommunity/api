@@ -22,7 +22,7 @@ class ThemeRepository(
         return Theme(
             name = entity.name,
             replaces = entity.replaces,
-            skinUrl = storageService.themeSkinUrl(id),
+            displayArtUrl = storageService.themeDisplayUrl(id),
             previewUrl = entity.previewUrl,
             coverUrl = storageService.themeCoverUrl(id),
             contributors = emptyList(),

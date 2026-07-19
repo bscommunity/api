@@ -111,7 +111,6 @@ class TourPassPublishService(
                 trackUrls = normalizedPlaylistUrls ?: emptyList(),
             ),
             coverUrl = storageService.tourPassCoverUrl(contentId),
-            coverBytes = coverBytes,
             durationSeconds = charts.sumOf { it.track.duration.toInt() },
             tracksAmount = charts.size,
             difficultyLabel = difficultyLabel,
