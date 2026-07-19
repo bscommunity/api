@@ -207,15 +207,6 @@ class ChartPublishService(
             albumRepository.attachStreamingRefs(albumEntity.id.value, albumStreamingRefs)
         }
 
-        // Fallback: if no track-level streaming links, use album-level refs
-        if (streamingLinks.isEmpty() && albumEntity != null) {
-            val albumRefs = albumRepository.getStreamingRefs(albumEntity.id.value)
-            if (albumRefs.isNotEmpty()) {
-                log.info("No track-level streaming links, using ${albumRefs.size} album-level links as fallback")
-                streamingLinks.addAll(albumRefs)
-            }
-        }
-
         log.info("Resolved streaming links: $streamingLinks")
 
         val bpm = overrides.bpm ?: bundleInfo?.bpm ?: 0

@@ -35,7 +35,7 @@ class ChartRepository(
 ) : IChartRepository {
 
     private val queryBuilder = ChartQueryBuilder()
-    private val resultAssembler = ChartResultAssembler(trackRepository, catalogItemRepository)
+    private val resultAssembler = ChartResultAssembler(trackRepository, catalogItemRepository, albumRepository)
 
     data class ChartFilters(
         val userId: UUID? = null,

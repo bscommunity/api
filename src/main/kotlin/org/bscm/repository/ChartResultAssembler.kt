@@ -14,6 +14,7 @@ import java.util.*
 class ChartResultAssembler(
     private val trackRepository: TrackRepository,
     private val catalogItemRepository: CatalogItemRepository,
+    private val albumRepository: AlbumRepository,
 ) {
     data class ChartResult(
         val chart: ChartEntity,
@@ -68,13 +69,23 @@ class ChartResultAssembler(
             val trackEntity = TrackEntity.wrapRow(rows.first())
 
             val streamingRefs = if (includeStreamingRefs) {
-                rows.mapNotNull { row ->
+                val trackRefs = rows.mapNotNull { row ->
                     val platform = row.getOrNull(TrackStreamingRefTable.platform)
                     val externalId = row.getOrNull(TrackStreamingRefTable.externalId)
                     if (platform != null && externalId != null) {
                         StreamingRef(platform, StreamingPlatformUtils.buildUrl(platform, externalId))
                     } else null
                 }.distinctBy { it.platform to it.url }
+
+                // Fallback: if no track-level refs, use album-level refs
+                if (trackRefs.isEmpty()) {
+                    trackEntity.album?.id?.value?.let { albumId ->
+                        val albumRefs = albumRepository.getStreamingRefs(albumId)
+                        if (albumRefs.isNotEmpty()) {
+                            albumRefs
+                        } else trackRefs
+                    } ?: trackRefs
+                } else trackRefs
             } else emptyList()
 
             val contributors = rows.mapNotNull { row ->
