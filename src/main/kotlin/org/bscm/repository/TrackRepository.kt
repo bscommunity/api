@@ -119,7 +119,7 @@ class TrackRepository(
         bpm = entity.bpm,
         duration = entity.duration,
         streamingRefs = streamingRefs,
-        coverUrl = entity.album?.coverUrl,
+        coverUrl = entity.album?.coverUrl ?: "",
         previewUrl = storageService.trackPreviewUrl(entity.id.value),
     )
 

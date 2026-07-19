@@ -8,7 +8,6 @@ import io.ktor.util.logging.*
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.User
-import org.bscm.models.dao.AlbumEntity
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.dto.version.SimplifiedVersion
@@ -201,7 +200,7 @@ class ChartPublishService(
         }
 
         // Store album streaming refs if album entity exists
-        if (albumEntity != null && albumStreamingRefs.isNotEmpty()) {
+        if (albumStreamingRefs.isNotEmpty()) {
             albumRepository.attachStreamingRefs(albumEntity.id.value, albumStreamingRefs)
         }
 
@@ -218,7 +217,7 @@ class ChartPublishService(
             artist = mediaInfo?.artist ?: artistName,
             track = mediaInfo?.track ?: trackName,
             album = albumName,
-            albumId = albumEntity?.id?.value,
+            albumId = albumEntity.id.value,
             trackUrls = streamingLinks,
             coverUrl = coverUrl,
             genres = (overrides.genres ?: mediaInfo?.genres).orEmpty(),
@@ -244,7 +243,7 @@ class ChartPublishService(
         // emitEvent(PublishStep.PREPARING_BUNDLE)
 
         // 7. Inject bscm.json into the bundle (basic display data + cover art)
-        val coverCdnUrl = albumEntity?.coverUrl
+        val coverCdnUrl = albumEntity.coverUrl
         val bscmMetadata = DecodingUtils.BscmMetadata(
             chartId = createdChart.id,
             track = trackName,
@@ -311,7 +310,7 @@ class ChartPublishService(
         emitEvent(PublishStep.UPLOADING_COVER)
 
         // 11. Convert and upload cover image to storage
-        if (coverBytes != null && albumEntity != null) {
+        if (coverBytes != null) {
             try {
                 val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
                 if (albumEntity.coverUrl.isNullOrBlank()) {
