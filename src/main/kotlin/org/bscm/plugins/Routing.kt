@@ -134,6 +134,7 @@ fun Application.configureRouting() {
             publishEventService,
         )
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
+        tourPassRoutes(tourPassPublishService, tourPassRepository, userRepository)
         contributorRoutes(contributorRepository)
         debugRoutes(trackInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)

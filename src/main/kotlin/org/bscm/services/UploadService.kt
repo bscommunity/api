@@ -401,11 +401,17 @@ class UploadService(
             }
         )
 
+        val bodyText = response.bodyAsText()
+
         if (!response.status.isSuccess()) {
-            throw Exception("Failed to upload tour pass: ${response.status}, ${response.bodyAsText()}")
+            throw Exception("Failed to upload tour pass: ${response.status}, $bodyText")
         }
 
-        return jsonClient.decodeFromString<DiscordMessageResponse>(response.bodyAsText())
+        if (bodyText.isBlank()) {
+            throw Exception("Discord returned empty response body (status ${response.status})")
+        }
+
+        return jsonClient.decodeFromString<DiscordMessageResponse>(bodyText)
     }
 
     suspend fun uploadTheme(data: ThemePublishData): DiscordMessageResponse {

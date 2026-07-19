@@ -67,6 +67,22 @@ class TourPassPublishService(
             request.coverUrl
         }
 
+        val difficultyLabel = if (charts.isNotEmpty()) {
+            val totalScore = charts.sumOf { chart ->
+                when (chart.difficulty) {
+                    Difficulty.HARD -> 2
+                    Difficulty.EXTREME -> 3
+                    else -> 1
+                }
+            }
+            val avg = totalScore.toDouble() / charts.size
+            when {
+                avg >= 2.6 -> "Slightly extreme"
+                avg >= 1.6 -> "Hard"
+                else -> "Normal"
+            }
+        } else null
+
         val discordResponse = uploadService.uploadTourPass(
             UploadService.TourPassPublishData(
                 title = request.name,
@@ -78,6 +94,8 @@ class TourPassPublishService(
                 coverUrl = coverUrl,
                 durationSeconds = charts.sumOf { it.track.duration.toInt() },
                 tracksAmount = charts.size,
+                difficultyLabel = difficultyLabel,
+                trailerUrl = request.previewUrl,
                 tracklist = tracklist,
             )
         )
