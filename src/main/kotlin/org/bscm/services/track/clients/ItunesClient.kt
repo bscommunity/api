@@ -32,6 +32,7 @@ class ItunesClient(
         val primaryGenreName: String,
         val genreNames: List<String> = emptyList(),
         val trackViewUrl: String,
+        val collectionViewUrl: String? = null,
         val previewUrl: String? = null,
         val trackCount: Int? = null,
         val releaseDate: String? = null,

@@ -193,8 +193,28 @@ class ChartPublishService(
         val streamingLinks = buildList {
             mediaInfo?.link?.let { add(it) }
             addAll(streamingResult.links.filter { it.platform != mediaInfo?.link?.platform })
-        }
+        }.toMutableList()
         val resolvedIsrc = mediaInfo?.isrc ?: streamingResult.isrc
+
+        // Collect album-level streaming refs from media info and MusicBrainz
+        val albumStreamingRefs = buildList {
+            mediaInfo?.albumStreamingRefs?.let { addAll(it) }
+            addAll(streamingResult.albumRefs)
+        }
+
+        // Store album streaming refs if album entity exists
+        if (albumEntity != null && albumStreamingRefs.isNotEmpty()) {
+            albumRepository.attachStreamingRefs(albumEntity.id.value, albumStreamingRefs)
+        }
+
+        // Fallback: if no track-level streaming links, use album-level refs
+        if (streamingLinks.isEmpty() && albumEntity != null) {
+            val albumRefs = albumRepository.getStreamingRefs(albumEntity.id.value)
+            if (albumRefs.isNotEmpty()) {
+                log.info("No track-level streaming links, using ${albumRefs.size} album-level links as fallback")
+                streamingLinks.addAll(albumRefs)
+            }
+        }
 
         log.info("Resolved streaming links: $streamingLinks")
 

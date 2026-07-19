@@ -17,6 +17,11 @@ class MusicbrainzClient(
     private val logger = KtorSimpleLogger("MusicbrainzClient")
     private val baseUrl = "https://musicbrainz.org/ws/2"
 
+    data class MusicBrainzResult(
+        val trackRefs: List<StreamingRef>,
+        val albumRefs: List<StreamingRef>,
+    )
+
     @Serializable
     private data class MBRecording(
         val id: String? = null,
@@ -78,38 +83,39 @@ class MusicbrainzClient(
         }
     }
 
-    suspend fun resolve(query: String): List<StreamingRef> {
+    suspend fun resolve(query: String): MusicBrainzResult {
         val recordings = fetchMusicBrainzRecordings(query)
-        if (recordings.isEmpty()) return emptyList()
+        if (recordings.isEmpty()) return MusicBrainzResult(emptyList(), emptyList())
 
         val bestMatch = recordings
             .filter { it.disambiguation.isNullOrBlank() }
             .maxByOrNull { it.score ?: 0 }
             ?: recordings.maxByOrNull { it.score ?: 0 }
 
-        val recordingId = bestMatch?.id ?: return emptyList()
+        val recordingId = bestMatch?.id ?: return MusicBrainzResult(emptyList(), emptyList())
 
         val recordingDetailsResponse = client.get("$baseUrl/recording/$recordingId") {
             parameter("fmt", "json")
             parameter("inc", "releases url-rels")
             header("User-Agent", "bscm/1.0 (app.bscm@gmail.com)")
         }
-        if (!recordingDetailsResponse.status.isSuccess()) return emptyList()
+        if (!recordingDetailsResponse.status.isSuccess()) return MusicBrainzResult(emptyList(), emptyList())
 
         val recordingDetails = json.decodeFromString<MBRecording>(recordingDetailsResponse.bodyAsText())
 
         if (recordingDetails.relations.isNotEmpty()) {
             val refs = relationsToStreamingRefs(recordingDetails.relations)
-            if (refs.isNotEmpty()) return refs
+            if (refs.isNotEmpty()) return MusicBrainzResult(trackRefs = refs, albumRefs = emptyList())
         }
 
         logger.debug("No direct recording relations for $recordingId, trying Official release")
 
         val officialRelease = recordingDetails.releases.firstOrNull { it.status == "Official" }
         val releaseId = officialRelease?.id ?: recordingDetails.releases.firstOrNull()?.id
-        if (releaseId == null) return emptyList()
+        if (releaseId == null) return MusicBrainzResult(emptyList(), emptyList())
 
         val releaseRelations = fetchReleaseRelations(releaseId)
-        return relationsToStreamingRefs(releaseRelations)
+        val albumRefs = relationsToStreamingRefs(releaseRelations)
+        return MusicBrainzResult(trackRefs = emptyList(), albumRefs = albumRefs)
     }
 }

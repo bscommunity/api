@@ -60,6 +60,7 @@ class TrackInfoService(
             .bestMatch(ctx)
             ?.let { match ->
                 logger.debug { "Best iTunes match for '$track' by '$artist': ${match.trackName} by ${match.artistName}" }
+                val albumUrl = match.collectionViewUrl?.substringBefore("?")
                 return TrackInfoResult(
                     coverUrl = match.artworkUrl100.replace("100x100", "600x600"),
                     album = match.collectionName,
@@ -70,6 +71,9 @@ class TrackInfoService(
                         .mapNotNull { GenresUtils.normalizeGenre(it) }
                         .distinct(),
                     link = StreamingRef(StreamingPlatform.APPLE_MUSIC, match.trackViewUrl),
+                    albumStreamingRefs = listOfNotNull(
+                        albumUrl?.let { StreamingRef(StreamingPlatform.APPLE_MUSIC, it) }
+                    ),
                     previewProvider = PreviewProvider.ITUNES,
                     previewProviderTrackId = match.trackId.toString(),
                     isExplicit = match.trackExplicitness == "explicit",
@@ -82,6 +86,7 @@ class TrackInfoService(
             .firstOrNull()
             ?.let { track ->
                 logger.debug { "Deezer found for '$track' by '$artist'" }
+                val albumUrl = track.album?.id?.let { "https://www.deezer.com/album/$it" }
                 return TrackInfoResult(
                     coverUrl = track.album?.cover_big,
                     album = track.album?.title,
@@ -89,6 +94,9 @@ class TrackInfoService(
                     artist = track.artist?.name ?: ctx.artist,
                     genres = emptyList(),
                     link = StreamingRef(StreamingPlatform.DEEZER, track.link),
+                    albumStreamingRefs = listOfNotNull(
+                        albumUrl?.let { StreamingRef(StreamingPlatform.DEEZER, it) }
+                    ),
                     previewProvider = PreviewProvider.DEEZER,
                     previewProviderTrackId = track.id.toString(),
                     isExplicit = track.explicitLyrics == true,
@@ -126,6 +134,7 @@ class TrackInfoService(
     @Serializable
     data class StreamingLinksResult(
         val links: List<StreamingRef>,
+        val albumRefs: List<StreamingRef> = emptyList(),
         val isrc: String? = null
     )
 
@@ -165,11 +174,18 @@ class TrackInfoService(
 
         // 3. MusicBrainz
         try {
-            val musicbrainzLinks = musicbrainz.resolve("recording:\"$cleanedTrack\" AND artist:\"$cleanedArtist\"")
-            if (musicbrainzLinks.isNotEmpty()) {
-                logger.info("Raw MusicBrainz links: $musicbrainzLinks")
+            val musicbrainzResult = musicbrainz.resolve("recording:\"$cleanedTrack\" AND artist:\"$cleanedArtist\"")
+            if (musicbrainzResult.trackRefs.isNotEmpty()) {
+                logger.info("Raw MusicBrainz track refs: ${musicbrainzResult.trackRefs}")
                 return StreamingLinksResult(
-                    links = StreamingPlatformUtils.processLinksWithPrioritization(musicbrainzLinks, false)
+                    links = StreamingPlatformUtils.processLinksWithPrioritization(musicbrainzResult.trackRefs, false)
+                )
+            }
+            if (musicbrainzResult.albumRefs.isNotEmpty()) {
+                logger.info("Raw MusicBrainz album refs: ${musicbrainzResult.albumRefs}")
+                return StreamingLinksResult(
+                    links = emptyList(),
+                    albumRefs = StreamingPlatformUtils.processLinksWithPrioritization(musicbrainzResult.albumRefs, false)
                 )
             }
         } catch (error: Exception) {
