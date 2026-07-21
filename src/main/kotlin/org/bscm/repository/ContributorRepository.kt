@@ -95,19 +95,30 @@ class ContributorRepository : IContributorRepository {
         true
     }
 
-    override suspend fun updateContributorRole(
+    override suspend fun updateContributorRoles(
         catalogItemId: String,
         userId: UUID,
-        role: ContributorRole
-    ): Contributor = suspendTransaction {
+        roles: List<ContributorRole>
+    ): List<Contributor> = suspendTransaction {
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
-        val entity = ContributorEntity.find {
-            (ContributorTable.catalogItemId eq catalogItemEntityId) and
-                (ContributorTable.userId eq userId) and
-                (ContributorTable.role eq role)
-        }.singleOrNull() ?: throw IllegalArgumentException("Contributor not found")
 
-        contributorEntityToContributor(entity)
+        // Remove all existing roles for this user on this catalog item
+        ContributorEntity.find {
+            (ContributorTable.catalogItemId eq catalogItemEntityId) and
+                (ContributorTable.userId eq userId)
+        }.forEach { it.delete() }
+
+        // Add the new roles
+        val userEntity = UserEntity.findById(userId) ?: throw IllegalArgumentException("User not found")
+
+        roles.map { role ->
+            val newEntity = ContributorEntity.new {
+                this.catalogItem = CatalogItemEntity[catalogItemId]
+                this.user = userEntity
+                this.role = role
+            }
+            contributorEntityToContributor(newEntity, userEntity)
+        }
     }
 
     override suspend fun getContributors(catalogItemId: String): List<Contributor> = suspendTransaction {

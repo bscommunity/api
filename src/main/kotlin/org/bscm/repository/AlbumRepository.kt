@@ -10,10 +10,11 @@ import org.bscm.utils.StreamingPlatformUtils
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 class AlbumRepository {
-    fun findOrCreate(name: String, coverUrl: String?): AlbumEntity {
+    suspend fun findOrCreate(name: String, coverUrl: String?): AlbumEntity = suspendTransaction {
         val normalizedName = QueryUtils.getNormalizedQuery(name)
 
         AlbumEntity.find { AlbumTable.normalizedName eq normalizedName }
@@ -21,10 +22,10 @@ class AlbumRepository {
                 if (!coverUrl.isNullOrBlank() && existing.coverUrl.isNullOrBlank()) {
                     existing.coverUrl = coverUrl
                 }
-                return existing
+                return@suspendTransaction existing
             }
 
-        return AlbumEntity.new {
+        AlbumEntity.new {
             this.name = name
             this.normalizedName = normalizedName
             this.coverUrl = coverUrl
@@ -34,8 +35,8 @@ class AlbumRepository {
     suspend fun attachStreamingRefs(
         albumId: UUID,
         refs: List<StreamingRef>
-    ) {
-        if (refs.isEmpty()) return
+    ) = suspendTransaction {
+        if (refs.isEmpty()) return@suspendTransaction
 
         val externalIds = refs.map { it.externalId }
         val existingIds = AlbumStreamingRefEntity.find {
@@ -46,7 +47,7 @@ class AlbumRepository {
             .filter { it.externalId !in existingIds }
             .distinctBy { it.platform }
 
-        if (newRefs.isEmpty()) return
+        if (newRefs.isEmpty()) return@suspendTransaction
 
         AlbumStreamingRefTable.batchInsert(newRefs) { ref ->
             this[AlbumStreamingRefTable.albumId] = albumId
@@ -55,8 +56,8 @@ class AlbumRepository {
         }
     }
 
-    fun getStreamingRefs(albumId: UUID): List<StreamingRef> {
-        return AlbumStreamingRefEntity.find { AlbumStreamingRefTable.albumId eq albumId }
+    suspend fun getStreamingRefs(albumId: UUID): List<StreamingRef> = suspendTransaction {
+        AlbumStreamingRefEntity.find { AlbumStreamingRefTable.albumId eq albumId }
             .map { StreamingRef(it.platform, StreamingPlatformUtils.buildUrl(it.platform, it.externalId)) }
     }
 }

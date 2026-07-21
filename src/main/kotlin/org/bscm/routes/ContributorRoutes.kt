@@ -72,7 +72,7 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
          *
          * Responses:
          *   - 400 Invalid or missing parameters.
-         *   - 200 Updated contributor.
+         *   - 200 Updated contributors (all roles for the user).
          */
         put("{userId}") {
             val id = call.parameters["id"]
@@ -86,7 +86,7 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
             try {
                 val updatedRequest = call.receive<UpdateContributorRequest>()
 
-                val updated = contributorRepository.updateContributorRole(id, userId, updatedRequest.roles.first())
+                val updated = contributorRepository.updateContributorRoles(id, userId, updatedRequest.roles)
                 call.respond(updated)
             } catch (e: BadRequestException) {
                 call.respond(HttpStatusCode.BadRequest, e.message ?: "Bad Request")

@@ -210,9 +210,25 @@ class ChartPublishService(
         val isDeluxe = overrides.isDeluxe ?: (bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false)
         val isExplicit = overrides.isExplicit ?: mediaInfo?.isExplicit ?: false
 
+        emitEvent(PublishStep.UPLOADING_COVER)
+
+        // 6. Upload cover image to storage before chart creation
+        //    so the album's coverUrl is set when toTrack() reads it.
+        if (coverBytes != null) {
+            try {
+                val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
+                if (albumEntity.coverUrl.isNullOrBlank()) {
+                    storageService.uploadAlbumCover(albumEntity.id.value, avifBytes)
+                    albumEntity.coverUrl = storageService.albumCoverUrl(albumEntity.id.value)
+                }
+            } catch (e: Exception) {
+                log.warn("Failed to upload album cover to storage: ${e.message}")
+            }
+        }
+
         emitEvent(PublishStep.CREATING_CHART)
 
-        // 6. Create DB entities first (without version)
+        // 7. Create DB entities first (without version)
         val createForDb = CreateChartRequest(
             artist = mediaInfo?.artist ?: artistName,
             track = mediaInfo?.track ?: trackName,
@@ -306,21 +322,6 @@ class ChartPublishService(
             latestVersion = version,
             versionsCount = createdChart.versionsCount + 1,
         )
-
-        emitEvent(PublishStep.UPLOADING_COVER)
-
-        // 11. Convert and upload cover image to storage
-        if (coverBytes != null) {
-            try {
-                val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
-                if (albumEntity.coverUrl.isNullOrBlank()) {
-                    storageService.uploadAlbumCover(albumEntity.id.value, avifBytes)
-                    albumEntity.coverUrl = storageService.albumCoverUrl(albumEntity.id.value)
-                }
-            } catch (e: Exception) {
-                log.warn("Failed to upload album cover to storage: ${e.message}")
-            }
-        }
 
         emitEvent(PublishStep.GENERATING_PREVIEW)
 
