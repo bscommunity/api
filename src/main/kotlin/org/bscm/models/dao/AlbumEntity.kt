@@ -11,5 +11,4 @@ class AlbumEntity(id: EntityID<UUID>) : UUIDEntity(id) {
 
     var name by AlbumTable.name
     var normalizedName by AlbumTable.normalizedName
-    var coverUrl by AlbumTable.coverUrl
 }

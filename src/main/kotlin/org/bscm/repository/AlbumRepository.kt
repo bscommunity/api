@@ -14,21 +14,17 @@ import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 class AlbumRepository {
-    suspend fun findOrCreate(name: String, coverUrl: String?): AlbumEntity = suspendTransaction {
+    suspend fun findOrCreate(name: String): AlbumEntity = suspendTransaction {
         val normalizedName = QueryUtils.getNormalizedQuery(name)
 
         AlbumEntity.find { AlbumTable.normalizedName eq normalizedName }
             .firstOrNull()?.let { existing ->
-                if (!coverUrl.isNullOrBlank() && existing.coverUrl.isNullOrBlank()) {
-                    existing.coverUrl = coverUrl
-                }
                 return@suspendTransaction existing
             }
 
         AlbumEntity.new {
             this.name = name
             this.normalizedName = normalizedName
-            this.coverUrl = coverUrl
         }
     }
 

@@ -259,7 +259,7 @@ class ChartRepository(
             track = existingChart.track,
             title = chart.track,
             artist = chart.artist,
-            album = chart.album?.let { albumRepository.findOrCreate(it, null) },
+            album = chart.album?.let { albumRepository.findOrCreate(it) },
             genres = chart.genres,
         )
 

@@ -145,11 +145,6 @@ class ChartPublishService(
             null
         }
 
-        val coverUrl = overrides.coverUrl ?: when (COVER_SOURCE) {
-            CoverSource.BUNDLE -> ""
-            CoverSource.MEDIA_INFO -> mediaInfo?.coverUrl ?: ""
-        }
-
         // Resolve cover bytes based on COVER_SOURCE
         val coverBytes = when (COVER_SOURCE) {
             CoverSource.BUNDLE -> bundleCoverBytes
@@ -160,7 +155,7 @@ class ChartPublishService(
                 } else {
                     try {
                         val imgResponse: HttpResponse = applicationHttpClient.get(mediaCoverUrl)
-                        if (imgResponse.status.isSuccess()) imgResponse.readBytes() else bundleCoverBytes
+                        if (imgResponse.status.isSuccess()) imgResponse.readRawBytes() else bundleCoverBytes
                     } catch (e: Exception) {
                         log.warn("Failed to download media cover, falling back to bundle: ${e.message}")
                         bundleCoverBytes
@@ -169,12 +164,19 @@ class ChartPublishService(
             }
         }
 
-        // log.info("Cover resolved: source=$COVER_SOURCE, coverBytes=${coverBytes?.size ?: 0} bytes, coverUrl=$coverUrl")
-
         // 5b. Resolve album entity — always create one so cover has a home
         val albumName = overrides.album ?: mediaInfo?.album ?: "$trackName – Single"
-        val resolvedCoverUrl = coverUrl.ifBlank { null }
-        val albumEntity = albumRepository.findOrCreate(albumName, resolvedCoverUrl)
+        val albumEntity = albumRepository.findOrCreate(albumName)
+
+        // Upload cover art to CDN (deterministic URL: albums/{albumId}/cover.avif)
+        if (coverBytes != null) {
+            try {
+                val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
+                storageService.uploadAlbumCover(albumEntity.id.value, avifBytes)
+            } catch (e: Exception) {
+                log.warn("Failed to upload album cover to storage: ${e.message}")
+            }
+        }
 
         // Track streaming links resolution
         val streamingResult = overrides.trackUrls?.let { TrackInfoService.StreamingLinksResult(it) } ?: run {
@@ -210,22 +212,6 @@ class ChartPublishService(
         val isDeluxe = overrides.isDeluxe ?: (bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false)
         val isExplicit = overrides.isExplicit ?: mediaInfo?.isExplicit ?: false
 
-        emitEvent(PublishStep.UPLOADING_COVER)
-
-        // 6. Upload cover image to storage before chart creation
-        //    so the album's coverUrl is set when toTrack() reads it.
-        if (coverBytes != null) {
-            try {
-                val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
-                if (albumEntity.coverUrl.isNullOrBlank()) {
-                    storageService.uploadAlbumCover(albumEntity.id.value, avifBytes)
-                    albumEntity.coverUrl = storageService.albumCoverUrl(albumEntity.id.value)
-                }
-            } catch (e: Exception) {
-                log.warn("Failed to upload album cover to storage: ${e.message}")
-            }
-        }
-
         emitEvent(PublishStep.CREATING_CHART)
 
         // 7. Create DB entities first (without version)
@@ -235,7 +221,7 @@ class ChartPublishService(
             album = albumName,
             albumId = albumEntity.id.value,
             trackUrls = streamingLinks,
-            coverUrl = coverUrl,
+            coverUrl = storageService.albumCoverUrl(albumEntity.id.value),
             genres = (overrides.genres ?: mediaInfo?.genres).orEmpty(),
             isExplicit = isExplicit,
             duration = computedStats.duration,
@@ -259,7 +245,7 @@ class ChartPublishService(
         // emitEvent(PublishStep.PREPARING_BUNDLE)
 
         // 7. Inject bscm.json into the bundle (basic display data + cover art)
-        val coverCdnUrl = albumEntity.coverUrl
+        val coverCdnUrl = storageService.albumCoverUrl(albumEntity.id.value)
         val bscmMetadata = DecodingUtils.BscmMetadata(
             chartId = createdChart.id,
             track = trackName,
@@ -278,7 +264,7 @@ class ChartPublishService(
                     role = "author",
                 )
             ),
-            cover = coverCdnUrl?.ifEmpty { null },
+            cover = coverCdnUrl.ifEmpty { null },
         )
         val enrichedBundleBytes = DecodingUtils.injectBscmMetadata(bundleBytes, bscmMetadata)
 
