@@ -7,7 +7,7 @@ import java.util.*
 
 interface IContributorRepository {
     suspend fun addContributors(catalogItemId: String, contributors: List<SimplifiedContributor>): List<Contributor>
-    suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole): Boolean
+    suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole? = null): Boolean
     suspend fun updateContributorRoles(catalogItemId: String, userId: UUID, roles: List<ContributorRole>): List<Contributor>
     suspend fun getContributors(catalogItemId: String): List<Contributor>
 }

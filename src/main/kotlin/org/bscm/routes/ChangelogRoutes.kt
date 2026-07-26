@@ -5,6 +5,8 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.bscm.models.dto.changelog.CreateChangelogEntryRequest
+import org.bscm.models.dto.changelog.CreateChangelogEntryResponse
 import org.bscm.models.interfaces.IChangelogRepository
 import java.util.*
 
@@ -16,10 +18,11 @@ fun Route.changelogRoutes(changelogRepository: IChangelogRepository) {
                 return@post
             }
 
-            val receivedIssue = call.receive<org.bscm.models.Changelog>()
+            val request = call.receive<CreateChangelogEntryRequest>()
 
-            val createdIssue = changelogRepository.addIssue(id, receivedIssue)
-            call.respond(HttpStatusCode.Created, createdIssue)
+            val entryId = changelogRepository.addIssue(id, request.description)
+
+            call.respond(HttpStatusCode.Created, CreateChangelogEntryResponse(entryId))
         }
 
         delete("{id}/issues/{issueId}") {

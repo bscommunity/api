@@ -83,15 +83,27 @@ class ContributorRepository : IContributorRepository {
         contributorEntities
     }
 
-    override suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole): Boolean = suspendTransaction {
+    override suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole?): Boolean = suspendTransaction {
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
-        val entity = ContributorEntity.find {
-            (ContributorTable.catalogItemId eq catalogItemEntityId) and
-                (ContributorTable.userId eq userId) and
-                (ContributorTable.role eq role)
-        }.singleOrNull() ?: throw IllegalArgumentException("Contributor not found")
 
-        entity.delete()
+        if (role != null) {
+            val entity = ContributorEntity.find {
+                (ContributorTable.catalogItemId eq catalogItemEntityId) and
+                    (ContributorTable.userId eq userId) and
+                    (ContributorTable.role eq role)
+            }.singleOrNull() ?: throw IllegalArgumentException("Contributor not found")
+
+            entity.delete()
+        } else {
+            val entities = ContributorEntity.find {
+                (ContributorTable.catalogItemId eq catalogItemEntityId) and
+                    (ContributorTable.userId eq userId)
+            }
+
+            if (entities.empty()) throw IllegalArgumentException("Contributor not found")
+            entities.forEach { it.delete() }
+        }
+
         true
     }
 

@@ -5,6 +5,8 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.plugins.*
 import io.ktor.util.logging.*
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.User
@@ -91,7 +93,7 @@ class ChartPublishService(
     }
 
 
-    suspend fun publish(user: User, bundleBytes: ByteArray, overrides: Overrides = Overrides(), publishSessionId: String? = null): Result {
+    suspend fun publish(user: User, bundleBytes: ByteArray, overrides: Overrides = Overrides(), publishSessionId: String? = null): Result = coroutineScope {
         fun emitEvent(step: PublishStep) {
             if (publishSessionId != null) {
                 publishEventService.emit(publishSessionId, step)
@@ -168,13 +170,16 @@ class ChartPublishService(
         val albumName = overrides.album ?: mediaInfo?.album ?: "$trackName – Single"
         val albumEntity = albumRepository.findOrCreate(albumName)
 
-        // Upload cover art to CDN (deterministic URL: albums/{albumId}/cover.avif)
-        if (coverBytes != null) {
-            try {
-                val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
-                storageService.uploadAlbumCover(albumEntity.id.value, avifBytes)
-            } catch (e: Exception) {
-                log.warn("Failed to upload album cover to storage: ${e.message}")
+        // Fire cover upload in background — the deterministic URL is already computable
+        // from albumEntity.id, so nothing downstream needs the bytes to have landed.
+        val coverUploadJob = coverBytes?.let { bytes ->
+            launch {
+                try {
+                    val avifBytes = MediaConverter.convertToAvif(bytes) ?: bytes
+                    storageService.uploadAlbumCover(albumEntity.id.value, avifBytes)
+                } catch (e: Exception) {
+                    log.warn("Failed to upload album cover to storage: ${e.message}")
+                }
             }
         }
 
@@ -316,6 +321,9 @@ class ChartPublishService(
             audioPreviewService.publish(createdChart.track.id, mediaInfo)
         }
 
+        // Cover must exist on CDN by the time we return — the UI shows it immediately.
+        coverUploadJob?.join()
+
         val result = Result(
             chart = updatedChart,
             initialVersion = SimplifiedVersion(
@@ -340,6 +348,6 @@ class ChartPublishService(
 
         emitEvent(PublishStep.COMPLETED)
 
-        return result
+        result
     }
 }

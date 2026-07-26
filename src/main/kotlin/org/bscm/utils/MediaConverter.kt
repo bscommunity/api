@@ -11,7 +11,7 @@ private val log = KtorSimpleLogger("MediaConverter")
 
 object MediaConverter {
 
-    suspend fun convertToOpus(inputBytes: ByteArray, previewDurationSeconds: Int = 15): ByteArray? = withContext(Dispatchers.IO) {
+    suspend fun convertToOpus(inputBytes: ByteArray, previewDurationSeconds: Int = 10): ByteArray? = withContext(Dispatchers.IO) {
         val tmpIn = Files.createTempFile("preview-in", ".tmp")
         try {
             tmpIn.toFile().writeBytes(inputBytes)
@@ -26,7 +26,7 @@ object MediaConverter {
                 "-t", previewDurationSeconds.toString(),
                 "-vn",
                 "-c:a", "libopus",
-                "-b:a", "24k",
+                "-b:a", "32k",
                 "-vbr", "on",
                 "-compression_level", "10",
                 "-frame_duration", "60",

@@ -3,10 +3,6 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import io.ktor.util.logging.*
 import kotlinx.coroutines.*
-import kotlinx.datetime.Clock
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import org.bscm.models.Changelog
 import org.bscm.models.StreamingRef
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
@@ -199,19 +195,14 @@ private suspend fun generateRandomCharts(
                             log.info("Added contributors for chart ID: ${chart.id}")
                         }
 
-                        // Add known issues randomly
+                        // Add changelog randomly
                         val issueJob = launch {
                             if (Random.nextBoolean()) {
                                 val issuesCount = Random.nextInt(1, 3)
                                 repeat(issuesCount) {
                                     knownIssueRepository.addIssue(
                                         chart.id,
-                                        Changelog(
-                                            id = UUID.randomUUID(),
-                                            chartId = chart.id,
-                                            title = getRandomIssue(),
-                                            createdAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-                                        )
+                                        description = "${getRandomIssue()} (Generated for seeding)"
                                     )
                                 }
                                 log.info("Added known issues for chart ID: ${chart.id}")

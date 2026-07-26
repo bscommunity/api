@@ -100,7 +100,7 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
          *
          * Path: id [String] Catalog item ID.
          * Path: userId [UUID] User ID of the contributor.
-         * Query: role [String] Contributor role to remove.
+         * Query: role [String] Optional contributor role to remove. If omitted, all roles for the user are removed.
          *
          * Responses:
          *   - 400 Invalid or missing parameters.
@@ -112,8 +112,8 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
             val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
             val role = call.request.queryParameters["role"]
                 ?.let { runCatching { ContributorRole.valueOf(it) }.getOrNull() }
-            if (id == null || userId == null || role == null) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID or role")
+            if (id == null || userId == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
                 return@delete
             }
 

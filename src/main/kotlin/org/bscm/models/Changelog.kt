@@ -13,7 +13,6 @@ import java.util.*
 data class Changelog(
     val id: UUID,
     val chartId: String,
-    val title: String,
-    val description: String? = null,
+    val description: String,
     val createdAt: LocalDateTime,
 )
