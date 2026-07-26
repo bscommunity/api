@@ -1,6 +1,7 @@
 package org.bscm.repository
 
 import kotlinx.datetime.LocalDateTime
+import org.bscm.models.Changelog
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.dao.*
@@ -24,6 +25,7 @@ class ChartResultAssembler(
         val streamingRefs: List<StreamingRef>,
         val latestVersion: VersionEntity?,
         val userStats: Pair<LocalDateTime?, LocalDateTime?>,
+        val changelog: List<Changelog>,
     )
 
     fun toChart(result: ChartResult): Chart = Chart(
@@ -49,6 +51,7 @@ class ChartResultAssembler(
         effectsAmount = result.chart.effectsAmount,
         isDeluxe = result.chart.isDeluxe,
         isExplicit = result.chart.isExplicit,
+        changelog = result.changelog,
         latestVersion = result.latestVersion?.let(VersionMapper::entityToVersion),
     )
 
@@ -56,6 +59,7 @@ class ChartResultAssembler(
         requestingUserId: UUID?,
         results: List<ResultRow>,
         includeStreamingRefs: Boolean,
+        changelogs: Map<String, List<Changelog>> = emptyMap(),
     ): List<ChartResult> {
         val groupedByChartId: Map<String, List<ResultRow>> = results.groupBy { row: ResultRow ->
             row[ChartTable.id].value
@@ -110,6 +114,7 @@ class ChartResultAssembler(
                 streamingRefs = streamingRefs,
                 latestVersion = latestVersion,
                 userStats = userStats[catalogItemEntity.id.value] ?: Pair(null, null),
+                changelog = changelogs[catalogItemEntity.id.value] ?: emptyList(),
             )
         }
     }

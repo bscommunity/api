@@ -107,7 +107,7 @@ fun mainModule(config: ApplicationConfig) = module {
     single { AlbumRepository() }
     single { TrackRepository(storageService = get()) }
     single { BundleUrlCacheRepository() }
-    single<IChartRepository> { ChartRepository(get(), get(), get(), get()) }
+    single<IChartRepository> { ChartRepository(get(), get(), get(), get(), get()) }
     single<IContributorRepository> { ContributorRepository() }
     single<IVersionRepository> { VersionRepository() }
     single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get(), get()) }

@@ -69,6 +69,7 @@ class TourPassRepository(
                     effectsAmount = chartEntity.effectsAmount,
                     isDeluxe = chartEntity.isDeluxe,
                     isExplicit = chartEntity.isExplicit,
+                    changelog = emptyList(),
                     latestVersion = catalogItem.latestVersion?.let {
                         org.bscm.models.mappers.VersionMapper.entityToVersion(it)
                     },

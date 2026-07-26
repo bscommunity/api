@@ -52,5 +52,7 @@ data class Chart(
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
 
+    val changelog: List<Changelog>,
+
     val latestVersion: Version?
 ) : CatalogItem
