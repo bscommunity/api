@@ -6,9 +6,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.user.ContentCounts
 import org.bscm.models.dto.user.ItemsPage
-import org.bscm.models.enums.CatalogItemType
-import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.SortOption
+import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.repository.ChartRepository
@@ -55,11 +53,28 @@ fun Route.meRoutes(
                 val sortBy = call.request.queryParameters["sortBy"]
                     ?.let { runCatching { SortOption.valueOf(it) }.getOrNull() }
 
+                val genres = call.request.queryParameters["genres"]
+                    ?.split(",")
+                    ?.mapNotNull { runCatching { Genre.valueOf(it.trim()) }.getOrNull() }
+                    ?.takeIf { it.isNotEmpty() }
+
+                val difficulties = call.request.queryParameters["difficulties"]
+                    ?.split(",")
+                    ?.mapNotNull { runCatching { Difficulty.valueOf(it.trim()) }.getOrNull() }
+                    ?.takeIf { it.isNotEmpty() }
+
+                val isDeluxe = call.request.queryParameters["versions"]
+                    ?.split(",")
+                    ?.any { it.trim().equals("DELUXE", ignoreCase = true) }
+
                 val (items, counts) = userRepository.getUserUploads(
                     userId = userId,
                     types = requestedTypes,
                     query = query,
                     sortBy = sortBy,
+                    genres = genres,
+                    difficulties = difficulties,
+                    isDeluxe = isDeluxe,
                     limit = limit ?: 20,
                     offset = offset ?: 0
                 )

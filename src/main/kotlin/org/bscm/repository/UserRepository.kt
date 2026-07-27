@@ -12,9 +12,7 @@ import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileCounts
-import org.bscm.models.enums.CatalogItemType
-import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.SortOption
+import org.bscm.models.enums.*
 import org.bscm.models.interfaces.*
 import org.bscm.models.tables.*
 import org.jetbrains.exposed.v1.core.*
@@ -510,6 +508,9 @@ class UserRepository(
         types: List<CatalogItemType>?,
         query: String?,
         sortBy: SortOption?,
+        genres: List<Genre>?,
+        difficulties: List<Difficulty>?,
+        isDeluxe: Boolean?,
         limit: Int,
         offset: Int
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>> = suspendTransaction {
@@ -537,6 +538,25 @@ class UserRepository(
                 (ThemeTable.name like "%$searchQuery%") or
                 (ThemeTable.replaces like "%$searchQuery%")
             }
+        }
+
+        // Apply genre filter (Postgres array contains)
+        genres?.takeIf { it.isNotEmpty() }?.let { genreList ->
+            contentQuery.andWhere {
+                genreList.map { genre ->
+                    stringParam(genre.name) eq anyFrom(TrackTable.genres)
+                }.fold(Op.FALSE as Op<Boolean>) { acc, next -> acc.or(next) }
+            }
+        }
+
+        // Apply difficulty filter
+        difficulties?.takeIf { it.isNotEmpty() }?.let { diffList ->
+            contentQuery.andWhere { ChartTable.difficulty inList diffList }
+        }
+
+        // Apply deluxe filter
+        isDeluxe?.let { deluxe ->
+            contentQuery.andWhere { ChartTable.isDeluxe eq deluxe }
         }
 
         // Apply sorting

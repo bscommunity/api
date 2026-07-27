@@ -8,9 +8,7 @@ import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileCounts
-import org.bscm.models.enums.CatalogItemType
-import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.SortOption
+import org.bscm.models.enums.*
 import java.util.*
 
 interface IUserRepository {
@@ -60,6 +58,9 @@ interface IUserRepository {
         types: List<CatalogItemType>?,
         query: String?,
         sortBy: SortOption?,
+        genres: List<Genre>? = null,
+        difficulties: List<Difficulty>? = null,
+        isDeluxe: Boolean? = null,
         limit: Int,
         offset: Int
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>>
