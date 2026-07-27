@@ -8,10 +8,13 @@ import org.bscm.models.dto.user.ContentCounts
 import org.bscm.models.dto.user.ItemsPage
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
+import org.bscm.models.enums.SortOption
 import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.IUserRepository
 import org.bscm.repository.ChartRepository
 import org.bscm.services.CollectionService
 import org.bscm.services.ProfileService
+import org.bscm.utils.getContentTypeOrNull
 import org.bscm.utils.getPagination
 import org.bscm.utils.getUserId
 
@@ -19,10 +22,55 @@ import org.bscm.utils.getUserId
 fun Route.meRoutes(
     collectionService: CollectionService,
     profileService: ProfileService,
-    chartRepository: IChartRepository
+    chartRepository: IChartRepository,
+    userRepository: IUserRepository,
 ) {
     route("/me") {
         authenticate("auth-bearer") {
+            // ===================== UPLOADS ======================
+
+            /**
+             * Get authenticated user's uploads (all content types, interleaved).
+             *
+             * Tag: Me
+             *
+             * Query: types [String] Optional comma-separated content types to filter (CHART, TOUR_PASS, THEME).
+             * Query: query [String] Optional search query across all types.
+             * Query: sortBy [String] Sort option (LAST_UPDATED, MOST_DOWNLOADED, ALPHA_ASC, ALPHA_DESC).
+             * Query: limit [Integer] Optional limit for results (max 50).
+             * Query: offset [Integer] Optional pagination offset (default 0).
+             *
+             * Responses:
+             *   - 200 application/json [Object] Paginated items with content counts.
+             *   - 401 application/json [Error] User not authenticated.
+             *
+             * Security: auth-bearer
+             */
+            get("/uploads") {
+                val userId = call.getUserId()
+                val (limit, offset) = call.getPagination(coerceLimit = 50, defaultOffset = 0)
+
+                val requestedTypes = call.getContentTypeOrNull()
+                val query = call.request.queryParameters["query"]?.takeIf { it.isNotBlank() }
+                val sortBy = call.request.queryParameters["sortBy"]
+                    ?.let { runCatching { SortOption.valueOf(it) }.getOrNull() }
+
+                val (items, counts) = userRepository.getUserUploads(
+                    userId = userId,
+                    types = requestedTypes,
+                    query = query,
+                    sortBy = sortBy,
+                    limit = limit ?: 20,
+                    offset = offset ?: 0
+                )
+
+                call.respond(
+                    ItemsPage(
+                        items,
+                        ContentCounts(counts.first, counts.second, counts.third)
+                    )
+                )
+            }
             // ===================== CHARTS ======================
 
             /**

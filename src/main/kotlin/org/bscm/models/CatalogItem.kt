@@ -15,7 +15,7 @@ import java.util.*
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
-@JsonClassDiscriminator("type")
+@JsonClassDiscriminator("itemKind")
 sealed interface CatalogItem {
     val id: String
 

@@ -12,6 +12,7 @@ import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.ItemsPage
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.enums.ActivityType
+import org.bscm.models.enums.SortOption
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.CollectionService
@@ -350,11 +351,15 @@ fun Route.userRoutes(
 
                 val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
                 val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+                val query = call.request.queryParameters["query"]?.takeIf { it.isNotBlank() }
+                val sortBy = call.request.queryParameters["sortBy"]
+                    ?.let { runCatching { SortOption.valueOf(it) }.getOrNull() }
 
                 val items = userRepository.getUserTourPasses(
                     userId = userId,
                     requestingUserId = requester,
-                    query = null,
+                    query = query,
+                    sortBy = sortBy,
                     limit = limit,
                     offset = offset
                 )

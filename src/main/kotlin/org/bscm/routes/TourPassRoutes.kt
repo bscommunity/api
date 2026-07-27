@@ -27,8 +27,56 @@ fun Route.tourPassRoutes(
 
     route("/tourpasses") {
 
+        // Public browse endpoint
+        authenticate("auth-public") {
+            rateLimit(RateLimitName("restricted")) {
+                get {
+                    val search = call.request.queryParameters["query"]
+                        ?.takeIf { it.isNotBlank() }
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                    val offset = call.request.queryParameters["offset"]?.toIntOrNull()
+                    val count = call.request.queryParameters["count"]?.toBoolean() ?: false
+
+                    val tourPasses = tourPassRepository.getTourPasses(
+                        search = search,
+                        limit = limit,
+                        offset = offset
+                    )
+
+                    val total = if (count) {
+                        tourPassRepository.getTourPasses(search = search).size
+                    } else null
+
+                    call.respond(
+                        if (total != null) Pair(tourPasses, total) else Pair(tourPasses, null)
+                    )
+                }
+            }
+        }
+
+        // Authenticated routes
         authenticate("auth-bearer") {
             rateLimit(RateLimitName("restricted")) {
+
+                get("{id}") {
+                    val id = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing tour pass ID")
+
+                    val userId = call.principal<JWTPrincipal>()
+                        ?.subject
+                        ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        ?: throw UnauthorizedException("User unauthorized")
+
+                    val tourPass = tourPassRepository.getTourPassById(id, userId)
+                        ?: throw NotFoundException("Tour pass not found")
+
+                    if (tourPass.visibility != org.bscm.models.enums.Visibility.PUBLIC) {
+                        val isAuthor = tourPass.authorId == userId
+                        if (!isAuthor) throw NotFoundException("Tour pass not found")
+                    }
+
+                    call.respond(tourPass)
+                }
 
                 post {
                     val userId = call.principal<JWTPrincipal>()

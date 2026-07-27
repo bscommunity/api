@@ -122,7 +122,7 @@ fun Application.configureRouting() {
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
         userRoutes(userRepository, profileService, collectionService, activityRepository)
-        meRoutes(collectionService, profileService, chartRepository)
+        meRoutes(collectionService, profileService, chartRepository, userRepository)
 
         chartRoutes(
             chartRepository,
@@ -135,6 +135,7 @@ fun Application.configureRouting() {
         )
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
         tourPassRoutes(tourPassPublishService, tourPassRepository, userRepository)
+        themeRoutes(themeRepository)
         contributorRoutes(contributorRepository)
         debugRoutes(trackInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)
