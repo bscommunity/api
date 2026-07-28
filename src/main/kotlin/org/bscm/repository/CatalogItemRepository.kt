@@ -1,6 +1,9 @@
 package org.bscm.repository
 
+import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dao.VersionEntity
@@ -26,12 +29,14 @@ class CatalogItemRepository {
             else
                 null
 
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         return when {
             id != null -> CatalogItemEntity.new(id) {
                 this.type = type
                 this.status = CatalogItemStatus.DRAFT
                 this.previewVideoId = previewVideoId
                 this.author = UserEntity[authorId]
+                this.updatedAt = now
             }
 
             else -> CatalogItemEntity.new {
@@ -39,6 +44,7 @@ class CatalogItemRepository {
                 this.status = CatalogItemStatus.DRAFT
                 this.previewVideoId = previewVideoId
                 this.author = UserEntity[authorId]
+                this.updatedAt = now
             }
         }
     }

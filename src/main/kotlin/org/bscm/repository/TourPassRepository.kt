@@ -1,5 +1,8 @@
 package org.bscm.repository
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
@@ -185,17 +188,20 @@ class TourPassRepository(
         chartIds: List<String>?,
         id: String?,
     ): TourPass = suspendTransaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         val catalogItem = if (id != null) {
             CatalogItemEntity.new(id) {
                 this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
                 this.author = UserEntity[userId]
+                this.updatedAt = now
             }
         } else {
             CatalogItemEntity.new {
                 this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
                 this.author = UserEntity[userId]
+                this.updatedAt = now
             }
         }
 
@@ -278,7 +284,7 @@ class TourPassRepository(
         } > 0
     }
 
-    override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) {
-        catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
-    }
+	override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) = suspendTransaction {
+		catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
+	}
 }

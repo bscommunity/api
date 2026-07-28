@@ -1,5 +1,8 @@
 package org.bscm.repository
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Theme
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ThemeEntity
@@ -79,17 +82,20 @@ class ThemeRepository(
         previewUrl: String?,
         id: String?,
     ): Theme = suspendTransaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         val catalogItem = if (id != null) {
             CatalogItemEntity.new(id) {
                 this.type = CatalogItemType.THEME
                 this.status = CatalogItemStatus.PUBLISHED
                 this.author = UserEntity[userId]
+                this.updatedAt = now
             }
         } else {
             CatalogItemEntity.new {
                 this.type = CatalogItemType.THEME
                 this.status = CatalogItemStatus.PUBLISHED
                 this.author = UserEntity[userId]
+                this.updatedAt = now
             }
         }
 
@@ -123,7 +129,7 @@ class ThemeRepository(
         true
     }
 
-    override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) {
+    override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) = suspendTransaction {
         catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
     }
 }
