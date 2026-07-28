@@ -27,8 +27,11 @@ data class TourPass(
     override val createdAt: LocalDateTime,
     override val publishedAt: LocalDateTime?,
     override val updatedAt: LocalDateTime?,
-    override val likedAt: LocalDateTime?,
-    override val bookmarkedAt: LocalDateTime?,
+    override val likedAt: LocalDateTime? = null,
+    override val bookmarkedAt: LocalDateTime? = null,
+
+    val likesCount: Int = 0,
+    val bookmarksCount: Int = 0,
 
     override val id: String,
     override val type: CatalogItemType,

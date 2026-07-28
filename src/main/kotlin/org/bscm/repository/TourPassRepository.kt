@@ -3,23 +3,24 @@ package org.bscm.repository
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
-import org.bscm.models.Track
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.TourPassEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.enums.CollectionKind
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
-import org.bscm.models.tables.ChartTable
-import org.bscm.models.tables.TourPassChartTable
-import org.bscm.models.tables.TourPassTable
+import org.bscm.models.tables.*
 import org.bscm.storage.StorageService
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
@@ -29,59 +30,57 @@ class TourPassRepository(
     private val storageService: StorageService,
 ) : ITourPassRepository {
 
-    private fun tourPassEntityToTourPass(entity: TourPassEntity): TourPass {
+    /**
+     * Fetches aggregate likes/bookmarks counts for a batch of catalog items.
+     * Returns a map of contentId -> (likesCount, bookmarksCount).
+     * Must be called within a transaction.
+     */
+    private fun fetchAggregateStats(contentIds: List<String>): Map<String, Pair<Int, Int>> {
+        if (contentIds.isEmpty()) return emptyMap()
+
+        val statsRows = CollectionItemTable
+            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+            .select(CollectionItemTable.contentId, CollectionTable.kind, CollectionTable.userId)
+            .where {
+                (CollectionTable.kind inList listOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS, CollectionKind.USER)) and
+                    (CollectionItemTable.contentId inList contentIds)
+            }
+            .toList()
+
+        return contentIds.associateWith { contentId ->
+            val rows = statsRows.filter { it[CollectionItemTable.contentId].value == contentId }
+            val likesCount = rows.filter { it[CollectionTable.kind] == CollectionKind.LIKES }
+                .map { it[CollectionTable.userId] }
+                .distinct()
+                .size
+            val bookmarksCount = rows.filter {
+                it[CollectionTable.kind] == CollectionKind.BOOKMARKS || it[CollectionTable.kind] == CollectionKind.USER
+            }
+                .map { it[CollectionTable.userId] }
+                .distinct()
+                .size
+            likesCount to bookmarksCount
+        }
+    }
+
+    private fun buildTourPass(
+        entity: TourPassEntity,
+        charts: List<Chart>,
+        likesCount: Int,
+        bookmarksCount: Int,
+    ): TourPass {
         val catalogItem = CatalogItemEntity[entity.id.value]
         return TourPass(
             name = entity.name,
             description = entity.description,
-            charts = entity.charts.map { chartEntity ->
-                Chart(
-                    id = chartEntity.id.value,
-                    type = CatalogItemType.CHART,
-                    status = catalogItem.status,
-                    visibility = catalogItem.visibility,
-                    isFeatured = catalogItem.isFeatured,
-                    downloadsSum = catalogItem.downloadsSum,
-                    contributors = emptyList(),
-                    createdAt = catalogItem.createdAt,
-                    publishedAt = catalogItem.publishedAt,
-                    updatedAt = catalogItem.updatedAt,
-                    likedAt = null,
-                    bookmarkedAt = null,
-                    previewVideoId = catalogItem.previewVideoId,
-                    discordChannelId = catalogItem.discordChannelId,
-                    discordMessageId = catalogItem.discordMessageId,
-                    authorId = catalogItem.author?.id?.value,
-                    track = Track(
-                        id = chartEntity.track.id.value,
-                        title = chartEntity.track.title,
-                        artist = chartEntity.track.artist,
-                        album = chartEntity.track.album?.name,
-                        isrc = chartEntity.track.isrc,
-                        genres = chartEntity.track.genres.orEmpty(),
-                        bpm = chartEntity.track.bpm,
-                        duration = chartEntity.track.duration,
-                        streamingRefs = emptyList(),
-                    ),
-                    versionsCount = catalogItem.versionsCount,
-                    difficulty = chartEntity.difficulty,
-                    notesAmount = chartEntity.notesAmount,
-                    effectsAmount = chartEntity.effectsAmount,
-                    isDeluxe = chartEntity.isDeluxe,
-                    isExplicit = chartEntity.isExplicit,
-                    changelog = emptyList(),
-                    latestVersion = catalogItem.latestVersion?.let {
-                        org.bscm.models.mappers.VersionMapper.entityToVersion(it)
-                    },
-                )
-            },
+            charts = charts,
             coverUrl = storageService.tourPassCoverUrl(entity.id.value),
+            likesCount = likesCount,
+            bookmarksCount = bookmarksCount,
             contributors = emptyList(),
             createdAt = catalogItem.createdAt,
             publishedAt = catalogItem.publishedAt,
             updatedAt = catalogItem.updatedAt,
-            likedAt = null,
-            bookmarkedAt = null,
             id = entity.id.value,
             type = CatalogItemType.TOUR_PASS,
             status = catalogItem.status,
@@ -93,6 +92,26 @@ class TourPassRepository(
             discordMessageId = catalogItem.discordMessageId,
             authorId = catalogItem.author?.id?.value,
         )
+    }
+
+    private suspend fun loadChartsForTourPass(entity: TourPassEntity, userId: UUID?): List<Chart> {
+        val chartIds = entity.charts.map { it.id.value }
+        return if (chartIds.isNotEmpty()) {
+            chartRepository.getChartsByContentIds(
+                contentIds = chartIds,
+                addons = ChartRepository.ChartAddons(streamingLinks = true),
+                requestingUserId = userId,
+            )
+        } else {
+            emptyList()
+        }
+    }
+
+    private suspend fun buildTourPassFromEntity(entity: TourPassEntity, userId: UUID?): TourPass {
+        val charts = loadChartsForTourPass(entity, userId)
+        val stats = fetchAggregateStats(listOf(entity.id.value))
+        val (likesCount, bookmarksCount) = stats[entity.id.value] ?: (0 to 0)
+        return buildTourPass(entity, charts, likesCount, bookmarksCount)
     }
 
     override suspend fun getTourPasses(
@@ -118,11 +137,35 @@ class TourPassRepository(
         } else {
             result
         }
-        paged.map { tourPassEntityToTourPass(it) }
+
+        if (paged.isEmpty()) return@suspendTransaction emptyList()
+
+        val allTourPassIds = paged.map { it.id.value }
+        val allStats = fetchAggregateStats(allTourPassIds)
+
+        val allChartIds = paged.flatMap { entity ->
+            entity.charts.map { it.id.value }
+        }.distinct()
+
+        val chartMap = if (allChartIds.isNotEmpty()) {
+            chartRepository.getChartsByContentIds(
+                contentIds = allChartIds,
+                addons = ChartRepository.ChartAddons(streamingLinks = true),
+                requestingUserId = userId,
+            ).associateBy { it.id }
+        } else {
+            emptyMap()
+        }
+
+        paged.map { entity ->
+            val charts = entity.charts.mapNotNull { chartMap[it.id.value] }
+            val (likesCount, bookmarksCount) = allStats[entity.id.value] ?: (0 to 0)
+            buildTourPass(entity, charts, likesCount, bookmarksCount)
+        }
     }
 
     override suspend fun getTourPassById(id: String, userId: UUID?): TourPass? = suspendTransaction {
-        TourPassEntity.findById(id)?.let { tourPassEntityToTourPass(it) }
+        TourPassEntity.findById(id)?.let { buildTourPassFromEntity(it, userId) }
     }
 
     override suspend fun createTourPass(
@@ -136,13 +179,13 @@ class TourPassRepository(
     ): TourPass = suspendTransaction {
         val catalogItem = if (id != null) {
             CatalogItemEntity.new(id) {
-                this.type = org.bscm.models.enums.CatalogItemType.TOUR_PASS
+                this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
                 this.author = UserEntity[userId]
             }
         } else {
             CatalogItemEntity.new {
-                this.type = org.bscm.models.enums.CatalogItemType.TOUR_PASS
+                this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
                 this.author = UserEntity[userId]
             }
@@ -161,7 +204,7 @@ class TourPassRepository(
             }
         }
 
-        tourPassEntityToTourPass(tourPass)
+        buildTourPassFromEntity(tourPass, userId)
     }
 
     override suspend fun updateTourPass(
@@ -188,7 +231,7 @@ class TourPassRepository(
             }
         }
 
-        tourPassEntityToTourPass(entity)
+        buildTourPassFromEntity(entity, userId)
     }
 
     override suspend fun deleteTourPass(id: String, userId: UUID): Boolean = suspendTransaction {
@@ -207,7 +250,7 @@ class TourPassRepository(
             }
         }
 
-        tourPassEntityToTourPass(TourPassEntity[id])
+        buildTourPassFromEntity(TourPassEntity[id], userId)
     }
 
     override suspend fun addChartToTourPass(tourPassId: String, chartId: String): Boolean = suspendTransaction {
