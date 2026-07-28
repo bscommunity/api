@@ -12,7 +12,7 @@ object UserFollowTable : Table("user_follows") {
     val followed = reference("followed_id", UserTable, onDelete = ReferenceOption.CASCADE).index()
 
     val createdAt = datetime("created_at")
-        .clientDefault { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
+        .clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }
 
     override val primaryKey = PrimaryKey(follower, followed)
 }

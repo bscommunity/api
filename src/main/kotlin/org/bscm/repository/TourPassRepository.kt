@@ -188,7 +188,7 @@ class TourPassRepository(
         chartIds: List<String>?,
         id: String?,
     ): TourPass = suspendTransaction {
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val catalogItem = if (id != null) {
             CatalogItemEntity.new(id) {
                 this.type = CatalogItemType.TOUR_PASS
@@ -230,11 +230,16 @@ class TourPassRepository(
         artist: String?,
         chartIds: List<String>?,
     ): TourPass = suspendTransaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val entity = TourPassEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
             description?.let { entity.description = it }
             artist?.let { entity.artist = it }
         } ?: throw IllegalArgumentException("TourPass $id not found")
+
+        CatalogItemEntity.findByIdAndUpdate(id) {
+            it.updatedAt = now
+        }
 
         chartIds?.let { newChartIds ->
             TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq EntityID(id, TourPassTable) }

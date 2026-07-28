@@ -33,5 +33,5 @@ object UserTable : UUIDTable("users") {
     val followingCount = integer("following_count").default(0)
 
     val discordId = varchar("discord_id", 255).uniqueIndex()
-    val createdAt = datetime("created_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
+    val createdAt = datetime("created_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }
 }

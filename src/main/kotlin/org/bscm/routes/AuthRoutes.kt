@@ -185,7 +185,7 @@ fun Route.authRoutes(
                             provider = "google",
                             refreshToken = googleTokenResponse.refreshToken,
                             accessToken = googleTokenResponse.accessToken,
-                            expiresAt = (Clock.System.now() + googleTokenResponse.expiresIn.toLong().days).toLocalDateTime(TimeZone.currentSystemDefault()),
+                            expiresAt = (Clock.System.now() + googleTokenResponse.expiresIn.toLong().days).toLocalDateTime(TimeZone.UTC),
                             tokenType = googleTokenResponse.tokenType,
                             scope = googleTokenResponse.scope,
                         )

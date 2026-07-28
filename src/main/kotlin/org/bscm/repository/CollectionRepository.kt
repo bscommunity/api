@@ -274,7 +274,7 @@ class CollectionRepository(
 
             existing?.get(CollectionTable.id)?.value
                 ?: try {
-                    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+                    val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
                     CollectionTable.insertAndGetId {
                         it[CollectionTable.userId] = userId
                         it[CollectionTable.kind] = kind
@@ -293,7 +293,7 @@ class CollectionRepository(
 
     override suspend fun createCollection(userId: UUID, name: String, isPublic: Boolean): Collection =
         suspendTransaction {
-            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+            val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
             val entity = CollectionEntity.new {
                 user = UserEntity[userId]
                 kind = CollectionKind.USER
@@ -408,7 +408,7 @@ class CollectionRepository(
         name?.let { entity.name = it }
         isPublic?.let { entity.isPublic = it }
         entity.slug = if (entity.isPublic) getSlug(entity.name) else null
-        entity.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        entity.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
 
         entity.slug
     }
@@ -429,7 +429,7 @@ class CollectionRepository(
         userId: UUID,
         contentId: String
     ): Boolean = suspendTransaction {
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val result = CollectionItemTable.insertIgnore {
             it[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
             it[CollectionItemTable.contentId] = EntityID(contentId, CatalogItemTable)
@@ -466,7 +466,7 @@ class CollectionRepository(
             }
 
             if (deletedCount > 0) {
-                val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+                val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
                 CollectionTable.update({ CollectionTable.id eq collectionId }) {
                     it[updatedAt] = now
                 }
@@ -684,7 +684,7 @@ class CollectionRepository(
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
         }.firstOrNull() ?: return@suspendTransaction 0 to contentIds
 
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
 
         // Fetch which IDs already exist so we can report skipped ones accurately
         val alreadyExisting = CollectionItemTable
@@ -741,7 +741,7 @@ class CollectionRepository(
         }
 
         if (deletedCount > 0) {
-            collection.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+            collection.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
 
         deletedCount

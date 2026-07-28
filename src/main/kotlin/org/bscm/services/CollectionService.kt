@@ -100,7 +100,7 @@ class CollectionService(
                         ?: run { failCount += contentIds.size; null!! }
                 }
 
-                val activityTimestamp = items.firstNotNullOfOrNull { it.enqueuedAt } ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+                val activityTimestamp = items.firstNotNullOfOrNull { it.enqueuedAt } ?: Clock.System.now().toLocalDateTime(TimeZone.UTC)
 
                 val (success, failed) = when (action) {
                     ActionType.ADD -> {

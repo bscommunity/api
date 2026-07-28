@@ -93,7 +93,7 @@ class ItunesClient(
                     ?.let { LocalDate.parse(it).year }
                     ?: 0
 
-            if (releaseYear >= Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).year - 2) {
+            if (releaseYear >= Clock.System.now().toLocalDateTime(TimeZone.UTC).year - 2) {
                 score += 5
             }
 

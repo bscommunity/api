@@ -13,13 +13,13 @@ interface IActivityRepository {
 		userId: UUID,
 		type: ActivityType,
 		targetId: String,
-		createdAt: LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+		createdAt: LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.UTC)
 	): ActivityEntry
 	suspend fun batchLogActivity(
 		userId: UUID,
 		type: ActivityType,
 		targetIds: List<String>,
-		createdAt: LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+		createdAt: LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.UTC)
 	): Int
 
 	suspend fun removeActivity(

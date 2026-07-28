@@ -29,7 +29,7 @@ class CatalogItemRepository {
             else
                 null
 
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         return when {
             id != null -> CatalogItemEntity.new(id) {
                 this.type = type
@@ -55,6 +55,7 @@ class CatalogItemRepository {
     ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.latestVersion = version
+            it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
     }
 
@@ -64,6 +65,7 @@ class CatalogItemRepository {
     ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.visibility = visibility
+            it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
     }
 
@@ -73,6 +75,7 @@ class CatalogItemRepository {
     ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.isFeatured = isFeatured
+            it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
     }
 

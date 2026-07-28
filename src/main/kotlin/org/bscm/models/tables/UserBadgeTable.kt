@@ -11,7 +11,7 @@ object UserBadgeTable : Table("user_badges") {
     val badgeId = reference("badge_id", BadgeTable).index()
 
     val grantedAt = datetime("granted_at")
-        .clientDefault { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
+        .clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }
 
     val grantedBy = reference("granted_by", UserTable).nullable()
 

@@ -19,14 +19,14 @@ class BundleUrlCacheRepository {
             .where { BundleUrlCacheTable.catalogItemId eq EntityID(catalogItemId, CatalogItemTable) }
             .singleOrNull()
 
-        if (row != null && row[BundleUrlCacheTable.expiresAt] > Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())) {
+        if (row != null && row[BundleUrlCacheTable.expiresAt] > Clock.System.now().toLocalDateTime(TimeZone.UTC)) {
             row[BundleUrlCacheTable.bundleUrl]
         } else null
     }
 
     suspend fun cacheUrl(catalogItemId: String, url: String, expiresAt: Instant) = suspendTransaction {
         val entityId = EntityID(catalogItemId, CatalogItemTable)
-        val expiresAtLdt = expiresAt.toLocalDateTime(TimeZone.currentSystemDefault())
+        val expiresAtLdt = expiresAt.toLocalDateTime(TimeZone.UTC)
         val existing = BundleUrlCacheTable.selectAll()
             .where { BundleUrlCacheTable.catalogItemId eq entityId }
             .singleOrNull()
@@ -35,14 +35,14 @@ class BundleUrlCacheRepository {
             BundleUrlCacheTable.update({ BundleUrlCacheTable.catalogItemId eq entityId }) {
                 it[BundleUrlCacheTable.bundleUrl] = url
                 it[BundleUrlCacheTable.expiresAt] = expiresAtLdt
-                it[BundleUrlCacheTable.lastValidatedAt] = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+                it[BundleUrlCacheTable.lastValidatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
             }
         } else {
             BundleUrlCacheTable.insert {
                 it[BundleUrlCacheTable.catalogItemId] = entityId
                 it[BundleUrlCacheTable.bundleUrl] = url
                 it[BundleUrlCacheTable.expiresAt] = expiresAtLdt
-                it[BundleUrlCacheTable.lastValidatedAt] = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+                it[BundleUrlCacheTable.lastValidatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
             }
         }
     }

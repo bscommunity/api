@@ -14,7 +14,7 @@ object ContributorTable : LongIdTable("contributors") {
     val role = enumerationByName("role", 30, ContributorRole::class)
 
     val note = varchar("note", 280).nullable()
-    val joinedAt = datetime("joined_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
+    val joinedAt = datetime("joined_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }
 
     init {
         uniqueIndex(catalogItemId, userId, role)

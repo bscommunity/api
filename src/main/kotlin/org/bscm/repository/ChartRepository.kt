@@ -2,6 +2,8 @@ package org.bscm.repository
 
 import io.ktor.server.plugins.*
 import io.ktor.util.logging.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Chart
 import org.bscm.models.Version
 import org.bscm.models.dao.*
@@ -25,6 +27,7 @@ import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
+import kotlin.time.Clock
 
 private val log = KtorSimpleLogger("ChartRepository")
 
@@ -260,11 +263,16 @@ class ChartRepository(
     override suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = true
 
     override suspend fun updateChart(id: String, chart: UpdateChartRequest, requestingUserId: UUID?): Chart = suspendTransaction<Chart> {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
             it.difficulty = chart.difficulty ?: it.difficulty
             it.isDeluxe = chart.isDeluxe ?: it.isDeluxe
             it.isExplicit = chart.isExplicit ?: it.isExplicit
         } ?: throw NotFoundException("Chart with ID $id not found")
+
+        CatalogItemEntity.findByIdAndUpdate(id) {
+            it.updatedAt = now
+        }
 
         trackRepository.applyMetadataUpdates(
             track = existingChart.track,

@@ -82,7 +82,7 @@ class ThemeRepository(
         previewUrl: String?,
         id: String?,
     ): Theme = suspendTransaction {
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val catalogItem = if (id != null) {
             CatalogItemEntity.new(id) {
                 this.type = CatalogItemType.THEME
@@ -115,11 +115,16 @@ class ThemeRepository(
         replaces: String?,
         previewUrl: String?,
     ): Theme = suspendTransaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val entity = ThemeEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
             replaces?.let { entity.replaces = it }
             previewUrl?.let { entity.previewUrl = it }
         } ?: throw IllegalArgumentException("Theme $id not found")
+
+        CatalogItemEntity.findByIdAndUpdate(id) {
+            it.updatedAt = now
+        }
 
         themeEntityToTheme(entity)
     }

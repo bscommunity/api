@@ -21,7 +21,7 @@ object BundleUrlCacheTable : Table("bundle_url_cache") {
 
     val lastValidatedAt =
         datetime("last_validated_at")
-            .clientDefault { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
+            .clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }
 
     override val primaryKey =
         PrimaryKey(catalogItemId)
