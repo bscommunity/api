@@ -6,9 +6,9 @@ import io.ktor.server.plugins.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
-import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import kotlin.time.Clock
 
 @Serializable
 data class ErrorResponse(

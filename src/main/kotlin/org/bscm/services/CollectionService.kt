@@ -1,7 +1,6 @@
 package org.bscm.services
 
 import io.ktor.util.logging.*
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.CatalogItem
@@ -15,6 +14,7 @@ import org.bscm.models.enums.CollectionKind
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.ICollectionRepository
 import java.util.*
+import kotlin.time.Clock
 
 private val log = KtorSimpleLogger("CollectionService")
 

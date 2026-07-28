@@ -1,6 +1,5 @@
 package org.bscm.repository
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -12,6 +11,7 @@ import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.Visibility
 import org.bscm.utils.UserStatsUtils
 import java.util.*
+import kotlin.time.Clock
 
 class CatalogItemRepository {
     fun getById(id: String): CatalogItemEntity? =

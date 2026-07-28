@@ -1,6 +1,5 @@
 package org.bscm.repository
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Changelog
@@ -16,6 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.insertAndGetId
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
+import kotlin.time.Clock
 
 class ChangelogRepository : IChangelogRepository {
     override suspend fun addIssue(chartId: String, description: String): UUID = suspendTransaction {

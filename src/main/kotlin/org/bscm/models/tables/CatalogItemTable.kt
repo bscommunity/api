@@ -1,6 +1,5 @@
 package org.bscm.models.tables
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.enums.CatalogItemStatus
@@ -10,6 +9,7 @@ import org.bscm.utils.NanoIdUtils
 import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.dao.id.IdTable
 import org.jetbrains.exposed.v1.datetime.datetime
+import kotlin.time.Clock
 
 object CatalogItemTable : IdTable<String>("catalog_items") {
     override val id = varchar("id", 10)

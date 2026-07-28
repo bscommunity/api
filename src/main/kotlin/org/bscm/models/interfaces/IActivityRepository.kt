@@ -1,12 +1,12 @@
 package org.bscm.models.interfaces
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.ActivityEntry
 import org.bscm.models.enums.ActivityType
 import java.util.*
+import kotlin.time.Clock
 
 interface IActivityRepository {
 	suspend fun logActivity(

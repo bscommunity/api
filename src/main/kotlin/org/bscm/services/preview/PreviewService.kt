@@ -1,15 +1,15 @@
 package org.bscm.services.preview
 
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import org.bscm.models.dto.PreviewResponse
 import org.bscm.models.enums.PreviewProvider
 import org.bscm.models.interfaces.CacheRepository
 import org.bscm.services.preview.resolvers.PreviewResolverRegistry
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 class PreviewService(
     private val registry: PreviewResolverRegistry,

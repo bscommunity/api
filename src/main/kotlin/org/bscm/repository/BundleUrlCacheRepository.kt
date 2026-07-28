@@ -1,7 +1,5 @@
 package org.bscm.repository
 
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.tables.BundleUrlCacheTable
@@ -12,6 +10,8 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 class BundleUrlCacheRepository {
     suspend fun getCachedUrl(catalogItemId: String): String? = suspendTransaction {

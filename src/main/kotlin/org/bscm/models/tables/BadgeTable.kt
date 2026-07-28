@@ -1,10 +1,10 @@
 package org.bscm.models.tables
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
 import org.jetbrains.exposed.v1.datetime.datetime
+import kotlin.time.Clock
 
 object BadgeTable : UUIDTable("badges") {
     val name = varchar("name", 255).uniqueIndex()

@@ -1,11 +1,11 @@
 package org.bscm.models.tables
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.enums.UserRole
 import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
 import org.jetbrains.exposed.v1.datetime.datetime
+import kotlin.time.Clock
 
 object UserTable : UUIDTable("users") {
     val username = varchar("username", 255).uniqueIndex()

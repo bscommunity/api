@@ -1,10 +1,10 @@
 package org.bscm.models.tables
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.datetime.datetime
+import kotlin.time.Clock
 
 object UserBadgeTable : Table("user_badges") {
     val userId = reference("user_id", UserTable).index()
