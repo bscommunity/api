@@ -94,17 +94,25 @@ class TourPassRepository(
         )
     }
 
+    private fun getOrderedChartIds(tourPassId: String): List<String> {
+        return TourPassChartTable
+            .select(TourPassChartTable.chartId)
+            .where { TourPassChartTable.tourPassId eq EntityID(tourPassId, TourPassTable) }
+            .orderBy(TourPassChartTable.position)
+            .map { it[TourPassChartTable.chartId].value }
+    }
+
     private suspend fun loadChartsForTourPass(entity: TourPassEntity, userId: UUID?): List<Chart> {
-        val chartIds = entity.charts.map { it.id.value }
-        return if (chartIds.isNotEmpty()) {
-            chartRepository.getChartsByContentIds(
-                contentIds = chartIds,
-                addons = ChartRepository.ChartAddons(streamingLinks = true),
-                requestingUserId = userId,
-            )
-        } else {
-            emptyList()
-        }
+        val chartIds = getOrderedChartIds(entity.id.value)
+        if (chartIds.isEmpty()) return emptyList()
+
+        val charts = chartRepository.getChartsByContentIds(
+            contentIds = chartIds,
+            addons = ChartRepository.ChartAddons(streamingLinks = true),
+            requestingUserId = userId,
+        ).associateBy { it.id }
+
+        return chartIds.mapNotNull { charts[it] }
     }
 
     private suspend fun buildTourPassFromEntity(entity: TourPassEntity, userId: UUID?): TourPass {
@@ -144,7 +152,7 @@ class TourPassRepository(
         val allStats = fetchAggregateStats(allTourPassIds)
 
         val allChartIds = paged.flatMap { entity ->
-            entity.charts.map { it.id.value }
+            getOrderedChartIds(entity.id.value)
         }.distinct()
 
         val chartMap = if (allChartIds.isNotEmpty()) {
@@ -158,7 +166,7 @@ class TourPassRepository(
         }
 
         paged.map { entity ->
-            val charts = entity.charts.mapNotNull { chartMap[it.id.value] }
+            val charts = getOrderedChartIds(entity.id.value).mapNotNull { chartMap[it] }
             val (likesCount, bookmarksCount) = allStats[entity.id.value] ?: (0 to 0)
             buildTourPass(entity, charts, likesCount, bookmarksCount)
         }
@@ -197,10 +205,11 @@ class TourPassRepository(
             this.artist = artist
         }
 
-        chartIds?.forEach { cid ->
+        chartIds?.forEachIndexed { index, cid ->
             TourPassChartTable.insertIgnore {
                 it[TourPassChartTable.tourPassId] = EntityID(tourPass.id.value, TourPassTable)
                 it[TourPassChartTable.chartId] = EntityID(cid, ChartTable)
+                it[TourPassChartTable.position] = index
             }
         }
 
@@ -223,10 +232,11 @@ class TourPassRepository(
 
         chartIds?.let { newChartIds ->
             TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq EntityID(id, TourPassTable) }
-            newChartIds.forEach { cid ->
+            newChartIds.forEachIndexed { index, cid ->
                 TourPassChartTable.insertIgnore {
                     it[TourPassChartTable.tourPassId] = EntityID(id, TourPassTable)
                     it[TourPassChartTable.chartId] = EntityID(cid, ChartTable)
+                    it[TourPassChartTable.position] = index
                 }
             }
         }
@@ -243,10 +253,11 @@ class TourPassRepository(
         TourPassEntity.findById(id) ?: throw IllegalArgumentException("TourPass $id not found")
 
         TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq EntityID(id, TourPassTable) }
-        chartIds.forEach { cid ->
+        chartIds.forEachIndexed { index, cid ->
             TourPassChartTable.insertIgnore {
                 it[TourPassChartTable.tourPassId] = EntityID(id, TourPassTable)
                 it[TourPassChartTable.chartId] = EntityID(cid, ChartTable)
+                it[TourPassChartTable.position] = index
             }
         }
 
