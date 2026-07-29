@@ -27,6 +27,7 @@ import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
 import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.security.MessageDigest
 import java.util.*
 
@@ -217,9 +218,6 @@ class ChartPublishService(
         val isDeluxe = overrides.isDeluxe ?: (bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false)
         val isExplicit = overrides.isExplicit ?: mediaInfo?.isExplicit ?: false
 
-        emitEvent(PublishStep.CREATING_CHART)
-
-        // 7. Create DB entities first (without version)
         val createForDb = CreateChartRequest(
             artist = mediaInfo?.artist ?: artistName,
             track = mediaInfo?.track ?: trackName,
@@ -243,16 +241,10 @@ class ChartPublishService(
             isrc = resolvedIsrc,
         )
 
-        val createdChart = chartRepository.createChart(user.id, createForDb)
-
-        log.info("Created chart ${createdChart.id}")
-
-        // emitEvent(PublishStep.PREPARING_BUNDLE)
-
-        // 7. Inject bscm.json into the bundle (basic display data + cover art)
+        // Build enriched bundle before Discord upload (contentId doubles as chart ID)
         val coverCdnUrl = storageService.albumCoverUrl(albumEntity.id.value)
         val bscmMetadata = DecodingUtils.BscmMetadata(
-            chartId = createdChart.id,
+            chartId = contentId,
             track = trackName,
             artist = artistName,
             difficulty = difficultyEnum.ordinal,
@@ -273,41 +265,51 @@ class ChartPublishService(
         )
         val enrichedBundleBytes = DecodingUtils.injectBscmMetadata(bundleBytes, bscmMetadata)
 
+        // Upload enriched bundle to Discord before any DB writes
         emitEvent(PublishStep.UPLOADING_TO_DISCORD)
-
-        // 10. Upload enriched bundle to Discord (single call)
         val discordResponse = uploadService.uploadChart(createForDb, user, enrichedBundleBytes, coverBytes)
         val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
             ?: throw IllegalStateException("Discord response missing bundle attachment")
 
-        // 9b. Persist Discord message/channel IDs so delete/edit operations use the snowflake
-        chartRepository.updateDiscordCoordinates(
-            catalogItemId = createdChart.id,
-            channelId = discordResponse.channelId,
-            messageId = discordResponse.id,
-        )
+        // Single transaction for all DB writes (chart, Discord coords, version)
+        emitEvent(PublishStep.CREATING_CHART)
+        val (createdChart, version) = try {
+            suspendTransaction {
+                val chart = chartRepository.createChart(user.id, createForDb)
+                log.info("Created chart ${chart.id}")
 
-        emitEvent(PublishStep.FINALIZING_VERSION)
+                chartRepository.updateDiscordCoordinates(
+                    catalogItemId = chart.id,
+                    channelId = discordResponse.channelId,
+                    messageId = discordResponse.id,
+                )
 
-        // 10. Finalize: add version with Discord bundle URL
-        val version = chartRepository.addVersion(
-            catalogItemId = createdChart.id,
-            version = CreateVersionRequest(
-                id = bundleAttachment.id.toULong(),
-                track = createForDb.track,
-                artist = createForDb.artist,
-                duration = createForDb.duration,
-                notesAmount = createForDb.notesAmount,
-                effectsAmount = createForDb.effectsAmount,
-                bpm = createForDb.bpm,
-                difficulty = createForDb.difficulty,
-                isDeluxe = createForDb.isDeluxe,
-                isExplicit = createForDb.isExplicit,
-                bundleUrl = bundleAttachment.url,
-                previewUrl = createForDb.previewUrl,
-                fileSizeBytes = createForDb.fileSizeBytes,
-            )
-        )
+                emitEvent(PublishStep.FINALIZING_VERSION)
+
+                val v = chartRepository.addVersion(
+                    catalogItemId = chart.id,
+                    version = CreateVersionRequest(
+                        id = bundleAttachment.id.toULong(),
+                        track = createForDb.track,
+                        artist = createForDb.artist,
+                        duration = createForDb.duration,
+                        notesAmount = createForDb.notesAmount,
+                        effectsAmount = createForDb.effectsAmount,
+                        bpm = createForDb.bpm,
+                        difficulty = createForDb.difficulty,
+                        isDeluxe = createForDb.isDeluxe,
+                        isExplicit = createForDb.isExplicit,
+                        bundleUrl = bundleAttachment.url,
+                        previewUrl = createForDb.previewUrl,
+                        fileSizeBytes = createForDb.fileSizeBytes,
+                    )
+                )
+                Pair(chart, v)
+            }
+        } catch (e: Exception) {
+            runCatching { uploadService.deleteMessage(discordResponse.id) }
+            throw e
+        }
 
         val updatedChart = createdChart.copy(
             latestVersion = version,

@@ -607,7 +607,7 @@ class UserRepository(
         // Fetch each type in bulk
         val charts = if (chartIds.isNotEmpty()) {
             chartRepository.getCharts(
-                filters = ChartRepository.ChartFilters(chartIds = chartIds)
+                filters = ChartRepository.ChartFilters(chartIds = chartIds, includePrivate = true)
             ).first
         } else emptyList()
 

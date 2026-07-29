@@ -45,33 +45,33 @@ class VersionRepository : IVersionRepository {
             }
         }
 
-    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version {
-            val latestCode = VersionEntity.find { VersionTable.catalogItemId eq catalogItemId }
-                .maxOfOrNull { it.versionCode } ?: 0
+    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version = suspendTransaction {
+        val latestCode = VersionEntity.find { VersionTable.catalogItemId eq catalogItemId }
+            .maxOfOrNull { it.versionCode } ?: 0
 
-            val newVersion = if (version.id != null) {
-                VersionEntity.new(version.id) {
-                    this.catalogItem = CatalogItemEntity[catalogItemId]
-                    this.versionCode = latestCode + 1
-                    this.fileSizeBytes = version.fileSizeBytes
-                    this.changelog = version.changelog.joinToString("\n").ifBlank { null }
-                }
-            } else {
-                VersionEntity.new {
-                    this.catalogItem = CatalogItemEntity[catalogItemId]
-                    this.versionCode = latestCode + 1
-                    this.fileSizeBytes = version.fileSizeBytes
-                    this.changelog = version.changelog.joinToString("\n").ifBlank { null }
-                }
+        val newVersion = if (version.id != null) {
+            VersionEntity.new(version.id) {
+                this.catalogItem = CatalogItemEntity[catalogItemId]
+                this.versionCode = latestCode + 1
+                this.fileSizeBytes = version.fileSizeBytes
+                this.changelog = version.changelog.joinToString("\n").ifBlank { null }
             }
-
-            CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
-                it.latestVersion = newVersion
-                it.versionsCount += 1
+        } else {
+            VersionEntity.new {
+                this.catalogItem = CatalogItemEntity[catalogItemId]
+                this.versionCode = latestCode + 1
+                this.fileSizeBytes = version.fileSizeBytes
+                this.changelog = version.changelog.joinToString("\n").ifBlank { null }
             }
-
-            return entityToVersion(newVersion)
         }
+
+        CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
+            it.latestVersion = newVersion
+            it.versionsCount += 1
+        }
+
+        entityToVersion(newVersion)
+    }
 
     override suspend fun removeVersion(versionId: ULong, currentLatestVersionId: String?, versionCount: Int): Boolean =
         suspendTransaction {

@@ -120,7 +120,6 @@ fun Route.authRoutes(
          */
         post("/refresh") {
             val refreshRequest = call.receive<RefreshTokenRequest>()
-                ?: return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
 
             val userId = jwtService.verifyRefreshToken(refreshRequest.refreshToken)
                 ?: return@post call.respondError(HttpStatusCode.Unauthorized, "Invalid refresh token")
@@ -167,8 +166,7 @@ fun Route.authRoutes(
              *   - 200 [OAuthResult] Account linked successfully with OAuth scope.
              */
             post("/google/link") {
-                val code = call.receive<AuthRequest>()?.code
-                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
+                val code = call.receive<AuthRequest>().code
                 val userId = call.getUserIdFromJWT() ?: return@post
 
                 try {

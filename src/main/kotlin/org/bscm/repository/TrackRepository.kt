@@ -83,7 +83,7 @@ class TrackRepository(
 
         if (newRefs.isEmpty()) return
 
-        TrackStreamingRefTable.batchInsert(newRefs) { ref ->
+        TrackStreamingRefTable.batchInsert(newRefs, ignore = true) { ref ->
             this[TrackStreamingRefTable.trackId] = track.id
             this[TrackStreamingRefTable.platform] = ref.platform
             this[TrackStreamingRefTable.externalId] = ref.externalId

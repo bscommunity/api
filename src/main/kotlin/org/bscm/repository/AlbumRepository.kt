@@ -45,7 +45,7 @@ class AlbumRepository {
 
         if (newRefs.isEmpty()) return@suspendTransaction
 
-        AlbumStreamingRefTable.batchInsert(newRefs) { ref ->
+        AlbumStreamingRefTable.batchInsert(newRefs, ignore = true) { ref ->
             this[AlbumStreamingRefTable.albumId] = albumId
             this[AlbumStreamingRefTable.platform] = ref.platform
             this[AlbumStreamingRefTable.externalId] = ref.externalId
