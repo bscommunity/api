@@ -17,6 +17,7 @@ import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.TrackTable
+import org.bscm.models.tables.VersionableInfoTable
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.flushEntityCache
 import org.jetbrains.exposed.v1.core.eq
@@ -207,8 +208,8 @@ class ChartRepository(
             contentId = chart.contentId,
         )
 
-        chart.bundleHash?.let { hash ->
-            catalogItem.bundleHash = hash
+        VersionableInfoEntity.new(catalogItem.id.value) {
+            bundleHash = chart.bundleHash
         }
 
         val album = chart.albumId?.let { AlbumEntity.findById(it) }
@@ -246,11 +247,11 @@ class ChartRepository(
     }
 
     override suspend fun findChartByBundleHash(hash: String): Chart? = suspendTransaction {
-        val catalogItem = CatalogItemEntity.find { CatalogItemTable.bundleHash eq hash }.firstOrNull()
+        val versionableInfo = VersionableInfoEntity.find { VersionableInfoTable.bundleHash eq hash }.firstOrNull()
             ?: return@suspendTransaction null
 
         getChart(
-            query = ChartTable.selectAll().where { ChartTable.id eq catalogItem.id.value },
+            query = ChartTable.selectAll().where { ChartTable.id eq versionableInfo.id.value },
             addons = ChartAddons(streamingLinks = false),
             requestingUserId = null,
         )

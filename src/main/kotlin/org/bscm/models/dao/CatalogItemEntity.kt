@@ -23,13 +23,8 @@ class CatalogItemEntity(
 
     var downloadsSum by CatalogItemTable.downloadsSum
 
-    var versionsCount by CatalogItemTable.versionsCount
-
     var discordChannelId by CatalogItemTable.discordChannelId
     var discordMessageId by CatalogItemTable.discordMessageId
-
-    var latestVersion by VersionEntity optionalReferencedOn
-            CatalogItemTable.latestVersionId
 
     val versions by VersionEntity referrersOn
             VersionTable.catalogItemId
@@ -37,8 +32,6 @@ class CatalogItemEntity(
     var createdAt by CatalogItemTable.createdAt
     var publishedAt by CatalogItemTable.publishedAt
     var updatedAt by CatalogItemTable.updatedAt
-
-    var bundleHash by CatalogItemTable.bundleHash
 
     var author by UserEntity optionalReferencedOn CatalogItemTable.authorId
 

@@ -20,17 +20,6 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
     val visibility = enumerationByName("visibility", 20, Visibility::class)
         .default(Visibility.PUBLIC)
 
-    val versionsCount =
-        integer("versions_count")
-            .default(0)
-
-    val latestVersionId =
-        reference(
-            "latest_version_id",
-            VersionTable,
-            onDelete = ReferenceOption.SET_NULL
-        ).nullable()
-
     val previewVideoId = varchar("preview_video_id", 12).nullable()
 
     val isFeatured = bool("is_featured").default(false)
@@ -44,8 +33,6 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
     val publishedAt = datetime("published_at").nullable()
     val updatedAt = datetime("updated_at").nullable()
 
-    val bundleHash = varchar("bundle_hash", 64).nullable()
-
     val authorId = reference("author_id", UserTable, ReferenceOption.SET_NULL).nullable()
 
     override val primaryKey = PrimaryKey(id)
@@ -54,6 +41,5 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
         index(false, type)
         index(false, status)
         index(false, authorId)
-        uniqueIndex(bundleHash)
     }
 }

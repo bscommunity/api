@@ -43,7 +43,8 @@ data class Chart(
 
     val track: Track,
 
-    val versionsCount: Int,
+    override val versionsCount: Int,
+    override val bundleHash: String?,
 
     val difficulty: Difficulty,
     val notesAmount: Int,
@@ -54,5 +55,5 @@ data class Chart(
 
     val changelog: List<Changelog>,
 
-    val latestVersion: Version?
-) : CatalogItem
+    override val latestVersion: Version?
+) : CatalogItem, Versionable

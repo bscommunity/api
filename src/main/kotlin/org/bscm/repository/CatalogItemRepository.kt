@@ -5,7 +5,6 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.UserEntity
-import org.bscm.models.dao.VersionEntity
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.Visibility
@@ -46,16 +45,6 @@ class CatalogItemRepository {
                 this.author = UserEntity[authorId]
                 this.updatedAt = now
             }
-        }
-    }
-
-    fun updateLatestVersion(
-        catalogItemId: String,
-        version: VersionEntity,
-    ) {
-        CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
-            it.latestVersion = version
-            it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
     }
 

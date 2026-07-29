@@ -45,7 +45,8 @@ class ChartQueryBuilder {
         }
 
         query.adjustColumnSet {
-            leftJoin(VersionTable, { CatalogItemTable.latestVersionId }, { VersionTable.id })
+            leftJoin(VersionableInfoTable, { ChartTable.id }, { VersionableInfoTable.id })
+                .leftJoin(VersionTable, { VersionableInfoTable.latestVersionId }, { VersionTable.id })
         }
         columnsToSelect.addAll(VersionTable.columns)
 

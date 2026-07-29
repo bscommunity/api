@@ -3,13 +3,15 @@ package org.bscm.repository
 import org.bscm.models.Version
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.VersionEntity
+import org.bscm.models.dao.VersionableInfoEntity
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.mappers.VersionMapper.entityToVersion
-import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.VersionTable
+import org.bscm.models.tables.VersionableInfoTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.select
@@ -30,11 +32,11 @@ class VersionRepository : IVersionRepository {
         suspendTransaction {
             if (catalogItemIds.isEmpty()) return@suspendTransaction emptyList()
 
-            val rows = (CatalogItemTable innerJoin VersionTable)
+            val rows = (VersionableInfoTable innerJoin VersionTable)
                 .select(VersionTable.columns)
                 .where {
-                    (CatalogItemTable.id inList catalogItemIds) and
-                            (CatalogItemTable.latestVersionId eq VersionTable.id)
+                    (VersionableInfoTable.id inList catalogItemIds.map { EntityID(it, VersionableInfoTable) }) and
+                            (VersionableInfoTable.latestVersionId eq VersionTable.id)
                 }
                 .toList()
 
@@ -65,10 +67,11 @@ class VersionRepository : IVersionRepository {
             }
         }
 
-        CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
-            it.latestVersion = newVersion
-            it.versionsCount += 1
-        }
+        val versionableInfo = VersionableInfoEntity.findById(catalogItemId)
+            ?: VersionableInfoEntity.new(catalogItemId) { }
+
+        versionableInfo.latestVersion = newVersion
+        versionableInfo.versionsCount += 1
 
         entityToVersion(newVersion)
     }
@@ -98,10 +101,11 @@ class VersionRepository : IVersionRepository {
                 .limit(1)
                 .singleOrNull() ?: throw IllegalStateException("No remaining versions found")
 
-            CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
-                it.latestVersion = nextLatest
-                it.versionsCount -= 1
-            }
+            val versionableInfo = VersionableInfoEntity.findById(catalogItemId)
+                ?: return@suspendTransaction false
+
+            versionableInfo.latestVersion = nextLatest
+            versionableInfo.versionsCount -= 1
 
             true
         }
