@@ -15,22 +15,22 @@ class ChartEntity(
     var track by TrackEntity referencedOn
             ChartTable.trackId
 
-    val versionableInfo: VersionableInfoEntity?
-        get() = VersionableInfoEntity.findById(id)
+    val versionableItem: VersionableItemEntity?
+        get() = VersionableItemEntity.findById(id)
 
     val latestVersion: VersionEntity?
-        get() = versionableInfo?.latestVersion
+        get() = versionableItem?.latestVersion
 
     val versions
         get() = CatalogItemEntity[id].versions
 
     val versionsCount: Int
-        get() = versionableInfo?.versionsCount ?: 0
+        get() = versionableItem?.versionsCount ?: 0
 
     var bundleHash: String?
-        get() = versionableInfo?.bundleHash
+        get() = versionableItem?.bundleHash
         set(value) {
-            versionableInfo?.bundleHash = value
+            versionableItem?.bundleHash = value
         }
 
     var difficulty by ChartTable.difficulty

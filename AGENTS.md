@@ -38,7 +38,11 @@ Use `org.bscm.utils.withRetryOnTransientErrors { }` to wrap transactions that ma
 | `repository/CatalogItemRepository.kt` | Transaction-less — must be called within existing txn |
 | `repository/ChartQueryBuilder.kt` | Builds raw DSL queries (joins, filters, search) |
 | `repository/ChartResultAssembler.kt` | Maps `ResultRow` lists to domain models |
+| `repository/TourPassRepository.kt` | Tour pass queries — own transaction, SQL-level filtering |
+| `repository/ThemeRepository.kt` | Theme queries — own transaction, SQL-level filtering |
+| `repository/ContributorRepository.kt` | Contributor CRUD — own transaction |
 | `utils/DbUtils.kt` | `flushEntityCache()` and `withRetryOnTransientErrors()` |
+| `utils/UserStatsUtils.kt` | `fetchUserStats()` — batched like/bookmark lookup, must be called within txn |
 
 ### Flush API (Exposed 1.0.0 / v1 namespace)
 
@@ -121,6 +125,74 @@ tourPass.discordMessageId?.let { messageId ->
 ./gradlew compileTestKotlin      # compile test sources
 ./gradlew test                   # run all tests
 ```
+
+## Repository Query Conventions
+
+### SQL-Level Filtering (No In-Memory Filtering)
+
+Always use SQL `WHERE` clauses (via `selectAll().where {}`, `Entity.find {}`, etc.) for filtering in repository methods. Never load all entities and filter in Kotlin (`Entity.all().filter {}`).
+
+```kotlin
+// Correct: SQL-level filtering
+val query = TourPassTable.selectAll()
+query.where { TourPassTable.id inList ids }
+val results = query.limit(pageSize).offset(offset).toList()
+
+// Wrong: loads everything into memory
+val results = TourPassEntity.all().toList().filter { it.id.value in ids }
+```
+
+### Count Queries — Single Grouped Query
+
+For counting items by type, prefer a single grouped `COUNT` query over multiple separate queries:
+
+```kotlin
+// Correct: single grouped query
+val countColumn = CatalogItemTable.id.count()
+val rows = CatalogItemTable
+    .select(CatalogItemTable.type, countColumn)
+    .where { CatalogItemTable.authorId eq userId }
+    .groupBy(CatalogItemTable.type)
+    .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
+
+// Wrong: three separate COUNT queries
+val charts = CatalogItemTable.innerJoin(...).select(...).where(...).count()
+val tourPasses = CatalogItemTable.innerJoin(...).select(...).where(...).count()
+val themes = CatalogItemTable.innerJoin(...).select(...).where(...).count()
+```
+
+### N+1 Prevention
+
+When returning a list of items, batch-fetch user stats (likes/bookmarks timestamps) once rather than N times:
+
+```kotlin
+// Correct: batch fetch
+val userStats = if (userId != null) {
+    UserStatsUtils.fetchUserStats(userId, ids)
+} else emptyMap()
+items.map { item -> buildItem(item, likedAt = userStats[item.id]?.first) }
+
+// Wrong: N+1 per entity
+items.map { item -> UserStatsUtils.fetchUserStats(userId, listOf(item.id)) }
+```
+
+For follower/following N+1: use `UserEntity.wrapRow(row)` on the already-joined row instead of `UserEntity.findById()` per row.
+
+### Route Path Conventions
+
+| Old Path | New Path | Reason |
+|----------|----------|--------|
+| `/contributors/chart/{id}` | `/contributors/{catalogItemId}` | Generalize from chart-only |
+| `/versions/chart/{...}` | `/versions/{...}` | Versions are for all versionable items |
+| `/charts/{id}/issues` | `/changelog/{catalogItemId}/issues` | |
+
+### Route Error Style
+
+Use `throw BadRequestException("message")` instead of `call.respond(HttpStatusCode.BadRequest, "message")`. The exception is handled by Ktor's error handler which produces a consistent error response.
+
+### NoContent Responses
+
+Use `call.respond(HttpStatusCode.NoContent)` (without body) instead of `call.respond(HttpStatusCode.NoContent, true)`. A 204 response must not have a body.
 
 ## Pending Improvements
 

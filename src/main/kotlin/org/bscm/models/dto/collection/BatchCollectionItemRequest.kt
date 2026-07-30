@@ -8,7 +8,7 @@ import org.bscm.serialization.LocalDateTimeSerializer
 
 @Serializable
 data class BatchCollectionItemRequest(
-    val contentId: String,
+    val catalogId: String,
     val collectionId: String?,
     val collectionKind: CollectionKind,
     val action: ActionType,

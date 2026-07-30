@@ -121,7 +121,7 @@ private suspend fun generateRandomCharts(
                     val chart = chartRepository.createChart(
                         userId = ownerId,
                         chart = CreateChartRequest(
-                            contentId = NanoIdUtils.generate(),
+                            catalogId = NanoIdUtils.generate(),
                             artist = getRandomArtist(),
                             track = getRandomTrack(),
                             album = if (Random.nextBoolean()) getRandomAlbum() else null,

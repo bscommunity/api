@@ -17,7 +17,7 @@ object BundleUrlCacheTable : Table("bundle_url_cache") {
         )
 
     val bundleUrl = text("bundle_url")
-    val expiresAt = datetime("expires_at")
+    val expiresAt = datetime("expires_at").index()
 
     val lastValidatedAt =
         datetime("last_validated_at")

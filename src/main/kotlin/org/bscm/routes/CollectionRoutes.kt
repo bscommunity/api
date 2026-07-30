@@ -202,7 +202,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
                         val request = call.receive<CreateCollectionItemRequest>()
-                        val added = collectionService.addItem(userId, request.contentId, CollectionKind.USER, collectionId)
+                        val added = collectionService.addItem(userId, request.catalogId, CollectionKind.USER, collectionId)
                         if (added) call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to collection"))
                         else call.respond(HttpStatusCode.BadRequest, "Failed to add item (may already exist or collection not found)")
                     }
@@ -224,8 +224,8 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     delete("/{id}/items/{itemId}") {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
-                        val contentId = call.getContentId("itemId")
-                        val removed = collectionService.removeItem(userId, contentId, CollectionKind.USER, collectionId)
+                        val catalogId = call.getContentId("itemId")
+                        val removed = collectionService.removeItem(userId, catalogId, CollectionKind.USER, collectionId)
                         if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from collection"))
                         else call.respond(HttpStatusCode.NotFound, "Item not found in collection")
                     }

@@ -197,7 +197,7 @@ fun Route.meRoutes(
              *
              * Tag: Me
              *
-             * Path: contentId [String] ID of the content to like.
+             * Path: catalogId [String] ID of the content to like.
              *
              * Responses:
              *   - 200 application/json [Object] Success message.
@@ -206,10 +206,10 @@ fun Route.meRoutes(
              *
              * Security: auth-bearer
              */
-            post("/likes/{contentId}") {
+            post("/likes/{catalogId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
-                val added = collectionService.addItem(userId, contentId, CollectionKind.LIKES)
+                val catalogId = call.parameters["catalogId"] ?: throw IllegalArgumentException("Missing catalogId")
+                val added = collectionService.addItem(userId, catalogId, CollectionKind.LIKES)
                 if (added) call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to likes"))
                 else call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Failed to add item (may already exist)"))
             }
@@ -219,7 +219,7 @@ fun Route.meRoutes(
              *
              * Tag: Me
              *
-             * Path: contentId [String] ID of the content to unlike.
+             * Path: catalogId [String] ID of the content to unlike.
              *
              * Responses:
              *   - 200 application/json [Object] Success message.
@@ -228,10 +228,10 @@ fun Route.meRoutes(
              *
              * Security: auth-bearer
              */
-            delete("/likes/{contentId}") {
+            delete("/likes/{catalogId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
-                val removed = collectionService.removeItem(userId, contentId, CollectionKind.LIKES)
+                val catalogId = call.parameters["catalogId"] ?: throw IllegalArgumentException("Missing catalogId")
+                val removed = collectionService.removeItem(userId, catalogId, CollectionKind.LIKES)
                 if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from likes"))
                 else call.respond(HttpStatusCode.NotFound, mapOf("error" to "Item not found in likes"))
             }
@@ -274,7 +274,7 @@ fun Route.meRoutes(
              *
              * Tag: Me
              *
-             * Path: contentId [String] ID of the content to bookmark.
+             * Path: catalogId [String] ID of the content to bookmark.
              *
              * Responses:
              *   - 200 application/json [Object] Success message.
@@ -283,10 +283,10 @@ fun Route.meRoutes(
              *
              * Security: auth-bearer
              */
-            post("/bookmarks/{contentId}") {
+            post("/bookmarks/{catalogId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
-                val added = collectionService.addItem(userId, contentId, CollectionKind.BOOKMARKS)
+                val catalogId = call.parameters["catalogId"] ?: throw IllegalArgumentException("Missing catalogId")
+                val added = collectionService.addItem(userId, catalogId, CollectionKind.BOOKMARKS)
                 if (added) call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to bookmarks"))
                 else call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Failed to add item (may already exist)"))
             }
@@ -296,7 +296,7 @@ fun Route.meRoutes(
              *
              * Tag: Me
              *
-             * Path: contentId [String] ID of the content to remove from bookmarks.
+             * Path: catalogId [String] ID of the content to remove from bookmarks.
              *
              * Responses:
              *   - 200 application/json [Object] Success message.
@@ -305,10 +305,10 @@ fun Route.meRoutes(
              *
              * Security: auth-bearer
              */
-            delete("/bookmarks/{contentId}") {
+            delete("/bookmarks/{catalogId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
-                val removed = collectionService.removeItem(userId, contentId, CollectionKind.BOOKMARKS)
+                val catalogId = call.parameters["catalogId"] ?: throw IllegalArgumentException("Missing catalogId")
+                val removed = collectionService.removeItem(userId, catalogId, CollectionKind.BOOKMARKS)
                 if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from bookmarks"))
                 else call.respond(HttpStatusCode.NotFound, mapOf("error" to "Item not found in bookmarks"))
             }

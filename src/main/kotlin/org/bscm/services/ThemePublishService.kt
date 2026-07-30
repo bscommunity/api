@@ -39,26 +39,26 @@ class ThemePublishService(
             throw BadRequestException("displayArtUrl or displayArt file is required")
         }
 
-        val contentId = NanoIdUtils.generateContentId()
+        val catalogId = NanoIdUtils.generateContentId()
 
         if (assets.coverArtBytes != null) {
             val avifBytes = MediaConverter.convertToAvif(assets.coverArtBytes) ?: assets.coverArtBytes
-            storageService.uploadThemeCover(contentId, avifBytes)
+            storageService.uploadThemeCover(catalogId, avifBytes)
         }
         if (assets.displayArtBytes != null) {
             val avifBytes = MediaConverter.convertToAvif(assets.displayArtBytes) ?: assets.displayArtBytes
-            storageService.uploadThemeDisplay(contentId, avifBytes)
+            storageService.uploadThemeDisplay(catalogId, avifBytes)
         }
 
-        val coverUrl = storageService.themeCoverUrl(contentId)
-        val displayArtUrl = storageService.themeDisplayUrl(contentId)
+        val coverUrl = storageService.themeCoverUrl(catalogId)
+        val displayArtUrl = storageService.themeDisplayUrl(catalogId)
 
         val discordResponse = uploadService.uploadTheme(
             UploadService.ThemePublishData(
                 title = request.name,
                 description = request.description,
                 context = UploadService.PublishContext(
-                    contentId = contentId,
+                    catalogId = catalogId,
                     submittedBy = UploadService.SubmittedBy.fromUser(uploader)
                 ),
                 replaces = request.replaces,
@@ -73,11 +73,11 @@ class ThemePublishService(
             name = request.name,
             replaces = request.replaces,
             previewUrl = request.previewUrl,
-            id = contentId,
+            id = catalogId,
         )
 
         themeRepository.updateDiscordCoordinates(
-            contentId,
+            catalogId,
             discordResponse.channelId,
             discordResponse.id,
         )

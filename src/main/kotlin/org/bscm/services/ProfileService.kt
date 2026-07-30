@@ -123,14 +123,14 @@ class ProfileService(
         }
 
         val tourPasses = if (tourPassContentIds.isNotEmpty()) {
-            tourPassRepository.getTourPasses(userId = requesterId, contentIds = tourPassContentIds, search = null, limit = null, offset = null)
+            tourPassRepository.getTourPasses(userId = requesterId, catalogIds = tourPassContentIds, search = null, limit = null, offset = null)
                 .associateBy { it.id }
         } else {
             emptyMap()
         }
 
         val themes = if (themeContentIds.isNotEmpty()) {
-            themeRepository.getThemes(userId = requesterId, contentIds = themeContentIds, search = null, limit = null, offset = null)
+            themeRepository.getThemes(userId = requesterId, catalogIds = themeContentIds, search = null, limit = null, offset = null)
                 .associateBy { it.id }
         } else {
             emptyMap()

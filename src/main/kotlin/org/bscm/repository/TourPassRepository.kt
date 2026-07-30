@@ -1,5 +1,6 @@
 package org.bscm.repository
 
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Chart
@@ -15,14 +16,14 @@ import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.*
 import org.bscm.storage.StorageService
-import org.jetbrains.exposed.v1.core.and
+import org.bscm.utils.UserStatsUtils
+import org.bscm.utils.flushEntityCache
+import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 import kotlin.time.Clock
@@ -35,23 +36,23 @@ class TourPassRepository(
 
     /**
      * Fetches aggregate likes/bookmarks counts for a batch of catalog items.
-     * Returns a map of contentId -> (likesCount, bookmarksCount).
+     * Returns a map of catalogId -> (likesCount, bookmarksCount).
      * Must be called within a transaction.
      */
-    private fun fetchAggregateStats(contentIds: List<String>): Map<String, Pair<Int, Int>> {
-        if (contentIds.isEmpty()) return emptyMap()
+    private fun fetchAggregateStats(catalogIds: List<String>): Map<String, Pair<Int, Int>> {
+        if (catalogIds.isEmpty()) return emptyMap()
 
         val statsRows = CollectionItemTable
             .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .select(CollectionItemTable.contentId, CollectionTable.kind, CollectionTable.userId)
+            .select(CollectionItemTable.catalogId, CollectionTable.kind, CollectionTable.userId)
             .where {
                 (CollectionTable.kind inList listOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS, CollectionKind.USER)) and
-                    (CollectionItemTable.contentId inList contentIds)
+                    (CollectionItemTable.catalogId inList catalogIds)
             }
             .toList()
 
-        return contentIds.associateWith { contentId ->
-            val rows = statsRows.filter { it[CollectionItemTable.contentId].value == contentId }
+        return catalogIds.associateWith { catalogId ->
+            val rows = statsRows.filter { it[CollectionItemTable.catalogId].value == catalogId }
             val likesCount = rows.filter { it[CollectionTable.kind] == CollectionKind.LIKES }
                 .map { it[CollectionTable.userId] }
                 .distinct()
@@ -71,6 +72,8 @@ class TourPassRepository(
         charts: List<Chart>,
         likesCount: Int,
         bookmarksCount: Int,
+        likedAt: LocalDateTime? = null,
+        bookmarkedAt: LocalDateTime? = null,
     ): TourPass {
         val catalogItem = CatalogItemEntity[entity.id.value]
         return TourPass(
@@ -80,6 +83,8 @@ class TourPassRepository(
             coverUrl = storageService.tourPassCoverUrl(entity.id.value),
             likesCount = likesCount,
             bookmarksCount = bookmarksCount,
+            likedAt = likedAt,
+            bookmarkedAt = bookmarkedAt,
             contributors = emptyList(),
             createdAt = catalogItem.createdAt,
             publishedAt = catalogItem.publishedAt,
@@ -109,8 +114,8 @@ class TourPassRepository(
         val chartIds = getOrderedChartIds(entity.id.value)
         if (chartIds.isEmpty()) return emptyList()
 
-        val charts = chartRepository.getChartsByContentIds(
-            contentIds = chartIds,
+        val charts = chartRepository.getChartsByCatalogIds(
+            catalogIds = chartIds,
             addons = ChartRepository.ChartAddons(streamingLinks = true),
             requestingUserId = userId,
         ).associateBy { it.id }
@@ -122,12 +127,15 @@ class TourPassRepository(
         val charts = loadChartsForTourPass(entity, userId)
         val stats = fetchAggregateStats(listOf(entity.id.value))
         val (likesCount, bookmarksCount) = stats[entity.id.value] ?: (0 to 0)
-        return buildTourPass(entity, charts, likesCount, bookmarksCount)
+        val (likedAt, bookmarkedAt) = if (userId != null) {
+            UserStatsUtils.fetchUserStats(userId, listOf(entity.id.value))[entity.id.value] ?: (null to null)
+        } else (null to null)
+        return buildTourPass(entity, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt)
     }
 
     override suspend fun getTourPasses(
         userId: UUID?,
-        contentIds: List<String>?,
+        catalogIds: List<String>?,
         search: String?,
         limit: Int?,
         offset: Int?,
@@ -135,19 +143,26 @@ class TourPassRepository(
         val pageSize = limit ?: 20
         val pageOffset = offset ?: 0
 
-        val query = TourPassEntity.all()
+        val query = TourPassTable.selectAll()
 
-        val result = if (contentIds != null && contentIds.isNotEmpty()) {
-            query.toList().filter { it.id.value in contentIds }
-        } else {
-            query.limit(pageSize).offset(pageOffset.toLong()).toList()
+        when {
+            catalogIds != null && catalogIds.isNotEmpty() && search != null -> {
+                query.where {
+                    (TourPassTable.id inList catalogIds.map { EntityID(it, TourPassTable) }) and
+                    ((TourPassTable.name like "%${search}%") or (TourPassTable.description like "%${search}%"))
+                }
+            }
+            catalogIds != null && catalogIds.isNotEmpty() -> {
+                query.where { TourPassTable.id inList catalogIds.map { EntityID(it, TourPassTable) } }
+            }
+            search != null -> {
+                query.where { (TourPassTable.name like "%${search}%") or (TourPassTable.description like "%${search}%") }
+            }
         }
 
-        val paged = if (contentIds != null && contentIds.isNotEmpty()) {
-            result.drop(pageOffset).take(pageSize)
-        } else {
-            result
-        }
+        query.orderBy(TourPassTable.id to SortOrder.DESC)
+        val paged = query.limit(pageSize).offset(pageOffset.toLong()).toList()
+            .map { TourPassEntity.wrapRow(it) }
 
         if (paged.isEmpty()) return@suspendTransaction emptyList()
 
@@ -159,8 +174,8 @@ class TourPassRepository(
         }.distinct()
 
         val chartMap = if (allChartIds.isNotEmpty()) {
-            chartRepository.getChartsByContentIds(
-                contentIds = allChartIds,
+            chartRepository.getChartsByCatalogIds(
+                catalogIds = allChartIds,
                 addons = ChartRepository.ChartAddons(streamingLinks = true),
                 requestingUserId = userId,
             ).associateBy { it.id }
@@ -168,10 +183,15 @@ class TourPassRepository(
             emptyMap()
         }
 
+        val userStats = if (userId != null && paged.isNotEmpty()) {
+            UserStatsUtils.fetchUserStats(userId, allTourPassIds)
+        } else emptyMap()
+
         paged.map { entity ->
             val charts = getOrderedChartIds(entity.id.value).mapNotNull { chartMap[it] }
             val (likesCount, bookmarksCount) = allStats[entity.id.value] ?: (0 to 0)
-            buildTourPass(entity, charts, likesCount, bookmarksCount)
+            val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
+            buildTourPass(entity, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt)
         }
     }
 
@@ -211,6 +231,8 @@ class TourPassRepository(
             this.artist = artist
         }
 
+        flushEntityCache()
+
         chartIds?.forEachIndexed { index, cid ->
             TourPassChartTable.insertIgnore {
                 it[TourPassChartTable.tourPassId] = EntityID(tourPass.id.value, TourPassTable)
@@ -240,6 +262,8 @@ class TourPassRepository(
         CatalogItemEntity.findByIdAndUpdate(id) {
             it.updatedAt = now
         }
+
+        flushEntityCache()
 
         chartIds?.let { newChartIds ->
             TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq EntityID(id, TourPassTable) }
@@ -287,6 +311,14 @@ class TourPassRepository(
             (TourPassChartTable.tourPassId eq EntityID(tourPassId, TourPassTable)) and
                 (TourPassChartTable.chartId eq EntityID(chartId, ChartTable))
         } > 0
+    }
+
+    override suspend fun countTourPasses(search: String?): Int = suspendTransaction {
+        val query = TourPassTable.select(TourPassTable.id.count())
+        search?.let { s ->
+            query.where { (TourPassTable.name like "%${s}%") or (TourPassTable.description like "%${s}%") }
+        }
+        query.toList().first()[TourPassTable.id.count()].toInt()
     }
 
 	override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) = suspendTransaction {

@@ -177,10 +177,13 @@ fun Route.authRoutes(
                         return@post
                     }
 
+                    val googleUser = googleOAuthService.getUserInfo(googleTokenResponse.accessToken)
+
                     userRepository.upsertAccount(
                         userId,
                         CreateAccountRequest(
                             provider = "google",
+                            providerAccountId = googleUser.id,
                             refreshToken = googleTokenResponse.refreshToken,
                             accessToken = googleTokenResponse.accessToken,
                             expiresAt = (Clock.System.now() + googleTokenResponse.expiresIn.toLong().days).toLocalDateTime(TimeZone.UTC),

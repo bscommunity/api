@@ -17,7 +17,7 @@ import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.TrackTable
-import org.bscm.models.tables.VersionableInfoTable
+import org.bscm.models.tables.VersionableItemTable
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.flushEntityCache
 import org.jetbrains.exposed.v1.core.eq
@@ -69,7 +69,7 @@ class ChartRepository(
 
         val results = query.toList()
         val chartIds = results.map { it[ChartTable.id].value }.distinct()
-        val changelogs = changelogRepository.getByChartIds(chartIds)
+        val changelogs = changelogRepository.getByCatalogItemIds(chartIds)
 
         val processedResults = resultAssembler.processResultsInMemory(
             requestingUserId = requestingUserId,
@@ -124,7 +124,7 @@ class ChartRepository(
         queryBuilder.applyJoinsAndSelect(fullQuery, fetchStreamingRefs = addons?.streamingLinks == true)
 
         val results = fullQuery.toList()
-        val changelogs = changelogRepository.getByChartIds(paginatedIds)
+        val changelogs = changelogRepository.getByCatalogItemIds(paginatedIds)
         val processedResults = resultAssembler.processResultsInMemory(
             requestingUserId = requestingUserId,
             results = results,
@@ -168,19 +168,19 @@ class ChartRepository(
         Pair(charts, if (addons?.count == true) total else null)
     }
 
-    override suspend fun getChartsByContentIds(contentIds: List<String>, addons: ChartAddons?, requestingUserId: UUID?): List<Chart> =
+    override suspend fun getChartsByCatalogIds(catalogIds: List<String>, addons: ChartAddons?, requestingUserId: UUID?): List<Chart> =
         suspendTransaction {
-            if (contentIds.isEmpty()) return@suspendTransaction emptyList()
+            if (catalogIds.isEmpty()) return@suspendTransaction emptyList()
 
             flushEntityCache()
 
             val query = ChartTable.selectAll().where {
-                ChartTable.id inList contentIds
+                ChartTable.id inList catalogIds
             }
             queryBuilder.applyJoinsAndSelect(query, fetchStreamingRefs = addons?.streamingLinks == true)
 
             val results = query.toList()
-            val changelogs = changelogRepository.getByChartIds(contentIds)
+            val changelogs = changelogRepository.getByCatalogItemIds(catalogIds)
             resultAssembler.processResultsInMemory(
                 requestingUserId = requestingUserId,
                 results = results,
@@ -205,10 +205,10 @@ class ChartRepository(
             type = CatalogItemType.CHART,
             authorId = userId,
             previewVideoId = null,
-            contentId = chart.contentId,
+            catalogId = chart.catalogId,
         )
 
-        VersionableInfoEntity.new(catalogItem.id.value) {
+        VersionableItemEntity.new(catalogItem.id.value) {
             bundleHash = chart.bundleHash
         }
 
@@ -247,11 +247,11 @@ class ChartRepository(
     }
 
     override suspend fun findChartByBundleHash(hash: String): Chart? = suspendTransaction {
-        val versionableInfo = VersionableInfoEntity.find { VersionableInfoTable.bundleHash eq hash }.firstOrNull()
+        val versionableItem = VersionableItemEntity.find { VersionableItemTable.bundleHash eq hash }.firstOrNull()
             ?: return@suspendTransaction null
 
         getChart(
-            query = ChartTable.selectAll().where { ChartTable.id eq versionableInfo.id.value },
+            query = ChartTable.selectAll().where { ChartTable.id eq versionableItem.id.value },
             addons = ChartAddons(streamingLinks = false),
             requestingUserId = null,
         )

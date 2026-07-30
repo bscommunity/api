@@ -8,7 +8,7 @@ import org.jetbrains.exposed.v1.datetime.datetime
 import kotlin.time.Clock
 
 object ChangelogTable : UUIDTable("changelogs") {
-    val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
+    val catalogItemId = reference("catalog_item_id", VersionableItemTable, onDelete = ReferenceOption.CASCADE)
     val description = varchar("description", 1000)
     val createdAt = datetime("created_at")
         .clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }

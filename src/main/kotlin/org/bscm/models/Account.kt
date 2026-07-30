@@ -13,7 +13,7 @@ import java.util.*
 data class Account(
     val id: UUID,
     val provider: String,
-    // val providerAccountId: String,
+    val providerAccountId: String,
     val refreshToken: String? = null,
     val accessToken: String? = null,
     val expiresAt: LocalDateTime? = null,

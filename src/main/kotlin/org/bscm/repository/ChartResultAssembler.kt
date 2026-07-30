@@ -4,13 +4,7 @@ import kotlinx.datetime.LocalDateTime
 import org.bscm.models.Changelog
 import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
-import org.bscm.models.dao.ChartEntity
-import org.bscm.models.dao.CatalogItemEntity
-import org.bscm.models.dao.ContributorEntity
-import org.bscm.models.dao.TrackEntity
-import org.bscm.models.dao.UserEntity
-import org.bscm.models.dao.VersionEntity
-import org.bscm.models.dao.VersionableInfoEntity
+import org.bscm.models.dao.*
 import org.bscm.models.mappers.VersionMapper
 import org.bscm.models.tables.*
 import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
@@ -26,7 +20,7 @@ class ChartResultAssembler(
     data class ChartResult(
         val chart: ChartEntity,
         val catalogItem: CatalogItemEntity,
-        val versionableInfo: VersionableInfoEntity?,
+        val versionableItem: VersionableItemEntity?,
         val track: TrackEntity,
         val contributors: List<Pair<ContributorEntity, UserEntity>>,
         val streamingRefs: List<StreamingRef>,
@@ -52,8 +46,8 @@ class ChartResultAssembler(
         discordMessageId = result.catalogItem.discordMessageId,
         authorId = result.catalogItem.author?.id?.value,
         track = trackRepository.toTrack(result.track, result.streamingRefs),
-        versionsCount = result.versionableInfo?.versionsCount ?: 0,
-        bundleHash = result.versionableInfo?.bundleHash,
+        versionsCount = result.versionableItem?.versionsCount ?: 0,
+        bundleHash = result.versionableItem?.bundleHash,
         difficulty = result.chart.difficulty,
         notesAmount = result.chart.notesAmount,
         effectsAmount = result.chart.effectsAmount,
@@ -72,8 +66,8 @@ class ChartResultAssembler(
         val groupedByChartId: Map<String, List<ResultRow>> = results.groupBy { row: ResultRow ->
             row[ChartTable.id].value
         }
-        val contentIds = groupedByChartId.keys.toList()
-        val userStats = catalogItemRepository.fetchUserStats(requestingUserId, contentIds)
+        val catalogIds = groupedByChartId.keys.toList()
+        val userStats = catalogItemRepository.fetchUserStats(requestingUserId, catalogIds)
 
         return groupedByChartId.map { (_, rows) ->
             val chartEntity = ChartEntity.wrapRow(rows.first())
@@ -114,12 +108,12 @@ class ChartResultAssembler(
             row.getOrNull(VersionTable.id)?.let { _ -> VersionEntity.wrapRow(row) }
         }
 
-        val versionableInfo = VersionableInfoEntity.findById(catalogItemEntity.id.value)
+        val versionableItem = VersionableItemEntity.findById(catalogItemEntity.id.value)
 
             ChartResult(
                 chart = chartEntity,
                 catalogItem = catalogItemEntity,
-                versionableInfo = versionableInfo,
+                versionableItem = versionableItem,
                 track = trackEntity,
                 contributors = contributors,
                 streamingRefs = streamingRefs,

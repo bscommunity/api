@@ -7,7 +7,7 @@ import org.bscm.serialization.LocalDateTimeSerializer
 @Serializable
 data class CreateAccountRequest(
     val provider: String,
-    // val providerAccountId: String,
+    val providerAccountId: String,
     val refreshToken: String? = null,
     val accessToken: String? = null,
     @Serializable(with = LocalDateTimeSerializer::class)

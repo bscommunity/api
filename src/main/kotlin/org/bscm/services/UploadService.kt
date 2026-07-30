@@ -46,7 +46,7 @@ class UploadService(
     }
 
     data class PublishContext(
-        val contentId: String? = null,
+        val catalogId: String? = null,
         val submittedBy: SubmittedBy,
         val trackUrls: List<StreamingRef> = emptyList(),
     )
@@ -186,8 +186,8 @@ class UploadService(
         return "~${safe / 60}m${safe % 60}s"
     }
 
-    private fun getWorkshopContentUrl(type: String, contentId: String?): String {
-        return contentId?.let { "https://bscm.netlify.app/link/$type/$it" } ?: "https://bscm.netlify.app/"
+    private fun getWorkshopContentUrl(type: String, catalogId: String?): String {
+        return catalogId?.let { "https://bscm.netlify.app/link/$type/$it" } ?: "https://bscm.netlify.app/"
     }
 
     private fun buildComponents(trackUrls: List<StreamingRef>): List<ActionRow> {
@@ -285,7 +285,7 @@ class UploadService(
             attachments(attachments)
             embed {
                 this.title = title
-                url = "https://bscm.netlify.app/link/chart/${chart.contentId}"
+                url = "https://bscm.netlify.app/link/chart/${chart.catalogId}"
                 color = 3820816
                 if (coverAttachment) {
                     image("attachment://cover.png")
@@ -389,7 +389,7 @@ class UploadService(
                     }
                 }
                 buildComponents(data.context.trackUrls).forEach { component(it) }
-                val appUrl = getWorkshopContentUrl("tourpass", data.context.contentId)
+                val appUrl = getWorkshopContentUrl("tourpass", data.context.catalogId)
                 buttonRow(Button(type = 2, style = 5, label = "Check in the app", url = appUrl))
             }
         )
@@ -439,7 +439,7 @@ class UploadService(
                     data.trailerUrl?.takeIf { it.isNotBlank() }?.let { field("Trailer", it, false) }
                 }
                 buildComponents(data.context.trackUrls).forEach { component(it) }
-                val appUrl = getWorkshopContentUrl("theme", data.context.contentId)
+                val appUrl = getWorkshopContentUrl("theme", data.context.catalogId)
                 buttonRow(Button(type = 2, style = 5, label = "Check in the app", url = appUrl))
             }
         )
@@ -490,7 +490,7 @@ class UploadService(
                     previewUrl = version.previewUrl,
                     coverUrl = chart.track.coverUrl ?: "",
                     trackUrls = chart.track.streamingRefs,
-                    contentId = chart.id,
+                    catalogId = chart.id,
                     fileSizeBytes = version.fileSizeBytes,
                 ),
             author,

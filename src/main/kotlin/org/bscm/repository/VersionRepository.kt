@@ -3,12 +3,12 @@ package org.bscm.repository
 import org.bscm.models.Version
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.VersionEntity
-import org.bscm.models.dao.VersionableInfoEntity
+import org.bscm.models.dao.VersionableItemEntity
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.mappers.VersionMapper.entityToVersion
 import org.bscm.models.tables.VersionTable
-import org.bscm.models.tables.VersionableInfoTable
+import org.bscm.models.tables.VersionableItemTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
@@ -32,11 +32,11 @@ class VersionRepository : IVersionRepository {
         suspendTransaction {
             if (catalogItemIds.isEmpty()) return@suspendTransaction emptyList()
 
-            val rows = (VersionableInfoTable innerJoin VersionTable)
+            val rows = (VersionableItemTable innerJoin VersionTable)
                 .select(VersionTable.columns)
                 .where {
-                    (VersionableInfoTable.id inList catalogItemIds.map { EntityID(it, VersionableInfoTable) }) and
-                            (VersionableInfoTable.latestVersionId eq VersionTable.id)
+                    (VersionableItemTable.id inList catalogItemIds.map { EntityID(it, VersionableItemTable) }) and
+                            (VersionableItemTable.latestVersionId eq VersionTable.id)
                 }
                 .toList()
 
@@ -67,11 +67,11 @@ class VersionRepository : IVersionRepository {
             }
         }
 
-        val versionableInfo = VersionableInfoEntity.findById(catalogItemId)
-            ?: VersionableInfoEntity.new(catalogItemId) { }
+        val versionableItem = VersionableItemEntity.findById(catalogItemId)
+            ?: VersionableItemEntity.new(catalogItemId) { }
 
-        versionableInfo.latestVersion = newVersion
-        versionableInfo.versionsCount += 1
+        versionableItem.latestVersion = newVersion
+        versionableItem.versionsCount += 1
 
         entityToVersion(newVersion)
     }
@@ -86,7 +86,7 @@ class VersionRepository : IVersionRepository {
             }
 
             if (versionCount == 1) {
-                throw IllegalArgumentException("Cannot remove the only version of chart")
+                throw IllegalArgumentException("Cannot remove the only version of this item")
             }
 
             val versionEntity = VersionEntity.findById(versionId)
@@ -101,11 +101,11 @@ class VersionRepository : IVersionRepository {
                 .limit(1)
                 .singleOrNull() ?: throw IllegalStateException("No remaining versions found")
 
-            val versionableInfo = VersionableInfoEntity.findById(catalogItemId)
+            val versionableItem = VersionableItemEntity.findById(catalogItemId)
                 ?: return@suspendTransaction false
 
-            versionableInfo.latestVersion = nextLatest
-            versionableInfo.versionsCount -= 1
+            versionableItem.latestVersion = nextLatest
+            versionableItem.versionsCount -= 1
 
             true
         }

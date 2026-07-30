@@ -113,7 +113,7 @@ class ChartPublishService(
             )
         }
 
-        val contentId = NanoIdUtils.generateContentId()
+        val catalogId = NanoIdUtils.generateContentId()
 
         // 1. Extract info.json metadata
         val bundleInfo = DecodingUtils.extractBundleInfo(bundleBytes)
@@ -237,14 +237,14 @@ class ChartPublishService(
             fileSizeBytes = bundleBytes.size.toLong(),
             bundleHash = bundleHash,
             previewUrl = overrides.previewUrl,
-            contentId = contentId,
+            catalogId = catalogId,
             isrc = resolvedIsrc,
         )
 
-        // Build enriched bundle before Discord upload (contentId doubles as chart ID)
+        // Build enriched bundle before Discord upload (catalogId doubles as chart ID)
         val coverCdnUrl = storageService.albumCoverUrl(albumEntity.id.value)
         val bscmMetadata = DecodingUtils.BscmMetadata(
-            chartId = contentId,
+            chartId = catalogId,
             track = trackName,
             artist = artistName,
             difficulty = difficultyEnum.ordinal,

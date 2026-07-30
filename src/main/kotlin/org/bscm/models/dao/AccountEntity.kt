@@ -11,7 +11,7 @@ class AccountEntity(id: EntityID<UUID>) : UUIDEntity(id) {
     companion object : UUIDEntityClass<AccountEntity>(AccountTable)
 
     var provider by AccountTable.provider
-    // var providerAccountId by AccountTable.providerAccountId
+    var providerAccountId by AccountTable.providerAccountId
     var refreshToken by AccountTable.refreshToken
     var accessToken by AccountTable.accessToken
     var expiresAt by AccountTable.expiresAt

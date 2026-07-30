@@ -1,5 +1,6 @@
 package org.bscm.repository
 
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Theme
@@ -9,7 +10,13 @@ import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IThemeRepository
+import org.bscm.models.tables.ThemeTable
 import org.bscm.storage.StorageService
+import org.bscm.utils.UserStatsUtils
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 import kotlin.time.Clock
@@ -19,7 +26,11 @@ class ThemeRepository(
     private val storageService: StorageService,
 ) : IThemeRepository {
 
-    private fun themeEntityToTheme(entity: ThemeEntity): Theme {
+    private fun themeEntityToTheme(
+        entity: ThemeEntity,
+        likedAt: LocalDateTime? = null,
+        bookmarkedAt: LocalDateTime? = null,
+    ): Theme {
         val catalogItem = CatalogItemEntity[entity.id.value]
         val id = entity.id.value
         return Theme(
@@ -32,8 +43,8 @@ class ThemeRepository(
             createdAt = catalogItem.createdAt,
             publishedAt = catalogItem.publishedAt,
             updatedAt = catalogItem.updatedAt,
-            likedAt = null,
-            bookmarkedAt = null,
+            likedAt = likedAt,
+            bookmarkedAt = bookmarkedAt,
             id = id,
             type = CatalogItemType.THEME,
             status = catalogItem.status,
@@ -49,7 +60,7 @@ class ThemeRepository(
 
     override suspend fun getThemes(
         userId: UUID?,
-        contentIds: List<String>?,
+        catalogIds: List<String>?,
         search: String?,
         limit: Int?,
         offset: Int?,
@@ -57,22 +68,44 @@ class ThemeRepository(
         val pageSize = limit ?: 20
         val pageOffset = offset ?: 0
 
-        val result: List<ThemeEntity> = if (contentIds != null && contentIds.isNotEmpty()) {
-            ThemeEntity.all().filter { it.id.value in contentIds }
-        } else {
-            ThemeEntity.all().limit(pageSize).offset(pageOffset.toLong()).toList()
+        val query = ThemeTable.selectAll()
+
+        when {
+            catalogIds != null && catalogIds.isNotEmpty() && search != null -> {
+                query.where {
+                    (ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) }) and
+                    ((ThemeTable.name like "%${search}%") or (ThemeTable.replaces like "%${search}%"))
+                }
+            }
+            catalogIds != null && catalogIds.isNotEmpty() -> {
+                query.where { ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) } }
+            }
+            search != null -> {
+                query.where { (ThemeTable.name like "%${search}%") or (ThemeTable.replaces like "%${search}%") }
+            }
         }
 
-        val paged = if (contentIds != null && contentIds.isNotEmpty()) {
-            result.drop(pageOffset).take(pageSize)
-        } else {
-            result
+        query.orderBy(ThemeTable.id to SortOrder.DESC)
+        val paged = query.limit(pageSize).offset(pageOffset.toLong()).toList()
+            .map { ThemeEntity.wrapRow(it) }
+
+        val userStats = if (userId != null && paged.isNotEmpty()) {
+            UserStatsUtils.fetchUserStats(userId, paged.map { it.id.value })
+        } else emptyMap()
+
+        paged.map { entity ->
+            val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt)
         }
-        paged.map { themeEntityToTheme(it) }
     }
 
     override suspend fun getThemeById(id: String, userId: UUID?): Theme? = suspendTransaction {
-        ThemeEntity.findById(id)?.let { themeEntityToTheme(it) }
+        ThemeEntity.findById(id)?.let { entity ->
+            val (likedAt, bookmarkedAt) = if (userId != null) {
+                UserStatsUtils.fetchUserStats(userId, listOf(id))[id] ?: (null to null)
+            } else (null to null)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt)
+        }
     }
 
     override suspend fun createTheme(
@@ -132,6 +165,14 @@ class ThemeRepository(
     override suspend fun deleteTheme(id: String, userId: UUID): Boolean = suspendTransaction {
         CatalogItemEntity.findById(id)?.delete() ?: return@suspendTransaction false
         true
+    }
+
+    override suspend fun countThemes(search: String?): Int = suspendTransaction {
+        val query = ThemeTable.select(ThemeTable.id.count())
+        search?.let { s ->
+            query.where { (ThemeTable.name like "%${s}%") or (ThemeTable.replaces like "%${s}%") }
+        }
+        query.toList().first()[ThemeTable.id.count()].toInt()
     }
 
     override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) = suspendTransaction {

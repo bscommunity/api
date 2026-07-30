@@ -1,6 +1,7 @@
 package org.bscm.routes
 
 import io.ktor.http.*
+import io.ktor.server.auth.*
 import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -11,36 +12,32 @@ import org.bscm.models.interfaces.IChangelogRepository
 import java.util.*
 
 fun Route.changelogRoutes(changelogRepository: IChangelogRepository) {
-    route("/charts") {
-        post("{id}/issues") {
-            val id = call.parameters["id"] ?: run {
-                call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                return@post
+    route("/changelog/{catalogItemId}/issues") {
+
+        authenticate("auth-bearer") {
+            post {
+                val catalogItemId = call.parameters["catalogItemId"]
+                    ?: throw BadRequestException("Invalid or missing catalog item ID")
+
+                val request = call.receive<CreateChangelogEntryRequest>()
+
+                val entryId = changelogRepository.addIssue(catalogItemId, request.description)
+
+                call.respond(HttpStatusCode.Created, CreateChangelogEntryResponse(entryId))
             }
 
-            val request = call.receive<CreateChangelogEntryRequest>()
+            delete("{issueId}") {
+                val catalogItemId = call.parameters["catalogItemId"]
+                    ?: throw BadRequestException("Invalid or missing catalog item ID")
+                val issueId = call.parameters["issueId"]?.let { UUID.fromString(it) }
+                    ?: throw BadRequestException("Invalid or missing issue ID")
 
-            val entryId = changelogRepository.addIssue(id, request.description)
-
-            call.respond(HttpStatusCode.Created, CreateChangelogEntryResponse(entryId))
-        }
-
-        delete("{id}/issues/{issueId}") {
-            val id = call.parameters["id"] ?: run {
-                call.respond(HttpStatusCode.BadRequest, "Invalid or missing ID")
-                return@delete
-            }
-            val issueId = call.parameters["issueId"]?.let { UUID.fromString(it) }
-            if (issueId == null) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid or missing issueId")
-                return@delete
-            }
-
-            val removed = changelogRepository.removeIssue(id, issueId)
-            if (removed) {
-                call.respond(HttpStatusCode.NoContent, true)
-            } else {
-                throw NotFoundException("Chart or issue not found")
+                val removed = changelogRepository.removeIssue(catalogItemId, issueId)
+                if (removed) {
+                    call.respond(HttpStatusCode.NoContent)
+                } else {
+                    throw NotFoundException("Catalog item or issue not found")
+                }
             }
         }
     }

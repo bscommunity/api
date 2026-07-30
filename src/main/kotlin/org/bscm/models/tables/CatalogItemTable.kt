@@ -30,8 +30,8 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
     val discordMessageId = varchar("discord_message_id", 255).nullable()
 
     val createdAt = datetime("created_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }
-    val publishedAt = datetime("published_at").nullable()
-    val updatedAt = datetime("updated_at").nullable()
+    val publishedAt = datetime("published_at").nullable().index()
+    val updatedAt = datetime("updated_at").nullable().index()
 
     val authorId = reference("author_id", UserTable, ReferenceOption.SET_NULL).nullable()
 

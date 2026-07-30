@@ -6,7 +6,7 @@ import java.util.*
 interface IThemeRepository {
     suspend fun getThemes(
         userId: UUID? = null,
-        contentIds: List<String>? = null,
+        catalogIds: List<String>? = null,
         search: String? = null,
         limit: Int? = null,
         offset: Int? = null,
@@ -31,4 +31,5 @@ interface IThemeRepository {
 
     suspend fun deleteTheme(id: String, userId: UUID): Boolean
     suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String)
+    suspend fun countThemes(search: String? = null): Int
 }

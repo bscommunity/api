@@ -7,7 +7,7 @@ import java.util.*
 interface ITourPassRepository {
     suspend fun getTourPasses(
         userId: UUID? = null,
-        contentIds: List<String>? = null,
+        catalogIds: List<String>? = null,
         search: String? = null,
         limit: Int? = null,
         offset: Int? = null,
@@ -37,5 +37,6 @@ interface ITourPassRepository {
     suspend fun setTourPassCharts(id: String, userId: UUID, chartIds: List<String>): TourPass
     suspend fun addChartToTourPass(tourPassId: String, chartId: String): Boolean
     suspend fun removeChartFromTourPass(tourPassId: String, chartId: String): Boolean
+    suspend fun countTourPasses(search: String? = null): Int
     suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String)
 }

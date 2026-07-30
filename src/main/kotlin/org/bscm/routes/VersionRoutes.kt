@@ -40,10 +40,10 @@ fun Route.versionRoutes(
 
     authenticate("auth-bearer") {
         rateLimit(RateLimitName("restricted")) {
-            route("/versions/chart") {
-                post("{chartId}") {
-                    val chartId = call.parameters["chartId"]
-                        ?: throw BadRequestException("Invalid or missing chart ID")
+            route("/versions") {
+                post("{catalogItemId}") {
+                    val catalogItemId = call.parameters["catalogItemId"]
+                        ?: throw BadRequestException("Invalid or missing catalog item ID")
 
                     val principal = call.principal<JWTPrincipal>()
                     val userId = principal?.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
@@ -56,12 +56,12 @@ fun Route.versionRoutes(
                         ?: throw UnauthorizedException("User not found")
 
                     val chart = chartRepository.getChartById(
-                        chartId,
+                        catalogItemId,
                         ChartRepository.ChartAddons(versions = true),
                         requestingUserId = userId,
                     ) ?: throw NotFoundException("Chart not found")
 
-                    logger.info("Received request to add version to chart $chartId")
+                    logger.info("Received request to add version $catalogItemId")
 
                     // --- Multipart parsing ---
 
@@ -107,7 +107,7 @@ fun Route.versionRoutes(
                         throw BadRequestException("Track or artist does not match the chart")
                     }
 
-                    logger.info("Creating version for chart $chartId: $createRequest")
+                    logger.info("Creating version for $catalogItemId: $createRequest")
 
                     val existingVersions = versionRepository.getVersions(chart.id)
 
@@ -131,7 +131,7 @@ fun Route.versionRoutes(
                         versionRepository.addVersion(chart.id, createRequestWithUrl)
                     }
 
-                    logger.info("Version ${createdVersion.id} (v${createdVersion.versionCode}) created for chart $chartId")
+                    logger.info("Version ${createdVersion.id} (v${createdVersion.versionCode}) created for $catalogItemId")
 
                     call.respond(HttpStatusCode.Created, createdVersion)
 

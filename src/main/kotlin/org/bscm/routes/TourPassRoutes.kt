@@ -44,7 +44,7 @@ fun Route.tourPassRoutes(
                     )
 
                     val total = if (count) {
-                        tourPassRepository.getTourPasses(search = search).size
+                        tourPassRepository.countTourPasses(search = search)
                     } else null
 
                     call.respond(

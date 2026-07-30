@@ -68,12 +68,12 @@ class TourPassPublishService(
         val normalizedPlaylistUrls = request.playlistUrls
             ?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
 
-        val contentId = NanoIdUtils.generateContentId()
+        val catalogId = NanoIdUtils.generateContentId()
 
         // Upload cover to storage if raw bytes were provided
         if (coverBytes != null) {
             val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
-            storageService.uploadTourPassCover(contentId, avifBytes)
+            storageService.uploadTourPassCover(catalogId, avifBytes)
         }
 
         val difficultyLabel = if (charts.isNotEmpty()) {
@@ -108,11 +108,11 @@ class TourPassPublishService(
             title = request.name,
             description = request.description,
             context = UploadService.PublishContext(
-                contentId = contentId,
+                catalogId = catalogId,
                 submittedBy = UploadService.SubmittedBy.fromUser(uploader),
                 trackUrls = normalizedPlaylistUrls ?: emptyList(),
             ),
-            coverUrl = storageService.tourPassCoverUrl(contentId),
+            coverUrl = storageService.tourPassCoverUrl(catalogId),
             durationSeconds = charts.sumOf { it.track.duration.toInt() },
             tracksAmount = charts.size,
             difficultyLabel = difficultyLabel,
@@ -129,11 +129,11 @@ class TourPassPublishService(
             artist = request.artist,
             playlistUrls = normalizedPlaylistUrls,
             chartIds = chartIds,
-            id = contentId,
+            id = catalogId,
         )
 
         tourPassRepository.updateDiscordCoordinates(
-            contentId,
+            catalogId,
             discordResponse.channelId,
             discordResponse.id,
         )

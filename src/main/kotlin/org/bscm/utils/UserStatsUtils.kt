@@ -21,18 +21,18 @@ private val log = KtorSimpleLogger("UserStatsUtils")
 object UserStatsUtils {
     /**
      * Fetches user interaction stats for a batch of content items.
-     * Returns a map of contentId -> (isLiked, isBookmarked)
+     * Returns a map of catalogId -> (isLiked, isBookmarked)
      */
-    fun fetchUserStats(userId: UUID?, contentIds: List<String>): Map<String, Pair<LocalDateTime?, LocalDateTime?>> {
-        log.info("fetchUserStats called with userId=$userId, contentIds=${contentIds.joinToString()}")
+    fun fetchUserStats(userId: UUID?, catalogIds: List<String>): Map<String, Pair<LocalDateTime?, LocalDateTime?>> {
+        log.info("fetchUserStats called with userId=$userId, catalogIds=${catalogIds.joinToString()}")
 
         if (userId == null) {
             log.warn("userId is null, returning empty map")
             return emptyMap()
         }
 
-        if (contentIds.isEmpty()) {
-            log.warn("contentIds is empty, returning empty map")
+        if (catalogIds.isEmpty()) {
+            log.warn("catalogIds is empty, returning empty map")
             return emptyMap()
         }
 
@@ -41,9 +41,9 @@ object UserStatsUtils {
         // Fetch all collection items for the user and the given content IDs in a single query
         val statsRows = CollectionItemTable
             .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .select(CollectionItemTable.contentId, CollectionTable.kind, CollectionItemTable.addedAt)
+            .select(CollectionItemTable.catalogId, CollectionTable.kind, CollectionItemTable.addedAt)
             .where {
-                (CollectionTable.userId eq userId) and (CollectionItemTable.contentId inList contentIds)
+                (CollectionTable.userId eq userId) and (CollectionItemTable.catalogId inList catalogIds)
             }
             .toList() // Execute the query immediately
 
@@ -51,12 +51,12 @@ object UserStatsUtils {
 
         /*if (statsRows.isNotEmpty()) {
             statsRows.forEach { row ->
-                log.info("Row: contentId=${row[CollectionItemTable.contentId].value}, kind=${row[CollectionTable.kind]}")
+                log.info("Row: catalogId=${row[CollectionItemTable.catalogId].value}, kind=${row[CollectionTable.kind]}")
             }
         }*/
 
-        // Group results by contentId and collect all collection kinds
-        val contentIdToTimes = statsRows.groupBy { it[CollectionItemTable.contentId].value }
+        // Group results by catalogId and collect all collection kinds
+        val catalogIdToTimes = statsRows.groupBy { it[CollectionItemTable.catalogId].value }
             .mapValues { (_, rows) ->
                 val likedAt = rows.filter { it[CollectionTable.kind] == CollectionKind.LIKES }
                     .maxOfOrNull { it[CollectionItemTable.addedAt] }
@@ -70,12 +70,12 @@ object UserStatsUtils {
                 Pair (likedAt, bookmarkedAt)
             }
 
-        // log.info("Grouped by contentId: ${contentIdToTimes.keys.joinToString()}")
+        // log.info("Grouped by catalogId: ${catalogIdToTimes.keys.joinToString()}")
 
-        val result = contentIds.associateWith { contentId ->
-            val times = contentIdToTimes[contentId] ?: Pair(null, null)
+        val result = catalogIds.associateWith { catalogId ->
+            val times = catalogIdToTimes[catalogId] ?: Pair(null, null)
 
-            // log.info("ContentId=$contentId: likedAt=${times.first}, bookmarkedAt=${times.second}")
+            // log.info("ContentId=$catalogId: likedAt=${times.first}, bookmarkedAt=${times.second}")
 
             times
         }

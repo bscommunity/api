@@ -10,7 +10,7 @@ import kotlin.time.Clock
 
 object ContributorTable : LongIdTable("contributors") {
     val catalogItemId = reference("catalog_item_id", CatalogItemTable, onDelete = ReferenceOption.CASCADE)
-    val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)
+    val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE).index()
     val role = enumerationByName("role", 30, ContributorRole::class)
 
     val note = varchar("note", 280).nullable()

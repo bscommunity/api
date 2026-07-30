@@ -46,18 +46,18 @@ interface ICollectionRepository {
         collectionId: UUID,
         collectionKind: CollectionKind,
         userId: UUID,
-        contentId: String
+        catalogId: String
     ): Boolean
 
-    suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
-    suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean
-    suspend fun getContentType(contentId: String): CatalogItemType?
+    suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, catalogId: String): Boolean
+    suspend fun isItemInCollection(collectionId: UUID, catalogId: String): Boolean
+    suspend fun getContentType(catalogId: String): CatalogItemType?
 
     // Batch Operations
     suspend fun batchAddItemsToCollection(
         collectionId: UUID,
         userId: UUID,
-        contentIds: List<String>
+        catalogIds: List<String>
     ): Pair<Int, List<String>>
-    suspend fun batchRemoveItemsFromCollection(collectionId: UUID, userId: UUID, contentIds: List<String>): Int
+    suspend fun batchRemoveItemsFromCollection(collectionId: UUID, userId: UUID, catalogIds: List<String>): Int
 }

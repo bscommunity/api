@@ -12,7 +12,7 @@ import java.util.*
 @Serializable
 data class Changelog(
     val id: UUID,
-    val chartId: String,
+    val catalogItemId: String,
     val description: String,
     val createdAt: LocalDateTime,
 )

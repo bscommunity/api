@@ -20,25 +20,28 @@ class CatalogItemRepository {
         type: CatalogItemType,
         authorId: UUID,
         previewVideoId: String? = null,
-        contentId: String? = null,
+        catalogId: String? = null,
     ): CatalogItemEntity {
-        val id =
-            if (!contentId.isNullOrBlank() && CatalogItemEntity.findById(contentId) == null)
-                contentId
-            else
-                null
+        val resolvedId = if (!catalogId.isNullOrBlank()) {
+            if (CatalogItemEntity.findById(catalogId) != null) {
+                throw IllegalArgumentException("Catalog item with ID '$catalogId' already exists")
+            }
+            catalogId
+        } else {
+            null
+        }
 
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
-        return when {
-            id != null -> CatalogItemEntity.new(id) {
+        return if (resolvedId != null) {
+            CatalogItemEntity.new(resolvedId) {
                 this.type = type
                 this.status = CatalogItemStatus.DRAFT
                 this.previewVideoId = previewVideoId
                 this.author = UserEntity[authorId]
                 this.updatedAt = now
             }
-
-            else -> CatalogItemEntity.new {
+        } else {
+            CatalogItemEntity.new {
                 this.type = type
                 this.status = CatalogItemStatus.DRAFT
                 this.previewVideoId = previewVideoId
@@ -87,7 +90,7 @@ class CatalogItemRepository {
 
     fun fetchUserStats(
         userId: UUID?,
-        contentIds: List<String>,
+        catalogIds: List<String>,
     ): Map<String, Pair<LocalDateTime?, LocalDateTime?>> =
-        UserStatsUtils.fetchUserStats(userId, contentIds)
+        UserStatsUtils.fetchUserStats(userId, catalogIds)
 }

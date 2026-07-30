@@ -299,13 +299,13 @@ fun Route.chartRoutes(
 
                     call.principal<HMACPrincipal>() ?: throw UnauthorizedException("Unauthorized")
 
-                    val contentIds = idsParam.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                    val catalogIds = idsParam.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
-                    if (contentIds.isEmpty()) {
+                    if (catalogIds.isEmpty()) {
                         throw BadRequestException("No valid content IDs provided")
                     }
 
-                    val charts = chartRepository.getChartsByContentIds(contentIds)
+                    val charts = chartRepository.getChartsByCatalogIds(catalogIds)
 
                     if (charts.isEmpty()) {
                         throw NotFoundException("No charts found for the given content IDs")

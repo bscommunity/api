@@ -21,7 +21,7 @@ interface IChartRepository {
         requestingUserId: UUID? = null,
     ): Pair<List<Chart>, Int?>
 
-    suspend fun getChartsByContentIds(contentIds: List<String>, addons: ChartAddons? = null, requestingUserId: UUID? = null): List<Chart>
+    suspend fun getChartsByCatalogIds(catalogIds: List<String>, addons: ChartAddons? = null, requestingUserId: UUID? = null): List<Chart>
 
     suspend fun getSuggestions(query: String, limit: Int): List<String>
     suspend fun getChartById(id: String, addons: ChartAddons? = null, requestingUserId: UUID? = null): Chart?

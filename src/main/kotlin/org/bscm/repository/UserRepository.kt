@@ -61,7 +61,7 @@ class UserRepository(
         fun accountEntityToAccount(entity: AccountEntity): Account = Account(
             id = entity.id.value,
             provider = entity.provider,
-            // providerAccountId = entity.providerAccountId,
+            providerAccountId = entity.providerAccountId,
             refreshToken = entity.refreshToken,
             accessToken = entity.accessToken,
             expiresAt = entity.expiresAt,
@@ -134,7 +134,7 @@ class UserRepository(
 
         AccountTable.upsert {
             it[provider] = account.provider
-            // it[providerAccountId] = account.providerAccountId
+            it[providerAccountId] = account.providerAccountId
             it[refreshToken] = account.refreshToken
             it[accessToken] = account.accessToken
             it[expiresAt] = account.expiresAt
@@ -199,20 +199,20 @@ class UserRepository(
         // Apply limit and offset
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
 
-        val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
+        val catalogIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
-        if (contentIds.isEmpty()) return@suspendTransaction emptyList()
+        if (catalogIds.isEmpty()) return@suspendTransaction emptyList()
 
         // Fetch Charts
         val (charts, _) = chartRepository.getCharts(
             filters = ChartRepository.ChartFilters(
-                chartIds = contentIds,
+                chartIds = catalogIds,
                 includePrivate = requestingUserId == userId
             )
         )
 
         // Return in order of original query
-        val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
+        val orderMap = catalogIds.mapIndexed { index, id -> id to index }.toMap()
         charts.sortedBy { orderMap[it.id] ?: Int.MAX_VALUE }
     }
 
@@ -250,21 +250,21 @@ class UserRepository(
         // Apply limit and offset
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
 
-        val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
+        val catalogIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
-        if (contentIds.isEmpty()) return@suspendTransaction emptyList()
+        if (catalogIds.isEmpty()) return@suspendTransaction emptyList()
 
         // Fetch TourPasses
         val tourPasses = tourPassRepository.getTourPasses(
             userId = requestingUserId,
-            contentIds = contentIds,
+            catalogIds = catalogIds,
             search = null,
             limit = null,
             offset = null
         )
 
         // Return in order of original query
-        val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
+        val orderMap = catalogIds.mapIndexed { index, id -> id to index }.toMap()
         tourPasses.sortedBy { orderMap[it.id] ?: Int.MAX_VALUE }
     }
 
@@ -295,21 +295,21 @@ class UserRepository(
         // Apply limit and offset
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
 
-        val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
+        val catalogIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
-        if (contentIds.isEmpty()) return@suspendTransaction emptyList()
+        if (catalogIds.isEmpty()) return@suspendTransaction emptyList()
 
         // Fetch Themes
         val themes = themeRepository.getThemes(
             userId = requestingUserId,
-            contentIds = contentIds,
+            catalogIds = catalogIds,
             search = null,
             limit = null,
             offset = null
         )
 
         // Return in order of original query
-        val orderMap = contentIds.mapIndexed { index, id -> id to index }.toMap()
+        val orderMap = catalogIds.mapIndexed { index, id -> id to index }.toMap()
         themes.sortedBy { orderMap[it.id] ?: Int.MAX_VALUE }
     }
 
@@ -321,7 +321,7 @@ class UserRepository(
             val countColumn = CollectionItemTable.id.count()
             val rows = CollectionItemTable
                 .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-                .innerJoin(CatalogItemTable, { CollectionItemTable.contentId }, { CatalogItemTable.id })
+                .innerJoin(CatalogItemTable, { CollectionItemTable.catalogId }, { CatalogItemTable.id })
                 .select(CatalogItemTable.type, countColumn)
                 .where {
                     (CollectionTable.userId eq userId) and
@@ -339,43 +339,17 @@ class UserRepository(
 
         // library: authored content (charts, tour passes, themes)
         val library: Triple<Int, Int, Int>? = if (all || "library" in requestedCounts) {
-            // val charts = CatalogItemTable
-            //                .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
-            //                .select(CatalogItemTable.id)
-            //                .where { CatalogItemTable.authorId eq userId }
-            //                .count()
-            //                .toInt()
-            //            val tourPasses = CatalogItemTable
-            //                .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
-            //                .select(CatalogItemTable.id)
-            //                .where { CatalogItemTable.authorId eq userId }
-            //                .count()
-            //                .toInt()
-            //            val themes = CatalogItemTable
-            //                .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
-            //                .select(CatalogItemTable.id)
-            //                .where { CatalogItemTable.authorId eq userId }
-            //                .count()
-            //                .toInt()
-            val charts = CatalogItemTable
-                .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
-                .select(CatalogItemTable.id)
+            val countColumn = CatalogItemTable.id.count()
+            val rows = CatalogItemTable
+                .select(CatalogItemTable.type, countColumn)
                 .where { CatalogItemTable.authorId eq userId }
-                .count()
-                .toInt()
-            val tourPasses = CatalogItemTable
-                .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
-                .select(CatalogItemTable.id)
-                .where { CatalogItemTable.authorId eq userId }
-                .count()
-                .toInt()
-            val themes = CatalogItemTable
-                .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
-                .select(CatalogItemTable.id)
-                .where { CatalogItemTable.authorId eq userId }
-                .count()
-                .toInt()
-             Triple(charts, tourPasses, themes)
+                .groupBy(CatalogItemTable.type)
+                .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
+            Triple(
+                rows[CatalogItemType.CHART] ?: 0,
+                rows[CatalogItemType.TOUR_PASS] ?: 0,
+                rows[CatalogItemType.THEME] ?: 0
+            )
         } else null
 
         val likes: Triple<Int, Int, Int>? = if (all || "likes" in requestedCounts) countByKind(CollectionKind.LIKES) else null
@@ -473,12 +447,7 @@ class UserRepository(
             .orderBy(UserFollowTable.createdAt to SortOrder.DESC)
             .limit(limit)
             .offset(offset.toLong())
-            .map { row ->
-                val followerUserId = row[UserFollowTable.follower]
-                val followerEntity = UserEntity.findById(followerUserId) ?: return@map null
-                userEntityToSimplifiedUser(followerEntity)
-            }
-            .filterNotNull()
+            .map { row -> userEntityToSimplifiedUser(UserEntity.wrapRow(row)) }
     }
 
     override suspend fun getFollowing(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser> = suspendTransaction {
@@ -489,12 +458,7 @@ class UserRepository(
             .orderBy(UserFollowTable.createdAt to SortOrder.DESC)
             .limit(limit)
             .offset(offset.toLong())
-            .map { row ->
-                val followedUserId = row[UserFollowTable.followed]
-                val followedEntity = UserEntity.findById(followedUserId) ?: return@map null
-                userEntityToSimplifiedUser(followedEntity)
-            }
-            .filterNotNull()
+            .map { row -> userEntityToSimplifiedUser(UserEntity.wrapRow(row)) }
     }
 
     override suspend fun isFollowing(followerId: UUID, followedId: UUID): Boolean = suspendTransaction {
@@ -593,16 +557,16 @@ class UserRepository(
 
         // Apply pagination
         val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
-        val contentIds = paginatedQuery.map { it[CatalogItemTable.id].value }
+        val catalogIds = paginatedQuery.map { it[CatalogItemTable.id].value }
 
-        if (contentIds.isEmpty()) return@suspendTransaction Pair(emptyList(), Triple(chartCount, tourPassCount, themeCount))
+        if (catalogIds.isEmpty()) return@suspendTransaction Pair(emptyList(), Triple(chartCount, tourPassCount, themeCount))
 
         // Group IDs by type for bulk fetching
         val typeMap = paginatedQuery.associate { it[CatalogItemTable.id].value to it[CatalogItemTable.type] }
 
-        val chartIds = contentIds.filter { typeMap[it] == CatalogItemType.CHART }
-        val tourPassIds = contentIds.filter { typeMap[it] == CatalogItemType.TOUR_PASS }
-        val themeIds = contentIds.filter { typeMap[it] == CatalogItemType.THEME }
+        val chartIds = catalogIds.filter { typeMap[it] == CatalogItemType.CHART }
+        val tourPassIds = catalogIds.filter { typeMap[it] == CatalogItemType.TOUR_PASS }
+        val themeIds = catalogIds.filter { typeMap[it] == CatalogItemType.THEME }
 
         // Fetch each type in bulk
         val charts = if (chartIds.isNotEmpty()) {
@@ -612,16 +576,16 @@ class UserRepository(
         } else emptyList()
 
         val tourPasses = if (tourPassIds.isNotEmpty()) {
-            tourPassRepository.getTourPasses(contentIds = tourPassIds)
+            tourPassRepository.getTourPasses(catalogIds = tourPassIds)
         } else emptyList()
 
         val themes = if (themeIds.isNotEmpty()) {
-            themeRepository.getThemes(contentIds = themeIds)
+            themeRepository.getThemes(catalogIds = themeIds)
         } else emptyList()
 
         // Merge all items and preserve original ordering
         val allItems = (charts + tourPasses + themes).associateBy { it.id }
-        val orderedItems = contentIds.mapNotNull { allItems[it] }
+        val orderedItems = catalogIds.mapNotNull { allItems[it] }
 
         Pair(orderedItems, Triple(chartCount, tourPassCount, themeCount))
     }

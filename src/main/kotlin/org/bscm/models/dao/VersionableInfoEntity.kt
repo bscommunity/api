@@ -1,21 +1,21 @@
 package org.bscm.models.dao
 
-import org.bscm.models.tables.VersionableInfoTable
+import org.bscm.models.tables.VersionableItemTable
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.dao.Entity
 import org.jetbrains.exposed.v1.dao.EntityClass
 
-class VersionableInfoEntity(
+class VersionableItemEntity(
     id: EntityID<String>
 ) : Entity<String>(id) {
 
     companion object :
-        EntityClass<String, VersionableInfoEntity>(VersionableInfoTable)
+        EntityClass<String, VersionableItemEntity>(VersionableItemTable)
 
-    var versionsCount by VersionableInfoTable.versionsCount
+    var versionsCount by VersionableItemTable.versionsCount
 
     var latestVersion by VersionEntity optionalReferencedOn
-            VersionableInfoTable.latestVersionId
+            VersionableItemTable.latestVersionId
 
-    var bundleHash by VersionableInfoTable.bundleHash
+    var bundleHash by VersionableItemTable.bundleHash
 }

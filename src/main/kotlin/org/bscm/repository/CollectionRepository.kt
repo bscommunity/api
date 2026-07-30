@@ -32,10 +32,10 @@ class CollectionRepository(
     private val storageService: StorageService,
 ) : ICollectionRepository {
 
-    override suspend fun getContentType(contentId: String): CatalogItemType? = suspendTransaction {
+    override suspend fun getContentType(catalogId: String): CatalogItemType? = suspendTransaction {
         CatalogItemTable
             .select(CatalogItemTable.type)
-            .where { CatalogItemTable.id eq contentId }
+            .where { CatalogItemTable.id eq catalogId }
             .firstOrNull()
             ?.get(CatalogItemTable.type)
     }
@@ -134,7 +134,7 @@ class CollectionRepository(
     private fun getLatestItemCoverUrls(collectionIds: List<UUID>): Map<UUID, String?> {
         if (collectionIds.isEmpty()) return emptyMap()
 
-        // Step 1 — for each collectionId, find the contentId and type of the most recently added item.
+        // Step 1 — for each collectionId, find the catalogId and type of the most recently added item.
         //
         // We use a correlated subquery on addedAt: for each outer row we only keep it if its
         // addedAt equals the MAX(addedAt) for that same collectionId. The alias `inner` lets
@@ -145,10 +145,10 @@ class CollectionRepository(
         // that was placed there most recently."
         val inner = CollectionItemTable.alias("inner")
         val latestItems = CollectionItemTable
-            .innerJoin(CatalogItemTable, { CollectionItemTable.contentId }, { CatalogItemTable.id })
+            .innerJoin(CatalogItemTable, { CollectionItemTable.catalogId }, { CatalogItemTable.id })
             .select(
                 CollectionItemTable.collectionId,
-                CollectionItemTable.contentId,
+                CollectionItemTable.catalogId,
                 CatalogItemTable.type
             )
             .where {
@@ -164,24 +164,24 @@ class CollectionRepository(
         // Step 2 — group by content type so we can do one bulk query per type.
         val byType = latestItems.groupBy { it[CatalogItemTable.type] }
 
-        // Intermediate map: contentId (String) -> collectionId (UUID)
-        // contentId is a String FK on CollectionItemTable, so .value yields String, not UUID.
-        val contentToCollection: Map<String, UUID> = latestItems.associate {
-            it[CollectionItemTable.contentId].value to it[CollectionItemTable.collectionId].value
+        // Intermediate map: catalogId (String) -> collectionId (UUID)
+        // catalogId is a String FK on CollectionItemTable, so .value yields String, not UUID.
+        val catalogToCollection: Map<String, UUID> = latestItems.associate {
+            it[CollectionItemTable.catalogId].value to it[CollectionItemTable.collectionId].value
         }
 
         val result = mutableMapOf<UUID, String?>()
 
         // Step 3a — bulk-fetch Chart cover URLs
         byType[CatalogItemType.CHART]?.let { rows ->
-            val ids = rows.map { it[CollectionItemTable.contentId].value }
-            val contentIds = ids.map { EntityID(it, CatalogItemTable) }
+            val ids = rows.map { it[CollectionItemTable.catalogId].value }
+            val catalogIds = ids.map { EntityID(it, CatalogItemTable) }
             (ChartTable innerJoin TrackTable)
                 .select(ChartTable.id, TrackTable.id)
-                .where { ChartTable.id inList contentIds }
+                .where { ChartTable.id inList catalogIds }
                 .forEach { row ->
-                    val contentId: String = row[ChartTable.id].value
-                    val colId = contentToCollection[contentId] ?: return@forEach
+                    val catalogId: String = row[ChartTable.id].value
+                    val colId = catalogToCollection[catalogId] ?: return@forEach
                     val trackId = row[TrackTable.id].value
                     result[colId] = trackRepository.toTrack(
                         entity = TrackEntity[trackId],
@@ -192,16 +192,16 @@ class CollectionRepository(
 
         // Step 3b — bulk-fetch Theme cover URLs
         byType[CatalogItemType.THEME]?.forEach { row ->
-            val contentId = row[CollectionItemTable.contentId].value
-            val colId = contentToCollection[contentId] ?: return@forEach
-            result[colId] = storageService.themeCoverUrl(contentId)
+            val catalogId = row[CollectionItemTable.catalogId].value
+            val colId = catalogToCollection[catalogId] ?: return@forEach
+            result[colId] = storageService.themeCoverUrl(catalogId)
         }
 
         // Step 3c — bulk-fetch TourPass cover URLs
         byType[CatalogItemType.TOUR_PASS]?.forEach { row ->
-            val contentId = row[CollectionItemTable.contentId].value
-            val colId = contentToCollection[contentId] ?: return@forEach
-            result[colId] = storageService.tourPassCoverUrl(contentId)
+            val catalogId = row[CollectionItemTable.catalogId].value
+            val colId = catalogToCollection[catalogId] ?: return@forEach
+            result[colId] = storageService.tourPassCoverUrl(catalogId)
         }
 
         return result
@@ -212,7 +212,7 @@ class CollectionRepository(
 
     private fun getItemsCount(collectionId: UUID): Triple<Int, Int, Int> {
         val query = CollectionItemTable
-            .innerJoin(CatalogItemTable, { contentId }, { id })
+            .innerJoin(CatalogItemTable, { catalogId }, { id })
             .select(CollectionItemTable.collectionId, CatalogItemTable.type)
             .where { CollectionItemTable.collectionId eq collectionId }
 
@@ -229,7 +229,7 @@ class CollectionRepository(
         if (collectionIds.isEmpty()) return emptyMap()
 
         val query = CollectionItemTable
-            .innerJoin(CatalogItemTable, { contentId }, { id })
+            .innerJoin(CatalogItemTable, { catalogId }, { id })
             .select(CollectionItemTable.collectionId, CatalogItemTable.type)
             .where { CollectionItemTable.collectionId inList collectionIds }
 
@@ -427,12 +427,12 @@ class CollectionRepository(
         collectionId: UUID,
         collectionKind: CollectionKind,
         userId: UUID,
-        contentId: String
+        catalogId: String
     ): Boolean = suspendTransaction {
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val result = CollectionItemTable.insertIgnore {
             it[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
-            it[CollectionItemTable.contentId] = EntityID(contentId, CatalogItemTable)
+            it[CollectionItemTable.catalogId] = EntityID(catalogId, CatalogItemTable)
             it[CollectionItemTable.addedAt] = now
         }
 
@@ -448,7 +448,7 @@ class CollectionRepository(
         wasInserted
     }
 
-    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean =
+    override suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, catalogId: String): Boolean =
         suspendTransaction {
             // Verify collection exists and belongs to user
             val collectionRow = CollectionTable
@@ -462,7 +462,7 @@ class CollectionRepository(
 
             val deletedCount = CollectionItemTable.deleteWhere {
                 (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId eq contentId)
+                        (CollectionItemTable.catalogId eq catalogId)
             }
 
             if (deletedCount > 0) {
@@ -494,16 +494,16 @@ class CollectionRepository(
         // Category filter — when no categories, Op.TRUE is a no-op for the DB planner.
         val categoryFilter: Op<Boolean> = when {
             categories.isNullOrEmpty() -> Op.TRUE
-            else -> CollectionItemTable.contentId inSubQuery
+            else -> CollectionItemTable.catalogId inSubQuery
                     CatalogItemTable.select(CatalogItemTable.id).where { CatalogItemTable.type inList categories }
         }
 
         var itemsQuery = CollectionItemTable
             .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .innerJoin(CatalogItemTable, { CollectionItemTable.contentId }, { CatalogItemTable.id })
+            .innerJoin(CatalogItemTable, { CollectionItemTable.catalogId }, { CatalogItemTable.id })
             .select(
                 CollectionItemTable.collectionId,
-                CollectionItemTable.contentId,
+                CollectionItemTable.catalogId,
                 CollectionItemTable.addedAt,
                 CatalogItemTable.type
             )
@@ -520,7 +520,7 @@ class CollectionRepository(
         // Track insertion order BEFORE dispatching to child repositories, because they
         // don't guarantee returning items in our requested order.
         val orderMap = items.associate {
-            it[CollectionItemTable.contentId].value to it[CollectionItemTable.addedAt]
+            it[CollectionItemTable.catalogId].value to it[CollectionItemTable.addedAt]
         }
 
         // Group by type → one bulk fetch per type (3 queries max instead of N queries).
@@ -529,7 +529,7 @@ class CollectionRepository(
 
         // Fetch Charts
         byType[CatalogItemType.CHART]?.let { rows ->
-            val ids = rows.map { it[CollectionItemTable.contentId].value }
+            val ids = rows.map { it[CollectionItemTable.catalogId].value }
             val (charts, _) = chartRepository.getCharts(
                 filters = ChartRepository.ChartFilters(chartIds = ids),
                 addons = ChartRepository.ChartAddons(streamingLinks = true),
@@ -539,19 +539,19 @@ class CollectionRepository(
 
         // Fetch Themes
         byType[CatalogItemType.THEME]?.let { rows ->
-            val ids = rows.map { it[CollectionItemTable.contentId].value }
+            val ids = rows.map { it[CollectionItemTable.catalogId].value }
             catalogItems.addAll(
-                themeRepository.getThemes(contentIds = ids, search = null, limit = null, offset = null)
+                themeRepository.getThemes(catalogIds = ids, search = null, limit = null, offset = null)
             )
         }
 
         // Fetch TourPasses
         byType[CatalogItemType.TOUR_PASS]?.let { rows ->
-            val ids = rows.map { it[CollectionItemTable.contentId].value }
+            val ids = rows.map { it[CollectionItemTable.catalogId].value }
             catalogItems.addAll(
                 tourPassRepository.getTourPasses(
                     userId = null,
-                    contentIds = ids,
+                    catalogIds = ids,
                     search = null,
                     limit = null,
                     offset = null
@@ -617,7 +617,7 @@ class CollectionRepository(
 
         val rows = CollectionItemTable
             .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
-            .innerJoin(CatalogItemTable, { CollectionItemTable.contentId }, { CatalogItemTable.id })
+            .innerJoin(CatalogItemTable, { CollectionItemTable.catalogId }, { CatalogItemTable.id })
             .select(CatalogItemTable.type, countColumn)
             .where { condition }
             .groupBy(CatalogItemTable.type)
@@ -645,14 +645,14 @@ class CollectionRepository(
             (CollectionTable.userId eq userId) and (CollectionTable.kind eq kind)
         )
 
-    override suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean =
+    override suspend fun isItemInCollection(collectionId: UUID, catalogId: String): Boolean =
         suspendTransaction {
             // COUNT is lighter than fetching a full row — the DB can use an index-only scan.
             CollectionItemTable
                 .select(CollectionItemTable.collectionId.count())
                 .where {
                     (CollectionItemTable.collectionId eq collectionId) and
-                            (CollectionItemTable.contentId eq contentId)
+                            (CollectionItemTable.catalogId eq catalogId)
                 }
                 .single()[CollectionItemTable.collectionId.count()] > 0
         }
@@ -660,11 +660,11 @@ class CollectionRepository(
     /**
      * Batch add multiple items to a collection in a single transaction.
      *
-     * Returns a Pair of (successful count, list of skipped/already-existing contentIds).
+     * Returns a Pair of (successful count, list of skipped/already-existing catalogIds).
      *
      * Strategy:
      *   1. Verify collection exists and belongs to user (single query).
-     *   2. `batchUpsert` all items using the unique index on (collectionId, contentId)
+     *   2. `batchUpsert` all items using the unique index on (collectionId, catalogId)
      *      as the conflict target, with `onUpdateExclude` set to all columns so that
      *      existing rows are left untouched (INSERT OR IGNORE semantics).
      *   3. Update collection's updatedAt timestamp.
@@ -675,46 +675,46 @@ class CollectionRepository(
     override suspend fun batchAddItemsToCollection(
         collectionId: UUID,
         userId: UUID,
-        contentIds: List<String>
+        catalogIds: List<String>
     ): Pair<Int, List<String>> = suspendTransaction {
-        if (contentIds.isEmpty()) return@suspendTransaction 0 to emptyList()
+        if (catalogIds.isEmpty()) return@suspendTransaction 0 to emptyList()
 
         // Verify the collection exists and belongs to the user.
         val collection = CollectionEntity.find {
             (CollectionTable.id eq collectionId) and (CollectionTable.userId eq userId)
-        }.firstOrNull() ?: return@suspendTransaction 0 to contentIds
+        }.firstOrNull() ?: return@suspendTransaction 0 to catalogIds
 
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
 
         // Fetch which IDs already exist so we can report skipped ones accurately
         val alreadyExisting = CollectionItemTable
-            .select(CollectionItemTable.contentId)
+            .select(CollectionItemTable.catalogId)
             .where {
                 (CollectionItemTable.collectionId eq collectionId) and
-                        (CollectionItemTable.contentId inList contentIds)
+                        (CollectionItemTable.catalogId inList catalogIds)
             }
-            .map { it[CollectionItemTable.contentId].value }
+            .map { it[CollectionItemTable.catalogId].value }
             .toSet()
 
-        val toInsert = contentIds.filterNot { it in alreadyExisting }
+        val toInsert = catalogIds.filterNot { it in alreadyExisting }
 
         if (toInsert.isNotEmpty()) {
             CollectionItemTable.batchInsert(data = toInsert, ignore = true) { id ->
                 this[CollectionItemTable.collectionId] = EntityID(collectionId, CollectionTable)
-                this[CollectionItemTable.contentId] = EntityID(id, CatalogItemTable)
+                this[CollectionItemTable.catalogId] = EntityID(id, CatalogItemTable)
                 this[CollectionItemTable.addedAt] = now
             }
             collection.updatedAt = now
         }
 
-        val skipped = contentIds.filter { it in alreadyExisting }
+        val skipped = catalogIds.filter { it in alreadyExisting }
         toInsert.size to skipped
     }
 
     /**
      * Batch remove multiple items from a collection in a single transaction.
      *
-     * Returns a Pair of (successful count, list of contentIds that weren't found).
+     * Returns a Pair of (successful count, list of catalogIds that weren't found).
      *
      * Strategy:
      *   1. Verify collection exists and belongs to user (single query).
@@ -725,9 +725,9 @@ class CollectionRepository(
     override suspend fun batchRemoveItemsFromCollection(
         collectionId: UUID,
         userId: UUID,
-        contentIds: List<String>
+        catalogIds: List<String>
     ) = suspendTransaction {
-        if (contentIds.isEmpty()) throw IllegalArgumentException("No contentIds provided for batch removal")
+        if (catalogIds.isEmpty()) throw IllegalArgumentException("No catalogIds provided for batch removal")
 
         // Verify the collection exists and belongs to the user.
         val collection = CollectionEntity.find {
@@ -737,7 +737,7 @@ class CollectionRepository(
         // Single DELETE — returns the number of rows actually removed.
         val deletedCount = CollectionItemTable.deleteWhere {
             (CollectionItemTable.collectionId eq collectionId) and
-                    (CollectionItemTable.contentId inList contentIds)
+                    (CollectionItemTable.catalogId inList catalogIds)
         }
 
         if (deletedCount > 0) {
