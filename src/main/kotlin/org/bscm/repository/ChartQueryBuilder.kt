@@ -44,12 +44,6 @@ class ChartQueryBuilder {
             columnsToSelect.addAll(TrackStreamingRefTable.columns)
         }
 
-        query.adjustColumnSet {
-            leftJoin(VersionableItemTable, { ChartTable.id }, { VersionableItemTable.id })
-                .leftJoin(VersionTable, { VersionableItemTable.latestVersionId }, { VersionTable.id })
-        }
-        columnsToSelect.addAll(VersionTable.columns)
-
         query.adjustSelect { select(columnsToSelect) }
     }
 

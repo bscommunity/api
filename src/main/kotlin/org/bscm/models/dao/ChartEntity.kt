@@ -1,7 +1,10 @@
 package org.bscm.models.dao
 
 import org.bscm.models.tables.ChartTable
+import org.bscm.models.tables.VersionTable
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.dao.Entity
 import org.jetbrains.exposed.v1.dao.EntityClass
 
@@ -15,23 +18,20 @@ class ChartEntity(
     var track by TrackEntity referencedOn
             ChartTable.trackId
 
-    val versionableItem: VersionableItemEntity?
-        get() = VersionableItemEntity.findById(id)
-
     val latestVersion: VersionEntity?
-        get() = versionableItem?.latestVersion
+        get() = VersionEntity.find { VersionTable.catalogItemId eq id }
+            .orderBy(VersionTable.versionCode to SortOrder.DESC)
+            .limit(1)
+            .singleOrNull()
 
     val versions
-        get() = CatalogItemEntity[id].versions
+        get() = VersionEntity.find { VersionTable.catalogItemId eq id }
 
     val versionsCount: Int
-        get() = versionableItem?.versionsCount ?: 0
+        get() = VersionEntity.find { VersionTable.catalogItemId eq id }.count().toInt()
 
-    var bundleHash: String?
-        get() = versionableItem?.bundleHash
-        set(value) {
-            versionableItem?.bundleHash = value
-        }
+    val bundleHash: String?
+        get() = latestVersion?.bundleHash
 
     var difficulty by ChartTable.difficulty
 

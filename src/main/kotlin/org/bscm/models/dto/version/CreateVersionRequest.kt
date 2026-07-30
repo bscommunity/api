@@ -18,5 +18,6 @@ data class CreateVersionRequest(
     val bundleUrl: String,
     val previewUrl: String? = null,
     val fileSizeBytes: Long = 0,
+    val bundleHash: String? = null,
     val changelog: List<String> = emptyList(),
 )

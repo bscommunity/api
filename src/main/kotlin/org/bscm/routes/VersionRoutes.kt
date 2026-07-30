@@ -193,7 +193,7 @@ fun Route.versionRoutes(
 
                     logger.info("Removing version $versionId from chart ${chart.id}")
 
-                    versionRepository.removeVersion(versionId, chart.latestVersion?.id, chart.versionsCount)
+                    versionRepository.removeVersion(versionId)
 
                     val versions = versionRepository.getVersions(chart.id)
 

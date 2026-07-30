@@ -17,9 +17,5 @@ interface IVersionRepository {
      *  - Must be the latest version of its chart.
      *  - Chart must have more than one version.
      */
-    suspend fun removeVersion(
-        versionId: ULong,
-        currentLatestVersionId: String?,
-        versionCount: Int
-    ): Boolean
+    suspend fun removeVersion(versionId: ULong): Boolean
 }

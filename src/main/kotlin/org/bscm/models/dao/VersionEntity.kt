@@ -24,5 +24,7 @@ class VersionEntity(
 
     var discordAttachmentId by VersionTable.discordAttachmentId
 
+    var bundleHash by VersionTable.bundleHash
+
     var createdAt by VersionTable.createdAt
 }

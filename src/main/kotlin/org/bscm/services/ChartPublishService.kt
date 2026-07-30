@@ -302,6 +302,7 @@ class ChartPublishService(
                         bundleUrl = bundleAttachment.url,
                         previewUrl = createForDb.previewUrl,
                         fileSizeBytes = createForDb.fileSizeBytes,
+                        bundleHash = bundleHash,
                     )
                 )
                 Pair(chart, v)

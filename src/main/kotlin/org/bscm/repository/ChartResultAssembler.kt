@@ -6,7 +6,10 @@ import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.dao.*
 import org.bscm.models.mappers.VersionMapper
-import org.bscm.models.tables.*
+import org.bscm.models.tables.ChartTable
+import org.bscm.models.tables.ContributorTable
+import org.bscm.models.tables.TrackStreamingRefTable
+import org.bscm.models.tables.UserTable
 import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
 import org.bscm.utils.StreamingPlatformUtils
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -20,11 +23,12 @@ class ChartResultAssembler(
     data class ChartResult(
         val chart: ChartEntity,
         val catalogItem: CatalogItemEntity,
-        val versionableItem: VersionableItemEntity?,
         val track: TrackEntity,
         val contributors: List<Pair<ContributorEntity, UserEntity>>,
         val streamingRefs: List<StreamingRef>,
-        val latestVersion: VersionEntity?,
+        val latestVersion: VersionEntity? = null,
+        val versionsCount: Int = 0,
+        val bundleHash: String? = null,
         val userStats: Pair<LocalDateTime?, LocalDateTime?>,
         val changelog: List<Changelog>,
     )
@@ -46,8 +50,8 @@ class ChartResultAssembler(
         discordMessageId = result.catalogItem.discordMessageId,
         authorId = result.catalogItem.author?.id?.value,
         track = trackRepository.toTrack(result.track, result.streamingRefs),
-        versionsCount = result.versionableItem?.versionsCount ?: 0,
-        bundleHash = result.versionableItem?.bundleHash,
+        versionsCount = result.versionsCount,
+        bundleHash = result.bundleHash,
         difficulty = result.chart.difficulty,
         notesAmount = result.chart.notesAmount,
         effectsAmount = result.chart.effectsAmount,
@@ -104,20 +108,12 @@ class ChartResultAssembler(
                 }
             }.distinctBy { it.first.id.value }
 
-        val latestVersion = rows.firstNotNullOfOrNull { row ->
-            row.getOrNull(VersionTable.id)?.let { _ -> VersionEntity.wrapRow(row) }
-        }
-
-        val versionableItem = VersionableItemEntity.findById(catalogItemEntity.id.value)
-
             ChartResult(
                 chart = chartEntity,
                 catalogItem = catalogItemEntity,
-                versionableItem = versionableItem,
                 track = trackEntity,
                 contributors = contributors,
                 streamingRefs = streamingRefs,
-                latestVersion = latestVersion,
                 userStats = userStats[catalogItemEntity.id.value] ?: Pair(null, null),
                 changelog = changelogs[catalogItemEntity.id.value] ?: emptyList(),
             )

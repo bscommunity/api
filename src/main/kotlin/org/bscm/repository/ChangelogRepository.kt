@@ -4,8 +4,8 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Changelog
 import org.bscm.models.interfaces.IChangelogRepository
+import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ChangelogTable
-import org.bscm.models.tables.VersionableItemTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
@@ -20,7 +20,7 @@ import kotlin.time.Clock
 class ChangelogRepository : IChangelogRepository {
     override suspend fun addIssue(catalogItemId: String, description: String): UUID = suspendTransaction {
         val issue = ChangelogTable.insertAndGetId {
-            it[ChangelogTable.catalogItemId] = EntityID(catalogItemId, VersionableItemTable)
+            it[ChangelogTable.catalogItemId] = EntityID(catalogItemId, CatalogItemTable)
             it[ChangelogTable.description] = description
             it[ChangelogTable.createdAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
@@ -30,7 +30,7 @@ class ChangelogRepository : IChangelogRepository {
 
     override suspend fun removeIssue(catalogItemId: String, issueId: UUID): Boolean = suspendTransaction {
         ChangelogTable.deleteWhere {
-            (ChangelogTable.id eq issueId) and (ChangelogTable.catalogItemId eq EntityID(catalogItemId, VersionableItemTable))
+            (ChangelogTable.id eq issueId) and (ChangelogTable.catalogItemId eq EntityID(catalogItemId, CatalogItemTable))
         } > 0
     }
 
@@ -39,7 +39,7 @@ class ChangelogRepository : IChangelogRepository {
 
         ChangelogTable
             .selectAll()
-            .where { ChangelogTable.catalogItemId inList catalogItemIds.map { EntityID(it, VersionableItemTable) } }
+            .where { ChangelogTable.catalogItemId inList catalogItemIds.map { EntityID(it, CatalogItemTable) } }
             .groupBy { it[ChangelogTable.catalogItemId].value }
             .mapValues { (_, rows) ->
                 rows.map { row ->

@@ -17,9 +17,10 @@ import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ChartTable
 import org.bscm.models.tables.TrackTable
-import org.bscm.models.tables.VersionableItemTable
+import org.bscm.models.tables.VersionTable
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.flushEntityCache
+import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
@@ -78,7 +79,8 @@ class ChartRepository(
             changelogs = changelogs,
         )
 
-        return processedResults.firstOrNull()?.let { resultAssembler.toChart(it) }
+        val enrichedResults = enrichWithVersionData(processedResults)
+        return enrichedResults.firstOrNull()?.let { resultAssembler.toChart(it) }
     }
 
     override suspend fun getChartById(id: String, addons: ChartAddons?, requestingUserId: UUID?): Chart? = suspendTransaction {
@@ -132,7 +134,8 @@ class ChartRepository(
             changelogs = changelogs,
         )
 
-        val chartMap = processedResults.associateBy { it.chart.id.value }
+        val enrichedResults = enrichWithVersionData(processedResults)
+        val chartMap = enrichedResults.associateBy { it.chart.id.value }
         val sortedResults = paginatedIds.mapNotNull { id -> chartMap[id] }
 
         val endTime = System.currentTimeMillis()
@@ -181,13 +184,50 @@ class ChartRepository(
 
             val results = query.toList()
             val changelogs = changelogRepository.getByCatalogItemIds(catalogIds)
-            resultAssembler.processResultsInMemory(
+            val processedResults = resultAssembler.processResultsInMemory(
                 requestingUserId = requestingUserId,
                 results = results,
                 includeStreamingRefs = addons?.streamingLinks == true,
                 changelogs = changelogs,
-            ).map { resultAssembler.toChart(it) }
+            )
+            enrichWithVersionData(processedResults).map { resultAssembler.toChart(it) }
         }
+
+    private fun enrichWithVersionData(results: List<ChartResultAssembler.ChartResult>): List<ChartResultAssembler.ChartResult> {
+        val catalogIds = results.map { it.chart.id.value }
+        if (catalogIds.isEmpty()) return results
+
+        val countColumn = VersionTable.id.count()
+        val counts = VersionTable
+            .select(VersionTable.catalogItemId, countColumn)
+            .where { VersionTable.catalogItemId inList catalogIds }
+            .groupBy(VersionTable.catalogItemId)
+            .toList()
+            .associate { it[VersionTable.catalogItemId].value to it[countColumn].toInt() }
+
+        val allVersions = VersionTable.selectAll()
+            .where { VersionTable.catalogItemId inList catalogIds }
+            .toList()
+
+        val latestVersions = allVersions
+            .groupBy { it[VersionTable.catalogItemId].value }
+            .mapValues { (_, versions) ->
+                versions.maxByOrNull { it[VersionTable.versionCode] }
+            }
+            .mapValues { (_, row) ->
+                row?.let { VersionEntity.wrapRow(it) }
+            }
+
+        return results.map { result ->
+            val chartId = result.chart.id.value
+            val latestVersionEntity = latestVersions[chartId]
+            result.copy(
+                versionsCount = counts[chartId] ?: 0,
+                latestVersion = latestVersionEntity,
+                bundleHash = latestVersionEntity?.bundleHash,
+            )
+        }
+    }
 
     override suspend fun getSuggestions(query: String, limit: Int): List<String> = suspendTransaction {
         if (query.isBlank()) return@suspendTransaction emptyList()
@@ -207,10 +247,6 @@ class ChartRepository(
             previewVideoId = null,
             catalogId = chart.catalogId,
         )
-
-        VersionableItemEntity.new(catalogItem.id.value) {
-            bundleHash = chart.bundleHash
-        }
 
         val album = chart.albumId?.let { AlbumEntity.findById(it) }
 
@@ -247,11 +283,13 @@ class ChartRepository(
     }
 
     override suspend fun findChartByBundleHash(hash: String): Chart? = suspendTransaction {
-        val versionableItem = VersionableItemEntity.find { VersionableItemTable.bundleHash eq hash }.firstOrNull()
-            ?: return@suspendTransaction null
+        val versionRow = VersionTable.selectAll()
+            .where { VersionTable.bundleHash eq hash }
+            .firstOrNull() ?: return@suspendTransaction null
 
+        val catalogItemId = versionRow[VersionTable.catalogItemId].value
         getChart(
-            query = ChartTable.selectAll().where { ChartTable.id eq versionableItem.id.value },
+            query = ChartTable.selectAll().where { ChartTable.id eq catalogItemId },
             addons = ChartAddons(streamingLinks = false),
             requestingUserId = null,
         )

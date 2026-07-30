@@ -194,6 +194,18 @@ Use `throw BadRequestException("message")` instead of `call.respond(HttpStatusCo
 
 Use `call.respond(HttpStatusCode.NoContent)` (without body) instead of `call.respond(HttpStatusCode.NoContent, true)`. A 204 response must not have a body.
 
+## Versioning Convention
+
+Version-related counts (`versionsCount`) and latest-version lookups are **always computed at read time** via `VersionTable`, never cached on `CatalogItemTable` or any other table.
+
+- **Count:** `VersionTable.selectAll().where { catalogItemId eq itemId }.count()`
+- **Latest version:** `VersionTable.selectAll().where { catalogItemId eq itemId }.orderBy(versionCode DESC).limit(1).firstOrNull()`
+- **Batch:** One grouped count query + one grouped latest-version query per page; see `ChartRepository.enrichWithVersionData()` for the pattern.
+- **`bundleHash`** lives on `VersionTable` (uniquely constrained globally), not on the catalog item.
+- **Write path:** `VersionRepository.addVersion` / `removeVersion` only touch `VersionTable` rows; they no longer update cached columns on `CatalogItemTable`.
+
+TourPass items are never versionable and must never touch `VersionTable`.
+
 ## Pending Improvements
 
 1. **Structured metrics:** Replace manual `System.currentTimeMillis()` timing with Micrometer histograms (Ktor plugin available).
