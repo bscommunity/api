@@ -17,6 +17,7 @@ import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.models.interfaces.IVersionRepository
+import org.bscm.plugins.ConflictException
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
 import org.bscm.services.UploadService
@@ -25,6 +26,7 @@ import org.bscm.utils.QueryUtils.getNormalizedQuery
 import org.bscm.utils.QueryUtils.similarity
 import org.bscm.utils.getUserIdOrNull
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
+import java.security.MessageDigest
 import java.util.*
 
 private val logger = KtorSimpleLogger("VersionRoutes")
@@ -86,6 +88,16 @@ fun Route.versionRoutes(
                         throw BadRequestException("Bundle file size exceeds 10MB limit")
                     }
 
+                    val bundleHash = MessageDigest.getInstance("SHA-256")
+                        .digest(bundleFileBytes)
+                        .joinToString("") { "%02x".format(it) }
+
+                    chartRepository.findChartByBundleHash(bundleHash)?.let { existing ->
+                        throw ConflictException(
+                            "A chart with this bundle already exists (id: ${existing.id})",
+                        )
+                    }
+
                     val createRequest = try {
                         jsonClient.decodeFromString<CreateVersionRequest>(versionJson)
                     } catch (e: Exception) {
@@ -128,7 +140,7 @@ fun Route.versionRoutes(
                     )
 
                     val createdVersion = suspendTransaction {
-                        versionRepository.addVersion(chart.id, createRequestWithUrl)
+                        versionRepository.addVersion(chart.id, createRequestWithUrl, bundleHash)
                     }
 
                     logger.info("Version ${createdVersion.id} (v${createdVersion.versionCode}) created for $catalogItemId")

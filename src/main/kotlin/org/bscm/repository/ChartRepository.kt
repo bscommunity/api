@@ -295,8 +295,8 @@ class ChartRepository(
         )
     }
 
-    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version = suspendTransaction {
-        versionRepository.addVersion(catalogItemId, version)
+    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest, bundleHash: String): Version = suspendTransaction {
+        versionRepository.addVersion(catalogItemId, version, bundleHash)
     }
 
     override suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = true

@@ -160,6 +160,7 @@ private suspend fun generateRandomCharts(
                             if (Random.nextBoolean()) {
                                 val additionalVersionsCount = Random.nextInt(1, 3)
                                 repeat(additionalVersionsCount) {
+                                    val seedBundleHash = (1..64).map { "0123456789abcdef"[Random.nextInt(16)] }.joinToString("")
                                     suspendTransaction {
                                         versionRepository.addVersion(
                                             catalogItemId = chart.id,
@@ -176,7 +177,8 @@ private suspend fun generateRandomCharts(
                                                 bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
                                                 previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
                                                 fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
-                                            )
+                                            ),
+                                            bundleHash = seedBundleHash,
                                         )
                                     }
                                 }

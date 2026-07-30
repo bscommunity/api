@@ -4,6 +4,7 @@ import org.bscm.models.Version
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.VersionEntity
 import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.mappers.VersionMapper.entityToVersion
 import org.bscm.models.tables.VersionTable
@@ -24,6 +25,8 @@ class VersionRepository : IVersionRepository {
             .map { entityToVersion(it) }
     }
 
+    // TODO: Optimize with ROW_NUMBER() OVER (PARTITION BY catalog_item_id ORDER BY version_code DESC)
+    // or a MAX(version_code) GROUP BY catalog_item_id self-join to push aggregation to SQL.
     override suspend fun getLatestVersionsByCatalogItemIds(catalogItemIds: List<String>): List<Version> =
         suspendTransaction {
             if (catalogItemIds.isEmpty()) return@suspendTransaction emptyList()
@@ -43,7 +46,12 @@ class VersionRepository : IVersionRepository {
                 }
         }
 
-    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version = suspendTransaction {
+    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest, bundleHash: String): Version = suspendTransaction {
+        val itemType = CatalogItemEntity[catalogItemId].type
+        require(itemType in listOf(CatalogItemType.CHART, CatalogItemType.THEME)) {
+            "Catalog item $catalogItemId of type $itemType is not versionable"
+        }
+
         val latestCode = VersionEntity.find { VersionTable.catalogItemId eq catalogItemId }
             .maxOfOrNull { it.versionCode } ?: 0
 
@@ -53,7 +61,7 @@ class VersionRepository : IVersionRepository {
                 this.versionCode = latestCode + 1
                 this.fileSizeBytes = version.fileSizeBytes
                 this.changelog = version.changelog.joinToString("\n").ifBlank { null }
-                this.bundleHash = version.bundleHash
+                this.bundleHash = bundleHash
             }
         } else {
             VersionEntity.new {
@@ -61,7 +69,7 @@ class VersionRepository : IVersionRepository {
                 this.versionCode = latestCode + 1
                 this.fileSizeBytes = version.fileSizeBytes
                 this.changelog = version.changelog.joinToString("\n").ifBlank { null }
-                this.bundleHash = version.bundleHash
+                this.bundleHash = bundleHash
             }
         }
 

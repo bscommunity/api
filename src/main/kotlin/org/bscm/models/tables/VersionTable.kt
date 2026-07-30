@@ -18,7 +18,7 @@ object VersionTable : ULongIdTable("catalog_item_versions") {
 
     val discordAttachmentId = varchar("discord_attachment_id", 255).nullable()
 
-    val bundleHash = varchar("bundle_hash", 64).uniqueIndex().nullable()
+    val bundleHash = varchar("bundle_hash", 64).uniqueIndex()
     val createdAt = datetime("created_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }
 
     init {

@@ -8,7 +8,7 @@ interface IVersionRepository {
     suspend fun getVersions(catalogItemId: String): List<Version>
     suspend fun getLatestVersionsByCatalogItemIds(catalogItemIds: List<String>): List<Version>
 
-    suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest): Version
+    suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest, bundleHash: String): Version
 
     /**
      * Removes a version by its ID.
