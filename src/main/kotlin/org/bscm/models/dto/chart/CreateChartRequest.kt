@@ -3,6 +3,7 @@ package org.bscm.models.dto.chart
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import org.bscm.models.StreamingRef
+import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import java.util.*
@@ -19,6 +20,7 @@ data class CreateChartRequest (
     val coverUrl: String,
     val genres: List<Genre> = emptyList(),
     val isExplicit: Boolean,
+    val contributors: List<SimplifiedContributor> = emptyList(),
 
     // Server-side properties
     val versionId: ULong? = null,

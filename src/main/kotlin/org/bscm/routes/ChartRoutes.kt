@@ -461,6 +461,7 @@ fun Route.chartRoutes(
                         overrides = ChartPublishService.Overrides(
                             isExplicit = overrides?.isExplicit,
                             previewUrl = overrides?.previewUrl,
+                            contributors = overrides?.contributors,
                         ),
                         publishSessionId = publishSessionId,
                     )

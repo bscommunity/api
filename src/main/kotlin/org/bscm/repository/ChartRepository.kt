@@ -14,16 +14,11 @@ import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IChangelogRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IVersionRepository
-import org.bscm.models.tables.CatalogItemTable
-import org.bscm.models.tables.ChartTable
-import org.bscm.models.tables.TrackTable
-import org.bscm.models.tables.VersionTable
+import org.bscm.models.tables.*
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.flushEntityCache
-import org.jetbrains.exposed.v1.core.count
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.Query
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -275,6 +270,31 @@ class ChartRepository(
             this.catalogItem = CatalogItemEntity[catalogItem.id.value]
             this.user = UserEntity[userId]
             this.role = ContributorRole.AUTHOR
+        }
+
+        chart.contributors.forEach { contributor ->
+            // The author is always added as AUTHOR above; skip duplicates to respect
+            // the (catalogItemId, userId, role) unique index.
+            if (contributor.role == ContributorRole.AUTHOR && contributor.userId == userId) {
+                return@forEach
+            }
+            UserEntity.findById(contributor.userId)
+                ?: throw IllegalArgumentException("User not found: ${contributor.userId}")
+
+            val catalogItemEntityId = EntityID(catalogItem.id.value, CatalogItemTable)
+            val existing = ContributorEntity.find {
+                (ContributorTable.catalogItemId eq catalogItemEntityId) and
+                    (ContributorTable.userId eq contributor.userId) and
+                    (ContributorTable.role eq contributor.role)
+            }.singleOrNull()
+
+            if (existing == null) {
+                ContributorEntity.new {
+                    this.catalogItem = CatalogItemEntity[catalogItem.id.value]
+                    this.user = UserEntity[contributor.userId]
+                    this.role = contributor.role
+                }
+            }
         }
 
         val query = ChartTable.selectAll().where { ChartTable.id eq newChart.id.value }

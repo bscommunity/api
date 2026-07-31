@@ -11,6 +11,7 @@ import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.User
 import org.bscm.models.dto.chart.CreateChartRequest
+import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.dto.version.SimplifiedVersion
 import org.bscm.models.enums.ActivityType
@@ -61,6 +62,7 @@ class ChartPublishService(
         val trackUrls: List<StreamingRef>? = null,
         val album: String? = null,
         val genres: List<Genre>? = null,
+        val contributors: List<SimplifiedContributor>? = null,
     )
 
     data class Result(
@@ -239,6 +241,7 @@ class ChartPublishService(
             previewUrl = overrides.previewUrl,
             catalogId = catalogId,
             isrc = resolvedIsrc,
+            contributors = overrides.contributors.orEmpty(),
         )
 
         // Build enriched bundle before Discord upload (catalogId doubles as chart ID)
