@@ -4,14 +4,17 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Chart
+import org.bscm.models.Contributor
 import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
 import org.bscm.models.dao.CatalogItemEntity
+import org.bscm.models.dao.ContributorEntity
 import org.bscm.models.dao.TourPassEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
+import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.*
@@ -67,6 +70,27 @@ class TourPassRepository(
         }
     }
 
+    private fun fetchContributorsByCatalogIds(catalogIds: List<String>): Map<String, List<Contributor>> {
+        if (catalogIds.isEmpty()) return emptyMap()
+
+        val entityIds = catalogIds.map { EntityID(it, CatalogItemTable) }
+        val rows = ContributorTable
+            .innerJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
+            .select(ContributorTable.columns + UserTable.columns)
+            .where { ContributorTable.catalogItemId inList entityIds }
+            .toList()
+
+        return rows.groupBy { it[ContributorTable.catalogItemId].value }
+            .mapValues { (_, contributorRows) ->
+                contributorRows.map { row ->
+                    ContributorRepository.contributorEntityToContributor(
+                        ContributorEntity.wrapRow(row),
+                        UserEntity.wrapRow(row),
+                    )
+                }
+            }
+    }
+
     private fun buildTourPass(
         entity: TourPassEntity,
         charts: List<Chart>,
@@ -74,6 +98,7 @@ class TourPassRepository(
         bookmarksCount: Int,
         likedAt: LocalDateTime? = null,
         bookmarkedAt: LocalDateTime? = null,
+        contributors: List<Contributor>,
     ): TourPass {
         val catalogItem = CatalogItemEntity[entity.id.value]
         return TourPass(
@@ -85,7 +110,7 @@ class TourPassRepository(
             bookmarksCount = bookmarksCount,
             likedAt = likedAt,
             bookmarkedAt = bookmarkedAt,
-            contributors = emptyList(),
+            contributors = contributors,
             createdAt = catalogItem.createdAt,
             publishedAt = catalogItem.publishedAt,
             updatedAt = catalogItem.updatedAt,
@@ -130,7 +155,8 @@ class TourPassRepository(
         val (likedAt, bookmarkedAt) = if (userId != null) {
             UserStatsUtils.fetchUserStats(userId, listOf(entity.id.value))[entity.id.value] ?: (null to null)
         } else (null to null)
-        return buildTourPass(entity, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt)
+        val contributors = fetchContributorsByCatalogIds(listOf(entity.id.value))[entity.id.value].orEmpty()
+        return buildTourPass(entity, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt, contributors)
     }
 
     override suspend fun getTourPasses(
@@ -187,11 +213,21 @@ class TourPassRepository(
             UserStatsUtils.fetchUserStats(userId, allTourPassIds)
         } else emptyMap()
 
+        val contributorsByCatalogId = fetchContributorsByCatalogIds(allTourPassIds)
+
         paged.map { entity ->
             val charts = getOrderedChartIds(entity.id.value).mapNotNull { chartMap[it] }
             val (likesCount, bookmarksCount) = allStats[entity.id.value] ?: (0 to 0)
             val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
-            buildTourPass(entity, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt)
+            buildTourPass(
+                entity,
+                charts,
+                likesCount,
+                bookmarksCount,
+                likedAt,
+                bookmarkedAt,
+                contributorsByCatalogId[entity.id.value].orEmpty(),
+            )
         }
     }
 
@@ -229,6 +265,12 @@ class TourPassRepository(
             this.name = name
             this.description = description
             this.artist = artist
+        }
+
+        ContributorEntity.new {
+            this.catalogItem = CatalogItemEntity[catalogItem.id.value]
+            this.user = UserEntity[userId]
+            this.role = ContributorRole.AUTHOR
         }
 
         flushEntityCache()

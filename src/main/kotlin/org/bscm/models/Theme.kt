@@ -41,4 +41,8 @@ data class Theme(
     override val discordChannelId: String?,
     override val discordMessageId: String?,
     override val authorId: UUID?,
-) : CatalogItem
+
+    override val versionsCount: Int = 0,
+    override val latestVersion: Version? = null,
+    override val bundleHash: String? = null,
+) : CatalogItem, Versionable

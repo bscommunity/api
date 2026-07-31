@@ -135,7 +135,7 @@ fun Application.configureRouting() {
         )
         versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
         tourPassRoutes(tourPassPublishService, tourPassRepository, userRepository)
-        themeRoutes(themePublishService, themeRepository, userRepository)
+        themeRoutes(themePublishService, themeRepository, userRepository, bundleDownloadService)
         contributorRoutes(contributorRepository)
         debugRoutes(trackInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)

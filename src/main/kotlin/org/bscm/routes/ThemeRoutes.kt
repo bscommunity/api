@@ -8,11 +8,16 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.util.logging.*
+import org.bscm.models.dto.chart.BundleDownloadResponse
 import org.bscm.models.dto.theme.CreateThemeRequest
 import org.bscm.models.dto.theme.UpdateThemeRequest
+import org.bscm.models.enums.Visibility
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.IUserRepository
+import org.bscm.plugins.CombinedPrincipal
+import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
+import org.bscm.services.BundleDownloadService
 import org.bscm.services.ThemePublishService
 import org.bscm.services.track.clients.jsonClient
 import java.util.*
@@ -23,6 +28,7 @@ fun Route.themeRoutes(
     themePublishService: ThemePublishService,
     themeRepository: IThemeRepository,
     userRepository: IUserRepository,
+    bundleDownloadService: BundleDownloadService,
 ) {
     route("/themes") {
 
@@ -48,6 +54,76 @@ fun Route.themeRoutes(
                     call.respond(
                         if (total != null) Pair(themes, total) else Pair(themes, null)
                     )
+                }
+
+                get("{id}") {
+                    val id = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing theme ID")
+
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
+                    val combinedPrincipal = call.principal<CombinedPrincipal>()
+
+                    if (jwtPrincipal == null && hmacPrincipal == null && combinedPrincipal == null) {
+                        throw UnauthorizedException("Unauthorized")
+                    }
+
+                    val requesterId = when {
+                        combinedPrincipal != null ->
+                            runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                        jwtPrincipal != null ->
+                            jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        else -> null
+                    }
+
+                    val theme = themeRepository.getThemeById(id, userId = requesterId)
+                        ?: throw NotFoundException("Theme not found")
+
+                    if (theme.visibility != Visibility.PUBLIC) {
+                        val isContributor = requesterId != null &&
+                                theme.contributors.any { contributor -> contributor.user.id == requesterId }
+                        if (!isContributor) throw NotFoundException("Theme not found")
+                    }
+
+                    call.respond(theme)
+                }
+
+                get("{id}/bundle") {
+                    val id = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing theme ID")
+
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
+                    val combinedPrincipal = call.principal<CombinedPrincipal>()
+
+                    if (jwtPrincipal == null && hmacPrincipal == null && combinedPrincipal == null) {
+                        throw UnauthorizedException("Unauthorized")
+                    }
+
+                    val requesterId = when {
+                        combinedPrincipal != null ->
+                            runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                        jwtPrincipal != null ->
+                            jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        else -> null
+                    }
+
+                    val theme = themeRepository.getThemeById(id, userId = requesterId)
+                        ?: throw NotFoundException("Theme not found")
+
+                    if (theme.visibility != Visibility.PUBLIC) {
+                        val isContributor = requesterId != null &&
+                                theme.contributors.any { contributor -> contributor.user.id == requesterId }
+                        if (!isContributor) throw NotFoundException("Theme not found")
+                    }
+
+                    val url = bundleDownloadService.resolveBundleUrl(
+                        catalogItemId = theme.id,
+                        messageId = theme.discordMessageId
+                            ?: throw IllegalStateException("Theme ${theme.id} has no Discord message ID"),
+                    )
+
+                    call.respond(BundleDownloadResponse(url = url))
                 }
             }
         }

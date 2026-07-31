@@ -7,10 +7,12 @@ import org.bscm.models.Theme
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ThemeEntity
 import org.bscm.models.dao.UserEntity
+import org.bscm.models.dao.VersionEntity
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.ThemeTable
+import org.bscm.models.tables.VersionTable
 import org.bscm.storage.StorageService
 import org.bscm.utils.UserStatsUtils
 import org.jetbrains.exposed.v1.core.*
@@ -30,6 +32,8 @@ class ThemeRepository(
         entity: ThemeEntity,
         likedAt: LocalDateTime? = null,
         bookmarkedAt: LocalDateTime? = null,
+        versionsCount: Int = 0,
+        latestVersionEntity: VersionEntity? = null,
     ): Theme {
         val catalogItem = CatalogItemEntity[entity.id.value]
         val id = entity.id.value
@@ -55,6 +59,9 @@ class ThemeRepository(
             discordChannelId = catalogItem.discordChannelId,
             discordMessageId = catalogItem.discordMessageId,
             authorId = catalogItem.author?.id?.value,
+            versionsCount = versionsCount,
+            latestVersion = latestVersionEntity?.let { org.bscm.models.mappers.VersionMapper.entityToVersion(it) },
+            bundleHash = latestVersionEntity?.bundleHash,
         )
     }
 
@@ -89,13 +96,17 @@ class ThemeRepository(
         val paged = query.limit(pageSize).offset(pageOffset.toLong()).toList()
             .map { ThemeEntity.wrapRow(it) }
 
-        val userStats = if (userId != null && paged.isNotEmpty()) {
-            UserStatsUtils.fetchUserStats(userId, paged.map { it.id.value })
+        val themeIds = paged.map { it.id.value }
+        val userStats = if (userId != null && themeIds.isNotEmpty()) {
+            UserStatsUtils.fetchUserStats(userId, themeIds)
         } else emptyMap()
+
+        val versionData = enrichWithVersionData(themeIds)
 
         paged.map { entity ->
             val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
-            themeEntityToTheme(entity, likedAt, bookmarkedAt)
+            val (vCount, vEntity) = versionData[entity.id.value] ?: (0 to null)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity)
         }
     }
 
@@ -104,7 +115,9 @@ class ThemeRepository(
             val (likedAt, bookmarkedAt) = if (userId != null) {
                 UserStatsUtils.fetchUserStats(userId, listOf(id))[id] ?: (null to null)
             } else (null to null)
-            themeEntityToTheme(entity, likedAt, bookmarkedAt)
+            val versionData = enrichWithVersionData(listOf(id))
+            val (vCount, vEntity) = versionData[id] ?: (0 to null)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity)
         }
     }
 
@@ -165,6 +178,35 @@ class ThemeRepository(
     override suspend fun deleteTheme(id: String, userId: UUID): Boolean = suspendTransaction {
         CatalogItemEntity.findById(id)?.delete() ?: return@suspendTransaction false
         true
+    }
+
+    private fun enrichWithVersionData(catalogItemIds: List<String>): Map<String, Pair<Int, VersionEntity?>> {
+        if (catalogItemIds.isEmpty()) return emptyMap()
+
+        val countColumn = VersionTable.id.count()
+        val counts = VersionTable
+            .select(VersionTable.catalogItemId, countColumn)
+            .where { VersionTable.catalogItemId inList catalogItemIds }
+            .groupBy(VersionTable.catalogItemId)
+            .toList()
+            .associate { it[VersionTable.catalogItemId].value to it[countColumn].toInt() }
+
+        val allVersions = VersionTable.selectAll()
+            .where { VersionTable.catalogItemId inList catalogItemIds }
+            .toList()
+
+        val latestVersions = allVersions
+            .groupBy { it[VersionTable.catalogItemId].value }
+            .mapValues { (_, versions) ->
+                versions.maxByOrNull { it[VersionTable.versionCode] }
+            }
+            .mapValues { (_, row) ->
+                row?.let { VersionEntity.wrapRow(it) }
+            }
+
+        return catalogItemIds.associateWith { id ->
+            Pair(counts[id] ?: 0, latestVersions[id])
+        }
     }
 
     override suspend fun countThemes(search: String?): Int = suspendTransaction {
