@@ -38,7 +38,7 @@ object UserStatsUtils {
 
         log.info("Querying database for user stats...")
 
-        // Fetch all collection items for the user and the given content IDs in a single query
+        // Fetch all collection items for the user and the given catalog IDs in a single query
         val statsRows = CollectionItemTable
             .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
             .select(CollectionItemTable.catalogId, CollectionTable.kind, CollectionItemTable.addedAt)
@@ -70,12 +70,8 @@ object UserStatsUtils {
                 Pair (likedAt, bookmarkedAt)
             }
 
-        // log.info("Grouped by catalogId: ${catalogIdToTimes.keys.joinToString()}")
-
         val result = catalogIds.associateWith { catalogId ->
             val times = catalogIdToTimes[catalogId] ?: Pair(null, null)
-
-            // log.info("ContentId=$catalogId: likedAt=${times.first}, bookmarkedAt=${times.second}")
 
             times
         }

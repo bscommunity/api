@@ -259,20 +259,20 @@ fun Route.chartRoutes(
                 }
 
                 /**
-                 * Get chart by content ID.
+                 * Get chart by catalog ID.
                  *
                  * Tag: Charts
                  *
-                 * Path: id [String] Content ID.
+                 * Path: id [String] Catalog ID.
                  *
                  * Responses:
                  *   - 200 application/json [Object] Chart details.
                  *   - 401 application/json [Error] Unauthorized access.
                  *   - 404 application/json [Error] Chart not found.
                  */
-                get("content/{id}") {
+                get("catalog/{id}") {
                     val id = call.parameters["id"]
-                        ?: throw BadRequestException("Invalid or missing content ID")
+                        ?: throw BadRequestException("Invalid or missing catalog ID")
 
                     call.principal<HMACPrincipal>() ?: throw UnauthorizedException("Unauthorized")
 
@@ -283,32 +283,32 @@ fun Route.chartRoutes(
                 }
 
                 /**
-                 * Get charts with a list of content IDs.
+                 * Get charts with a list of catalog IDs.
                  *
                  * Tag: Charts
                  *
-                 * Query: ids [String] Comma-separated content IDs.
+                 * Query: ids [String] Comma-separated catalog IDs.
                  * Responses:
                  *  - 200 application/json [Array] List of chart details.
                  *  - 401 application/json [Error] Unauthorized access.
-                 *  - 404 application/json [Error] No charts found for the given content IDs.
+                 *  - 404 application/json [Error] No charts found for the given catalog IDs.
                 * */
-                get("content") {
+                get("catalog") {
                     val idsParam = call.request.queryParameters["ids"]
-                        ?: throw BadRequestException("Missing content IDs")
+                        ?: throw BadRequestException("Missing catalog IDs")
 
                     call.principal<HMACPrincipal>() ?: throw UnauthorizedException("Unauthorized")
 
                     val catalogIds = idsParam.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
                     if (catalogIds.isEmpty()) {
-                        throw BadRequestException("No valid content IDs provided")
+                        throw BadRequestException("No valid catalog IDs provided")
                     }
 
                     val charts = chartRepository.getChartsByCatalogIds(catalogIds)
 
                     if (charts.isEmpty()) {
-                        throw NotFoundException("No charts found for the given content IDs")
+                        throw NotFoundException("No charts found for the given catalog IDs")
                     }
 
                     call.respond(charts)

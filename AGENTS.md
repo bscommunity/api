@@ -63,7 +63,7 @@ TransactionManager.current().entityCache.flush()
 
 Every catalog subtype (`chart`, `tour_pass`, `theme`) shares the **same ID** as its parent `catalog_items` row. The `CatalogItemEntity` resolves subtypes via `XxxEntity.findById(id)`.
 
-**Rule:** The content ID must be generated **before** the Discord upload. This decouples the content's identity from Discord's response and allows building Discord-facing URLs (button links, message links) upfront.
+**Rule:** The catalog ID must be generated **before** the Discord upload. This decouples the content's identity from Discord's response and allows building Discord-facing URLs (button links, message links) upfront.
 
 **Correct flow (all content types):**
 ```
@@ -77,16 +77,16 @@ Every catalog subtype (`chart`, `tour_pass`, `theme`) shares the **same ID** as 
 **Wrong flow (never do this):**
 ```
 1. Upload to Discord → get discordMessageId
-2. Use discordMessageId as the content ID  ← couples identity to Discord
+2. Use discordMessageId as the catalog ID  ← couples identity to Discord
 3. Create DB rows
 ```
 
 ### Nano ID Generation
 
-Use `org.bscm.utils.NanoIdUtils.generateContentId()` — generates a 10-char ID where the first character is alphanumeric only (`0-9a-zA-Z`), never `-` or `_`:
+Use `org.bscm.utils.NanoIdUtils.generateCatalogId()` — generates a 10-char ID where the first character is alphanumeric only (`0-9a-zA-Z`), never `-` or `_`:
 
 ```kotlin
-val contentId = NanoIdUtils.generateContentId()
+val catalogId = NanoIdUtils.generateCatalogId()
 ```
 
 This is also the `clientDefault` on `CatalogItemTable`, so `CatalogItemEntity.new { ... }` (without explicit ID) uses the same safe format.
@@ -96,7 +96,7 @@ This is also the `clientDefault` on `CatalogItemTable`, so `CatalogItemEntity.ne
 After uploading to Discord, store the message metadata on the catalog item:
 
 ```kotlin
-catalogItemRepository.updateDiscordCoordinates(contentId, channelId, messageId)
+catalogItemRepository.updateDiscordCoordinates(catalogId, channelId, messageId)
 ```
 
 - `discordMessageId` — the webhook message snowflake (used for edits, deletes, message links)
@@ -104,7 +104,7 @@ catalogItemRepository.updateDiscordCoordinates(contentId, channelId, messageId)
 
 ### Deleting Discord Messages
 
-When cleaning up content, always use `discordMessageId` (not the content ID) to delete the Discord message:
+When cleaning up content, always use `discordMessageId` (not the catalog ID) to delete the Discord message:
 
 ```kotlin
 tourPass.discordMessageId?.let { messageId ->

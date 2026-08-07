@@ -99,38 +99,38 @@ class ProfileService(
         val tourPassTypes = setOf(ActivityType.LIKED_TOUR_PASS, ActivityType.CREATED_TOUR_PASS, ActivityType.BOOKMARKED_TOUR_PASS)
         val themeTypes = setOf(ActivityType.LIKED_THEME, ActivityType.CREATED_THEME, ActivityType.BOOKMARKED_THEME)
 
-        val chartContentIds = entries
+        val chartCatalogIds = entries
             .filter { it.type in chartTypes }
             .map { it.targetId }
             .distinct()
 
-        val tourPassContentIds = entries
+        val tourPassCatalogIds = entries
             .filter { it.type in tourPassTypes }
             .map { it.targetId }
             .distinct()
 
-        val themeContentIds = entries
+        val themeCatalogIds = entries
             .filter { it.type in themeTypes }
             .map { it.targetId }
             .distinct()
 
-        val charts = if (chartContentIds.isNotEmpty()) {
-            chartRepository.getCharts(filters = ChartRepository.ChartFilters(chartIds = chartContentIds))
+        val charts = if (chartCatalogIds.isNotEmpty()) {
+            chartRepository.getCharts(filters = ChartRepository.ChartFilters(chartIds = chartCatalogIds))
                 .first
                 .associateBy { it.id }
         } else {
             emptyMap()
         }
 
-        val tourPasses = if (tourPassContentIds.isNotEmpty()) {
-            tourPassRepository.getTourPasses(userId = requesterId, catalogIds = tourPassContentIds, search = null, limit = null, offset = null)
+        val tourPasses = if (tourPassCatalogIds.isNotEmpty()) {
+            tourPassRepository.getTourPasses(userId = requesterId, catalogIds = tourPassCatalogIds, search = null, limit = null, offset = null)
                 .associateBy { it.id }
         } else {
             emptyMap()
         }
 
-        val themes = if (themeContentIds.isNotEmpty()) {
-            themeRepository.getThemes(userId = requesterId, catalogIds = themeContentIds, search = null, limit = null, offset = null)
+        val themes = if (themeCatalogIds.isNotEmpty()) {
+            themeRepository.getThemes(userId = requesterId, catalogIds = themeCatalogIds, search = null, limit = null, offset = null)
                 .associateBy { it.id }
         } else {
             emptyMap()

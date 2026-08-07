@@ -68,7 +68,7 @@ class TourPassPublishService(
         val normalizedPlaylistUrls = request.playlistUrls
             ?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
 
-        val catalogId = NanoIdUtils.generateContentId()
+        val catalogId = NanoIdUtils.generateCatalogId()
 
         // Upload cover to storage if raw bytes were provided
         if (coverBytes != null) {

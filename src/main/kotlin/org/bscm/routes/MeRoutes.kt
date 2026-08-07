@@ -4,7 +4,7 @@ import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.dto.user.ContentCounts
+import org.bscm.models.dto.user.CatalogCounts
 import org.bscm.models.dto.user.ItemsPage
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IChartRepository
@@ -82,7 +82,7 @@ fun Route.meRoutes(
                 call.respond(
                     ItemsPage(
                         items,
-                        ContentCounts(counts.first, counts.second, counts.third)
+                        CatalogCounts(counts.first, counts.second, counts.third)
                     )
                 )
             }
@@ -187,7 +187,7 @@ fun Route.meRoutes(
                 call.respond(
                     ItemsPage(
                         items,
-                        counts?.let { ContentCounts(it.first, it.second, it.third) }
+                        counts?.let { CatalogCounts(it.first, it.second, it.third) }
                     )
                 )
             }
@@ -264,7 +264,7 @@ fun Route.meRoutes(
                 call.respond(
                     ItemsPage(
                         items,
-                        counts?.let { ContentCounts(it.first, it.second, it.third) }
+                        counts?.let { CatalogCounts(it.first, it.second, it.third) }
                     )
                 )
             }
@@ -323,7 +323,7 @@ fun Route.meRoutes(
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
                 val (collections, total) = collectionService.getUserCollections(userId, limit, offset, false)
-                call.respond(ItemsPage(items = collections, counts = ContentCounts(collections = total)))
+                call.respond(ItemsPage(items = collections, counts = CatalogCounts(collections = total)))
             }
         }
     }

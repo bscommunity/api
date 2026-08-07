@@ -115,7 +115,7 @@ class ChartPublishService(
             )
         }
 
-        val catalogId = NanoIdUtils.generateContentId()
+        val catalogId = NanoIdUtils.generateCatalogId()
 
         // 1. Extract info.json metadata
         val bundleInfo = DecodingUtils.extractBundleInfo(bundleBytes)

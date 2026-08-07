@@ -128,7 +128,7 @@ object NanoIdUtils {
     private val FULL_MASK = calculateMask(CONTENT_ID_ALPHABET)
     private val FULL_STEP = calculateStep(9, CONTENT_ID_ALPHABET)
 
-    fun generateContentId(): String {
+    fun generateCatalogId(): String {
         val first = generate(1, SAFE_FIRST_CHARS)
         val rest = generateOptimized(9, CONTENT_ID_ALPHABET, FULL_MASK, FULL_STEP)
         return first + rest

@@ -176,7 +176,6 @@ class UserRepository(
         limit: Int,
         offset: Int
     ): List<CatalogItem> = suspendTransaction {
-        // Get content IDs for the user's charts
         val contentQuery = CatalogItemTable
             .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
             .innerJoin(TrackTable, { ChartTable.trackId }, { TrackTable.id })
@@ -224,7 +223,6 @@ class UserRepository(
         limit: Int,
         offset: Int
     ): List<CatalogItem> = suspendTransaction {
-        // Get content IDs for the user's tour passes
         val contentQuery = CatalogItemTable
             .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
             .select(CatalogItemTable.id, CatalogItemTable.type)
@@ -275,7 +273,6 @@ class UserRepository(
         limit: Int,
         offset: Int
     ): List<CatalogItem> = suspendTransaction {
-        // Get content IDs for the user's themes
         val contentQuery = CatalogItemTable
             .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
             .select(CatalogItemTable.id, CatalogItemTable.type)

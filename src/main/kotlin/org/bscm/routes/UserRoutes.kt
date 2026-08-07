@@ -7,7 +7,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.dto.user.ContentCounts
+import org.bscm.models.dto.user.CatalogCounts
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.ItemsPage
 import org.bscm.models.dto.user.UpdateUserRequest
@@ -342,7 +342,7 @@ fun Route.userRoutes(
 
                 println("Fetched ${charts.size} charts for user $userId (requester: $requester, limit: $limit, offset: $offset)")
 
-                call.respond(ItemsPage(charts, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
+                call.respond(ItemsPage(charts, CatalogCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
             }
 
             get("{id}/tourpasses") {
@@ -365,7 +365,7 @@ fun Route.userRoutes(
                 )
 
                 val libraryCounts = userRepository.getLibraryCounts(userId)
-                call.respond(ItemsPage(items, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
+                call.respond(ItemsPage(items, CatalogCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
             }
 
             get("{id}/themes") {
@@ -384,7 +384,7 @@ fun Route.userRoutes(
                 )
 
                 val libraryCounts = userRepository.getLibraryCounts(userId)
-                call.respond(ItemsPage(items, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
+                call.respond(ItemsPage(items, CatalogCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
             }
 
             /**
@@ -409,7 +409,7 @@ fun Route.userRoutes(
                 val (limit, offset) = call.getPagination()
 
                 val (collections, total) = collectionService.getUserCollections(userId, limit, offset, !isMe)
-                call.respond(ItemsPage(collections, ContentCounts(collections = total)) )
+                call.respond(ItemsPage(collections, CatalogCounts(collections = total)) )
             }
         }
     }

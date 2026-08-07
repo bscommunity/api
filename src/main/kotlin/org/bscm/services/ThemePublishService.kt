@@ -39,7 +39,7 @@ class ThemePublishService(
             throw BadRequestException("displayArtUrl or displayArt file is required")
         }
 
-        val catalogId = NanoIdUtils.generateContentId()
+        val catalogId = NanoIdUtils.generateCatalogId()
 
         if (assets.coverArtBytes != null) {
             val avifBytes = MediaConverter.convertToAvif(assets.coverArtBytes) ?: assets.coverArtBytes

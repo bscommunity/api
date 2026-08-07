@@ -13,7 +13,7 @@ import kotlin.time.Clock
 
 object CatalogItemTable : IdTable<String>("catalog_items") {
     override val id = varchar("id", 10)
-        .clientDefault { NanoIdUtils.generateContentId() }
+        .clientDefault { NanoIdUtils.generateCatalogId() }
         .entityId()
     val type = enumerationByName("type", 20, CatalogItemType::class)
     val status = enumerationByName("status", 20, CatalogItemStatus::class)

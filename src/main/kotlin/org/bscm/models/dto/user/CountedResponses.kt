@@ -12,12 +12,12 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ItemsPage<T>(
     val items: List<T>,
-    val counts: ContentCounts? = null
+    val counts: CatalogCounts? = null
 )
 
 /** Chart / TourPass / Theme breakdown for library, likes, and bookmarks. */
 @Serializable
-data class ContentCounts(
+data class CatalogCounts(
     val charts: Int = 0,
     val tourPasses: Int = 0,
     val themes: Int = 0,

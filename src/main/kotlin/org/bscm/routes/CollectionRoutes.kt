@@ -9,7 +9,7 @@ import org.bscm.models.dto.collection.BatchCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionItemRequest
 import org.bscm.models.dto.collection.CreateCollectionRequest
 import org.bscm.models.dto.collection.UpdateCollectionRequest
-import org.bscm.models.dto.user.ContentCounts
+import org.bscm.models.dto.user.CatalogCounts
 import org.bscm.models.dto.user.ItemsPage
 import org.bscm.models.enums.CollectionKind
 import org.bscm.services.CollectionService
@@ -179,7 +179,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                         call.respond(
                             ItemsPage(
                                 items,
-                                counts?.let { ContentCounts(it.first, it.second, it.third) }
+                                counts?.let { CatalogCounts(it.first, it.second, it.third) }
                             )
                         )
                     }
@@ -190,7 +190,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                      * Tag: Collections
                      *
                      * Path: id [UUID] Collection ID.
-                     * Body: application/json Content ID to add [CreateCollectionItemRequest].
+                     * Body: application/json Catalog ID to add [CreateCollectionItemRequest].
                      *
                      * Responses:
                      *   - 400 Failed to add item (may already exist).
@@ -214,7 +214,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                      * Tag: Collections
                      *
                      * Path: id [UUID] Collection ID.
-                     * Path: itemId [String] Content ID to remove.
+                     * Path: itemId [String] Catalog ID to remove.
                      *
                      * Responses:
                      *   - 401 User not authenticated.
@@ -224,7 +224,7 @@ fun Route.collectionRoutes(collectionService: CollectionService) {
                     delete("/{id}/items/{itemId}") {
                         val userId = call.getUserId()
                         val collectionId = call.getId()
-                        val catalogId = call.getContentId("itemId")
+                        val catalogId = call.getCatalogId("itemId")
                         val removed = collectionService.removeItem(userId, catalogId, CollectionKind.USER, collectionId)
                         if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from collection"))
                         else call.respond(HttpStatusCode.NotFound, "Item not found in collection")

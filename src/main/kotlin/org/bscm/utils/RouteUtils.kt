@@ -55,12 +55,12 @@ fun ApplicationCall.getId(paramName: String = "id"): UUID {
 }
 
 /**
- * Extracts a content ID (String) from path parameters.
+ * Extracts a catalog ID (String) from path parameters.
  * @param paramName The name of the parameter (default: "itemId")
- * @return The content ID string
+ * @return The catalog ID string
  * @throws IllegalArgumentException if the parameter is missing
  */
-fun ApplicationCall.getContentId(paramName: String = "itemId"): String {
+fun ApplicationCall.getCatalogId(paramName: String = "itemId"): String {
     return parameters[paramName] ?: throw IllegalArgumentException("Invalid or missing $paramName")
 }
 
