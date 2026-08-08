@@ -7,9 +7,11 @@ import org.bscm.models.tables.AlbumStreamingRefTable
 import org.bscm.models.tables.AlbumTable
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.StreamingPlatformUtils
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
@@ -55,5 +57,23 @@ class AlbumRepository {
     suspend fun getStreamingRefs(albumId: UUID): List<StreamingRef> = suspendTransaction {
         AlbumStreamingRefEntity.find { AlbumStreamingRefTable.albumId eq albumId }
             .map { StreamingRef(it.platform, StreamingPlatformUtils.buildUrl(it.platform, it.externalId)) }
+    }
+
+    suspend fun getStreamingRefs(albumIds: List<UUID>): Map<UUID, List<StreamingRef>> = suspendTransaction {
+        if (albumIds.isEmpty()) return@suspendTransaction emptyMap()
+
+        val entityIds = albumIds.map { EntityID(it, AlbumTable) }
+        AlbumStreamingRefTable.selectAll()
+            .where { AlbumStreamingRefTable.albumId inList entityIds }
+            .toList()
+            .groupBy { it[AlbumStreamingRefTable.albumId].value }
+            .mapValues { (_, rows) ->
+                rows.map {
+                    StreamingRef(
+                        platform = it[AlbumStreamingRefTable.platform],
+                        url = StreamingPlatformUtils.buildUrl(it[AlbumStreamingRefTable.platform], it[AlbumStreamingRefTable.externalId]),
+                    )
+                }
+            }
     }
 }

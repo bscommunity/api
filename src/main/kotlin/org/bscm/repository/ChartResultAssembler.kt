@@ -6,10 +6,7 @@ import org.bscm.models.Chart
 import org.bscm.models.StreamingRef
 import org.bscm.models.dao.*
 import org.bscm.models.mappers.VersionMapper
-import org.bscm.models.tables.ChartTable
-import org.bscm.models.tables.ContributorTable
-import org.bscm.models.tables.TrackStreamingRefTable
-import org.bscm.models.tables.UserTable
+import org.bscm.models.tables.*
 import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
 import org.bscm.utils.StreamingPlatformUtils
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -73,10 +70,19 @@ class ChartResultAssembler(
         val catalogIds = groupedByChartId.keys.toList()
         val userStats = catalogItemRepository.fetchUserStats(requestingUserId, catalogIds)
 
+        val albumIds = groupedByChartId.values.flatten()
+            .mapNotNull { it.getOrNull(AlbumTable.id)?.value }
+            .distinct()
+        val albumRefsByAlbumId = if (includeStreamingRefs && albumIds.isNotEmpty()) {
+            albumRepository.getStreamingRefs(albumIds)
+        } else emptyMap()
+
         return groupedByChartId.map { (_, rows) ->
             val chartEntity = ChartEntity.wrapRow(rows.first())
             val catalogItemEntity = CatalogItemEntity.wrapRow(rows.first())
             val trackEntity = TrackEntity.wrapRow(rows.first())
+
+            rows.first().getOrNull(AlbumTable.id)?.let { AlbumEntity.wrapRow(rows.first()) }
 
             val streamingRefs = if (includeStreamingRefs) {
                 val trackRefs = rows.mapNotNull { row ->
@@ -89,11 +95,9 @@ class ChartResultAssembler(
 
                 // Fallback: if no track-level refs, use album-level refs
                 if (trackRefs.isEmpty()) {
-                    trackEntity.album?.id?.value?.let { albumId ->
-                        val albumRefs = albumRepository.getStreamingRefs(albumId)
-                        if (albumRefs.isNotEmpty()) {
-                            albumRefs
-                        } else trackRefs
+                    rows.first().getOrNull(AlbumTable.id)?.value?.let { albumId ->
+                        val albumRefs = albumRefsByAlbumId[albumId].orEmpty()
+                        if (albumRefs.isNotEmpty()) albumRefs else trackRefs
                     } ?: trackRefs
                 } else trackRefs
             } else emptyList()

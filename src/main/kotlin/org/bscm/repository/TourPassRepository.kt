@@ -93,6 +93,7 @@ class TourPassRepository(
 
     private fun buildTourPass(
         entity: TourPassEntity,
+        catalogItem: CatalogItemEntity,
         charts: List<Chart>,
         likesCount: Int,
         bookmarksCount: Int,
@@ -100,7 +101,6 @@ class TourPassRepository(
         bookmarkedAt: LocalDateTime? = null,
         contributors: List<Contributor>,
     ): TourPass {
-        val catalogItem = CatalogItemEntity[entity.id.value]
         return TourPass(
             name = entity.name,
             description = entity.description,
@@ -135,6 +135,19 @@ class TourPassRepository(
             .map { it[TourPassChartTable.chartId].value }
     }
 
+    private fun getOrderedChartIdsByTourPass(tourPassIds: List<String>): Map<String, List<String>> {
+        if (tourPassIds.isEmpty()) return emptyMap()
+
+        val entityIds = tourPassIds.map { EntityID(it, TourPassTable) }
+        return TourPassChartTable
+            .select(TourPassChartTable.tourPassId, TourPassChartTable.chartId)
+            .where { TourPassChartTable.tourPassId inList entityIds }
+            .orderBy(TourPassChartTable.position)
+            .toList()
+            .groupBy { it[TourPassChartTable.tourPassId].value }
+            .mapValues { (_, rows) -> rows.map { it[TourPassChartTable.chartId].value } }
+    }
+
     private suspend fun loadChartsForTourPass(entity: TourPassEntity, userId: UUID?): List<Chart> {
         val chartIds = getOrderedChartIds(entity.id.value)
         if (chartIds.isEmpty()) return emptyList()
@@ -156,7 +169,12 @@ class TourPassRepository(
             UserStatsUtils.fetchUserStats(userId, listOf(entity.id.value))[entity.id.value] ?: (null to null)
         } else (null to null)
         val contributors = fetchContributorsByCatalogIds(listOf(entity.id.value))[entity.id.value].orEmpty()
-        return buildTourPass(entity, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt, contributors)
+        val catalogItem = CatalogItemTable.selectAll()
+            .where { CatalogItemTable.id eq EntityID(entity.id.value, CatalogItemTable) }
+            .firstOrNull()
+            ?.let { CatalogItemEntity.wrapRow(it) }
+            ?: error("Catalog item not found for tour pass ${entity.id.value}")
+        return buildTourPass(entity, catalogItem, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt, contributors)
     }
 
     override suspend fun getTourPasses(
@@ -195,9 +213,8 @@ class TourPassRepository(
         val allTourPassIds = paged.map { it.id.value }
         val allStats = fetchAggregateStats(allTourPassIds)
 
-        val allChartIds = paged.flatMap { entity ->
-            getOrderedChartIds(entity.id.value)
-        }.distinct()
+        val chartIdsByTourPass = getOrderedChartIdsByTourPass(allTourPassIds)
+        val allChartIds = chartIdsByTourPass.values.flatten().distinct()
 
         val chartMap = if (allChartIds.isNotEmpty()) {
             chartRepository.getChartsByCatalogIds(
@@ -215,12 +232,20 @@ class TourPassRepository(
 
         val contributorsByCatalogId = fetchContributorsByCatalogIds(allTourPassIds)
 
+        val catalogItemsById = CatalogItemTable.selectAll()
+            .where { CatalogItemTable.id inList allTourPassIds.map { EntityID(it, CatalogItemTable) } }
+            .toList()
+            .associate { it[CatalogItemTable.id].value to CatalogItemEntity.wrapRow(it) }
+
         paged.map { entity ->
-            val charts = getOrderedChartIds(entity.id.value).mapNotNull { chartMap[it] }
+            val charts = chartIdsByTourPass[entity.id.value].orEmpty().mapNotNull { chartMap[it] }
             val (likesCount, bookmarksCount) = allStats[entity.id.value] ?: (0 to 0)
             val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
+            val catalogItem = catalogItemsById[entity.id.value]
+                ?: error("Catalog item not found for tour pass ${entity.id.value}")
             buildTourPass(
                 entity,
+                catalogItem,
                 charts,
                 likesCount,
                 bookmarksCount,
