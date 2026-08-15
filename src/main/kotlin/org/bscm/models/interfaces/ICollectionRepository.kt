@@ -2,8 +2,8 @@ package org.bscm.models.interfaces
 
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.ContentType
 import java.util.*
 
 interface ICollectionRepository {
@@ -27,14 +27,14 @@ interface ICollectionRepository {
     suspend fun getCollectionItems(
         collectionId: UUID,
         userId: UUID? = null,
-        categories: List<ContentType>? = null,
+        categories: List<CatalogItemType>? = null,
         limit: Int? = null,
         offset: Int? = null
     ): List<CatalogItem>
     suspend fun getCollectionItemsByKind(
         userId: UUID,
         kind: CollectionKind,
-        categories: List<ContentType>?,
+        categories: List<CatalogItemType>?,
         limit: Int? = null,
         offset: Int? = null
     ): List<CatalogItem>
@@ -46,18 +46,18 @@ interface ICollectionRepository {
         collectionId: UUID,
         collectionKind: CollectionKind,
         userId: UUID,
-        contentId: String
+        catalogId: String
     ): Boolean
 
-    suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, contentId: String): Boolean
-    suspend fun isItemInCollection(collectionId: UUID, contentId: String): Boolean
-    suspend fun getContentType(contentId: String): ContentType?
+    suspend fun removeItemFromCollection(collectionId: UUID, userId: UUID, catalogId: String): Boolean
+    suspend fun isItemInCollection(collectionId: UUID, catalogId: String): Boolean
+    suspend fun getContentType(catalogId: String): CatalogItemType?
 
     // Batch Operations
     suspend fun batchAddItemsToCollection(
         collectionId: UUID,
         userId: UUID,
-        contentIds: List<String>
+        catalogIds: List<String>
     ): Pair<Int, List<String>>
-    suspend fun batchRemoveItemsFromCollection(collectionId: UUID, userId: UUID, contentIds: List<String>): Int
+    suspend fun batchRemoveItemsFromCollection(collectionId: UUID, userId: UUID, catalogIds: List<String>): Int
 }

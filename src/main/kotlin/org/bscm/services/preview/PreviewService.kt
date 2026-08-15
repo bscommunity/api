@@ -4,18 +4,21 @@ import org.bscm.models.dto.PreviewResponse
 import org.bscm.models.enums.PreviewProvider
 import org.bscm.models.interfaces.CacheRepository
 import org.bscm.services.preview.resolvers.PreviewResolverRegistry
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 class PreviewService(
     private val registry: PreviewResolverRegistry,
     private val cache: CacheRepository<PreviewResponse>,
-    private val clock: Clock = Clock.systemUTC()
+    private val clock: Clock = Clock.System
 ) {
 
-    private val safetyMargin = Duration.ofSeconds(60)
-    private val fallbackTtl = Duration.ofDays(7) // stable providers (iTunes)
+    private val safetyMargin = 60.seconds
+    private val fallbackTtl = 7.days
 
     object PreviewCacheKey {
         fun of(provider: PreviewProvider, trackId: String): String =
@@ -28,11 +31,11 @@ class PreviewService(
     ): PreviewResponse? {
 
         val cacheKey = PreviewCacheKey.of(provider, trackId)
-        val now = Instant.now(clock)
+        val now = clock.now()
 
         // 1. Cache lookup
         cache.get(cacheKey)?.let { cached ->
-            if (cached.expiresAt == null || cached.expiresAt.isAfter(now)) {
+            if (cached.expiresAt == null || cached.expiresAt > now) {
                 return cached
             }
         }
@@ -59,11 +62,9 @@ class PreviewService(
         when (val expiresAt = result.expiresAt) {
             null -> fallbackTtl
             else -> {
-                val ttl = Duration.between(
-                    now,
-                    expiresAt.minus(safetyMargin)
-                )
-                if (ttl.isNegative || ttl.isZero) null else ttl
+                val ttlMs = (expiresAt - safetyMargin).toEpochMilliseconds() - now.toEpochMilliseconds()
+                val ttl = ttlMs.milliseconds
+                if (ttl.isNegative() || ttl == Duration.ZERO) null else ttl
             }
         }
 }

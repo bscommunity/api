@@ -1,7 +1,7 @@
 package org.bscm.utils
 
 import io.ktor.util.logging.*
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.models.enums.StreamingPlatform
 import java.net.URI
 import java.net.URISyntaxException
@@ -32,6 +32,15 @@ object StreamingPlatformUtils {
         PlatformGroup(listOf("tidal"), "tidal", StreamingPlatform.TIDAL, "listen.tidal.com/"),
         PlatformGroup(listOf("soundcloud"), "soundcloud", StreamingPlatform.SOUNDCLOUD, "soundcloud.com/"),
         PlatformGroup(listOf("last"), "lastfm", StreamingPlatform.LAST_FM, "www.last.fm/"),
+        PlatformGroup(listOf("pandora"), "pandora", StreamingPlatform.PANDORA, "www.pandora.com/"),
+        PlatformGroup(listOf("napster"), "napster", StreamingPlatform.NAPSTER, "www.napster.com/"),
+        PlatformGroup(listOf("qobuz"), "qobuz", StreamingPlatform.QOBUZ, "www.qobuz.com/"),
+        PlatformGroup(listOf("yandex"), "yandex", StreamingPlatform.YANDEX_MUSIC, "music.yandex.ru/"),
+        PlatformGroup(listOf("boomplay"), "boomplay", StreamingPlatform.BOOMPLAY, "boomplay.com/"),
+        PlatformGroup(listOf("anghami"), "anghami", StreamingPlatform.ANGHAMI, "anghami.com/"),
+        PlatformGroup(listOf("audiomack"), "audiomack", StreamingPlatform.AUDIOMACK, "www.audiomack.com/"),
+        PlatformGroup(listOf("shazam"), "shazam", StreamingPlatform.SHAZAM, "www.shazam.com/"),
+        PlatformGroup(listOf("jiosaavn"), "jiosaavn", StreamingPlatform.JIOSAAVN, "www.jiosaavn.com/"),
     )
 
     /**
@@ -50,7 +59,16 @@ object StreamingPlatformUtils {
         StreamingPlatform.DEEZER to listOf("www.deezer.com/", "deezer.com/"),
         StreamingPlatform.TIDAL to listOf("listen.tidal.com/", "tidal.com/"),
         StreamingPlatform.SOUNDCLOUD to listOf("soundcloud.com/", "m.soundcloud.com/"),
-        StreamingPlatform.LAST_FM to listOf("www.last.fm/", "last.fm/", "lastfm.com/", "www.lastfm.com/")
+        StreamingPlatform.LAST_FM to listOf("www.last.fm/", "last.fm/", "lastfm.com/", "www.lastfm.com/"),
+        StreamingPlatform.PANDORA to listOf("www.pandora.com/", "pandora.com/"),
+        StreamingPlatform.NAPSTER to listOf("www.napster.com/", "napster.com/"),
+        StreamingPlatform.QOBUZ to listOf("www.qobuz.com/", "qobuz.com/"),
+        StreamingPlatform.YANDEX_MUSIC to listOf("music.yandex.ru/", "music.yandex.com/", "yandex.ru/"),
+        StreamingPlatform.BOOMPLAY to listOf("boomplay.com/", "www.boomplay.com/"),
+        StreamingPlatform.ANGHAMI to listOf("anghami.com/", "www.anghami.com/"),
+        StreamingPlatform.AUDIOMACK to listOf("www.audiomack.com/", "audiomack.com/"),
+        StreamingPlatform.SHAZAM to listOf("www.shazam.com/", "shazam.com/"),
+        StreamingPlatform.JIOSAAVN to listOf("www.jiosaavn.com/", "jiosaavn.com/"),
     )
 
     /**
@@ -141,6 +159,18 @@ object StreamingPlatformUtils {
     }
 
     /**
+     * Canonicalizes a streaming URL for persistence and deduplication.
+     *
+     * Today this is primarily:
+     *  - `trim()`
+     *  - remove known tracking parameters (utm_*, fbclid, gclid, ref, ...)
+     *
+     * Keep this as the single source of truth for URL normalization so that
+     * DB uniqueness (`streaming_links.url`) matches what we dedupe in-memory.
+     */
+    fun normalizeUrl(url: String): String = stripTrackingParams(url)
+
+    /**
      * Processes and prioritizes streaming links
      * Prioritizes URLs with platform keywords, "music" subdomain, and smallest length
      *
@@ -149,9 +179,9 @@ object StreamingPlatformUtils {
      * @return Deduplicated and prioritized list of streaming links
      */
     fun processLinksWithPrioritization(
-        links: List<StreamingLink>,
+        links: List<StreamingRef>,
         useKeyForDetection: Boolean = false
-    ): List<StreamingLink> {
+    ): List<StreamingRef> {
         val linkMap = mutableMapOf<String, LinkData>()
 
         // Process all links
@@ -205,7 +235,7 @@ object StreamingPlatformUtils {
 
         // Convert to final format and log
         return linkMap.values.map { data ->
-            StreamingLink(data.platform, data.url)
+            StreamingRef(data.platform, data.url)
         }
     }
 
@@ -217,85 +247,23 @@ object StreamingPlatformUtils {
         val urlLength: Int
     )
 
-    /**
-     * Serializes a list of streaming links into a compact string representation
-     * Format: platformId|path||platformId|path
-     *
-     * Optimizations:
-     * - Strips "https://" prefix (saves 8 bytes per link)
-     * - Strips platform base domain (saves 15-25 bytes per link)
-     * - Uses numeric platform ID (saves ~10 bytes per link)
-     *
-     * Example: "0|track/abc123||1|song/artist/title"
-     *
-     * @param links List of StreamingLink objects to serialize
-     * @return Compact string representation of links
-     */
-    fun serializeLinks(links: List<StreamingLink>): String {
-        return links.joinToString("||") { link ->
-            val cleanedUrl = stripTrackingParams(link.url)
-            var path = cleanedUrl.removePrefix("https://").removePrefix("http://")
+    fun extractExternalId(platform: StreamingPlatform, url: String): String {
+        val cleanedUrl = stripTrackingParams(url)
+        var path = cleanedUrl.removePrefix("https://").removePrefix("http://")
 
-            // Try to remove any known domain variation for this platform
-            val domainVariations = PLATFORM_DOMAIN_VARIATIONS[link.platform] ?: emptyList()
-            for (domain in domainVariations) {
-                if (path.startsWith(domain)) {
-                    path = path.removePrefix(domain)
-                    break
-                }
+        val domainVariations = PLATFORM_DOMAIN_VARIATIONS[platform] ?: emptyList()
+        for (domain in domainVariations) {
+            if (path.startsWith(domain)) {
+                path = path.removePrefix(domain)
+                break
             }
-
-            "${link.platform.id}|$path"
         }
+
+        return path
     }
 
-    /**
-     * Deserializes a compact string representation back into a list of streaming links
-     *
-     * @param serialized Compact string from serializeLinks()
-     * @return List of StreamingLink objects
-     * @throws IllegalArgumentException if format is invalid or platform ID is unknown
-     */
-    fun deserializeLinks(serialized: String): List<StreamingLink> {
-        if (serialized.isBlank()) return emptyList()
-
-        return serialized.split("||").mapNotNull { entry ->
-            val parts = entry.split("|", limit = 2)
-            if (parts.size != 2) {
-                log.warn("Invalid serialized link format: $entry")
-                return@mapNotNull null
-            }
-
-            val platformId = parts[0].toIntOrNull()
-            val path = parts[1]
-
-            if (platformId == null) {
-                log.warn("Invalid platform ID: ${parts[0]}")
-                return@mapNotNull null
-            }
-
-            val platform = StreamingPlatform.entries.find { it.id == platformId }
-            if (platform == null) {
-                log.warn("Unknown platform ID: $platformId")
-                return@mapNotNull null
-            }
-
-            val baseDomain = PLATFORM_TO_BASE_DOMAIN[platform] ?: ""
-            val fullUrl = "https://$baseDomain$path"
-
-            StreamingLink(platform, stripTrackingParams(fullUrl))
-        }
-    }
-
-    /**
-     * Calculates the space savings from serialization
-     *
-     * @param links List of StreamingLink objects
-     * @return Pair of (original bytes, serialized bytes)
-     */
-    fun calculateSerializationSavings(links: List<StreamingLink>): Pair<Int, Int> {
-        val originalSize = links.sumOf { it.url.length + it.platform.name.length }
-        val serializedSize = serializeLinks(links).length
-        return Pair(originalSize, serializedSize)
+    fun buildUrl(platform: StreamingPlatform, externalId: String): String {
+        val baseDomain = PLATFORM_TO_BASE_DOMAIN[platform] ?: ""
+        return "https://$baseDomain$externalId"
     }
 }

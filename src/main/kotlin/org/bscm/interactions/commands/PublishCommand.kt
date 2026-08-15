@@ -9,7 +9,6 @@ import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
-import org.bscm.clients.applicationHttpClient
 import org.bscm.interactions.Button
 import org.bscm.interactions.CommandHandler.immediateEphemeralResponse
 import org.bscm.interactions.I18n
@@ -17,6 +16,7 @@ import org.bscm.interactions.message
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.ChartPublishService
 import org.bscm.services.InteractionResponseService
+import org.bscm.services.track.clients.applicationHttpClient
 import org.koin.ktor.ext.getKoin
 
 private val log = KtorSimpleLogger("PublishCommand")
@@ -189,8 +189,8 @@ object PublishCommand {
                     embed {
                         title = "✅ ${I18n.t(locale, "publish_success_title")}"
                         description = I18n.t(locale, "publish_success_description")
-                        field(I18n.t(locale, "track_label"), result.chart.track, true)
-                        field(I18n.t(locale, "artist_label"), result.chart.artist, true)
+                        field(I18n.t(locale, "track_label"), result.chart.track.title, true)
+                        field(I18n.t(locale, "artist_label"), result.chart.track.artist, true)
                         field(I18n.t(locale, "difficulty_label"), v.difficulty.name, true)
                         field(I18n.t(locale, "duration_label"), String.format("%dm%ds", (v.duration / 60).toInt(), (v.duration % 60).toInt()), true)
                         field(I18n.t(locale, "notes_label"), v.notesAmount.toString(), true)
@@ -203,7 +203,7 @@ object PublishCommand {
                             type = 2,
                             style = 5,
                             label = I18n.t(locale, "view_chart_button"),
-                            url = "https://bscm.netlify.app/link/chart/${result.chart.contentId}"
+                            url = "https://bscm.netlify.app/link/chart/${result.chart.id}"
                         ),
                         Button(
                             type = 2,

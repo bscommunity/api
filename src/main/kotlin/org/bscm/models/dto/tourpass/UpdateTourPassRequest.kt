@@ -1,7 +1,7 @@
 package org.bscm.models.dto.tourpass
 
 import kotlinx.serialization.Serializable
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 
 @Serializable
 data class UpdateTourPassRequest(
@@ -9,6 +9,7 @@ data class UpdateTourPassRequest(
     val description: String? = null,
     val artist: String? = null,
     val coverUrl: String? = null,
+    val previewUrl: String? = null,
     val chartIds: List<String>? = null,
-    val playlistUrls: List<StreamingLink>? = null,
+    val playlistUrls: List<StreamingRef>? = null,
 )

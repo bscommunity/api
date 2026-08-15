@@ -1,42 +1,42 @@
 package org.bscm.models.interfaces
 
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
 import java.util.*
 
 interface ITourPassRepository {
     suspend fun getTourPasses(
         userId: UUID? = null,
-        contentIds: List<String>?,
-        search: String?,
+        catalogIds: List<String>? = null,
+        search: String? = null,
         limit: Int? = null,
         offset: Int? = null,
     ): List<TourPass>
 
-    suspend fun getTourPassById(id: ULong, userId: UUID? = null): TourPass?
-    suspend fun getAppTourPassById(contentId: String, userId: UUID? = null): TourPass?
+    suspend fun getTourPassById(id: String, userId: UUID? = null): TourPass?
     suspend fun createTourPass(
         userId: UUID,
         name: String,
         description: String?,
         artist: String?,
-        coverUrl: String,
-        playlistUrls: List<StreamingLink>? = null,
-        chartIds: List<ULong>? = null,
-        id: ULong? = null,
+        playlistUrls: List<StreamingRef>? = null,
+        chartIds: List<String>? = null,
+        id: String? = null,
     ): TourPass
+
     suspend fun updateTourPass(
-        id: ULong,
+        id: String,
         userId: UUID,
         name: String?,
         description: String?,
         artist: String?,
-        coverUrl: String?,
-        playlistUrls: List<StreamingLink>? = null,
-        chartIds: List<ULong>? = null,
+        chartIds: List<String>? = null,
     ): TourPass
-    suspend fun deleteTourPass(id: ULong, userId: UUID): Boolean
-    suspend fun setTourPassCharts(id: ULong, userId: UUID, chartIds: List<ULong>): TourPass
-    suspend fun addChartToTourPass(tourPassId: ULong, chartId: ULong): Boolean
-    suspend fun removeChartFromTourPass(tourPassId: ULong, chartId: ULong): Boolean
+
+    suspend fun deleteTourPass(id: String, userId: UUID): Boolean
+    suspend fun setTourPassCharts(id: String, userId: UUID, chartIds: List<String>): TourPass
+    suspend fun addChartToTourPass(tourPassId: String, chartId: String): Boolean
+    suspend fun removeChartFromTourPass(tourPassId: String, chartId: String): Boolean
+    suspend fun countTourPasses(search: String? = null): Int
+    suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String)
 }

@@ -2,30 +2,48 @@
 
 package org.bscm.models
 
+import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import kotlinx.serialization.json.JsonClassDiscriminator
+import org.bscm.models.enums.CatalogItemStatus
+import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.enums.Visibility
 import org.bscm.serialization.LocalDateTimeSerializer
-import java.time.LocalDateTime
+import java.util.*
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
-@JsonClassDiscriminator("type")
+@JsonClassDiscriminator("itemKind")
 sealed interface CatalogItem {
-    @Serializable(with = LocalDateTimeSerializer::class)
     val id: String
-    val contentId: String
-    val coverUrl: String
-    val isPublic: Boolean
+
+    val type: CatalogItemType
+    val status: CatalogItemStatus
+    val visibility: Visibility
+
     val isFeatured: Boolean
-    val downloadsSum: Int // Aggregated field
+
+    val downloadsSum: Int
 
     val contributors: List<Contributor>
 
     val createdAt: LocalDateTime
-    val updatedAt: LocalDateTime
+    val publishedAt: LocalDateTime?
+    val updatedAt: LocalDateTime?
 
-    val likedAt: LocalDateTime? // Derived field
-    val bookmarkedAt: LocalDateTime? // Derived field
+    // Derived fields
+    val likedAt: LocalDateTime?
+    val bookmarkedAt: LocalDateTime?
+
+    // Optional external preview video
+    val previewVideoId: String?
+
+    // Discord publishing coordinates (fixed per item)
+    val discordChannelId: String?
+    val discordMessageId: String?
+
+    // Author (nullable — ON DELETE SET NULL)
+    val authorId: UUID?
 }

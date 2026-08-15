@@ -1,186 +1,223 @@
 package org.bscm.repository
 
-import io.ktor.server.plugins.*
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Theme
-import org.bscm.models.dao.ContentEntity
+import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ThemeEntity
 import org.bscm.models.dao.UserEntity
-import org.bscm.models.enums.ContentType
+import org.bscm.models.dao.VersionEntity
+import org.bscm.models.enums.CatalogItemStatus
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.ThemeTable
+import org.bscm.models.tables.VersionTable
+import org.bscm.storage.StorageService
 import org.bscm.utils.UserStatsUtils
-import org.bscm.utils.retryOnConflict
-import org.jetbrains.exposed.sql.andWhere
-import org.jetbrains.exposed.sql.or
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import java.time.LocalDateTime
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
+import kotlin.time.Clock
 
-class ThemeRepository : BaseRepository(), IThemeRepository {
+class ThemeRepository(
+    private val catalogItemRepository: CatalogItemRepository,
+    private val storageService: StorageService,
+) : IThemeRepository {
 
-    private fun daoToTheme(
+    private fun themeEntityToTheme(
         entity: ThemeEntity,
         likedAt: LocalDateTime? = null,
-        bookmarkedAt: LocalDateTime? = null
+        bookmarkedAt: LocalDateTime? = null,
+        versionsCount: Int = 0,
+        latestVersionEntity: VersionEntity? = null,
     ): Theme {
+        val catalogItem = CatalogItemEntity[entity.id.value]
+        val id = entity.id.value
         return Theme(
-            id = entity.id.value.toString(),
-            contentId = entity.content.id.value,
             name = entity.name,
-            description = null,
             replaces = entity.replaces,
-            coverUrl = entity.coverUrl,
-            displayArtUrl = entity.displayArtUrl ?: entity.coverUrl,
+            displayArtUrl = storageService.themeDisplayUrl(id),
             previewUrl = entity.previewUrl,
-            isPublic = entity.isPublic,
-            isFeatured = entity.isFeatured,
+            coverUrl = storageService.themeCoverUrl(id),
+            contributors = emptyList(),
+            createdAt = catalogItem.createdAt,
+            publishedAt = catalogItem.publishedAt,
+            updatedAt = catalogItem.updatedAt,
             likedAt = likedAt,
             bookmarkedAt = bookmarkedAt,
-            downloadsSum = entity.downloadsSum,
-            createdAt = entity.createdAt,
-            updatedAt = entity.latestUpdatedAt ?: LocalDateTime.now()
+            id = id,
+            type = CatalogItemType.THEME,
+            status = catalogItem.status,
+            visibility = catalogItem.visibility,
+            isFeatured = catalogItem.isFeatured,
+            downloadsSum = catalogItem.downloadsSum,
+            previewVideoId = catalogItem.previewVideoId,
+            discordChannelId = catalogItem.discordChannelId,
+            discordMessageId = catalogItem.discordMessageId,
+            authorId = catalogItem.author?.id?.value,
+            versionsCount = versionsCount,
+            latestVersion = latestVersionEntity?.let { org.bscm.models.mappers.VersionMapper.entityToVersion(it) },
+            bundleHash = latestVersionEntity?.bundleHash,
         )
     }
 
     override suspend fun getThemes(
         userId: UUID?,
-        contentIds: List<String>?,
+        catalogIds: List<String>?,
         search: String?,
         limit: Int?,
-        offset: Int?
-    ): List<Theme> = newSuspendedTransaction {
+        offset: Int?,
+    ): List<Theme> = suspendTransaction {
+        val pageSize = limit ?: 20
+        val pageOffset = offset ?: 0
+
         val query = ThemeTable.selectAll()
 
-        query.andWhere {
-            if (userId == null) {
-                ThemeTable.isPublic eq true
-            } else {
-                (ThemeTable.isPublic eq true) or (ThemeTable.authorId eq userId)
+        when {
+            catalogIds != null && catalogIds.isNotEmpty() && search != null -> {
+                query.where {
+                    (ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) }) and
+                    ((ThemeTable.name like "%${search}%") or (ThemeTable.replaces like "%${search}%"))
+                }
+            }
+            catalogIds != null && catalogIds.isNotEmpty() -> {
+                query.where { ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) } }
+            }
+            search != null -> {
+                query.where { (ThemeTable.name like "%${search}%") or (ThemeTable.replaces like "%${search}%") }
             }
         }
 
-        if (!contentIds.isNullOrEmpty()) {
-            query.andWhere { ThemeTable.contentId inList contentIds }
-        }
+        query.orderBy(ThemeTable.id to SortOrder.DESC)
+        val paged = query.limit(pageSize).offset(pageOffset.toLong()).toList()
+            .map { ThemeEntity.wrapRow(it) }
 
-        if (!search.isNullOrBlank()) {
-            query.andWhere {
-                (ThemeTable.name like "%$search%") or
-                        (ThemeTable.replaces like "%$search%")
-            }
-        }
+        val themeIds = paged.map { it.id.value }
+        val userStats = if (userId != null && themeIds.isNotEmpty()) {
+            UserStatsUtils.fetchUserStats(userId, themeIds)
+        } else emptyMap()
 
-        if (limit != null) {
-            query.limit(limit).offset(offset?.toLong() ?: 0)
-        }
+        val versionData = enrichWithVersionData(themeIds)
 
-        val themeEntities = ThemeEntity.wrapRows(query).toList()
-
-        // Fetch user stats for all themes in one query
-        val themeContentIds = themeEntities.map { it.content.id.value }
-        val userStats = UserStatsUtils.fetchUserStats(getUserContext()?.userId, themeContentIds)
-
-        themeEntities.map { entity ->
-            val contentId = entity.content.id.value
-            val stats = userStats[contentId] ?: Pair(null, null)
-            daoToTheme(entity, stats.first, stats.second)
+        paged.map { entity ->
+            val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
+            val (vCount, vEntity) = versionData[entity.id.value] ?: (0 to null)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity)
         }
     }
 
-    override suspend fun getThemeById(id: ULong, userId: UUID?): Theme? = newSuspendedTransaction {
-        val entity = ThemeEntity.findById(id) ?: return@newSuspendedTransaction null
-        if (!entity.isPublic && entity.authorId.value != userId) {
-            return@newSuspendedTransaction null
+    override suspend fun getThemeById(id: String, userId: UUID?): Theme? = suspendTransaction {
+        ThemeEntity.findById(id)?.let { entity ->
+            val (likedAt, bookmarkedAt) = if (userId != null) {
+                UserStatsUtils.fetchUserStats(userId, listOf(id))[id] ?: (null to null)
+            } else (null to null)
+            val versionData = enrichWithVersionData(listOf(id))
+            val (vCount, vEntity) = versionData[id] ?: (0 to null)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity)
         }
-        daoToTheme(entity)
-    }
-
-    override suspend fun getAppThemeById(contentId: String, userId: UUID?): Theme? = newSuspendedTransaction {
-        val entity = ThemeEntity.find { ThemeTable.contentId eq contentId }.firstOrNull()
-            ?: return@newSuspendedTransaction null
-        if (!entity.isPublic && entity.authorId.value != userId) {
-            return@newSuspendedTransaction null
-        }
-        daoToTheme(entity)
     }
 
     override suspend fun createTheme(
         userId: UUID,
         name: String,
         replaces: String,
-        coverUrl: String,
-        displayArtUrl: String,
-        previewUrl: String
-        ,
-        id: ULong?
-    ): Theme = newSuspendedTransaction {
-        // Generate a unique content entry
-        val content = retryOnConflict {
-            ContentEntity.new {
-                this.type = ContentType.THEME
+        previewUrl: String?,
+        id: String?,
+    ): Theme = suspendTransaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val catalogItem = if (id != null) {
+            CatalogItemEntity.new(id) {
+                this.type = CatalogItemType.THEME
+                this.status = CatalogItemStatus.PUBLISHED
+                this.author = UserEntity[userId]
+                this.updatedAt = now
+            }
+        } else {
+            CatalogItemEntity.new {
+                this.type = CatalogItemType.THEME
+                this.status = CatalogItemStatus.PUBLISHED
+                this.author = UserEntity[userId]
+                this.updatedAt = now
             }
         }
 
-        val entity = if (id != null) {
-            ThemeEntity.new(id) {
-                this.contentId = content.id
-                this.authorId = UserEntity[userId].id
-                this.name = name
-                this.replaces = replaces
-                this.coverUrl = coverUrl
-                this.displayArtUrl = displayArtUrl
-                this.previewUrl = previewUrl
-                this.isPublic = true
-                this.isFeatured = false
-                this.downloadsSum = 0
-                this.latestUpdatedAt = LocalDateTime.now()
-            }
-        } else {
-            ThemeEntity.new {
-                this.contentId = content.id
-                this.authorId = UserEntity[userId].id
-                this.name = name
-                this.replaces = replaces
-                this.coverUrl = coverUrl
-                this.displayArtUrl = displayArtUrl
-                this.previewUrl = previewUrl
-                this.isPublic = true
-                this.isFeatured = false
-                this.downloadsSum = 0
-                this.latestUpdatedAt = LocalDateTime.now()
-            }
+        val theme = ThemeEntity.new(catalogItem.id.value) {
+            this.name = name
+            this.replaces = replaces
+            this.previewUrl = previewUrl
         }
-        daoToTheme(entity)
+
+        themeEntityToTheme(theme)
     }
 
     override suspend fun updateTheme(
-        id: ULong,
+        id: String,
         userId: UUID,
         name: String?,
         replaces: String?,
-        coverUrl: String?,
-        displayArtUrl: String?,
-        previewUrl: String?
-    ): Theme = newSuspendedTransaction {
-        val entity = ThemeEntity.findById(id)
-            ?.takeIf { it.authorId.value == userId }
-            ?: throw NotFoundException("Theme not found")
+        previewUrl: String?,
+    ): Theme = suspendTransaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val entity = ThemeEntity.findByIdAndUpdate(id) { entity ->
+            name?.let { entity.name = it }
+            replaces?.let { entity.replaces = it }
+            previewUrl?.let { entity.previewUrl = it }
+        } ?: throw IllegalArgumentException("Theme $id not found")
 
-        name?.let { entity.name = it }
-        replaces?.let { entity.replaces = it }
-        coverUrl?.let { entity.coverUrl = it }
-        displayArtUrl?.let { entity.displayArtUrl = it }
-        previewUrl?.let { entity.previewUrl = it }
+        CatalogItemEntity.findByIdAndUpdate(id) {
+            it.updatedAt = now
+        }
 
-        daoToTheme(entity)
+        themeEntityToTheme(entity)
     }
 
-    override suspend fun deleteTheme(id: ULong, userId: UUID): Boolean = newSuspendedTransaction {
-        val entity = ThemeEntity.findById(id)
-            ?.takeIf { it.authorId.value == userId }
-            ?: return@newSuspendedTransaction false
-        entity.delete()
+    override suspend fun deleteTheme(id: String, userId: UUID): Boolean = suspendTransaction {
+        CatalogItemEntity.findById(id)?.delete() ?: return@suspendTransaction false
         true
+    }
+
+    private fun enrichWithVersionData(catalogItemIds: List<String>): Map<String, Pair<Int, VersionEntity?>> {
+        if (catalogItemIds.isEmpty()) return emptyMap()
+
+        val countColumn = VersionTable.id.count()
+        val counts = VersionTable
+            .select(VersionTable.catalogItemId, countColumn)
+            .where { VersionTable.catalogItemId inList catalogItemIds }
+            .groupBy(VersionTable.catalogItemId)
+            .toList()
+            .associate { it[VersionTable.catalogItemId].value to it[countColumn].toInt() }
+
+        val allVersions = VersionTable.selectAll()
+            .where { VersionTable.catalogItemId inList catalogItemIds }
+            .toList()
+
+        val latestVersions = allVersions
+            .groupBy { it[VersionTable.catalogItemId].value }
+            .mapValues { (_, versions) ->
+                versions.maxByOrNull { it[VersionTable.versionCode] }
+            }
+            .mapValues { (_, row) ->
+                row?.let { VersionEntity.wrapRow(it) }
+            }
+
+        return catalogItemIds.associateWith { id ->
+            Pair(counts[id] ?: 0, latestVersions[id])
+        }
+    }
+
+    override suspend fun countThemes(search: String?): Int = suspendTransaction {
+        val query = ThemeTable.select(ThemeTable.id.count())
+        search?.let { s ->
+            query.where { (ThemeTable.name like "%${s}%") or (ThemeTable.replaces like "%${s}%") }
+        }
+        query.toList().first()[ThemeTable.id.count()].toInt()
+    }
+
+    override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) = suspendTransaction {
+        catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
     }
 }

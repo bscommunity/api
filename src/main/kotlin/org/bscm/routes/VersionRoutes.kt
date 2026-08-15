@@ -13,16 +13,20 @@ import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
 import io.ktor.util.logging.*
 import io.ktor.utils.io.*
-import org.bscm.clients.jsonClient
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.models.interfaces.IVersionRepository
+import org.bscm.plugins.ConflictException
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
 import org.bscm.services.UploadService
+import org.bscm.services.track.clients.jsonClient
 import org.bscm.utils.QueryUtils.getNormalizedQuery
 import org.bscm.utils.QueryUtils.similarity
+import org.bscm.utils.getUserIdOrNull
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
+import java.security.MessageDigest
 import java.util.*
 
 private val logger = KtorSimpleLogger("VersionRoutes")
@@ -38,10 +42,10 @@ fun Route.versionRoutes(
 
     authenticate("auth-bearer") {
         rateLimit(RateLimitName("restricted")) {
-            route("/versions/chart") {
-                post("{chartId}") {
-                    val chartId = call.parameters["chartId"]?.toULongOrNull()
-                        ?: throw BadRequestException("Invalid or missing chart ID")
+            route("/versions") {
+                post("{catalogItemId}") {
+                    val catalogItemId = call.parameters["catalogItemId"]
+                        ?: throw BadRequestException("Invalid or missing catalog item ID")
 
                     val principal = call.principal<JWTPrincipal>()
                     val userId = principal?.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
@@ -54,11 +58,12 @@ fun Route.versionRoutes(
                         ?: throw UnauthorizedException("User not found")
 
                     val chart = chartRepository.getChartById(
-                        chartId,
-                        ChartRepository.ChartAddons(versions = true)
+                        catalogItemId,
+                        ChartRepository.ChartAddons(versions = true),
+                        requestingUserId = userId,
                     ) ?: throw NotFoundException("Chart not found")
 
-                    logger.info("Received request to add version to chart $chartId")
+                    logger.info("Received request to add version $catalogItemId")
 
                     // --- Multipart parsing ---
 
@@ -83,6 +88,16 @@ fun Route.versionRoutes(
                         throw BadRequestException("Bundle file size exceeds 10MB limit")
                     }
 
+                    val bundleHash = MessageDigest.getInstance("SHA-256")
+                        .digest(bundleFileBytes)
+                        .joinToString("") { "%02x".format(it) }
+
+                    chartRepository.findChartByBundleHash(bundleHash)?.let { existing ->
+                        throw ConflictException(
+                            "A chart with this bundle already exists (id: ${existing.id})",
+                        )
+                    }
+
                     val createRequest = try {
                         jsonClient.decodeFromString<CreateVersionRequest>(versionJson)
                     } catch (e: Exception) {
@@ -93,24 +108,27 @@ fun Route.versionRoutes(
 
                     val trackSimilarity = similarity(
                         getNormalizedQuery(createRequest.track),
-                        getNormalizedQuery(chart.track)
+                        getNormalizedQuery(chart.track.title)
                     )
                     val artistSimilarity = similarity(
                         getNormalizedQuery(createRequest.artist),
-                        getNormalizedQuery(chart.artist)
+                        getNormalizedQuery(chart.track.artist)
                     )
 
                     if (trackSimilarity < 0.3 || artistSimilarity < 0.3) {
                         throw BadRequestException("Track or artist does not match the chart")
                     }
 
-                    logger.info("Creating version for chart $chartId: $createRequest")
+                    logger.info("Creating version for $catalogItemId: $createRequest")
+
+                    val existingVersions = versionRepository.getVersions(chart.id)
 
                     val discordResponse = uploadService.uploadVersion(
                         chart = chart,
-                        version = createRequest,
+                        version = createRequest.copy(fileSizeBytes = bundleFileBytes.size.toLong()),
                         author = user,
-                        chartBundle = bundleFileBytes
+                        chartBundle = bundleFileBytes,
+                        existingVersions = existingVersions,
                     )
 
                     val attachment = discordResponse.attachments.lastOrNull()
@@ -121,9 +139,11 @@ fun Route.versionRoutes(
                         bundleUrl = attachment.url
                     )
 
-                    val createdVersion = versionRepository.addVersion(chartId, createRequestWithUrl)
+                    val createdVersion = suspendTransaction {
+                        versionRepository.addVersion(chart.id, createRequestWithUrl, bundleHash)
+                    }
 
-                    logger.info("Version ${createdVersion.id} (v${createdVersion.index}) created for chart $chartId")
+                    logger.info("Version ${createdVersion.id} (v${createdVersion.versionCode}) created for $catalogItemId")
 
                     call.respond(HttpStatusCode.Created, createdVersion)
 
@@ -178,18 +198,20 @@ fun Route.versionRoutes(
                         ?: throw NotFoundException("Version not found")
 
                     val chart = chartRepository.getChartById(
-                        version.chartId.toULong(),
-                        ChartRepository.ChartAddons(versions = true)
+                        version.catalogItemId,
+                        ChartRepository.ChartAddons(versions = false),
+                        requestingUserId = call.getUserIdOrNull(),
                     ) ?: throw NotFoundException("Chart not found")
 
                     logger.info("Removing version $versionId from chart ${chart.id}")
 
-                    versionRepository.removeVersion(versionId, chart.latestVersion?.id, chart.versions.size)
+                    versionRepository.removeVersion(versionId)
+
+                    val versions = versionRepository.getVersions(chart.id)
 
                     uploadService.deleteVersion(
-                        messageId = chart.id,
-                        track = chart.track,
-                        versions = chart.versions,
+                        chart = chart,
+                        versions = versions,
                         versionId = versionId.toString()
                     )
 

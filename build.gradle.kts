@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ktor.plugin)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.exposed.gradle)
 }
 
 group = "org.bscm"
@@ -31,6 +32,23 @@ ktor {
     }
 }
 
+val pgUrl = System.getenv("POSTGRES_URL")
+val pgUser = System.getenv("POSTGRES_USER")
+val pgPassword = System.getenv("POSTGRES_PASSWORD")
+
+exposed {
+    migrations {
+        tablesPackage.set("org.bscm.models.tables")
+        if (pgUrl != null && pgUser != null && pgPassword != null) {
+            databaseUrl.set("jdbc:$pgUrl")
+            databaseUser.set(pgUser)
+            databasePassword.set(pgPassword)
+        } else {
+            testContainersImageName.set("postgres:latest")
+        }
+    }
+}
+
 dependencies {
     // Ktor (Client)
     implementation(libs.ktor.client.core.jvm)
@@ -55,6 +73,7 @@ dependencies {
     implementation(libs.ktor.server.openapi)
     implementation(libs.ktor.server.swagger)
     implementation(libs.ktor.server.routing.openapi)
+    implementation(libs.ktor.server.sse)
 
     testImplementation(libs.ktor.server.test.host.jvm)
     testImplementation(libs.kotlin.test.junit)
@@ -70,8 +89,9 @@ dependencies {
     implementation(libs.exposed.dao)
     implementation(libs.exposed.jdbc)
     implementation(libs.exposed.json)
-    implementation(libs.exposed.java.time)
-    implementation(libs.exposed.migration)
+    implementation(libs.exposed.kotlin.datetime)
+    implementation(libs.exposed.migration.core)
+    implementation(libs.exposed.migration.jdbc)
     implementation(libs.postgresql)
 
     // Database Migration
@@ -86,7 +106,6 @@ dependencies {
 
     // Utils
     implementation(libs.bouncycastle) // For cryptographic operations (e.g., NanoId)
-    implementation(libs.classgraph) // For classpath scanning (e.g., loading Exposed tables)
 
     // Decoding
     implementation(libs.unitykt)
@@ -94,4 +113,7 @@ dependencies {
 
     // Caching
     implementation(libs.lettuce.core)
+
+    // S3-compatible storage (Supabase, Cloudflare R2, etc.)
+    implementation(libs.aws.s3)
 }

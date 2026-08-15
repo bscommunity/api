@@ -1,0 +1,21 @@
+package org.bscm.services.track
+
+import kotlinx.serialization.Serializable
+import org.bscm.models.StreamingRef
+import org.bscm.models.enums.Genre
+import org.bscm.models.enums.PreviewProvider
+
+@Serializable
+data class TrackInfoResult(
+    val coverUrl: String?,
+    val album: String?,
+    val track: String,
+    val artist: String,
+    val genres: List<Genre> = emptyList(),
+    val link: StreamingRef,
+    val albumStreamingRefs: List<StreamingRef> = emptyList(),
+    val previewProvider: PreviewProvider?,
+    val previewProviderTrackId: String?,
+    val isExplicit: Boolean,
+    val isrc: String? = null
+)

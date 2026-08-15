@@ -4,9 +4,9 @@ import org.bscm.models.tables.AccountTable
 import org.bscm.models.tables.UserBadgeTable
 import org.bscm.models.tables.UserFollowTable
 import org.bscm.models.tables.UserTable
-import org.jetbrains.exposed.dao.UUIDEntity
-import org.jetbrains.exposed.dao.UUIDEntityClass
-import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.java.UUIDEntity
+import org.jetbrains.exposed.v1.dao.java.UUIDEntityClass
 import java.util.*
 
 // "Entity" is equivalent to DAO (Data Access Object) in Exposed

@@ -2,10 +2,6 @@ package org.bscm.plugins
 
 import io.ktor.server.application.*
 import io.ktor.server.config.*
-import io.lettuce.core.RedisClient
-import io.lettuce.core.RedisURI
-import org.bscm.clients.*
-import org.bscm.models.dto.PreviewResponse
 import org.bscm.models.interfaces.*
 import org.bscm.repository.*
 import org.bscm.services.*
@@ -13,17 +9,42 @@ import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.HMACService
 import org.bscm.services.auth.JWTService
-import org.bscm.services.preview.PreviewService
 import org.bscm.services.preview.resolvers.DeezerPreviewResolver
 import org.bscm.services.preview.resolvers.ItunesPreviewResolver
 import org.bscm.services.preview.resolvers.PreviewResolverRegistry
-import org.koin.core.qualifier.named
+import org.bscm.services.track.TrackInfoService
+import org.bscm.services.track.clients.*
+import org.bscm.storage.S3StorageAdapter
+import org.bscm.storage.StaticUrlStorageAdapter
+import org.bscm.storage.StorageService
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
 
 fun Application.configureDI() {
     val config = environment.config
+
+    // Keep lightweight tests working when external-service configuration is absent.
+    val requiredKeys = listOf(
+        "jwt.secret",
+        "discord.clientId",
+        "discord.clientSecret",
+        "discord.redirectUri",
+        "discord.botToken",
+        "workshop.webhookId",
+        "workshop.webhookToken",
+        "workshop.channelId",
+        "lastfm.apiKey",
+        "google.clientId",
+        "google.clientSecret",
+        "google.redirectUri",
+    )
+
+    if (requiredKeys.any { config.propertyOrNull(it) == null }) {
+        log.warn("Skipping DI/Koin installation: external service configuration is incomplete")
+        return
+    }
+
     install(Koin) {
         slf4jLogger()
         modules(mainModule(config))
@@ -34,25 +55,6 @@ fun mainModule(config: ApplicationConfig) = module {
     // HTTP Client & JSON
     single { applicationHttpClient }
     single { jsonClient }
-
-    val uri = RedisURI.Builder
-        .redis(config.property("redis.host").getString(), config.property("redis.port").getString().toInt())
-        .withAuthentication("default", config.property("redis.password").getString())
-        .build()
-
-    // Redis
-    single {
-        RedisClient.create(uri)
-    }
-
-    // Cache Repository for PreviewResponse
-    single<CacheRepository<PreviewResponse>> {
-        RedisCacheRepository(
-            redisClient = get(),
-            json = get(),
-            serializer = PreviewResponse.serializer()
-        )
-    }
 
     // API Clients
     single { DeezerClient(client = get(), json = get()) }
@@ -66,17 +68,54 @@ fun mainModule(config: ApplicationConfig) = module {
     }
     single { OdesliClient(client = get(), json = get()) }
     single { MusicbrainzClient(client = get(), json = get()) }
+    single {
+        MusicLinkClient(
+            client = get(),
+            json = get(),
+            apiKey = config.propertyOrNull("musiclink.apiKey")?.getString()
+        )
+    }
 
     // Repositories
-    single<IChartRepository> { ChartRepository() }
+    single {
+        val assetsConfig = config.config("assets")
+        val publicBucket = assetsConfig.propertyOrNull("publicBucket")?.getString() ?: "public"
+        val publicBaseUrl = assetsConfig.propertyOrNull("publicBaseUrl")?.getString() ?: "https://bscm-assets.s3.amazonaws.com"
+
+        val adapter = if (assetsConfig.propertyOrNull("s3.endpoint") != null &&
+            assetsConfig.propertyOrNull("s3.accessKey") != null &&
+            assetsConfig.propertyOrNull("s3.secretKey") != null
+        ) {
+            S3StorageAdapter(
+                endpoint = assetsConfig.property("s3.endpoint").getString(),
+                accessKey = assetsConfig.property("s3.accessKey").getString(),
+                secretKey = assetsConfig.property("s3.secretKey").getString(),
+                region = assetsConfig.propertyOrNull("s3.region")?.getString() ?: "us-east-1",
+                publicBaseUrl = publicBaseUrl,
+            )
+        } else {
+            StaticUrlStorageAdapter(publicBaseUrl = publicBaseUrl)
+        }
+
+        StorageService(
+            adapter = adapter,
+            publicBucket = publicBucket,
+        )
+    }
+
+    single { CatalogItemRepository() }
+    single { AlbumRepository() }
+    single { TrackRepository(storageService = get()) }
+    single { BundleUrlCacheRepository() }
+    single<IChartRepository> { ChartRepository(get(), get(), get(), get(), get()) }
     single<IContributorRepository> { ContributorRepository() }
-    single<IChangelogRepository> { ChangelogRepository() }
     single<IVersionRepository> { VersionRepository() }
-    single<ITourPassRepository> { TourPassRepository(get()) }
-    single<IThemeRepository> { ThemeRepository() }
-    single<ICollectionRepository> { CollectionRepository(get(), get(), get()) }
+    single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get(), get()) }
     single<IActivityRepository> { ActivityRepository() }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
+    single<ITourPassRepository> { TourPassRepository(get(), get(), get()) }
+    single<IThemeRepository> { ThemeRepository(get(), get()) }
+    single<IChangelogRepository> { ChangelogRepository() }
     single {
         JWTService(
             secret = config.property("jwt.secret").getString()
@@ -105,6 +144,7 @@ fun mainModule(config: ApplicationConfig) = module {
             webhookToken = config.property("workshop.webhookToken").getString(),
             botToken = config.property("discord.botToken").getString(),
             channelId = config.property("workshop.channelId").getString(),
+            guildId = config.property("workshop.guildId").getString(),
         )
     }
     single {
@@ -113,21 +153,34 @@ fun mainModule(config: ApplicationConfig) = module {
             channelId = config.property("workshop.channelId").getString(),
         )
     }
-    single(qualifier = named("support")) {
-        UploadService(
-            webhookId = config.property("support.webhookId").getString(),
-            webhookToken = config.property("support.webhookToken").getString(),
+    single {
+        BundleDownloadService(
+            cacheRepository = get(),
+            client = get(),
             botToken = config.property("discord.botToken").getString(),
-            channelId = config.property("support.channelId").getString(),
+            channelId = config.property("workshop.channelId").getString(),
         )
+    }
+    single {
+        AudioPreviewService(
+            registry = get(),
+            storageService = get(),
+            client = get()
+        )
+    }
+    single {
+        PublishEventService()
     }
     single {
         ChartPublishService(
             chartRepository = get(),
             uploadService = get(),
-            // supportUploadService = get(qualifier = named("support")),
-            mediaInfoService = get(),
-            activityRepository = get()
+            storageService = get(),
+            trackInfoService = get(),
+            audioPreviewService = get(),
+            activityRepository = get(),
+            publishEventService = get(),
+            albumRepository = get(),
         )
     }
     single {
@@ -135,6 +188,7 @@ fun mainModule(config: ApplicationConfig) = module {
             tourPassRepository = get(),
             chartRepository = get(),
             uploadService = get(),
+            storageService = get(),
             activityRepository = get(),
         )
     }
@@ -142,6 +196,7 @@ fun mainModule(config: ApplicationConfig) = module {
         ThemePublishService(
             themeRepository = get(),
             uploadService = get(),
+            storageService = get(),
             activityRepository = get(),
         )
     }
@@ -161,12 +216,13 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
     single {
-        MediaInfoService(
+        TrackInfoService(
             itunes = get(),
             deezer = get(),
             lastFm = get(),
             odesli = get(),
-            musicbrainz = get()
+            musicbrainz = get(),
+            musicLink = get()
         )
     }
     single {
@@ -175,15 +231,12 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
     single {
-        PreviewService(
-            registry = get(),
-            cache = get(),
-        )
-    }
-    single {
         InteractionResponseService(
             botToken = config.property("discord.botToken").getString(),
             applicationId = config.property("discord.clientId").getString(),
         )
+    }
+    single {
+        TrackCleanupService(storageService = get())
     }
 }

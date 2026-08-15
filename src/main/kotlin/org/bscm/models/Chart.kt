@@ -1,39 +1,59 @@
-@file:UseSerializers(LocalDateTimeSerializer::class)
+@file:UseSerializers(LocalDateTimeSerializer::class, UUIDSerializer::class)
 
 package org.bscm.models
 
+import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
-import org.bscm.models.enums.Genre
+import org.bscm.models.enums.CatalogItemStatus
+import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.enums.Difficulty
+import org.bscm.models.enums.Visibility
 import org.bscm.serialization.LocalDateTimeSerializer
-import java.time.LocalDateTime
-
-// SS = Server-side gathered fields for convenience
+import org.bscm.serialization.UUIDSerializer
+import java.util.*
 
 @Serializable
 @SerialName("chart")
 data class Chart(
-    val artist: String,
-    val track: String,
-    val album: String?,
-    val genre: Genre? = null,
-    val trackUrls: List<StreamingLink> = emptyList(),
-    val trackPreviewUrl: String? = null,
-    val versions: List<Version> = emptyList(),
-    val latestVersion: Version?, // SS
+    override val id: String,
+    override val type: CatalogItemType = CatalogItemType.CHART,
+    override val status: CatalogItemStatus,
+    override val visibility: Visibility,
 
-    override val contributors: List<Contributor> = emptyList(),
+    override val isFeatured: Boolean,
+
+    override val downloadsSum: Int,
+
+    override val contributors: List<Contributor>,
 
     override val createdAt: LocalDateTime,
-    override val updatedAt: LocalDateTime, // SS
-    override val likedAt: LocalDateTime?, // SS
-    override val bookmarkedAt: LocalDateTime?, // SS
+    override val publishedAt: LocalDateTime?,
+    override val updatedAt: LocalDateTime?,
 
-    override val id: String,
-    override val contentId: String,
-    override val coverUrl: String,
-    override val isPublic: Boolean,
-    override val isFeatured: Boolean,
-    override val downloadsSum: Int, // SS
-) : CatalogItem
+    override val likedAt: LocalDateTime?,
+    override val bookmarkedAt: LocalDateTime?,
+
+    override val previewVideoId: String?,
+
+    override val discordChannelId: String?,
+    override val discordMessageId: String?,
+    override val authorId: UUID?,
+
+    val track: Track,
+
+    override val versionsCount: Int,
+    override val bundleHash: String?,
+
+    val difficulty: Difficulty,
+    val notesAmount: Int,
+    val effectsAmount: Int,
+
+    val isDeluxe: Boolean,
+    val isExplicit: Boolean,
+
+    val changelog: List<Changelog>,
+
+    override val latestVersion: Version?
+) : CatalogItem, Versionable

@@ -8,7 +8,7 @@ import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.dto.user.UserProfileCounts
-import org.bscm.models.enums.CollectionKind
+import org.bscm.models.enums.*
 import java.util.*
 
 interface IUserRepository {
@@ -38,6 +38,7 @@ interface IUserRepository {
         userId: UUID,
         requestingUserId: UUID?,
         query: String?,
+        sortBy: SortOption? = null,
         limit: Int,
         offset: Int
     ): List<CatalogItem>
@@ -51,6 +52,18 @@ interface IUserRepository {
     ): List<CatalogItem>
 
     suspend fun getProfileCounts(userId: UUID, followerCount: Int, followingCount: Int, requestedCounts: Set<String> = emptySet()): UserProfileCounts
+
+    suspend fun getUserUploads(
+        userId: UUID,
+        types: List<CatalogItemType>?,
+        query: String?,
+        sortBy: SortOption?,
+        genres: List<Genre>? = null,
+        difficulties: List<Difficulty>? = null,
+        isDeluxe: Boolean? = null,
+        limit: Int,
+        offset: Int
+    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>>
 
     suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int>
 

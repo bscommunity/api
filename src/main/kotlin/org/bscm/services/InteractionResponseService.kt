@@ -7,11 +7,11 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import org.bscm.clients.applicationHttpClient
-import org.bscm.clients.jsonClient
 import org.bscm.interactions.ActionRow
 import org.bscm.interactions.Embed
 import org.bscm.interactions.WebhookPayload
+import org.bscm.services.track.clients.applicationHttpClient
+import org.bscm.services.track.clients.jsonClient
 
 /**
  * Service to handle Discord interaction responses including deferred responses and follow-ups.

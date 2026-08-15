@@ -7,11 +7,12 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.dto.user.ContentCounts
+import org.bscm.models.dto.user.CatalogCounts
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.ItemsPage
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.enums.ActivityType
+import org.bscm.models.enums.SortOption
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.CollectionService
@@ -44,7 +45,6 @@ fun Route.userRoutes(
         }
 
         authenticate("auth-bearer", optional = true) {
-            install(org.bscm.plugins.UserContext)
 
             /**
              * Get user profile header by username.
@@ -342,7 +342,7 @@ fun Route.userRoutes(
 
                 println("Fetched ${charts.size} charts for user $userId (requester: $requester, limit: $limit, offset: $offset)")
 
-                call.respond(ItemsPage(charts, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
+                call.respond(ItemsPage(charts, CatalogCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
             }
 
             get("{id}/tourpasses") {
@@ -351,17 +351,21 @@ fun Route.userRoutes(
 
                 val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
                 val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+                val query = call.request.queryParameters["query"]?.takeIf { it.isNotBlank() }
+                val sortBy = call.request.queryParameters["sortBy"]
+                    ?.let { runCatching { SortOption.valueOf(it) }.getOrNull() }
 
                 val items = userRepository.getUserTourPasses(
                     userId = userId,
                     requestingUserId = requester,
-                    query = null,
+                    query = query,
+                    sortBy = sortBy,
                     limit = limit,
                     offset = offset
                 )
 
                 val libraryCounts = userRepository.getLibraryCounts(userId)
-                call.respond(ItemsPage(items, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
+                call.respond(ItemsPage(items, CatalogCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
             }
 
             get("{id}/themes") {
@@ -380,7 +384,7 @@ fun Route.userRoutes(
                 )
 
                 val libraryCounts = userRepository.getLibraryCounts(userId)
-                call.respond(ItemsPage(items, ContentCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
+                call.respond(ItemsPage(items, CatalogCounts(libraryCounts.first, libraryCounts.second, libraryCounts.third)))
             }
 
             /**
@@ -405,7 +409,7 @@ fun Route.userRoutes(
                 val (limit, offset) = call.getPagination()
 
                 val (collections, total) = collectionService.getUserCollections(userId, limit, offset, !isMe)
-                call.respond(ItemsPage(collections, ContentCounts(collections = total)) )
+                call.respond(ItemsPage(collections, CatalogCounts(collections = total)) )
             }
         }
     }

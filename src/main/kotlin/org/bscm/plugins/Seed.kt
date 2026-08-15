@@ -3,8 +3,7 @@ package org.bscm.plugins
 import io.ktor.server.application.*
 import io.ktor.util.logging.*
 import kotlinx.coroutines.*
-import org.bscm.models.Changelog
-import org.bscm.models.StreamingLink
+import org.bscm.models.StreamingRef
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
@@ -16,6 +15,7 @@ import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.models.interfaces.*
 import org.bscm.utils.NanoIdUtils
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.koin.ktor.ext.inject
 import java.util.*
 import kotlin.random.Random
@@ -121,16 +121,16 @@ private suspend fun generateRandomCharts(
                     val chart = chartRepository.createChart(
                         userId = ownerId,
                         chart = CreateChartRequest(
-                            contentId = NanoIdUtils.generate(),
+                            catalogId = NanoIdUtils.generate(),
                             artist = getRandomArtist(),
                             track = getRandomTrack(),
                             album = if (Random.nextBoolean()) getRandomAlbum() else null,
                             trackUrls = listOf(
-                                StreamingLink(
+                                StreamingRef(
                                     platform = StreamingPlatform.SPOTIFY,
                                     url = "https://open.spotify.com/track/${getRandomId()}",
                                 ),
-                                StreamingLink(
+                                StreamingRef(
                                     platform = StreamingPlatform.YOUTUBE_MUSIC,
                                     url = "https://www.youtube.com/watch?v=${getRandomId()}",
                                 ),
@@ -140,9 +140,10 @@ private suspend fun generateRandomCharts(
                             difficulty = difficulties.random(),
                             isDeluxe = Random.nextBoolean(),
                             isExplicit = Random.nextBoolean(),
-                            genre = Genre.entries.toTypedArray().random(),
+                            genres = listOf(Genre.entries.random()),
                             bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
                             previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
+                            fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
                             duration = Random.nextFloat() * 4 + 2, // 2-6 minutes
                             notesAmount = Random.nextInt(100, 1000),
                             effectsAmount = Random.nextInt(10, 100),
@@ -159,22 +160,27 @@ private suspend fun generateRandomCharts(
                             if (Random.nextBoolean()) {
                                 val additionalVersionsCount = Random.nextInt(1, 3)
                                 repeat(additionalVersionsCount) {
-                                    versionRepository.addVersion(
-                                        chartId = chart.id.toULong(),
-                                        CreateVersionRequest(
-                                            track = chart.track,
-                                            artist = chart.artist,
-                                            duration = Random.nextFloat() * 4 + 2,
-                                            notesAmount = Random.nextInt(100, 1000),
-                                            effectsAmount = Random.nextInt(10, 100),
-                                            bpm = Random.nextInt(80, 180),
-                                            difficulty = difficulties.random(),
-                                            isDeluxe = Random.nextBoolean(),
-                                            isExplicit = Random.nextBoolean(),
-                                            bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                                            previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
+                                    val seedBundleHash = (1..64).map { "0123456789abcdef"[Random.nextInt(16)] }.joinToString("")
+                                    suspendTransaction {
+                                        versionRepository.addVersion(
+                                            catalogItemId = chart.id,
+                                            CreateVersionRequest(
+                                                track = chart.track.title,
+                                                artist = chart.track.artist,
+                                                duration = Random.nextFloat() * 4 + 2,
+                                                notesAmount = Random.nextInt(100, 1000),
+                                                effectsAmount = Random.nextInt(10, 100),
+                                                bpm = Random.nextInt(80, 180),
+                                                difficulty = difficulties.random(),
+                                                isDeluxe = Random.nextBoolean(),
+                                                isExplicit = Random.nextBoolean(),
+                                                bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
+                                                previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
+                                                fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
+                                            ),
+                                            bundleHash = seedBundleHash,
                                         )
-                                    )
+                                    }
                                 }
                                 log.info("Added additional versions for chart ID: ${chart.id}")
                             }
@@ -185,23 +191,20 @@ private suspend fun generateRandomCharts(
                             val contributorsCount = Random.nextInt(1, 4)
                             val contributors = userIds.filter { it != ownerId }.shuffled().take(contributorsCount)
                             contributorRepository.addContributors(
-                                chart.id.toULong(),
-                                contributors.map { SimplifiedContributor(it, listOf(contributorRoles.random())) }
+                                chart.id,
+                                contributors.map { SimplifiedContributor(it, contributorRoles.random()) }
                             )
                             log.info("Added contributors for chart ID: ${chart.id}")
                         }
 
-                        // Add known issues randomly
+                        // Add changelog randomly
                         val issueJob = launch {
                             if (Random.nextBoolean()) {
                                 val issuesCount = Random.nextInt(1, 3)
                                 repeat(issuesCount) {
                                     knownIssueRepository.addIssue(
-                                        chart.id.toULong(),
-                                        Changelog(
-                                            id = UUID.randomUUID(),
-                                            description = getRandomIssue(),
-                                        )
+                                        chart.id,
+                                        description = "${getRandomIssue()} (Generated for seeding)"
                                     )
                                 }
                                 log.info("Added known issues for chart ID: ${chart.id}")

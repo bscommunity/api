@@ -3,7 +3,7 @@ package org.bscm.models.dto
 import kotlinx.serialization.Serializable
 import org.bscm.models.enums.PreviewProvider
 import org.bscm.serialization.InstantSerializer
-import java.time.Instant
+import kotlin.time.Instant
 
 @Serializable
 data class PreviewResponse(

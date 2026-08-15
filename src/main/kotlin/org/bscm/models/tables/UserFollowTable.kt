@@ -1,16 +1,18 @@
 package org.bscm.models.tables
 
-import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.datetime
-import java.time.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.core.ReferenceOption
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.datetime.datetime
+import kotlin.time.Clock
 
 object UserFollowTable : Table("user_follows") {
     val follower = reference("follower_id", UserTable, onDelete = ReferenceOption.CASCADE).index()
     val followed = reference("followed_id", UserTable, onDelete = ReferenceOption.CASCADE).index()
 
     val createdAt = datetime("created_at")
-        .clientDefault { LocalDateTime.now() }
+        .clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }
 
     override val primaryKey = PrimaryKey(follower, followed)
 }

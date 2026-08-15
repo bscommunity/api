@@ -7,5 +7,7 @@ enum class SortOption {
     WEEKLY_RANK,
     LAST_UPDATED,
     MOST_DOWNLOADED,
-    MOST_LIKED
+    MOST_LIKED,
+    ALPHA_ASC,
+    ALPHA_DESC
 }

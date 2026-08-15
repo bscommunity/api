@@ -1,126 +1,263 @@
 package org.bscm.repository
 
-import io.ktor.server.plugins.*
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Chart
-import org.bscm.models.StreamingLink
+import org.bscm.models.Contributor
+import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
-import org.bscm.models.dao.ContentEntity
+import org.bscm.models.dao.CatalogItemEntity
+import org.bscm.models.dao.ContributorEntity
 import org.bscm.models.dao.TourPassEntity
 import org.bscm.models.dao.UserEntity
-import org.bscm.models.enums.ContentType
+import org.bscm.models.enums.CatalogItemStatus
+import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.enums.CollectionKind
+import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
-import org.bscm.models.tables.TourPassChartTable
-import org.bscm.models.tables.TourPassStreamingLinkTable
-import org.bscm.models.tables.TourPassTable
+import org.bscm.models.tables.*
+import org.bscm.storage.StorageService
 import org.bscm.utils.UserStatsUtils
-import org.bscm.utils.retryOnConflict
-import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import java.time.LocalDateTime
+import org.bscm.utils.flushEntityCache
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
+import kotlin.time.Clock
 
 class TourPassRepository(
-    private val chartRepository: IChartRepository
-) : BaseRepository(), ITourPassRepository {
+    private val chartRepository: IChartRepository,
+    private val catalogItemRepository: CatalogItemRepository,
+    private val storageService: StorageService,
+) : ITourPassRepository {
 
-    private fun daoToTourPass(
-        entity: TourPassEntity,
-        charts: List<Chart>,
-        likedAt: LocalDateTime? = null,
-        bookmarkedAt: LocalDateTime? = null
-    ): TourPass {
-        val playlistUrls = entity.playlistUrls.map {
-            StreamingLink(platform = it.platform, url = it.url)
+    /**
+     * Fetches aggregate likes/bookmarks counts for a batch of catalog items.
+     * Returns a map of catalogId -> (likesCount, bookmarksCount).
+     * Must be called within a transaction.
+     */
+    private fun fetchAggregateStats(catalogIds: List<String>): Map<String, Pair<Int, Int>> {
+        if (catalogIds.isEmpty()) return emptyMap()
+
+        val statsRows = CollectionItemTable
+            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+            .select(CollectionItemTable.catalogId, CollectionTable.kind, CollectionTable.userId)
+            .where {
+                (CollectionTable.kind inList listOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS, CollectionKind.USER)) and
+                    (CollectionItemTable.catalogId inList catalogIds)
+            }
+            .toList()
+
+        return catalogIds.associateWith { catalogId ->
+            val rows = statsRows.filter { it[CollectionItemTable.catalogId].value == catalogId }
+            val likesCount = rows.filter { it[CollectionTable.kind] == CollectionKind.LIKES }
+                .map { it[CollectionTable.userId] }
+                .distinct()
+                .size
+            val bookmarksCount = rows.filter {
+                it[CollectionTable.kind] == CollectionKind.BOOKMARKS || it[CollectionTable.kind] == CollectionKind.USER
+            }
+                .map { it[CollectionTable.userId] }
+                .distinct()
+                .size
+            likesCount to bookmarksCount
         }
+    }
 
+    private fun fetchContributorsByCatalogIds(catalogIds: List<String>): Map<String, List<Contributor>> {
+        if (catalogIds.isEmpty()) return emptyMap()
+
+        val entityIds = catalogIds.map { EntityID(it, CatalogItemTable) }
+        val rows = ContributorTable
+            .innerJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
+            .select(ContributorTable.columns + UserTable.columns)
+            .where { ContributorTable.catalogItemId inList entityIds }
+            .toList()
+
+        return rows.groupBy { it[ContributorTable.catalogItemId].value }
+            .mapValues { (_, contributorRows) ->
+                contributorRows.map { row ->
+                    ContributorRepository.contributorEntityToContributor(
+                        ContributorEntity.wrapRow(row),
+                        UserEntity.wrapRow(row),
+                    )
+                }
+            }
+    }
+
+    private fun buildTourPass(
+        entity: TourPassEntity,
+        catalogItem: CatalogItemEntity,
+        charts: List<Chart>,
+        likesCount: Int,
+        bookmarksCount: Int,
+        likedAt: LocalDateTime? = null,
+        bookmarkedAt: LocalDateTime? = null,
+        contributors: List<Contributor>,
+    ): TourPass {
         return TourPass(
-            id = entity.id.value.toString(),
-            contentId = entity.content.id.value,
             name = entity.name,
             description = entity.description,
-            artist = entity.artist,
-            coverUrl = entity.coverUrl,
             charts = charts,
-            playlistUrls = playlistUrls,
-            isPublic = entity.isPublic,
-            isFeatured = entity.isFeatured,
+            coverUrl = storageService.tourPassCoverUrl(entity.id.value),
+            likesCount = likesCount,
+            bookmarksCount = bookmarksCount,
             likedAt = likedAt,
             bookmarkedAt = bookmarkedAt,
-            downloadsSum = entity.downloadsSum,
-            createdAt = entity.createdAt,
-            updatedAt = entity.latestPublishedAt ?: LocalDateTime.now()
+            contributors = contributors,
+            createdAt = catalogItem.createdAt,
+            publishedAt = catalogItem.publishedAt,
+            updatedAt = catalogItem.updatedAt,
+            id = entity.id.value,
+            type = CatalogItemType.TOUR_PASS,
+            status = catalogItem.status,
+            visibility = catalogItem.visibility,
+            isFeatured = catalogItem.isFeatured,
+            downloadsSum = catalogItem.downloadsSum,
+            previewVideoId = catalogItem.previewVideoId,
+            discordChannelId = catalogItem.discordChannelId,
+            discordMessageId = catalogItem.discordMessageId,
+            authorId = catalogItem.author?.id?.value,
         )
+    }
+
+    private fun getOrderedChartIds(tourPassId: String): List<String> {
+        return TourPassChartTable
+            .select(TourPassChartTable.chartId)
+            .where { TourPassChartTable.tourPassId eq EntityID(tourPassId, TourPassTable) }
+            .orderBy(TourPassChartTable.position)
+            .map { it[TourPassChartTable.chartId].value }
+    }
+
+    private fun getOrderedChartIdsByTourPass(tourPassIds: List<String>): Map<String, List<String>> {
+        if (tourPassIds.isEmpty()) return emptyMap()
+
+        val entityIds = tourPassIds.map { EntityID(it, TourPassTable) }
+        return TourPassChartTable
+            .select(TourPassChartTable.tourPassId, TourPassChartTable.chartId)
+            .where { TourPassChartTable.tourPassId inList entityIds }
+            .orderBy(TourPassChartTable.position)
+            .toList()
+            .groupBy { it[TourPassChartTable.tourPassId].value }
+            .mapValues { (_, rows) -> rows.map { it[TourPassChartTable.chartId].value } }
+    }
+
+    private suspend fun loadChartsForTourPass(entity: TourPassEntity, userId: UUID?): List<Chart> {
+        val chartIds = getOrderedChartIds(entity.id.value)
+        if (chartIds.isEmpty()) return emptyList()
+
+        val charts = chartRepository.getChartsByCatalogIds(
+            catalogIds = chartIds,
+            addons = ChartRepository.ChartAddons(streamingLinks = true),
+            requestingUserId = userId,
+        ).associateBy { it.id }
+
+        return chartIds.mapNotNull { charts[it] }
+    }
+
+    private suspend fun buildTourPassFromEntity(entity: TourPassEntity, userId: UUID?): TourPass {
+        val charts = loadChartsForTourPass(entity, userId)
+        val stats = fetchAggregateStats(listOf(entity.id.value))
+        val (likesCount, bookmarksCount) = stats[entity.id.value] ?: (0 to 0)
+        val (likedAt, bookmarkedAt) = if (userId != null) {
+            UserStatsUtils.fetchUserStats(userId, listOf(entity.id.value))[entity.id.value] ?: (null to null)
+        } else (null to null)
+        val contributors = fetchContributorsByCatalogIds(listOf(entity.id.value))[entity.id.value].orEmpty()
+        val catalogItem = CatalogItemTable.selectAll()
+            .where { CatalogItemTable.id eq EntityID(entity.id.value, CatalogItemTable) }
+            .firstOrNull()
+            ?.let { CatalogItemEntity.wrapRow(it) }
+            ?: error("Catalog item not found for tour pass ${entity.id.value}")
+        return buildTourPass(entity, catalogItem, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt, contributors)
     }
 
     override suspend fun getTourPasses(
         userId: UUID?,
-        contentIds: List<String>?,
+        catalogIds: List<String>?,
         search: String?,
         limit: Int?,
-        offset: Int?
-    ): List<TourPass> = newSuspendedTransaction {
+        offset: Int?,
+    ): List<TourPass> = suspendTransaction {
+        val pageSize = limit ?: 20
+        val pageOffset = offset ?: 0
+
         val query = TourPassTable.selectAll()
 
-        // Anonymous users see only public items; authenticated users also see their own private items.
-        query.andWhere {
-            if (userId == null) {
-                TourPassTable.isPublic eq true
-            } else {
-                (TourPassTable.isPublic eq true) or (TourPassTable.authorId eq userId)
+        when {
+            catalogIds != null && catalogIds.isNotEmpty() && search != null -> {
+                query.where {
+                    (TourPassTable.id inList catalogIds.map { EntityID(it, TourPassTable) }) and
+                    ((TourPassTable.name like "%${search}%") or (TourPassTable.description like "%${search}%"))
+                }
+            }
+            catalogIds != null && catalogIds.isNotEmpty() -> {
+                query.where { TourPassTable.id inList catalogIds.map { EntityID(it, TourPassTable) } }
+            }
+            search != null -> {
+                query.where { (TourPassTable.name like "%${search}%") or (TourPassTable.description like "%${search}%") }
             }
         }
 
-        if (!contentIds.isNullOrEmpty()) {
-            query.andWhere { TourPassTable.contentId inList contentIds }
+        query.orderBy(TourPassTable.id to SortOrder.DESC)
+        val paged = query.limit(pageSize).offset(pageOffset.toLong()).toList()
+            .map { TourPassEntity.wrapRow(it) }
+
+        if (paged.isEmpty()) return@suspendTransaction emptyList()
+
+        val allTourPassIds = paged.map { it.id.value }
+        val allStats = fetchAggregateStats(allTourPassIds)
+
+        val chartIdsByTourPass = getOrderedChartIdsByTourPass(allTourPassIds)
+        val allChartIds = chartIdsByTourPass.values.flatten().distinct()
+
+        val chartMap = if (allChartIds.isNotEmpty()) {
+            chartRepository.getChartsByCatalogIds(
+                catalogIds = allChartIds,
+                addons = ChartRepository.ChartAddons(streamingLinks = true),
+                requestingUserId = userId,
+            ).associateBy { it.id }
+        } else {
+            emptyMap()
         }
 
-        if (!search.isNullOrBlank()) {
-            query.andWhere {
-                (TourPassTable.name like "%$search%") or
-                        (TourPassTable.artist like "%$search%")
-            }
-        }
+        val userStats = if (userId != null && paged.isNotEmpty()) {
+            UserStatsUtils.fetchUserStats(userId, allTourPassIds)
+        } else emptyMap()
 
-        // Order by latest published at descending
-        query.orderBy(TourPassTable.latestUpdatedAt to SortOrder.DESC)
+        val contributorsByCatalogId = fetchContributorsByCatalogIds(allTourPassIds)
 
-        if (limit != null) {
-            query.limit(limit).offset(offset?.toLong() ?: 0)
-        }
+        val catalogItemsById = CatalogItemTable.selectAll()
+            .where { CatalogItemTable.id inList allTourPassIds.map { EntityID(it, CatalogItemTable) } }
+            .toList()
+            .associate { it[CatalogItemTable.id].value to CatalogItemEntity.wrapRow(it) }
 
-        val tourPassEntities = TourPassEntity.wrapRows(query).toList()
-
-        // Fetch user stats for all tour passes in one query
-        val tourPassContentIds = tourPassEntities.map { it.content.id.value }
-        val userStats = UserStatsUtils.fetchUserStats(getUserContext()?.userId, tourPassContentIds)
-
-        tourPassEntities.map { tourPassEntity ->
-            val charts = getChartsForTourPass(tourPassEntity.id.value, null)
-            val contentId = tourPassEntity.content.id.value
-            val stats = userStats[contentId] ?: Pair(null, null)
-            daoToTourPass(tourPassEntity, charts, stats.first, stats.second)
+        paged.map { entity ->
+            val charts = chartIdsByTourPass[entity.id.value].orEmpty().mapNotNull { chartMap[it] }
+            val (likesCount, bookmarksCount) = allStats[entity.id.value] ?: (0 to 0)
+            val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
+            val catalogItem = catalogItemsById[entity.id.value]
+                ?: error("Catalog item not found for tour pass ${entity.id.value}")
+            buildTourPass(
+                entity,
+                catalogItem,
+                charts,
+                likesCount,
+                bookmarksCount,
+                likedAt,
+                bookmarkedAt,
+                contributorsByCatalogId[entity.id.value].orEmpty(),
+            )
         }
     }
 
-    override suspend fun getTourPassById(id: ULong, userId: UUID?): TourPass? = newSuspendedTransaction {
-        val entity = TourPassEntity.findById(id) ?: return@newSuspendedTransaction null
-        if (!entity.isPublic && entity.authorId.value != userId) {
-            return@newSuspendedTransaction null
-        }
-        val charts = getChartsForTourPass(id, null)
-        daoToTourPass(entity, charts)
-    }
-
-    override suspend fun getAppTourPassById(contentId: String, userId: UUID?): TourPass? = newSuspendedTransaction {
-        val entity = TourPassEntity.find { TourPassTable.contentId eq contentId }.firstOrNull()
-            ?: return@newSuspendedTransaction null
-        if (!entity.isPublic && entity.authorId.value != userId) {
-            return@newSuspendedTransaction null
-        }
-        val charts = getChartsForTourPass(entity.id.value, null)
-        daoToTourPass(entity, charts)
+    override suspend fun getTourPassById(id: String, userId: UUID?): TourPass? = suspendTransaction {
+        TourPassEntity.findById(id)?.let { buildTourPassFromEntity(it, userId) }
     }
 
     override suspend fun createTourPass(
@@ -128,226 +265,130 @@ class TourPassRepository(
         name: String,
         description: String?,
         artist: String?,
-        coverUrl: String,
-        playlistUrls: List<StreamingLink>?,
-        chartIds: List<ULong>?,
-        id: ULong?
-    ): TourPass = newSuspendedTransaction {
-        // Create new content entry
-        val content = retryOnConflict {
-            ContentEntity.new {
-                this.type = ContentType.TOUR_PASS
-            }
-        }
-
-        val entity = if (id != null) {
-            TourPassEntity.new(id) {
-                this.content = content
-                this.name = name
-                this.description = description
-                this.artist = artist
-                this.coverUrl = coverUrl
-                this.isPublic = true
-                this.isFeatured = false
-                this.downloadsSum = 0
-                this.latestPublishedAt = LocalDateTime.now()
-                this.authorId = UserEntity[userId].id
+        playlistUrls: List<StreamingRef>?,
+        chartIds: List<String>?,
+        id: String?,
+    ): TourPass = suspendTransaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val catalogItem = if (id != null) {
+            CatalogItemEntity.new(id) {
+                this.type = CatalogItemType.TOUR_PASS
+                this.status = CatalogItemStatus.PUBLISHED
+                this.author = UserEntity[userId]
+                this.updatedAt = now
             }
         } else {
-            TourPassEntity.new {
-                this.content = content
-                this.name = name
-                this.description = description
-                this.artist = artist
-                this.coverUrl = coverUrl
-                this.isPublic = true
-                this.isFeatured = false
-                this.downloadsSum = 0
-                this.latestPublishedAt = LocalDateTime.now()
-                this.authorId = UserEntity[userId].id
+            CatalogItemEntity.new {
+                this.type = CatalogItemType.TOUR_PASS
+                this.status = CatalogItemStatus.PUBLISHED
+                this.author = UserEntity[userId]
+                this.updatedAt = now
             }
         }
 
-        syncPlaylistUrls(entity.id.value, playlistUrls)
-
-        chartIds?.let { ids ->
-            replaceTourPassCharts(entity.id.value, ids)
-            updateTourPassStats(entity.id.value)
+        val tourPass = TourPassEntity.new(catalogItem.id.value) {
+            this.name = name
+            this.description = description
+            this.artist = artist
         }
 
-        daoToTourPass(entity, emptyList())
+        ContributorEntity.new {
+            this.catalogItem = CatalogItemEntity[catalogItem.id.value]
+            this.user = UserEntity[userId]
+            this.role = ContributorRole.AUTHOR
+        }
+
+        flushEntityCache()
+
+        chartIds?.forEachIndexed { index, cid ->
+            TourPassChartTable.insertIgnore {
+                it[TourPassChartTable.tourPassId] = EntityID(tourPass.id.value, TourPassTable)
+                it[TourPassChartTable.chartId] = EntityID(cid, ChartTable)
+                it[TourPassChartTable.position] = index
+            }
+        }
+
+        buildTourPassFromEntity(tourPass, userId)
     }
 
     override suspend fun updateTourPass(
-        id: ULong,
+        id: String,
         userId: UUID,
         name: String?,
         description: String?,
         artist: String?,
-        coverUrl: String?,
-        playlistUrls: List<StreamingLink>?,
-        chartIds: List<ULong>?
-    ): TourPass = newSuspendedTransaction {
-        val entity = TourPassEntity.findById(id)
-            ?.takeIf { it.authorId.value == userId }
-            ?: throw NotFoundException("TourPass not found")
+        chartIds: List<String>?,
+    ): TourPass = suspendTransaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val entity = TourPassEntity.findByIdAndUpdate(id) { entity ->
+            name?.let { entity.name = it }
+            description?.let { entity.description = it }
+            artist?.let { entity.artist = it }
+        } ?: throw IllegalArgumentException("TourPass $id not found")
 
-        name?.let { entity.name = it }
-        description?.let { entity.description = it }
-        artist?.let { entity.artist = it }
-        coverUrl?.let { entity.coverUrl = it }
-        if (playlistUrls != null) syncPlaylistUrls(id, playlistUrls)
-
-        chartIds?.let { ids ->
-            replaceTourPassCharts(id, ids)
-            updateTourPassStats(id)
+        CatalogItemEntity.findByIdAndUpdate(id) {
+            it.updatedAt = now
         }
 
-        val charts = getChartsForTourPass(id, null)
-        daoToTourPass(entity, charts)
-    }
+        flushEntityCache()
 
-    override suspend fun setTourPassCharts(id: ULong, userId: UUID, chartIds: List<ULong>): TourPass = newSuspendedTransaction {
-        val entity = TourPassEntity.findById(id)
-            ?.takeIf { it.authorId.value == userId }
-            ?: throw NotFoundException("TourPass not found")
-
-        replaceTourPassCharts(id, chartIds)
-        updateTourPassStats(id)
-
-        val charts = getChartsForTourPass(id, null)
-        daoToTourPass(entity, charts)
-    }
-
-    override suspend fun deleteTourPass(id: ULong, userId: UUID): Boolean = newSuspendedTransaction {
-        val entity = TourPassEntity.findById(id)
-            ?.takeIf { it.authorId.value == userId }
-            ?: return@newSuspendedTransaction false
-        entity.delete()
-        true
-    }
-
-    private suspend fun getChartsForTourPass(tourPassId: ULong, userId: UUID?): List<Chart> {
-        val chartIds = TourPassChartTable
-            .selectAll()
-            .where { TourPassChartTable.tourPassId eq tourPassId }
-            .orderBy(TourPassChartTable.position to SortOrder.ASC)
-            .map { it[TourPassChartTable.chartId].value }
-
-        if (chartIds.isEmpty()) return emptyList()
-
-        // Use the real ChartRepository to get full chart details with versions, contributors, etc.
-        return chartRepository.getCharts(
-            filters = ChartRepository.ChartFilters(
-                chartIds = chartIds,
-                userId = userId
-            ),
-            addons = ChartRepository.ChartAddons(
-                versions = true,
-                streamingLinks = true,
-            )
-        ).first
-    }
-
-    override suspend fun addChartToTourPass(tourPassId: ULong, chartId: ULong): Boolean = newSuspendedTransaction {
-        // Check if tour pass exists
-        TourPassEntity.findById(tourPassId) ?: return@newSuspendedTransaction false
-
-        // Check if chart is already in tour pass
-        val existing = TourPassChartTable.selectAll()
-            .where { (TourPassChartTable.tourPassId eq tourPassId) and (TourPassChartTable.chartId eq chartId) }
-            .firstOrNull()
-
-        if (existing != null) return@newSuspendedTransaction false
-
-        // Add chart to tour pass
-        val nextPosition = TourPassChartTable
-            .select(TourPassChartTable.position.max())
-            .where { TourPassChartTable.tourPassId eq tourPassId }
-            .firstOrNull()
-            ?.get(TourPassChartTable.position.max())
-            ?.toString()
-            ?.toIntOrNull()
-            ?.let { it + 1 }
-            ?: 0
-
-        TourPassChartTable.insert {
-            it[TourPassChartTable.tourPassId] = tourPassId
-            it[TourPassChartTable.chartId] = chartId
-            it[TourPassChartTable.position] = nextPosition
-        }
-
-        // Update tour pass statistics
-        updateTourPassStats(tourPassId)
-        true
-    }
-
-    override suspend fun removeChartFromTourPass(tourPassId: ULong, chartId: ULong): Boolean = newSuspendedTransaction {
-        val deletedCount = TourPassChartTable.deleteWhere {
-            (TourPassChartTable.tourPassId eq tourPassId) and
-                    (TourPassChartTable.chartId eq chartId)
-        }
-
-        if (deletedCount > 0) {
-            reindexTourPassChartPositions(tourPassId)
-            updateTourPassStats(tourPassId)
-            true
-        } else {
-            false
-        }
-    }
-
-    private fun replaceTourPassCharts(tourPassId: ULong, chartIds: List<ULong>) {
-        TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq tourPassId }
-
-        chartIds.distinct().forEachIndexed { index, chartId ->
-            TourPassChartTable.insert {
-                it[TourPassChartTable.tourPassId] = tourPassId
-                it[TourPassChartTable.chartId] = chartId
-                it[TourPassChartTable.position] = index
-            }
-        }
-    }
-
-    private fun reindexTourPassChartPositions(tourPassId: ULong) {
-        val chartIds = TourPassChartTable
-            .select(TourPassChartTable.chartId, TourPassChartTable.position)
-            .where { TourPassChartTable.tourPassId eq tourPassId }
-            .orderBy(TourPassChartTable.position to SortOrder.ASC)
-            .map { it[TourPassChartTable.chartId].value }
-
-        chartIds.forEachIndexed { index, chartId ->
-            TourPassChartTable.update(
-                where = {
-                    (TourPassChartTable.tourPassId eq tourPassId) and
-                        (TourPassChartTable.chartId eq chartId)
+        chartIds?.let { newChartIds ->
+            TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq EntityID(id, TourPassTable) }
+            newChartIds.forEachIndexed { index, cid ->
+                TourPassChartTable.insertIgnore {
+                    it[TourPassChartTable.tourPassId] = EntityID(id, TourPassTable)
+                    it[TourPassChartTable.chartId] = EntityID(cid, ChartTable)
+                    it[TourPassChartTable.position] = index
                 }
-            ) {
+            }
+        }
+
+        buildTourPassFromEntity(entity, userId)
+    }
+
+    override suspend fun deleteTourPass(id: String, userId: UUID): Boolean = suspendTransaction {
+        CatalogItemEntity.findById(id)?.delete() ?: return@suspendTransaction false
+        true
+    }
+
+    override suspend fun setTourPassCharts(id: String, userId: UUID, chartIds: List<String>): TourPass = suspendTransaction {
+        TourPassEntity.findById(id) ?: throw IllegalArgumentException("TourPass $id not found")
+
+        TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq EntityID(id, TourPassTable) }
+        chartIds.forEachIndexed { index, cid ->
+            TourPassChartTable.insertIgnore {
+                it[TourPassChartTable.tourPassId] = EntityID(id, TourPassTable)
+                it[TourPassChartTable.chartId] = EntityID(cid, ChartTable)
                 it[TourPassChartTable.position] = index
             }
         }
+
+        buildTourPassFromEntity(TourPassEntity[id], userId)
     }
 
-    private suspend fun updateTourPassStats(tourPassId: ULong) = newSuspendedTransaction {
-        val charts = getChartsForTourPass(tourPassId, null)
+    override suspend fun addChartToTourPass(tourPassId: String, chartId: String): Boolean = suspendTransaction {
+        TourPassChartTable.insertIgnore {
+            it[TourPassChartTable.tourPassId] = EntityID(tourPassId, TourPassTable)
+            it[TourPassChartTable.chartId] = EntityID(chartId, ChartTable)
+        }.insertedCount > 0
+    }
 
-        TourPassEntity.findByIdAndUpdate(tourPassId) { entity ->
-            entity.downloadsSum = charts.sumOf { it.downloadsSum }
-            entity.latestPublishedAt = charts.maxOfOrNull { it.updatedAt } ?: LocalDateTime.now()
+    override suspend fun removeChartFromTourPass(tourPassId: String, chartId: String): Boolean = suspendTransaction {
+        TourPassChartTable.deleteWhere {
+            (TourPassChartTable.tourPassId eq EntityID(tourPassId, TourPassTable)) and
+                (TourPassChartTable.chartId eq EntityID(chartId, ChartTable))
+        } > 0
+    }
+
+    override suspend fun countTourPasses(search: String?): Int = suspendTransaction {
+        val query = TourPassTable.select(TourPassTable.id.count())
+        search?.let { s ->
+            query.where { (TourPassTable.name like "%${s}%") or (TourPassTable.description like "%${s}%") }
         }
+        query.toList().first()[TourPassTable.id.count()].toInt()
     }
 
-    private fun syncPlaylistUrls(tourPassId: ULong, playlistUrls: List<StreamingLink>?) {
-        TourPassStreamingLinkTable.deleteWhere { TourPassStreamingLinkTable.tourPassId eq tourPassId }
-        if (playlistUrls.isNullOrEmpty()) return
-
-        val streamingLinkIds = StreamingLinkRepositorySupport
-            .resolveOrCreateLinks(playlistUrls)
-            .ids
-
-        TourPassStreamingLinkTable.batchInsert(streamingLinkIds) { streamingLinkId ->
-            this[TourPassStreamingLinkTable.tourPassId] = tourPassId
-            this[TourPassStreamingLinkTable.streamingLinkId] = streamingLinkId
-        }
-    }
+	override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) = suspendTransaction {
+		catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
+	}
 }

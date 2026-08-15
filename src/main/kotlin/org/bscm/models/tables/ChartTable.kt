@@ -1,35 +1,22 @@
 package org.bscm.models.tables
 
-import org.bscm.models.enums.Genre
-import org.bscm.models.enums.PreviewProvider
-import org.jetbrains.exposed.sql.ReferenceOption
+import org.bscm.models.enums.Difficulty
+import org.jetbrains.exposed.v1.core.Column
+import org.jetbrains.exposed.v1.core.ReferenceOption
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.IdTable
 
-// CatalogItemTable brings contentId, contentId, coverUrl, isPublic, isFeatured, downloadsSum, latestPublishedAt, author
-object ChartTable : CatalogItemTable("charts") {
-    val artist = varchar("artist", 200)
-    val track = varchar("track", 200)
-    val album = varchar("album", 200).nullable()
-    val genre = enumerationByName("genres", 20, Genre::class).nullable()
-    val trackPreviewUrl = varchar("track_preview_url", 255).nullable()
+object ChartTable : IdTable<String>("charts") {
+    override val id: Column<EntityID<String>> = varchar("id", 10).entityId()
 
-    val previewProvider = enumerationByName(
-        "preview_provider",
-        20,
-        PreviewProvider::class
-    ).nullable()
+    val trackId = reference("track_id", TrackTable, onDelete = ReferenceOption.RESTRICT)
 
-    val previewProviderTrackId = varchar(
-        "preview_provider_track_id",
-        100
-    ).nullable()
+    val difficulty = enumerationByName("difficulty", 10, Difficulty::class)
+    val notesAmount = integer("notes_amount")
+    val effectsAmount = integer("effects_amount")
 
-    val normalizedArtist = varchar("normalized_artist", 200).nullable().index()
-    val normalizedTrack = varchar("normalized_track", 200).nullable().index()
-    val normalizedAlbum = varchar("normalized_album", 200).nullable().index()
+    val isDeluxe = bool("is_deluxe").default(false)
+    val isExplicit = bool("is_explicit").default(false)
 
-    val latestVersionId = reference("latest_version_id", VersionTable, ReferenceOption.CASCADE).nullable()
-
-    init {
-        index(false, normalizedArtist, normalizedTrack, normalizedAlbum)
-    }
+    override val primaryKey = PrimaryKey(id)
 }

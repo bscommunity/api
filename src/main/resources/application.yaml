@@ -16,7 +16,7 @@ jwt:
 hmac:
   secret: $HMAC_SECRET
 refresh:
-    secret: $REFRESH_SECRET
+  secret: $REFRESH_SECRET
 discord:
   clientId: $DISCORD_CLIENT_ID
   clientSecret: $DISCORD_CLIENT_SECRET
@@ -28,20 +28,21 @@ google:
   clientSecret: $GOOGLE_CLIENT_SECRET
   redirectUri: $GOOGLE_REDIRECT_URI
 lastfm:
-    apiKey: $LASTFM_API_KEY
+  apiKey: $LASTFM_API_KEY
 workshop:
   guildId: $WORKSHOP_GUILD_ID # optional (dev) for instant commands
   channelId: $WORKSHOP_CHANNEL_ID
   webhookId: $WORKSHOP_WEBHOOK_ID
   webhookToken: $WORKSHOP_WEBHOOK_TOKEN
-support:
-  guildId: $SUPPORT_GUILD_ID # optional (dev) for instant commands
-  channelId: $SUPPORT_CHANNEL_ID
-  webhookId: $SUPPORT_WEBHOOK_ID
-  webhookToken: $SUPPORT_WEBHOOK_TOKEN
 status:
   url: $STATUS_URL
-redis:
-  host: $REDIS_HOST
-  port: $REDIS_PORT
-  password: $REDIS_PASSWORD
+assets:
+  publicBucket: $ASSETS_PUBLIC_BUCKET
+  publicBaseUrl: $ASSETS_PUBLIC_BASE_URL
+  s3:
+    endpoint: $S3_ENDPOINT
+    accessKey: $S3_ACCESS_KEY
+    secretKey: $S3_SECRET_KEY
+    region: $S3_REGION
+cleanup:
+  secret: $CLEANUP_SECRET

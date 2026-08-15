@@ -1,11 +1,11 @@
 package org.bscm.models.tables
 
-import org.jetbrains.exposed.dao.id.UUIDTable
-import org.jetbrains.exposed.sql.javatime.datetime
+import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
+import org.jetbrains.exposed.v1.datetime.datetime
 
 object AccountTable : UUIDTable("accounts") {
     val provider = varchar("provider", 50)
-    // val providerAccountId = varchar("provider_account_id", 255).uniqueIndex()
+    val providerAccountId = varchar("provider_account_id", 255)
     val refreshToken = varchar("refresh_token", 255).nullable()
     val accessToken = varchar("access_token", 255).nullable()
     val expiresAt = datetime("expires_at").nullable()
@@ -15,6 +15,6 @@ object AccountTable : UUIDTable("accounts") {
     val userId = reference("user_id", UserTable).index()
 
     init {
-        uniqueIndex(provider, userId)
+        uniqueIndex(provider, providerAccountId)
     }
 }

@@ -5,6 +5,6 @@ import org.bscm.models.enums.ActionType
 
 @Serializable
 data class CreateCollectionItemRequest(
-    val contentId: String,
+    val catalogId: String,
     val action: ActionType
 )

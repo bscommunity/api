@@ -9,5 +9,5 @@ import java.util.*
 data class SimplifiedContributor(
     @Serializable(with = UUIDSerializer::class)
     val userId: UUID,
-    val roles: List<ContributorRole>
+    val role: ContributorRole
 )

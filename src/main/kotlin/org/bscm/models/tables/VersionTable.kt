@@ -1,40 +1,27 @@
 package org.bscm.models.tables
 
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.Json
-import org.bscm.models.Changelog
-import org.bscm.models.enums.Difficulty
-import org.jetbrains.exposed.dao.id.ULongIdTable
-import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.javatime.CurrentDateTime
-import org.jetbrains.exposed.sql.javatime.datetime
-import org.jetbrains.exposed.sql.json.jsonb
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.core.ReferenceOption
+import org.jetbrains.exposed.v1.core.dao.id.ULongIdTable
+import org.jetbrains.exposed.v1.datetime.datetime
+import kotlin.time.Clock
 
-object VersionTable : ULongIdTable("versions") {
-    val chartId = reference("chart_id", ChartTable, onDelete = ReferenceOption.CASCADE)
+object VersionTable : ULongIdTable("catalog_item_versions") {
+    val catalogItemId = reference("catalog_item_id", CatalogItemTable, onDelete = ReferenceOption.CASCADE).index()
 
-    val duration = float("duration")
-    val notesAmount = integer("notes_amount")
-    val effectsAmount = integer("effects_amount")
-    val bpm = integer("bpm")
-    val difficulty = enumerationByName("difficulty", 10, Difficulty::class)
-    val isDeluxe = bool("is_deluxe").default(false)
-    val isExplicit = bool("is_explicit").default(false)
+    val versionCode = integer("version_code")
     val downloadsAmount = integer("downloads_amount").default(0)
 
-    val bundleUrl = varchar("bundle_url", 255)
-    val previewUrl = varchar("preview_url", 100).nullable()
+    val fileSizeBytes = long("file_size_bytes")
+    val changelog = text("changelog").nullable()
 
-    val changelog = jsonb(
-        "changelog",
-        Json { ignoreUnknownKeys = true },
-        ListSerializer(Changelog.serializer())
-    ).default(emptyList())
+    val discordAttachmentId = varchar("discord_attachment_id", 255).nullable()
 
-    val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
+    val bundleHash = varchar("bundle_hash", 64).uniqueIndex()
+    val createdAt = datetime("created_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }
 
     init {
-        // Unique index to ensure only one version per chart at a given time
-        index(true, chartId, createdAt)
+        uniqueIndex(catalogItemId, versionCode)
     }
 }

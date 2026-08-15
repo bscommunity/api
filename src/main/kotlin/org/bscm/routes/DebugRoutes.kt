@@ -5,17 +5,25 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.util.logging.*
+import kotlinx.serialization.Serializable
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.plugins.UnauthorizedException
-import org.bscm.services.MediaInfoService
 import org.bscm.services.RefreshService
 import org.bscm.services.auth.JWTService
+import org.bscm.services.track.TrackInfoResult
+import org.bscm.services.track.TrackInfoService
 import java.util.*
+
+@Serializable
+data class TrackDebugResult(
+    val mediaInfo: TrackInfoResult,
+    val streamingLinks: TrackInfoService.StreamingLinksResult,
+)
 
 private val log = KtorSimpleLogger("DebugRoutes")
 
 fun Route.debugRoutes(
-    mediaInfoService: MediaInfoService,
+    trackInfoService: TrackInfoService,
     refreshService: RefreshService,
     jwtService: JWTService,
     chartRepository: IChartRepository,
@@ -34,7 +42,7 @@ fun Route.debugRoutes(
          *   - 500 Failed to fetch media information.
          *   - 200 Media information with streaming links.
          */
-        get("/media") {
+        get("/track") {
             val trackName = call.request.queryParameters["track"] ?: return@get call.respond(
                 "Missing 'track' query parameter"
             )
@@ -43,26 +51,26 @@ fun Route.debugRoutes(
                 "Missing 'artist' query parameter"
             )
 
-            val cleanedTrackName = mediaInfoService.cleanTrackName(trackName)
-            val cleanedArtistName = mediaInfoService.cleanArtistName(artistName)
+            val cleanedTrackName = trackInfoService.cleanTrackName(trackName)
+            val cleanedArtistName = trackInfoService.cleanArtistName(artistName)
 
             log.info("Fetching media info for track: '$cleanedTrackName', artist: '$cleanedArtistName'")
 
-            val mediaInfo = try { mediaInfoService.getMediaInfo(cleanedTrackName, cleanedArtistName) } catch (e: Exception) {
+            val mediaInfo = try { trackInfoService.getTrackInfo(cleanedTrackName, cleanedArtistName) } catch (e: Exception) {
                 log.info("Media info fetch failed: ${e.message}")
                 throw e
             }
 
             // Streaming links resolution
-            val streamingLinks = try {
-                mediaInfoService.getTrackStreamingLinks(mediaInfo.link.url, cleanedTrackName, cleanedArtistName)
+            val streamingResult = try {
+                trackInfoService.getTrackStreamingLinks(mediaInfo.link.url, cleanedTrackName, cleanedArtistName, mediaInfo.isrc, mediaInfo.link.platform)
             } catch (_: Exception) {
-                listOf(mediaInfo.link)
+                TrackInfoService.StreamingLinksResult(listOf(mediaInfo.link))
             }
 
-            log.info("Resolved streaming links: $streamingLinks")
+            log.info("Resolved streaming links: ${streamingResult.links}")
 
-            call.respond(mediaInfo)
+            call.respond(TrackDebugResult(mediaInfo, streamingResult))
         }
 
         /**

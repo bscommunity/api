@@ -1,16 +1,16 @@
 package org.bscm.models.dao
 
 import org.bscm.models.tables.ContributorTable
-import org.jetbrains.exposed.dao.CompositeEntity
-import org.jetbrains.exposed.dao.CompositeEntityClass
-import org.jetbrains.exposed.dao.id.CompositeID
-import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.LongEntity
+import org.jetbrains.exposed.v1.dao.LongEntityClass
 
-class ContributorEntity(id: EntityID<CompositeID>) : CompositeEntity(id) {
-    companion object : CompositeEntityClass<ContributorEntity>(ContributorTable)
+class ContributorEntity(id: EntityID<Long>) : LongEntity(id) {
+    companion object : LongEntityClass<ContributorEntity>(ContributorTable)
 
+    var catalogItem by CatalogItemEntity referencedOn ContributorTable.catalogItemId
     var user by UserEntity referencedOn ContributorTable.userId
+    var role by ContributorTable.role
     var note by ContributorTable.note
-    var roles by ContributorTable.roles
     var joinedAt by ContributorTable.joinedAt
 }

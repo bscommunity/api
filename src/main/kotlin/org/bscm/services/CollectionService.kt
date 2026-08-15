@@ -1,18 +1,20 @@
 package org.bscm.services
 
 import io.ktor.util.logging.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.CatalogItem
 import org.bscm.models.Collection
 import org.bscm.models.dto.collection.BatchCollectionItemRequest
 import org.bscm.models.dto.collection.BatchCollectionItemResponse
 import org.bscm.models.enums.ActionType
 import org.bscm.models.enums.ActivityType
+import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.ContentType
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.ICollectionRepository
-import java.time.LocalDateTime
 import java.util.*
+import kotlin.time.Clock
 
 private val log = KtorSimpleLogger("CollectionService")
 
@@ -34,17 +36,17 @@ class CollectionService(
      */
     suspend fun addItem(
         userId: UUID,
-        contentId: String,
+        catalogId: String,
         kind: CollectionKind,
         collectionId: UUID? = null
     ): Boolean {
         val (resolvedId, resolvedKind) = resolveCollection(userId, kind, collectionId)
             ?: return false
 
-        val added = collectionRepository.addItemToCollection(resolvedId, resolvedKind, userId, contentId)
+        val added = collectionRepository.addItemToCollection(resolvedId, resolvedKind, userId, catalogId)
 
         if (added) {
-            logActivityForKind(userId, resolvedKind, contentId)
+            logActivityForKind(userId, resolvedKind, catalogId)
         }
 
         return added
@@ -55,16 +57,16 @@ class CollectionService(
      */
     suspend fun removeItem(
         userId: UUID,
-        contentId: String,
+        catalogId: String,
         kind: CollectionKind,
         collectionId: UUID? = null
     ): Boolean {
         val (resolvedId, resolvedKind) = resolveCollection(userId, kind, collectionId)
             ?: return false
 
-        val removed = collectionRepository.removeItemFromCollection(resolvedId, userId, contentId)
+        val removed = collectionRepository.removeItemFromCollection(resolvedId, userId, catalogId)
         if (removed) {
-            removeActivityForKind(userId, resolvedKind, contentId)
+            removeActivityForKind(userId, resolvedKind, catalogId)
         }
 
         return removed
@@ -89,23 +91,23 @@ class CollectionService(
 
         for ((key, items) in grouped) {
             val (collectionId, kind, action) = key
-            val contentIds = items.map { it.contentId }
+            val catalogIds = items.map { it.catalogId }
 
             try {
                 val cacheKey = kind to collectionId
                 val resolvedId = collectionIdCache.getOrPut(cacheKey) {
                     resolveCollection(userId, kind, collectionId?.let { UUID.fromString(it) })?.first
-                        ?: run { failCount += contentIds.size; null!! }
+                        ?: run { failCount += catalogIds.size; null!! }
                 }
 
-                val activityTimestamp = items.firstNotNullOfOrNull { it.enqueuedAt } ?: LocalDateTime.now()
+                val activityTimestamp = items.firstNotNullOfOrNull { it.enqueuedAt } ?: Clock.System.now().toLocalDateTime(TimeZone.UTC)
 
                 val (success, failed) = when (action) {
                     ActionType.ADD -> {
-                        val result = collectionRepository.batchAddItemsToCollection(resolvedId, userId, contentIds)
+                        val result = collectionRepository.batchAddItemsToCollection(resolvedId, userId, catalogIds)
 
                         if (kind in setOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS) && result.first > 0) {
-                            val successfulIds = contentIds.filterNot { it in result.second }
+                            val successfulIds = catalogIds.filterNot { it in result.second }
                             if (successfulIds.isNotEmpty()) {
                                 val typedIds = successfulIds.groupByNotNull { id ->
                                     collectionRepository.getContentType(id)?.let { contentType ->
@@ -124,10 +126,10 @@ class CollectionService(
                         result.first to result.second.size
                     }
                     ActionType.REMOVE -> {
-                        val deleted = collectionRepository.batchRemoveItemsFromCollection(resolvedId, userId, contentIds)
+                        val deleted = collectionRepository.batchRemoveItemsFromCollection(resolvedId, userId, catalogIds)
 
                         if (kind in setOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS) && deleted > 0) {
-                            val typedIds = contentIds.groupByNotNull { id ->
+                            val typedIds = catalogIds.groupByNotNull { id ->
                                 collectionRepository.getContentType(id)?.let { contentType ->
                                     activityTypeForKind(kind, contentType)
                                 }
@@ -138,7 +140,7 @@ class CollectionService(
                             }
                         }
 
-                        deleted to (contentIds.size - deleted)
+                        deleted to (catalogIds.size - deleted)
                     }
                 }
 
@@ -146,7 +148,7 @@ class CollectionService(
                 failCount += failed
             } catch (e: Exception) {
                 log.error("Batch operation failed for group $key", e)
-                failCount += contentIds.size
+                failCount += catalogIds.size
             }
         }
 
@@ -158,7 +160,7 @@ class CollectionService(
     suspend fun getCollectionItems(
         collectionId: UUID,
         userId: UUID? = null,
-        categories: List<ContentType>? = null,
+        categories: List<CatalogItemType>? = null,
         limit: Int? = null,
         offset: Int? = null
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>?> {
@@ -175,7 +177,7 @@ class CollectionService(
     suspend fun getSystemCollectionItems(
         userId: UUID,
         kind: CollectionKind,
-        categories: List<ContentType>? = null,
+        categories: List<CatalogItemType>? = null,
         limit: Int? = null,
         offset: Int? = null
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>?> {
@@ -262,31 +264,31 @@ class CollectionService(
         else -> null
     }
 
-    private suspend fun logActivityForKind(userId: UUID, kind: CollectionKind, contentId: String) {
-        val contentType = collectionRepository.getContentType(contentId) ?: return
+    private suspend fun logActivityForKind(userId: UUID, kind: CollectionKind, catalogId: String) {
+        val contentType = collectionRepository.getContentType(catalogId) ?: return
         activityTypeForKind(kind, contentType)?.let {
             // Remove stale duplicates from prior add/remove cycles, then insert fresh activity.
-            activityRepository.removeActivity(userId, it, contentId)
-            activityRepository.logActivity(userId, it, contentId)
+            activityRepository.removeActivity(userId, it, catalogId)
+            activityRepository.logActivity(userId, it, catalogId)
         }
     }
 
-    private suspend fun removeActivityForKind(userId: UUID, kind: CollectionKind, contentId: String) {
-        val contentType = collectionRepository.getContentType(contentId) ?: return
-        activityTypeForKind(kind, contentType)?.let { activityRepository.removeActivity(userId, it, contentId) }
+    private suspend fun removeActivityForKind(userId: UUID, kind: CollectionKind, catalogId: String) {
+        val contentType = collectionRepository.getContentType(catalogId) ?: return
+        activityTypeForKind(kind, contentType)?.let { activityRepository.removeActivity(userId, it, catalogId) }
     }
 
-    private fun activityTypeForKind(kind: CollectionKind, contentType: ContentType): ActivityType? = when (kind) {
-        CollectionKind.LIKES -> when (contentType) {
-            ContentType.CHART -> ActivityType.LIKED_CHART
-            ContentType.TOUR_PASS -> ActivityType.LIKED_TOUR_PASS
-            ContentType.THEME -> ActivityType.LIKED_THEME
+    private fun activityTypeForKind(kind: CollectionKind, catalogItemType: CatalogItemType): ActivityType? = when (kind) {
+        CollectionKind.LIKES -> when (catalogItemType) {
+            CatalogItemType.CHART -> ActivityType.LIKED_CHART
+            CatalogItemType.TOUR_PASS -> ActivityType.LIKED_TOUR_PASS
+            CatalogItemType.THEME -> ActivityType.LIKED_THEME
         }
 
-        CollectionKind.BOOKMARKS -> when (contentType) {
-            ContentType.CHART -> ActivityType.BOOKMARKED_CHART
-            ContentType.TOUR_PASS -> ActivityType.BOOKMARKED_TOUR_PASS
-            ContentType.THEME -> ActivityType.BOOKMARKED_THEME
+        CollectionKind.BOOKMARKS -> when (catalogItemType) {
+            CatalogItemType.CHART -> ActivityType.BOOKMARKED_CHART
+            CatalogItemType.TOUR_PASS -> ActivityType.BOOKMARKED_TOUR_PASS
+            CatalogItemType.THEME -> ActivityType.BOOKMARKED_THEME
         }
 
         CollectionKind.USER -> null

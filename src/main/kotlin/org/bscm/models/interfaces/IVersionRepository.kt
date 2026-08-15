@@ -5,10 +5,10 @@ import org.bscm.models.dto.version.CreateVersionRequest
 
 interface IVersionRepository {
     suspend fun getVersionById(id: ULong): Version?
-    suspend fun getVersions(chartId: ULong): List<Version>
-    suspend fun getLatestVersionsByChartIds(chartIds: List<ULong>): List<Version>
+    suspend fun getVersions(catalogItemId: String): List<Version>
+    suspend fun getLatestVersionsByCatalogItemIds(catalogItemIds: List<String>): List<Version>
 
-    suspend fun addVersion(chartId: ULong, version: CreateVersionRequest): Version
+    suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest, bundleHash: String): Version
 
     /**
      * Removes a version by its ID.
@@ -17,9 +17,5 @@ interface IVersionRepository {
      *  - Must be the latest version of its chart.
      *  - Chart must have more than one version.
      */
-    suspend fun removeVersion(
-        versionId: ULong,
-        currentLatestVersionId: String?,
-        versionCount: Int
-    ): Boolean
+    suspend fun removeVersion(versionId: ULong): Boolean
 }

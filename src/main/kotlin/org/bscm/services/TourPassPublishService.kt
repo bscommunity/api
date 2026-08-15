@@ -1,5 +1,6 @@
 package org.bscm.services
 
+import io.ktor.http.*
 import io.ktor.server.plugins.*
 import org.bscm.models.TourPass
 import org.bscm.models.User
@@ -11,24 +12,30 @@ import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.repository.ChartRepository
+import org.bscm.storage.StorageService
+import org.bscm.utils.MediaConverter
+import org.bscm.utils.NanoIdUtils
 import org.bscm.utils.StreamingPlatformUtils
+import java.util.*
 
 class TourPassPublishService(
     private val tourPassRepository: ITourPassRepository,
     private val chartRepository: IChartRepository,
     private val uploadService: UploadService,
+    private val storageService: StorageService,
     private val activityRepository: IActivityRepository,
 ) {
     suspend fun createAndPublish(
         uploader: User,
         request: CreateTourPassRequest,
-        cover: UploadService.UploadImage?,
+        coverBytes: ByteArray?,
+        coverContentType: ContentType?,
     ): TourPass {
-        if (cover == null && request.coverUrl.isNullOrBlank()) {
+        if (coverBytes == null && request.coverUrl.isNullOrBlank()) {
             throw BadRequestException("coverUrl or cover file is required")
         }
 
-        val chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() } ?: emptyList()
+        val chartIds = request.chartIds ?: emptyList()
         val charts = if (chartIds.isNotEmpty()) {
             chartRepository.getCharts(
                 filters = ChartRepository.ChartFilters(chartIds = chartIds),
@@ -40,90 +47,135 @@ class TourPassPublishService(
             emptyList()
         }
 
+        val guildId = uploadService.guildId
         val tracklist = charts.mapIndexed { index, chart ->
-            val latest = chart.latestVersion
             val icons = buildString {
-                if (latest?.difficulty == Difficulty.HARD) append(" <:hard:1393411882282385458>")
-                if (latest?.difficulty == Difficulty.EXTREME) append(" <:extreme:1393411880067797115>")
-                if (latest?.isDeluxe == true) append(" <:deluxe:1393402180991586365>")
-                if (latest?.isExplicit == true) append(" <:explicit:1393412061786017862>")
+                if (chart.difficulty == Difficulty.HARD) append(" <:hard:1393411882282385458>")
+                if (chart.difficulty == Difficulty.EXTREME) append(" <:extreme:1393411880067797115>")
+                if (chart.isDeluxe) append(" <:deluxe:1393402180991586365>")
+                if (chart.isExplicit) append(" <:explicit:1393412061786017862>")
             }
-            "${index + 1}. ${chart.artist} - ${chart.track}$icons"
+            val text = "${index + 1}. ${chart.track.artist} - ${chart.track.title}$icons"
+            val messageId = chart.discordMessageId
+            val channelId = chart.discordChannelId
+            if (messageId != null && channelId != null) {
+                "[$text](https://discord.com/channels/$guildId/$channelId/$messageId)"
+            } else {
+                text
+            }
         }
 
         val normalizedPlaylistUrls = request.playlistUrls
             ?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
 
-        val discordResponse = uploadService.uploadTourPass(
-            UploadService.TourPassPublishData(
-                title = request.name,
-                description = request.description,
-                context = UploadService.PublishContext(
-                    submittedBy = UploadService.SubmittedBy.fromUser(uploader),
-                    trackUrls = normalizedPlaylistUrls ?: emptyList(),
-                ),
-                coverUrl = request.coverUrl,
-                coverImage = cover,
-                durationSeconds = charts.sumOf { (it.latestVersion?.duration ?: 0f).toInt() },
-                tracksAmount = charts.size,
-                tracklist = tracklist,
-            )
+        val catalogId = NanoIdUtils.generateCatalogId()
+
+        // Upload cover to storage if raw bytes were provided
+        if (coverBytes != null) {
+            val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
+            storageService.uploadTourPassCover(catalogId, avifBytes)
+        }
+
+        val difficultyLabel = if (charts.isNotEmpty()) {
+            val totalScore = charts.sumOf { chart ->
+                val base = when (chart.difficulty) {
+                    Difficulty.HARD -> 2.0
+                    Difficulty.EXTREME -> 3.0
+                    else -> 1.0
+                }
+                base + if (chart.isDeluxe) 1.0 else 0.0
+            }
+            val avg = totalScore / charts.size
+            val label = when {
+                avg >= 4.0 -> "Very Extreme"
+                avg >= 3.5 -> "Extreme"
+                avg >= 3.0 -> "Slightly Extreme"
+                avg >= 2.5 -> "Very Hard"
+                avg >= 2.0 -> "Hard"
+                avg >= 1.5 -> "Slightly Hard"
+                else -> "Normal"
+            }
+            val hasHard = charts.any { it.difficulty == Difficulty.HARD || it.isDeluxe }
+            val hasExtreme = charts.any { it.difficulty == Difficulty.EXTREME }
+            buildString {
+                append(label)
+                if (label.contains("Hard") && hasHard) append(" <:hard:1393411882282385458>")
+                if (label.contains("Extreme") && hasExtreme) append(" <:extreme:1393411880067797115>")
+            }
+        } else null
+
+        val tourPassData = UploadService.TourPassPublishData(
+            title = request.name,
+            description = request.description,
+            context = UploadService.PublishContext(
+                catalogId = catalogId,
+                submittedBy = UploadService.SubmittedBy.fromUser(uploader),
+                trackUrls = normalizedPlaylistUrls ?: emptyList(),
+            ),
+            coverUrl = storageService.tourPassCoverUrl(catalogId),
+            durationSeconds = charts.sumOf { it.track.duration.toInt() },
+            tracksAmount = charts.size,
+            difficultyLabel = difficultyLabel,
+            trailerUrl = request.previewUrl,
+            tracklist = tracklist,
         )
 
-        val resolvedCoverUrl = discordResponse.attachments.firstOrNull { it.filename.contains("cover", true) }?.url
-            ?: discordResponse.embeds.firstOrNull()?.image?.url
-            ?: request.coverUrl
-            ?: throw IllegalStateException("Unable to resolve cover URL from Discord response")
+        val discordResponse = uploadService.uploadTourPass(tourPassData)
 
         val tourPass = tourPassRepository.createTourPass(
             userId = uploader.id,
             name = request.name,
             description = request.description,
             artist = request.artist,
-            coverUrl = resolvedCoverUrl,
             playlistUrls = normalizedPlaylistUrls,
             chartIds = chartIds,
-            id = discordResponse.id.toULong(),
+            id = catalogId,
+        )
+
+        tourPassRepository.updateDiscordCoordinates(
+            catalogId,
+            discordResponse.channelId,
+            discordResponse.id,
         )
 
         activityRepository.logActivity(
             userId = uploader.id,
             type = ActivityType.CREATED_TOUR_PASS,
-            targetId = tourPass.contentId
+            targetId = tourPass.id
         )
 
         return tourPass
     }
 
-    suspend fun deleteAndCleanup(id: ULong, userId: java.util.UUID): Boolean {
-        val contentId = tourPassRepository.getTourPassById(id, userId)?.contentId ?: return false
+    suspend fun deleteAndCleanup(id: String, userId: UUID): Boolean {
+        val tourPass = tourPassRepository.getTourPassById(id, userId) ?: return false
         val deleted = tourPassRepository.deleteTourPass(id, userId)
         if (!deleted) return false
 
         activityRepository.removeActivityByTypeAndTarget(
             type = ActivityType.CREATED_TOUR_PASS,
-            targetId = contentId
+            targetId = tourPass.id
         )
 
         // Best effort cleanup - DB state is source of truth.
-        runCatching { uploadService.deleteMessage(id.toString()) }
+        runCatching { storageService.deleteTourPassCover(id) }
+        tourPass.discordMessageId?.let { messageId ->
+            runCatching { uploadService.deleteMessage(messageId) }
+        }
         return true
     }
 
     suspend fun updateAndPublish(
-        id: ULong,
-        userId: java.util.UUID,
+        id: String,
+        userId: UUID,
         request: UpdateTourPassRequest,
-        cover: UploadService.UploadImage?,
+        coverBytes: ByteArray?,
+        coverContentType: ContentType?,
     ): TourPass {
-        val resolvedCoverUrl = cover?.let {
-            uploadService.uploadCoverImage(
-                coverBytes = it.bytes,
-                filename = it.filename,
-                contentType = it.contentType,
-                context = "tourpass-update:$id"
-            )
-        } ?: request.coverUrl
+        if (coverBytes != null) {
+            val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
+            storageService.uploadTourPassCover(id, avifBytes)
+        }
 
         val normalizedPlaylistUrls = request.playlistUrls
             ?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
@@ -134,11 +186,7 @@ class TourPassPublishService(
             name = request.name,
             description = request.description,
             artist = request.artist,
-            coverUrl = resolvedCoverUrl,
-            playlistUrls = normalizedPlaylistUrls,
-            chartIds = request.chartIds?.mapNotNull { it.toULongOrNull() }
+            chartIds = request.chartIds
         )
     }
 }
-
-

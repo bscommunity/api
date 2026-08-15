@@ -4,14 +4,15 @@ import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.bscm.models.dto.user.ContentCounts
+import org.bscm.models.dto.user.CatalogCounts
 import org.bscm.models.dto.user.ItemsPage
-import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.ContentType
+import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.IUserRepository
 import org.bscm.repository.ChartRepository
 import org.bscm.services.CollectionService
 import org.bscm.services.ProfileService
+import org.bscm.utils.getContentTypeOrNull
 import org.bscm.utils.getPagination
 import org.bscm.utils.getUserId
 
@@ -19,12 +20,72 @@ import org.bscm.utils.getUserId
 fun Route.meRoutes(
     collectionService: CollectionService,
     profileService: ProfileService,
-    chartRepository: IChartRepository
+    chartRepository: IChartRepository,
+    userRepository: IUserRepository,
 ) {
     route("/me") {
-        install(org.bscm.plugins.UserContext)
-
         authenticate("auth-bearer") {
+            // ===================== UPLOADS ======================
+
+            /**
+             * Get authenticated user's uploads (all content types, interleaved).
+             *
+             * Tag: Me
+             *
+             * Query: types [String] Optional comma-separated content types to filter (CHART, TOUR_PASS, THEME).
+             * Query: query [String] Optional search query across all types.
+             * Query: sortBy [String] Sort option (LAST_UPDATED, MOST_DOWNLOADED, ALPHA_ASC, ALPHA_DESC).
+             * Query: limit [Integer] Optional limit for results (max 50).
+             * Query: offset [Integer] Optional pagination offset (default 0).
+             *
+             * Responses:
+             *   - 200 application/json [Object] Paginated items with content counts.
+             *   - 401 application/json [Error] User not authenticated.
+             *
+             * Security: auth-bearer
+             */
+            get("/uploads") {
+                val userId = call.getUserId()
+                val (limit, offset) = call.getPagination(coerceLimit = 50, defaultOffset = 0)
+
+                val requestedTypes = call.getContentTypeOrNull()
+                val query = call.request.queryParameters["query"]?.takeIf { it.isNotBlank() }
+                val sortBy = call.request.queryParameters["sortBy"]
+                    ?.let { runCatching { SortOption.valueOf(it) }.getOrNull() }
+
+                val genres = call.request.queryParameters["genres"]
+                    ?.split(",")
+                    ?.mapNotNull { runCatching { Genre.valueOf(it.trim()) }.getOrNull() }
+                    ?.takeIf { it.isNotEmpty() }
+
+                val difficulties = call.request.queryParameters["difficulties"]
+                    ?.split(",")
+                    ?.mapNotNull { runCatching { Difficulty.valueOf(it.trim()) }.getOrNull() }
+                    ?.takeIf { it.isNotEmpty() }
+
+                val isDeluxe = call.request.queryParameters["versions"]
+                    ?.split(",")
+                    ?.any { it.trim().equals("DELUXE", ignoreCase = true) }
+
+                val (items, counts) = userRepository.getUserUploads(
+                    userId = userId,
+                    types = requestedTypes,
+                    query = query,
+                    sortBy = sortBy,
+                    genres = genres,
+                    difficulties = difficulties,
+                    isDeluxe = isDeluxe,
+                    limit = limit ?: 20,
+                    offset = offset ?: 0
+                )
+
+                call.respond(
+                    ItemsPage(
+                        items,
+                        CatalogCounts(counts.first, counts.second, counts.third)
+                    )
+                )
+            }
             // ===================== CHARTS ======================
 
             /**
@@ -50,6 +111,7 @@ fun Route.meRoutes(
                     addons = ChartRepository.ChartAddons(versions = true),
                     limit = limit,
                     offset = offset,
+                    requestingUserId = userId,
                 )
 
                 call.respond(charts)
@@ -110,7 +172,7 @@ fun Route.meRoutes(
                 // Parse ?types=charts,themes,tourPasses — null means "all"
                 val requestedTypes = call.request.queryParameters["types"]
                     ?.split(",")
-                    ?.mapNotNull { runCatching { ContentType.valueOf(it.trim()) }.getOrNull() }
+                    ?.mapNotNull { runCatching { CatalogItemType.valueOf(it.trim()) }.getOrNull() }
 
                 val (items, counts) = collectionService.getSystemCollectionItems(
                     userId = userId,
@@ -125,7 +187,7 @@ fun Route.meRoutes(
                 call.respond(
                     ItemsPage(
                         items,
-                        counts?.let { ContentCounts(it.first, it.second, it.third) }
+                        counts?.let { CatalogCounts(it.first, it.second, it.third) }
                     )
                 )
             }
@@ -135,7 +197,7 @@ fun Route.meRoutes(
              *
              * Tag: Me
              *
-             * Path: contentId [String] ID of the content to like.
+             * Path: catalogId [String] ID of the content to like.
              *
              * Responses:
              *   - 200 application/json [Object] Success message.
@@ -144,10 +206,10 @@ fun Route.meRoutes(
              *
              * Security: auth-bearer
              */
-            post("/likes/{contentId}") {
+            post("/likes/{catalogId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
-                val added = collectionService.addItem(userId, contentId, CollectionKind.LIKES)
+                val catalogId = call.parameters["catalogId"] ?: throw IllegalArgumentException("Missing catalogId")
+                val added = collectionService.addItem(userId, catalogId, CollectionKind.LIKES)
                 if (added) call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to likes"))
                 else call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Failed to add item (may already exist)"))
             }
@@ -157,7 +219,7 @@ fun Route.meRoutes(
              *
              * Tag: Me
              *
-             * Path: contentId [String] ID of the content to unlike.
+             * Path: catalogId [String] ID of the content to unlike.
              *
              * Responses:
              *   - 200 application/json [Object] Success message.
@@ -166,10 +228,10 @@ fun Route.meRoutes(
              *
              * Security: auth-bearer
              */
-            delete("/likes/{contentId}") {
+            delete("/likes/{catalogId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
-                val removed = collectionService.removeItem(userId, contentId, CollectionKind.LIKES)
+                val catalogId = call.parameters["catalogId"] ?: throw IllegalArgumentException("Missing catalogId")
+                val removed = collectionService.removeItem(userId, catalogId, CollectionKind.LIKES)
                 if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from likes"))
                 else call.respond(HttpStatusCode.NotFound, mapOf("error" to "Item not found in likes"))
             }
@@ -187,7 +249,7 @@ fun Route.meRoutes(
                 // Parse ?types=charts,themes,tourPasses — null means "all"
                 val requestedTypes = call.request.queryParameters["types"]
                     ?.split(",")
-                    ?.mapNotNull { runCatching { ContentType.valueOf(it.trim()) }.getOrNull() }
+                    ?.mapNotNull { runCatching { CatalogItemType.valueOf(it.trim()) }.getOrNull() }
 
                 val (items, counts) = collectionService.getSystemCollectionItems(
                     userId = userId,
@@ -202,7 +264,7 @@ fun Route.meRoutes(
                 call.respond(
                     ItemsPage(
                         items,
-                        counts?.let { ContentCounts(it.first, it.second, it.third) }
+                        counts?.let { CatalogCounts(it.first, it.second, it.third) }
                     )
                 )
             }
@@ -212,7 +274,7 @@ fun Route.meRoutes(
              *
              * Tag: Me
              *
-             * Path: contentId [String] ID of the content to bookmark.
+             * Path: catalogId [String] ID of the content to bookmark.
              *
              * Responses:
              *   - 200 application/json [Object] Success message.
@@ -221,10 +283,10 @@ fun Route.meRoutes(
              *
              * Security: auth-bearer
              */
-            post("/bookmarks/{contentId}") {
+            post("/bookmarks/{catalogId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
-                val added = collectionService.addItem(userId, contentId, CollectionKind.BOOKMARKS)
+                val catalogId = call.parameters["catalogId"] ?: throw IllegalArgumentException("Missing catalogId")
+                val added = collectionService.addItem(userId, catalogId, CollectionKind.BOOKMARKS)
                 if (added) call.respond(HttpStatusCode.OK, mapOf("message" to "Item added to bookmarks"))
                 else call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Failed to add item (may already exist)"))
             }
@@ -234,7 +296,7 @@ fun Route.meRoutes(
              *
              * Tag: Me
              *
-             * Path: contentId [String] ID of the content to remove from bookmarks.
+             * Path: catalogId [String] ID of the content to remove from bookmarks.
              *
              * Responses:
              *   - 200 application/json [Object] Success message.
@@ -243,10 +305,10 @@ fun Route.meRoutes(
              *
              * Security: auth-bearer
              */
-            delete("/bookmarks/{contentId}") {
+            delete("/bookmarks/{catalogId}") {
                 val userId = call.getUserId()
-                val contentId = call.parameters["contentId"] ?: throw IllegalArgumentException("Missing contentId")
-                val removed = collectionService.removeItem(userId, contentId, CollectionKind.BOOKMARKS)
+                val catalogId = call.parameters["catalogId"] ?: throw IllegalArgumentException("Missing catalogId")
+                val removed = collectionService.removeItem(userId, catalogId, CollectionKind.BOOKMARKS)
                 if (removed) call.respond(HttpStatusCode.OK, mapOf("message" to "Item removed from bookmarks"))
                 else call.respond(HttpStatusCode.NotFound, mapOf("error" to "Item not found in bookmarks"))
             }
@@ -261,7 +323,7 @@ fun Route.meRoutes(
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination()
                 val (collections, total) = collectionService.getUserCollections(userId, limit, offset, false)
-                call.respond(ItemsPage(items = collections, counts = ContentCounts(collections = total)))
+                call.respond(ItemsPage(items = collections, counts = CatalogCounts(collections = total)))
             }
         }
     }

@@ -9,6 +9,8 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.util.logging.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
 import org.bscm.models.User
 import org.bscm.models.dto.account.CreateAccountRequest
@@ -18,8 +20,9 @@ import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.JWTService
-import java.time.LocalDateTime
 import java.util.*
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 
 private val log = KtorSimpleLogger("AuthRoutes")
 
@@ -117,7 +120,6 @@ fun Route.authRoutes(
          */
         post("/refresh") {
             val refreshRequest = call.receive<RefreshTokenRequest>()
-                ?: return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
 
             val userId = jwtService.verifyRefreshToken(refreshRequest.refreshToken)
                 ?: return@post call.respondError(HttpStatusCode.Unauthorized, "Invalid refresh token")
@@ -164,8 +166,7 @@ fun Route.authRoutes(
              *   - 200 [OAuthResult] Account linked successfully with OAuth scope.
              */
             post("/google/link") {
-                val code = call.receive<AuthRequest>()?.code
-                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
+                val code = call.receive<AuthRequest>().code
                 val userId = call.getUserIdFromJWT() ?: return@post
 
                 try {
@@ -176,13 +177,16 @@ fun Route.authRoutes(
                         return@post
                     }
 
+                    val googleUser = googleOAuthService.getUserInfo(googleTokenResponse.accessToken)
+
                     userRepository.upsertAccount(
                         userId,
                         CreateAccountRequest(
                             provider = "google",
+                            providerAccountId = googleUser.id,
                             refreshToken = googleTokenResponse.refreshToken,
                             accessToken = googleTokenResponse.accessToken,
-                            expiresAt = LocalDateTime.now().plusDays(googleTokenResponse.expiresIn.toLong()),
+                            expiresAt = (Clock.System.now() + googleTokenResponse.expiresIn.toLong().days).toLocalDateTime(TimeZone.UTC),
                             tokenType = googleTokenResponse.tokenType,
                             scope = googleTokenResponse.scope,
                         )

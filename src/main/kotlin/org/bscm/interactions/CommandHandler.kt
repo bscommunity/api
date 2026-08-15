@@ -4,8 +4,8 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import kotlinx.serialization.json.*
-import org.bscm.clients.jsonClient
 import org.bscm.interactions.commands.PublishCommand
+import org.bscm.services.track.clients.jsonClient
 
 object CommandHandler {
     suspend fun handle(call: ApplicationCall, payload: JsonObject) {
