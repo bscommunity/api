@@ -1,25 +1,35 @@
 package org.bscm.routes
 
 import io.ktor.http.*
+import io.ktor.http.content.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.ratelimit.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.util.logging.*
+import io.ktor.utils.io.*
 import org.bscm.models.dto.chart.BundleDownloadResponse
 import org.bscm.models.dto.theme.CreateThemeRequest
+import org.bscm.models.dto.theme.CreateThemeVersionRequest
 import org.bscm.models.dto.theme.UpdateThemeRequest
+import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Visibility
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.IUserRepository
+import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.services.BundleDownloadService
 import org.bscm.services.ThemePublishService
+import org.bscm.services.UploadService
 import org.bscm.services.track.clients.jsonClient
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
+import java.security.MessageDigest
 import java.util.*
 
 private val logger = KtorSimpleLogger("ThemeRoutes")
@@ -28,6 +38,8 @@ fun Route.themeRoutes(
     themePublishService: ThemePublishService,
     themeRepository: IThemeRepository,
     userRepository: IUserRepository,
+    versionRepository: IVersionRepository,
+    uploadService: UploadService,
     bundleDownloadService: BundleDownloadService,
 ) {
     route("/themes") {
@@ -227,6 +239,99 @@ fun Route.themeRoutes(
 
                     logger.info("Theme $id deleted by user $userId")
                     call.respond(HttpStatusCode.NoContent)
+                }
+
+                post("{id}/versions") {
+                    val id = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing theme ID")
+
+                    val userId = call.principal<JWTPrincipal>()
+                        ?.subject
+                        ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        ?: throw UnauthorizedException("User unauthorized")
+
+                    val user = userRepository.getUserById(userId)
+                        ?: throw UnauthorizedException("User not found")
+
+                    val theme = themeRepository.getThemeById(id, userId = userId)
+                        ?: throw NotFoundException("Theme not found")
+
+                    val multipart = call.receiveMultipart()
+                    var versionJson: String? = null
+                    var bundleFileBytes: ByteArray? = null
+
+                    multipart.forEachPart { part ->
+                        when (part) {
+                            is PartData.FormItem -> if (part.name == "version") versionJson = part.value
+                            is PartData.FileItem -> if (part.name == "bundle") bundleFileBytes = part.provider().toByteArray()
+                            else -> {}
+                        }
+                        part.dispose()
+                    }
+
+                    if (versionJson == null || bundleFileBytes == null) {
+                        throw BadRequestException("Version data or bundle missing")
+                    }
+
+                    if (bundleFileBytes.size > 10 * 1024 * 1024) {
+                        throw BadRequestException("Bundle file size exceeds 10MB limit")
+                    }
+
+                    val bundleHash = MessageDigest.getInstance("SHA-256")
+                        .digest(bundleFileBytes)
+                        .joinToString("") { "%02x".format(it) }
+
+                    val createRequest = try {
+                        jsonClient.decodeFromString<CreateThemeVersionRequest>(versionJson)
+                    } catch (e: Exception) {
+                        throw BadRequestException("Invalid version JSON: ${e.message}")
+                    }
+
+                    logger.info("Creating version for theme $id")
+
+                    val existingVersions = versionRepository.getVersions(theme.id)
+
+                    val discordResponse = uploadService.uploadThemeVersion(
+                        theme = theme,
+                        version = createRequest.copy(fileSizeBytes = bundleFileBytes.size.toLong()),
+                        author = user,
+                        themeBundle = bundleFileBytes,
+                        existingVersions = existingVersions,
+                    )
+
+                    val attachment = discordResponse.attachments.lastOrNull()
+                        ?: throw BadRequestException("Discord returned no attachment after upload")
+
+                    val createRequestWithUrl = createRequest.copy(
+                        id = attachment.id.toULong(),
+                        bundleUrl = attachment.url
+                    )
+
+                    val createdVersion = suspendTransaction {
+                        versionRepository.addVersion(
+                            theme.id,
+                            CreateVersionRequest(
+                                id = createRequestWithUrl.id,
+                                track = theme.name,
+                                artist = "",
+                                duration = 0f,
+                                notesAmount = 0,
+                                effectsAmount = 0,
+                                bpm = 0,
+                                difficulty = Difficulty.NORMAL,
+                                isDeluxe = false,
+                                isExplicit = false,
+                                bundleUrl = createRequestWithUrl.bundleUrl,
+                                fileSizeBytes = createRequestWithUrl.fileSizeBytes,
+                                changelog = createRequestWithUrl.changelog,
+                            ),
+                            bundleHash,
+                        )
+                    }
+
+                    logger.info("Version ${createdVersion.id} (v${createdVersion.versionCode}) created for theme $id")
+
+                    call.respond(HttpStatusCode.Created, createdVersion)
                 }
             }
         }

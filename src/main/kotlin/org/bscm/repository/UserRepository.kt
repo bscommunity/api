@@ -281,8 +281,7 @@ class UserRepository(
         // Apply text search on theme metadata if query is provided
         query?.let { searchQuery ->
             contentQuery.andWhere {
-                (ThemeTable.name like "%$searchQuery%") or
-                (ThemeTable.replaces like "%$searchQuery%")
+                ThemeTable.name like "%$searchQuery%"
             }
         }
 
@@ -496,8 +495,7 @@ class UserRepository(
                 (TrackTable.title like "%$searchQuery%") or
                 (TourPassTable.name like "%$searchQuery%") or
                 (TourPassTable.description like "%$searchQuery%") or
-                (ThemeTable.name like "%$searchQuery%") or
-                (ThemeTable.replaces like "%$searchQuery%")
+                (ThemeTable.name like "%$searchQuery%")
             }
         }
 

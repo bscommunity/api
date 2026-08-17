@@ -6,6 +6,7 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
+import org.bscm.models.enums.BeatstarThemeId
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.Visibility
@@ -17,7 +18,8 @@ import java.util.*
 @SerialName("theme")
 data class Theme(
     val name: String,
-    val replaces: String,
+    val replaces: BeatstarThemeId,
+    val originalArtwork: String? = null,
     val displayArtUrl: String? = null,
     val previewUrl: String? = null,
     val coverUrl: String? = null,

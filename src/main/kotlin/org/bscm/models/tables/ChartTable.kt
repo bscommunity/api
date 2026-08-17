@@ -11,7 +11,7 @@ object ChartTable : IdTable<String>("charts") {
 
     val trackId = reference("track_id", TrackTable, onDelete = ReferenceOption.RESTRICT)
 
-    val difficulty = enumerationByName("difficulty", 10, Difficulty::class)
+    val difficulty = enumeration("difficulty", Difficulty::class)
     val notesAmount = integer("notes_amount")
     val effectsAmount = integer("effects_amount")
 

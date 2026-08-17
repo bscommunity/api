@@ -1,4 +1,4 @@
-package org.bscm.services.theme
+package org.bscm.models.theme
 
 object BeatstarThemes {
 

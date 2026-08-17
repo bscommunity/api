@@ -1,4 +1,4 @@
-package org.bscm.services.theme
+package org.bscm.models.theme
 
 import kotlinx.serialization.Serializable
 

@@ -8,6 +8,7 @@ import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ThemeEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dao.VersionEntity
+import org.bscm.models.enums.BeatstarThemeId
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IThemeRepository
@@ -40,6 +41,7 @@ class ThemeRepository(
         return Theme(
             name = entity.name,
             replaces = entity.replaces,
+            originalArtwork = entity.originalArtwork,
             displayArtUrl = storageService.themeDisplayUrl(id),
             previewUrl = entity.previewUrl,
             coverUrl = storageService.themeCoverUrl(id),
@@ -81,14 +83,14 @@ class ThemeRepository(
             catalogIds != null && catalogIds.isNotEmpty() && search != null -> {
                 query.where {
                     (ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) }) and
-                    ((ThemeTable.name like "%${search}%") or (ThemeTable.replaces like "%${search}%"))
+                    (ThemeTable.name like "%${search}%")
                 }
             }
             catalogIds != null && catalogIds.isNotEmpty() -> {
                 query.where { ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) } }
             }
             search != null -> {
-                query.where { (ThemeTable.name like "%${search}%") or (ThemeTable.replaces like "%${search}%") }
+                query.where { ThemeTable.name like "%${search}%" }
             }
         }
 
@@ -147,7 +149,7 @@ class ThemeRepository(
 
         val theme = ThemeEntity.new(catalogItem.id.value) {
             this.name = name
-            this.replaces = replaces
+            this.replaces = BeatstarThemeId.fromBeatstarId(replaces)
             this.previewUrl = previewUrl
         }
 
@@ -164,7 +166,7 @@ class ThemeRepository(
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val entity = ThemeEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
-            replaces?.let { entity.replaces = it }
+            replaces?.let { entity.replaces = BeatstarThemeId.fromBeatstarId(it) }
             previewUrl?.let { entity.previewUrl = it }
         } ?: throw IllegalArgumentException("Theme $id not found")
 
@@ -212,7 +214,7 @@ class ThemeRepository(
     override suspend fun countThemes(search: String?): Int = suspendTransaction {
         val query = ThemeTable.select(ThemeTable.id.count())
         search?.let { s ->
-            query.where { (ThemeTable.name like "%${s}%") or (ThemeTable.replaces like "%${s}%") }
+            query.where { ThemeTable.name like "%${s}%" }
         }
         query.toList().first()[ThemeTable.id.count()].toInt()
     }

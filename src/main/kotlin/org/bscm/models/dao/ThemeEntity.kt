@@ -10,5 +10,6 @@ class ThemeEntity(id: EntityID<String>) : Entity<String>(id) {
 
     var name by ThemeTable.name
     var replaces by ThemeTable.replaces
+    var originalArtwork by ThemeTable.originalArtwork
     var previewUrl by ThemeTable.previewUrl
 }
