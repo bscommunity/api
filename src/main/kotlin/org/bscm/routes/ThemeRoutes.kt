@@ -136,6 +136,48 @@ fun Route.themeRoutes(
 
                     call.respond(BundleDownloadResponse(url = url))
                 }
+
+                get("{id}/bundle/file") {
+                    val id = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing theme ID")
+
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
+                    val combinedPrincipal = call.principal<CombinedPrincipal>()
+
+                    if (jwtPrincipal == null && hmacPrincipal == null && combinedPrincipal == null) {
+                        throw UnauthorizedException("Unauthorized")
+                    }
+
+                    val requesterId = when {
+                        combinedPrincipal != null ->
+                            runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                        jwtPrincipal != null ->
+                            jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        else -> null
+                    }
+
+                    val theme = themeRepository.getThemeById(id, userId = requesterId)
+                        ?: throw NotFoundException("Theme not found")
+
+                    if (theme.visibility != Visibility.PUBLIC) {
+                        val isContributor = requesterId != null &&
+                                theme.contributors.any { contributor -> contributor.user.id == requesterId }
+                        if (!isContributor) throw NotFoundException("Theme not found")
+                    }
+
+                    val bytes = bundleDownloadService.fetchBundleBytes(
+                        catalogItemId = theme.id,
+                        messageId = theme.discordMessageId
+                            ?: throw IllegalStateException("Theme ${theme.id} has no Discord message ID"),
+                    )
+
+                    call.response.header(
+                        HttpHeaders.ContentDisposition,
+                        "attachment; filename=\"theme_${theme.id}.zip\"",
+                    )
+                    call.respondBytes(bytes, ContentType.Application.Zip)
+                }
             }
         }
 

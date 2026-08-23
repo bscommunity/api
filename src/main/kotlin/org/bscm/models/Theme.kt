@@ -26,6 +26,9 @@ data class Theme(
 
     override val contributors: List<Contributor> = emptyList(),
 
+    val likesCount: Int = 0,
+    val bookmarksCount: Int = 0,
+
     override val createdAt: LocalDateTime,
     override val publishedAt: LocalDateTime?,
     override val updatedAt: LocalDateTime?,

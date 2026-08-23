@@ -11,7 +11,10 @@ import org.bscm.models.dao.VersionEntity
 import org.bscm.models.enums.BeatstarThemeId
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
+import org.bscm.models.enums.CollectionKind
 import org.bscm.models.interfaces.IThemeRepository
+import org.bscm.models.tables.CollectionItemTable
+import org.bscm.models.tables.CollectionTable
 import org.bscm.models.tables.ThemeTable
 import org.bscm.models.tables.VersionTable
 import org.bscm.storage.StorageService
@@ -29,12 +32,47 @@ class ThemeRepository(
     private val storageService: StorageService,
 ) : IThemeRepository {
 
+    /**
+     * Fetches aggregate likes/bookmarks counts for a batch of catalog items.
+     * Returns a map of catalogId -> (likesCount, bookmarksCount).
+     * Must be called within a transaction.
+     */
+    private fun fetchAggregateStats(catalogIds: List<String>): Map<String, Pair<Int, Int>> {
+        if (catalogIds.isEmpty()) return emptyMap()
+
+        val statsRows = CollectionItemTable
+            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+            .select(CollectionItemTable.catalogId, CollectionTable.kind, CollectionTable.userId)
+            .where {
+                (CollectionTable.kind inList listOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS, CollectionKind.USER)) and
+                    (CollectionItemTable.catalogId inList catalogIds)
+            }
+            .toList()
+
+        return catalogIds.associateWith { catalogId ->
+            val rows = statsRows.filter { it[CollectionItemTable.catalogId].value == catalogId }
+            val likesCount = rows.filter { it[CollectionTable.kind] == CollectionKind.LIKES }
+                .map { it[CollectionTable.userId] }
+                .distinct()
+                .size
+            val bookmarksCount = rows.filter {
+                it[CollectionTable.kind] == CollectionKind.BOOKMARKS || it[CollectionTable.kind] == CollectionKind.USER
+            }
+                .map { it[CollectionTable.userId] }
+                .distinct()
+                .size
+            likesCount to bookmarksCount
+        }
+    }
+
     private fun themeEntityToTheme(
         entity: ThemeEntity,
         likedAt: LocalDateTime? = null,
         bookmarkedAt: LocalDateTime? = null,
         versionsCount: Int = 0,
         latestVersionEntity: VersionEntity? = null,
+        likesCount: Int = 0,
+        bookmarksCount: Int = 0,
     ): Theme {
         val catalogItem = CatalogItemEntity[entity.id.value]
         val id = entity.id.value
@@ -46,6 +84,8 @@ class ThemeRepository(
             previewUrl = entity.previewUrl,
             coverUrl = storageService.themeCoverUrl(id),
             contributors = emptyList(),
+            likesCount = likesCount,
+            bookmarksCount = bookmarksCount,
             createdAt = catalogItem.createdAt,
             publishedAt = catalogItem.publishedAt,
             updatedAt = catalogItem.updatedAt,
@@ -103,12 +143,14 @@ class ThemeRepository(
             UserStatsUtils.fetchUserStats(userId, themeIds)
         } else emptyMap()
 
+        val aggregateStats = fetchAggregateStats(themeIds)
         val versionData = enrichWithVersionData(themeIds)
 
         paged.map { entity ->
             val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
             val (vCount, vEntity) = versionData[entity.id.value] ?: (0 to null)
-            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity)
+            val (likesCount, bookmarksCount) = aggregateStats[entity.id.value] ?: (0 to 0)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity, likesCount, bookmarksCount)
         }
     }
 
@@ -117,9 +159,10 @@ class ThemeRepository(
             val (likedAt, bookmarkedAt) = if (userId != null) {
                 UserStatsUtils.fetchUserStats(userId, listOf(id))[id] ?: (null to null)
             } else (null to null)
+            val (likesCount, bookmarksCount) = fetchAggregateStats(listOf(id))[id] ?: (0 to 0)
             val versionData = enrichWithVersionData(listOf(id))
             val (vCount, vEntity) = versionData[id] ?: (0 to null)
-            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity, likesCount, bookmarksCount)
         }
     }
 
@@ -178,7 +221,8 @@ class ThemeRepository(
             it.updatedAt = now
         }
 
-        themeEntityToTheme(entity)
+        val (likesCount, bookmarksCount) = fetchAggregateStats(listOf(id))[id] ?: (0 to 0)
+        themeEntityToTheme(entity, likesCount = likesCount, bookmarksCount = bookmarksCount)
     }
 
     override suspend fun deleteTheme(id: String, userId: UUID): Boolean = suspendTransaction {
