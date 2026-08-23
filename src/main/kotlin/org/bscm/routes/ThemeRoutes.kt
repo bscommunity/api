@@ -15,6 +15,7 @@ import org.bscm.models.dto.chart.BundleDownloadResponse
 import org.bscm.models.dto.theme.CreateThemeRequest
 import org.bscm.models.dto.theme.CreateThemeVersionRequest
 import org.bscm.models.dto.theme.UpdateThemeRequest
+import org.bscm.models.dto.user.PagedResponse
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Visibility
@@ -25,8 +26,8 @@ import org.bscm.plugins.CombinedPrincipal
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.services.BundleDownloadService
-import org.bscm.services.ThemePublishService
 import org.bscm.services.UploadService
+import org.bscm.services.publish.ThemePublishService
 import org.bscm.services.track.clients.jsonClient
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.security.MessageDigest
@@ -63,9 +64,7 @@ fun Route.themeRoutes(
                         themeRepository.countThemes(search = search)
                     } else null
 
-                    call.respond(
-                        if (total != null) Pair(themes, total) else Pair(themes, null)
-                    )
+                    call.respond(PagedResponse(items = themes, total = total))
                 }
 
                 get("{id}") {
@@ -154,7 +153,7 @@ fun Route.themeRoutes(
 
                     val multipart = call.parseMultipartPayload(
                         acceptedFormFields = setOf("theme"),
-                        fileAliases = mapOf("cover" to "coverArt", "display" to "displayArt"),
+                        fileAliases = mapOf("cover" to "cover", "display" to "display", "bundle" to "bundle"),
                     ) ?: throw BadRequestException("multipart/form-data is required")
 
                     val themeJson = multipart.fields["theme"]
@@ -166,6 +165,8 @@ fun Route.themeRoutes(
                         throw BadRequestException("Invalid theme JSON: ${it.message}")
                     }
 
+                    val bundleFileBytes = multipart.files["bundle"]?.bytes
+
                     val theme = themePublishService.createAndPublish(
                         uploader = user,
                         request = request,
@@ -174,6 +175,7 @@ fun Route.themeRoutes(
                             coverArtContentType = multipart.files["cover"]?.contentType,
                             displayArtBytes = multipart.files["display"]?.bytes,
                             displayArtContentType = multipart.files["display"]?.contentType,
+                            bundleBytes = bundleFileBytes,
                         )
                     )
 
@@ -195,7 +197,7 @@ fun Route.themeRoutes(
 
                     val multipart = call.parseMultipartPayload(
                         acceptedFormFields = setOf("theme"),
-                        fileAliases = mapOf("cover" to "coverArt", "display" to "displayArt"),
+                        fileAliases = mapOf("cover" to "cover", "display" to "display"),
                     ) ?: throw BadRequestException("multipart/form-data is required")
 
                     val themeJson = multipart.fields["theme"]
@@ -216,6 +218,7 @@ fun Route.themeRoutes(
                             coverArtContentType = multipart.files["cover"]?.contentType,
                             displayArtBytes = multipart.files["display"]?.bytes,
                             displayArtContentType = multipart.files["display"]?.contentType,
+                            bundleBytes = null,
                         )
                     )
 

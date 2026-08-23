@@ -171,6 +171,10 @@ object DecodingUtils {
         val role: String,
     )
 
+    interface BscmMetadataBundle {
+        fun toJson(): String
+    }
+
     data class BscmMetadata(
         val version: Int = 1,
         val chartId: String,
@@ -185,8 +189,8 @@ object DecodingUtils {
         val effects: Int,
         val contributors: List<BscmContributor>,
         val cover: String?,
-    ) {
-        fun toJson(): String {
+    ) : BscmMetadataBundle {
+        override fun toJson(): String {
             val sb = StringBuilder()
             sb.appendLine("{")
             sb.appendLine("  \"version\": $version,")
@@ -212,20 +216,51 @@ object DecodingUtils {
             sb.append("}")
             return sb.toString()
         }
-
-        private fun String.escapeJson(): String = this
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
     }
+
+    data class ThemeBscmMetadata(
+        val version: Int = 1,
+        val themeId: String,
+        val name: String,
+        val replaces: String,
+        val contributors: List<BscmContributor>,
+        val cover: String?,
+        val displayArt: String?,
+    ) : BscmMetadataBundle {
+        override fun toJson(): String {
+            val sb = StringBuilder()
+            sb.appendLine("{")
+            sb.appendLine("  \"version\": $version,")
+            sb.appendLine("  \"themeId\": \"${themeId.escapeJson()}\",")
+            sb.appendLine("  \"name\": \"${name.escapeJson()}\",")
+            sb.appendLine("  \"replaces\": \"${replaces.escapeJson()}\",")
+            sb.append("  \"contributors\": [")
+            contributors.forEachIndexed { i, c ->
+                val comma = if (i < contributors.lastIndex) "," else ""
+                sb.appendLine()
+                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"role\": \"${c.role.escapeJson()}\"}$comma")
+            }
+            sb.appendLine()
+            sb.appendLine("  ],")
+            sb.appendLine("  \"cover\": ${cover?.let { "\"${it.escapeJson()}\"" } ?: "null"},")
+            sb.appendLine("  \"displayArt\": ${displayArt?.let { "\"${it.escapeJson()}\"" } ?: "null"}")
+            sb.append("}")
+            return sb.toString()
+        }
+    }
+
+    private fun String.escapeJson(): String = this
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
 
     /**
      * Injects a `bscm.json` file into the zip bundle.
      * Returns modified zip bytes with the new entry added.
      */
-    fun injectBscmMetadata(zipBytes: ByteArray, metadata: BscmMetadata): ByteArray {
+    fun injectBscmMetadata(zipBytes: ByteArray, metadata: BscmMetadataBundle): ByteArray {
         val bscmJson = metadata.toJson().encodeToByteArray()
 
         val outputBuffer = ByteArrayOutputStream()

@@ -17,6 +17,7 @@ interface IThemeRepository {
         userId: UUID,
         name: String,
         replaces: String,
+        originalArtwork: String?,
         previewUrl: String?,
         id: String?,
     ): Theme
@@ -26,10 +27,12 @@ interface IThemeRepository {
         userId: UUID,
         name: String?,
         replaces: String?,
+        originalArtwork: String?,
         previewUrl: String?,
     ): Theme
 
     suspend fun deleteTheme(id: String, userId: UUID): Boolean
     suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String)
     suspend fun countThemes(search: String? = null): Int
+    suspend fun findThemeByBundleHash(hash: String): Theme?
 }

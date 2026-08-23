@@ -1,4 +1,4 @@
-package org.bscm.services
+package org.bscm.services.publish
 
 import io.ktor.http.*
 import io.ktor.server.plugins.*
@@ -12,6 +12,7 @@ import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.repository.ChartRepository
+import org.bscm.services.UploadService
 import org.bscm.storage.StorageService
 import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils

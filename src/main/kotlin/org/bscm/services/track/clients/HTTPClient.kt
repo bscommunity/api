@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 
 val jsonClient = Json {
     ignoreUnknownKeys = true
+    coerceInputValues = true
 }
 
 val applicationHttpClient = HttpClient(CIO) {

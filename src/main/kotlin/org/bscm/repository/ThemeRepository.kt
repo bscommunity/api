@@ -127,6 +127,7 @@ class ThemeRepository(
         userId: UUID,
         name: String,
         replaces: String,
+        originalArtwork: String?,
         previewUrl: String?,
         id: String?,
     ): Theme = suspendTransaction {
@@ -150,6 +151,7 @@ class ThemeRepository(
         val theme = ThemeEntity.new(catalogItem.id.value) {
             this.name = name
             this.replaces = BeatstarThemeId.fromBeatstarId(replaces)
+            this.originalArtwork = originalArtwork
             this.previewUrl = previewUrl
         }
 
@@ -161,12 +163,14 @@ class ThemeRepository(
         userId: UUID,
         name: String?,
         replaces: String?,
+        originalArtwork: String?,
         previewUrl: String?,
     ): Theme = suspendTransaction {
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val entity = ThemeEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
             replaces?.let { entity.replaces = BeatstarThemeId.fromBeatstarId(it) }
+            originalArtwork?.let { entity.originalArtwork = it }
             previewUrl?.let { entity.previewUrl = it }
         } ?: throw IllegalArgumentException("Theme $id not found")
 
@@ -221,5 +225,15 @@ class ThemeRepository(
 
     override suspend fun updateDiscordCoordinates(catalogItemId: String, channelId: String, messageId: String) = suspendTransaction {
         catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
+    }
+
+    override suspend fun findThemeByBundleHash(hash: String): Theme? = suspendTransaction {
+        val versionRow = VersionTable.selectAll()
+            .where { VersionTable.bundleHash eq hash }
+            .firstOrNull() ?: return@suspendTransaction null
+
+        val catalogItemId = versionRow[VersionTable.catalogItemId].value
+        val entity = ThemeEntity.findById(catalogItemId) ?: return@suspendTransaction null
+        themeEntityToTheme(entity)
     }
 }

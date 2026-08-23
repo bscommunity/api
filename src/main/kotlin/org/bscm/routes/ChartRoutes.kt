@@ -16,6 +16,7 @@ import io.ktor.utils.io.*
 import org.bscm.models.dto.chart.BundleDownloadResponse
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
+import org.bscm.models.dto.user.PagedResponse
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IUserRepository
@@ -25,9 +26,9 @@ import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
 import org.bscm.services.BundleDownloadService
-import org.bscm.services.ChartPublishService
-import org.bscm.services.PublishEventService
 import org.bscm.services.UploadService
+import org.bscm.services.publish.ChartPublishService
+import org.bscm.services.publish.PublishEventService
 import org.bscm.services.track.clients.jsonClient
 import org.bscm.utils.getUserIdOrNull
 import java.util.*
@@ -156,7 +157,7 @@ fun Route.chartRoutes(
 
                     println("Query: $sanitizedQuery, Difficulties: $difficulties, Genres: $genres, IsDeluxe: $isDeluxe, SortBy: $sortBy, Limit: $limit, Offset: $offset, Count: $count, MyCharts: $myCharts, RequesterId: $requesterId, ResultCount: ${result.first.size}")
 
-                    call.respond(result)
+                    call.respond(PagedResponse(items = result.first, total = result.second))
                 }
 
                 /**

@@ -1,4 +1,4 @@
-package org.bscm.services
+package org.bscm.services.publish
 
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -22,6 +22,8 @@ import org.bscm.models.interfaces.IChartRepository
 import org.bscm.plugins.ConflictException
 import org.bscm.protobuf.ChartParser
 import org.bscm.repository.AlbumRepository
+import org.bscm.services.AudioPreviewService
+import org.bscm.services.UploadService
 import org.bscm.services.track.TrackInfoService
 import org.bscm.services.track.clients.applicationHttpClient
 import org.bscm.storage.StorageService

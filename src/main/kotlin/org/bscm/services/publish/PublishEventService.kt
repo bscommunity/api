@@ -1,4 +1,4 @@
-package org.bscm.services
+package org.bscm.services.publish
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow

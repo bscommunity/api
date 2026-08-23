@@ -12,6 +12,10 @@ import org.bscm.services.auth.JWTService
 import org.bscm.services.preview.resolvers.DeezerPreviewResolver
 import org.bscm.services.preview.resolvers.ItunesPreviewResolver
 import org.bscm.services.preview.resolvers.PreviewResolverRegistry
+import org.bscm.services.publish.ChartPublishService
+import org.bscm.services.publish.PublishEventService
+import org.bscm.services.publish.ThemePublishService
+import org.bscm.services.publish.TourPassPublishService
 import org.bscm.services.track.TrackInfoService
 import org.bscm.services.track.clients.*
 import org.bscm.storage.S3StorageAdapter
@@ -195,6 +199,7 @@ fun mainModule(config: ApplicationConfig) = module {
     single {
         ThemePublishService(
             themeRepository = get(),
+            versionRepository = get(),
             uploadService = get(),
             storageService = get(),
             activityRepository = get(),

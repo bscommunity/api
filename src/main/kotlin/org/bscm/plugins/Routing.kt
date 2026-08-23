@@ -17,6 +17,10 @@ import org.bscm.services.*
 import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.JWTService
+import org.bscm.services.publish.ChartPublishService
+import org.bscm.services.publish.PublishEventService
+import org.bscm.services.publish.ThemePublishService
+import org.bscm.services.publish.TourPassPublishService
 import org.bscm.services.track.TrackInfoService
 import org.bscm.services.track.clients.applicationHttpClient
 import org.koin.ktor.ext.inject

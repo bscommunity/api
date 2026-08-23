@@ -418,7 +418,7 @@ class UploadService(
         return jsonClient.decodeFromString<DiscordMessageResponse>(bodyText)
     }
 
-    suspend fun uploadTheme(data: ThemePublishData): DiscordMessageResponse {
+    suspend fun uploadTheme(data: ThemePublishData, themeBundle: ByteArray? = null): DiscordMessageResponse {
         val payloadJson = jsonClient.encodeToString(
             WebhookPayload.serializer(),
             message {
@@ -443,11 +443,20 @@ class UploadService(
         )
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
-            url = "${webhookUrl}?with_components=true",
+            url = "${webhookUrl}?wait=true&with_components=true",
             formData = formData {
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
                 })
+                if (themeBundle != null) {
+                    append("files[0]", themeBundle, Headers.build {
+                        append(
+                            HttpHeaders.ContentDisposition,
+                            "form-data; name=\"files[0]\"; filename=\"theme_v1.zip\""
+                        )
+                        append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
+                    })
+                }
             }
         )
 

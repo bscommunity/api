@@ -10,10 +10,11 @@ import io.ktor.server.routing.*
 import io.ktor.util.logging.*
 import org.bscm.models.dto.tourpass.CreateTourPassRequest
 import org.bscm.models.dto.tourpass.UpdateTourPassRequest
+import org.bscm.models.dto.user.PagedResponse
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.plugins.UnauthorizedException
-import org.bscm.services.TourPassPublishService
+import org.bscm.services.publish.TourPassPublishService
 import org.bscm.services.track.clients.jsonClient
 import java.util.*
 
@@ -47,9 +48,7 @@ fun Route.tourPassRoutes(
                         tourPassRepository.countTourPasses(search = search)
                     } else null
 
-                    call.respond(
-                        if (total != null) Pair(tourPasses, total) else Pair(tourPasses, null)
-                    )
+                    call.respond(PagedResponse(items = tourPasses, total = total))
                 }
             }
         }
