@@ -10,14 +10,44 @@ import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IContributorRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ContributorTable
+import org.bscm.models.tables.UserTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 class ContributorRepository : IContributorRepository {
     companion object {
+        /**
+         * Batch-fetches contributors (with their users) for multiple catalog items.
+         * Returns a map of catalogId -> contributors. Must be called within a transaction.
+         */
+        fun fetchContributorsByCatalogIds(catalogIds: List<String>): Map<String, List<Contributor>> {
+            if (catalogIds.isEmpty()) return emptyMap()
+
+            val entityIds = catalogIds.map { EntityID(it, CatalogItemTable) }
+            val rows = ContributorTable
+                .innerJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
+                .select(ContributorTable.columns + UserTable.columns)
+                .where { ContributorTable.catalogItemId inList entityIds }
+                .toList()
+
+            return rows.groupBy { it[ContributorTable.catalogItemId].value }
+                .mapValues { (_, contributorRows) ->
+                    contributorRows.map { row ->
+                        contributorEntityToContributor(
+                            row[ContributorTable.catalogItemId].value,
+                            ContributorEntity.wrapRow(row),
+                            UserEntity.wrapRow(row),
+                        )
+                    }
+                }
+        }
+
         fun contributorEntityToContributor(entity: ContributorEntity): Contributor {
             return Contributor(
                 user = SimplifiedUser(
@@ -36,7 +66,12 @@ class ContributorRepository : IContributorRepository {
             )
         }
 
-        fun contributorEntityToContributor(entity: ContributorEntity, user: UserEntity): Contributor {
+        // catalogItemId passed explicitly — avoids a lazy catalogItem reference lookup per contributor
+        fun contributorEntityToContributor(
+            catalogItemId: String,
+            entity: ContributorEntity,
+            user: UserEntity,
+        ): Contributor {
             return Contributor(
                 user = SimplifiedUser(
                     id = user.id.value,
@@ -47,11 +82,15 @@ class ContributorRepository : IContributorRepository {
                     bio = user.bio,
                     accentColor = user.accentColor,
                 ),
-                catalogItemId = entity.catalogItem.id.value,
+                catalogItemId = catalogItemId,
                 role = entity.role,
                 note = entity.note,
                 joinedAt = entity.joinedAt,
             )
+        }
+
+        fun contributorEntityToContributor(entity: ContributorEntity, user: UserEntity): Contributor {
+            return contributorEntityToContributor(entity.catalogItem.id.value, entity, user)
         }
     }
 

@@ -70,27 +70,6 @@ class TourPassRepository(
         }
     }
 
-    private fun fetchContributorsByCatalogIds(catalogIds: List<String>): Map<String, List<Contributor>> {
-        if (catalogIds.isEmpty()) return emptyMap()
-
-        val entityIds = catalogIds.map { EntityID(it, CatalogItemTable) }
-        val rows = ContributorTable
-            .innerJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
-            .select(ContributorTable.columns + UserTable.columns)
-            .where { ContributorTable.catalogItemId inList entityIds }
-            .toList()
-
-        return rows.groupBy { it[ContributorTable.catalogItemId].value }
-            .mapValues { (_, contributorRows) ->
-                contributorRows.map { row ->
-                    ContributorRepository.contributorEntityToContributor(
-                        ContributorEntity.wrapRow(row),
-                        UserEntity.wrapRow(row),
-                    )
-                }
-            }
-    }
-
     private fun buildTourPass(
         entity: TourPassEntity,
         catalogRow: ResultRow,
@@ -169,7 +148,7 @@ class TourPassRepository(
         val (likedAt, bookmarkedAt) = if (userId != null) {
             UserStatsUtils.fetchUserStats(userId, listOf(entity.id.value))[entity.id.value] ?: (null to null)
         } else (null to null)
-        val contributors = fetchContributorsByCatalogIds(listOf(entity.id.value))[entity.id.value].orEmpty()
+        val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(entity.id.value))[entity.id.value].orEmpty()
         val catalogRow = CatalogItemTable.selectAll()
             .where { CatalogItemTable.id eq EntityID(entity.id.value, CatalogItemTable) }
             .firstOrNull()
@@ -236,7 +215,7 @@ class TourPassRepository(
             UserStatsUtils.fetchUserStats(userId, allTourPassIds)
         } else emptyMap()
 
-        val contributorsByCatalogId = fetchContributorsByCatalogIds(allTourPassIds)
+        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(allTourPassIds)
 
         val catalogRowsById = CatalogItemTable.selectAll()
             .where { CatalogItemTable.id inList allTourPassIds.map { EntityID(it, CatalogItemTable) } }

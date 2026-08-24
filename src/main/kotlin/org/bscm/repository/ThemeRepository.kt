@@ -3,6 +3,7 @@ package org.bscm.repository
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.bscm.models.Contributor
 import org.bscm.models.Theme
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ThemeEntity
@@ -68,6 +69,7 @@ class ThemeRepository(
         likesCount: Int = 0,
         bookmarksCount: Int = 0,
         catalogRow: ResultRow? = null,
+        contributors: List<Contributor> = emptyList(),
     ): Theme {
         val id = entity.id.value
         // When a pre-fetched catalog_items row is provided, use it directly to avoid
@@ -109,7 +111,7 @@ class ThemeRepository(
             displayArtUrl = storageService.themeDisplayUrl(id),
             previewUrl = entity.previewUrl,
             coverUrl = storageService.themeCoverUrl(id),
-            contributors = emptyList(),
+            contributors = contributors,
             likesCount = likesCount,
             bookmarksCount = bookmarksCount,
             createdAt = itemInfo.createdAt,
@@ -191,6 +193,7 @@ class ThemeRepository(
 
         val aggregateStats = fetchAggregateStats(themeIds)
         val versionData = enrichWithVersionData(themeIds)
+        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(themeIds)
 
         // Batch-fetch catalog_items rows once instead of per-entity DAO lookups (N+1)
         val catalogRows = if (themeIds.isNotEmpty()) {
@@ -204,7 +207,17 @@ class ThemeRepository(
             val (likedAt, bookmarkedAt) = userStats[id] ?: (null to null)
             val (vCount, vEntity) = versionData[id] ?: (0 to null)
             val (likesCount, bookmarksCount) = aggregateStats[id] ?: (0 to 0)
-            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity, likesCount, bookmarksCount, catalogRows[id])
+            themeEntityToTheme(
+                entity,
+                likedAt,
+                bookmarkedAt,
+                vCount,
+                vEntity,
+                likesCount,
+                bookmarksCount,
+                catalogRows[id],
+                contributorsByCatalogId[id].orEmpty(),
+            )
         }
     }
 
@@ -216,7 +229,8 @@ class ThemeRepository(
             val (likesCount, bookmarksCount) = fetchAggregateStats(listOf(id))[id] ?: (0 to 0)
             val versionData = enrichWithVersionData(listOf(id))
             val (vCount, vEntity) = versionData[id] ?: (0 to null)
-            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity, likesCount, bookmarksCount)
+            val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(id))[id].orEmpty()
+            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity, likesCount, bookmarksCount, contributors = contributors)
         }
     }
 
