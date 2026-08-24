@@ -30,12 +30,9 @@ class ChartQueryBuilder {
         }
         columnsToSelect.addAll(AlbumTable.columns)
 
-        query.adjustColumnSet {
-            leftJoin(ContributorTable, { ChartTable.id }, { ContributorTable.catalogItemId })
-                .leftJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
-        }
-        columnsToSelect.addAll(ContributorTable.columns)
-        columnsToSelect.addAll(UserTable.columns)
+        // Contributors/users are fetched separately in batch
+        // (ContributorRepository.fetchContributorsByCatalogIds) to avoid fan-out:
+        // joining them here duplicates every chart's wide row once per contributor.
 
         if (fetchStreamingRefs) {
             query.adjustColumnSet {

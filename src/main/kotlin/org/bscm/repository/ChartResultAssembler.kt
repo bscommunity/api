@@ -3,11 +3,14 @@ package org.bscm.repository
 import kotlinx.datetime.LocalDateTime
 import org.bscm.models.Changelog
 import org.bscm.models.Chart
+import org.bscm.models.Contributor
 import org.bscm.models.StreamingRef
 import org.bscm.models.dao.*
 import org.bscm.models.mappers.VersionMapper
-import org.bscm.models.tables.*
-import org.bscm.repository.ContributorRepository.Companion.contributorEntityToContributor
+import org.bscm.models.tables.AlbumTable
+import org.bscm.models.tables.CatalogItemTable
+import org.bscm.models.tables.ChartTable
+import org.bscm.models.tables.TrackStreamingRefTable
 import org.bscm.utils.StreamingPlatformUtils
 import org.jetbrains.exposed.v1.core.ResultRow
 import java.util.*
@@ -21,7 +24,7 @@ class ChartResultAssembler(
         val chart: ChartEntity,
         val catalogItem: CatalogItemEntity,
         val track: TrackEntity,
-        val contributors: List<Pair<ContributorEntity, UserEntity>>,
+        val contributors: List<Contributor>,
         val streamingRefs: List<StreamingRef>,
         val latestVersion: VersionEntity? = null,
         val versionsCount: Int = 0,
@@ -38,7 +41,7 @@ class ChartResultAssembler(
         visibility = result.catalogItem.visibility,
         isFeatured = result.catalogItem.isFeatured,
         downloadsSum = result.catalogItem.downloadsSum,
-        contributors = result.contributors.map { contributorEntityToContributor(it.first, it.second) },
+        contributors = result.contributors,
         createdAt = result.catalogItem.createdAt,
         publishedAt = result.catalogItem.publishedAt,
         updatedAt = result.catalogItem.updatedAt,
@@ -71,6 +74,7 @@ class ChartResultAssembler(
         }
         val catalogIds = groupedByChartId.keys.toList()
         val userStats = catalogItemRepository.fetchUserStats(requestingUserId, catalogIds)
+        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(catalogIds)
 
         val albumIds = groupedByChartId.values.flatten()
             .mapNotNull { it.getOrNull(AlbumTable.id)?.value }
@@ -104,21 +108,11 @@ class ChartResultAssembler(
                 } else trackRefs
             } else emptyList()
 
-            val contributors = rows.mapNotNull { row ->
-                row.getOrNull(ContributorTable.userId)?.let { _ ->
-                    row.getOrNull(UserTable.id)?.let { _ ->
-                        val contributor = ContributorEntity.wrapRow(row)
-                        val user = UserEntity.wrapRow(row)
-                        contributor to user
-                    }
-                }
-            }.distinctBy { it.first.id.value }
-
             ChartResult(
                 chart = chartEntity,
                 catalogItem = catalogItemEntity,
                 track = trackEntity,
-                contributors = contributors,
+                contributors = contributorsByCatalogId[catalogItemEntity.id.value].orEmpty(),
                 streamingRefs = streamingRefs,
                 userStats = userStats[catalogItemEntity.id.value] ?: Pair(null, null),
                 changelog = changelogs[catalogItemEntity.id.value] ?: emptyList(),
