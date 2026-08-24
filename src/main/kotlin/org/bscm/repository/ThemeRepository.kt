@@ -247,6 +247,7 @@ class ThemeRepository(
             CatalogItemEntity.new(id) {
                 this.type = CatalogItemType.THEME
                 this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }
@@ -254,6 +255,7 @@ class ThemeRepository(
             CatalogItemEntity.new {
                 this.type = CatalogItemType.THEME
                 this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }

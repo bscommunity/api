@@ -35,7 +35,8 @@ class CatalogItemRepository {
         return if (resolvedId != null) {
             CatalogItemEntity.new(resolvedId) {
                 this.type = type
-                this.status = CatalogItemStatus.DRAFT
+                this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.previewVideoId = previewVideoId
                 this.author = UserEntity[authorId]
                 this.updatedAt = now
@@ -43,7 +44,8 @@ class CatalogItemRepository {
         } else {
             CatalogItemEntity.new {
                 this.type = type
-                this.status = CatalogItemStatus.DRAFT
+                this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.previewVideoId = previewVideoId
                 this.author = UserEntity[authorId]
                 this.updatedAt = now

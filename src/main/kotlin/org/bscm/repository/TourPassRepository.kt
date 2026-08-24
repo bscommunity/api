@@ -259,6 +259,7 @@ class TourPassRepository(
             CatalogItemEntity.new(id) {
                 this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }
@@ -266,6 +267,7 @@ class TourPassRepository(
             CatalogItemEntity.new {
                 this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }
