@@ -17,8 +17,11 @@ import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.tables.*
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.flushEntityCache
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.Query
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -192,32 +195,18 @@ class ChartRepository(
         val catalogIds = results.map { it.chart.id.value }
         if (catalogIds.isEmpty()) return results
 
-        val countColumn = VersionTable.id.count()
-        val counts = VersionTable
-            .select(VersionTable.catalogItemId, countColumn)
-            .where { VersionTable.catalogItemId inList catalogIds }
-            .groupBy(VersionTable.catalogItemId)
-            .toList()
-            .associate { it[VersionTable.catalogItemId].value to it[countColumn].toInt() }
-
+        // Single pass: fetch version rows once, derive both counts and latest in memory
         val allVersions = VersionTable.selectAll()
             .where { VersionTable.catalogItemId inList catalogIds }
             .toList()
-
-        val latestVersions = allVersions
             .groupBy { it[VersionTable.catalogItemId].value }
-            .mapValues { (_, versions) ->
-                versions.maxByOrNull { it[VersionTable.versionCode] }
-            }
-            .mapValues { (_, row) ->
-                row?.let { VersionEntity.wrapRow(it) }
-            }
 
         return results.map { result ->
             val chartId = result.chart.id.value
-            val latestVersionEntity = latestVersions[chartId]
+            val latestRow = allVersions[chartId].orEmpty().maxByOrNull { it[VersionTable.versionCode] }
+            val latestVersionEntity = latestRow?.let { VersionEntity.wrapRow(it) }
             result.copy(
-                versionsCount = counts[chartId] ?: 0,
+                versionsCount = allVersions[chartId].orEmpty().size,
                 latestVersion = latestVersionEntity,
                 bundleHash = latestVersionEntity?.bundleHash,
             )

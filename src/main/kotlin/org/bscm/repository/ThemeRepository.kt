@@ -165,12 +165,12 @@ class ThemeRepository(
         when {
             isIdFiltered && search != null -> {
                 query.where {
-                    (ThemeTable.id inList catalogIds!!.map { EntityID(it, ThemeTable) }) and
+                    (ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) }) and
                     (ThemeTable.name like "%${search}%")
                 }
             }
             isIdFiltered -> {
-                query.where { ThemeTable.id inList catalogIds!!.map { EntityID(it, ThemeTable) } }
+                query.where { ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) } }
             }
             search != null -> {
                 query.where { ThemeTable.name like "%${search}%" }

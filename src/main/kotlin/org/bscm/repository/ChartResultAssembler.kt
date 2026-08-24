@@ -28,6 +28,8 @@ class ChartResultAssembler(
         val bundleHash: String? = null,
         val userStats: Pair<LocalDateTime?, LocalDateTime?>,
         val changelog: List<Changelog>,
+        // Read from the pre-fetched row — avoids a lazy per-chart users query
+        val authorId: UUID? = null,
     )
 
     fun toChart(result: ChartResult): Chart = Chart(
@@ -45,7 +47,7 @@ class ChartResultAssembler(
         previewVideoId = result.catalogItem.previewVideoId,
         discordChannelId = result.catalogItem.discordChannelId,
         discordMessageId = result.catalogItem.discordMessageId,
-        authorId = result.catalogItem.author?.id?.value,
+        authorId = result.authorId,
         track = trackRepository.toTrack(result.track, result.streamingRefs),
         versionsCount = result.versionsCount,
         bundleHash = result.bundleHash,
@@ -120,6 +122,7 @@ class ChartResultAssembler(
                 streamingRefs = streamingRefs,
                 userStats = userStats[catalogItemEntity.id.value] ?: Pair(null, null),
                 changelog = changelogs[catalogItemEntity.id.value] ?: emptyList(),
+                authorId = rows.first()[CatalogItemTable.authorId]?.value,
             )
         }
     }
