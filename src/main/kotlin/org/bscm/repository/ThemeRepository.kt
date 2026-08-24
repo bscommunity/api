@@ -8,15 +8,9 @@ import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ThemeEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dao.VersionEntity
-import org.bscm.models.enums.BeatstarThemeId
-import org.bscm.models.enums.CatalogItemStatus
-import org.bscm.models.enums.CatalogItemType
-import org.bscm.models.enums.CollectionKind
+import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IThemeRepository
-import org.bscm.models.tables.CollectionItemTable
-import org.bscm.models.tables.CollectionTable
-import org.bscm.models.tables.ThemeTable
-import org.bscm.models.tables.VersionTable
+import org.bscm.models.tables.*
 import org.bscm.storage.StorageService
 import org.bscm.utils.UserStatsUtils
 import org.jetbrains.exposed.v1.core.*
@@ -73,9 +67,41 @@ class ThemeRepository(
         latestVersionEntity: VersionEntity? = null,
         likesCount: Int = 0,
         bookmarksCount: Int = 0,
+        catalogRow: ResultRow? = null,
     ): Theme {
-        val catalogItem = CatalogItemEntity[entity.id.value]
         val id = entity.id.value
+        // When a pre-fetched catalog_items row is provided, use it directly to avoid
+        // per-item DAO lookups and lazy author loads (N+1). Only the author ID is needed.
+        val itemInfo = catalogRow?.let {
+            CatalogItemFields(
+                status = it[CatalogItemTable.status],
+                visibility = it[CatalogItemTable.visibility],
+                isFeatured = it[CatalogItemTable.isFeatured],
+                previewVideoId = it[CatalogItemTable.previewVideoId],
+                downloadsSum = it[CatalogItemTable.downloadsSum],
+                discordChannelId = it[CatalogItemTable.discordChannelId],
+                discordMessageId = it[CatalogItemTable.discordMessageId],
+                createdAt = it[CatalogItemTable.createdAt],
+                publishedAt = it[CatalogItemTable.publishedAt],
+                updatedAt = it[CatalogItemTable.updatedAt],
+                authorId = it[CatalogItemTable.authorId]?.value,
+            )
+        } ?: run {
+            val catalogItem = CatalogItemEntity[id]
+            CatalogItemFields(
+                status = catalogItem.status,
+                visibility = catalogItem.visibility,
+                isFeatured = catalogItem.isFeatured,
+                previewVideoId = catalogItem.previewVideoId,
+                downloadsSum = catalogItem.downloadsSum,
+                discordChannelId = catalogItem.discordChannelId,
+                discordMessageId = catalogItem.discordMessageId,
+                createdAt = catalogItem.createdAt,
+                publishedAt = catalogItem.publishedAt,
+                updatedAt = catalogItem.updatedAt,
+                authorId = catalogItem.author?.id?.value,
+            )
+        }
         return Theme(
             name = entity.name,
             replaces = entity.replaces,
@@ -86,26 +112,40 @@ class ThemeRepository(
             contributors = emptyList(),
             likesCount = likesCount,
             bookmarksCount = bookmarksCount,
-            createdAt = catalogItem.createdAt,
-            publishedAt = catalogItem.publishedAt,
-            updatedAt = catalogItem.updatedAt,
+            createdAt = itemInfo.createdAt,
+            publishedAt = itemInfo.publishedAt,
+            updatedAt = itemInfo.updatedAt,
             likedAt = likedAt,
             bookmarkedAt = bookmarkedAt,
             id = id,
             type = CatalogItemType.THEME,
-            status = catalogItem.status,
-            visibility = catalogItem.visibility,
-            isFeatured = catalogItem.isFeatured,
-            downloadsSum = catalogItem.downloadsSum,
-            previewVideoId = catalogItem.previewVideoId,
-            discordChannelId = catalogItem.discordChannelId,
-            discordMessageId = catalogItem.discordMessageId,
-            authorId = catalogItem.author?.id?.value,
+            status = itemInfo.status,
+            visibility = itemInfo.visibility,
+            isFeatured = itemInfo.isFeatured,
+            downloadsSum = itemInfo.downloadsSum,
+            previewVideoId = itemInfo.previewVideoId,
+            discordChannelId = itemInfo.discordChannelId,
+            discordMessageId = itemInfo.discordMessageId,
+            authorId = itemInfo.authorId,
             versionsCount = versionsCount,
             latestVersion = latestVersionEntity?.let { org.bscm.models.mappers.VersionMapper.entityToVersion(it) },
             bundleHash = latestVersionEntity?.bundleHash,
         )
     }
+
+    private data class CatalogItemFields(
+        val status: CatalogItemStatus,
+        val visibility: Visibility,
+        val isFeatured: Boolean,
+        val previewVideoId: String?,
+        val downloadsSum: Int,
+        val discordChannelId: String?,
+        val discordMessageId: String?,
+        val createdAt: LocalDateTime,
+        val publishedAt: LocalDateTime?,
+        val updatedAt: LocalDateTime?,
+        val authorId: UUID?,
+    )
 
     override suspend fun getThemes(
         userId: UUID?,
@@ -118,24 +158,30 @@ class ThemeRepository(
         val pageOffset = offset ?: 0
 
         val query = ThemeTable.selectAll()
+        // When filtering by explicit catalogIds (e.g., a pre-paginated page from an
+        // orchestrator), skip ordering/pagination — the caller already applied both.
+        val isIdFiltered = catalogIds != null && catalogIds.isNotEmpty()
 
         when {
-            catalogIds != null && catalogIds.isNotEmpty() && search != null -> {
+            isIdFiltered && search != null -> {
                 query.where {
-                    (ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) }) and
+                    (ThemeTable.id inList catalogIds!!.map { EntityID(it, ThemeTable) }) and
                     (ThemeTable.name like "%${search}%")
                 }
             }
-            catalogIds != null && catalogIds.isNotEmpty() -> {
-                query.where { ThemeTable.id inList catalogIds.map { EntityID(it, ThemeTable) } }
+            isIdFiltered -> {
+                query.where { ThemeTable.id inList catalogIds!!.map { EntityID(it, ThemeTable) } }
             }
             search != null -> {
                 query.where { ThemeTable.name like "%${search}%" }
             }
         }
 
-        query.orderBy(ThemeTable.id to SortOrder.DESC)
-        val paged = query.limit(pageSize).offset(pageOffset.toLong()).toList()
+        if (!isIdFiltered) {
+            query.orderBy(ThemeTable.id to SortOrder.DESC)
+            query.limit(pageSize).offset(pageOffset.toLong())
+        }
+        val paged = query.toList()
             .map { ThemeEntity.wrapRow(it) }
 
         val themeIds = paged.map { it.id.value }
@@ -146,11 +192,19 @@ class ThemeRepository(
         val aggregateStats = fetchAggregateStats(themeIds)
         val versionData = enrichWithVersionData(themeIds)
 
+        // Batch-fetch catalog_items rows once instead of per-entity DAO lookups (N+1)
+        val catalogRows = if (themeIds.isNotEmpty()) {
+            CatalogItemTable.selectAll()
+                .where { CatalogItemTable.id inList themeIds.map { EntityID(it, CatalogItemTable) } }
+                .associateBy { it[CatalogItemTable.id].value }
+        } else emptyMap()
+
         paged.map { entity ->
-            val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
-            val (vCount, vEntity) = versionData[entity.id.value] ?: (0 to null)
-            val (likesCount, bookmarksCount) = aggregateStats[entity.id.value] ?: (0 to 0)
-            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity, likesCount, bookmarksCount)
+            val id = entity.id.value
+            val (likedAt, bookmarkedAt) = userStats[id] ?: (null to null)
+            val (vCount, vEntity) = versionData[id] ?: (0 to null)
+            val (likesCount, bookmarksCount) = aggregateStats[id] ?: (0 to 0)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity, likesCount, bookmarksCount, catalogRows[id])
         }
     }
 
@@ -233,29 +287,16 @@ class ThemeRepository(
     private fun enrichWithVersionData(catalogItemIds: List<String>): Map<String, Pair<Int, VersionEntity?>> {
         if (catalogItemIds.isEmpty()) return emptyMap()
 
-        val countColumn = VersionTable.id.count()
-        val counts = VersionTable
-            .select(VersionTable.catalogItemId, countColumn)
-            .where { VersionTable.catalogItemId inList catalogItemIds }
-            .groupBy(VersionTable.catalogItemId)
-            .toList()
-            .associate { it[VersionTable.catalogItemId].value to it[countColumn].toInt() }
-
+        // Single pass: fetch version rows once, derive both counts and latest in memory
         val allVersions = VersionTable.selectAll()
             .where { VersionTable.catalogItemId inList catalogItemIds }
             .toList()
-
-        val latestVersions = allVersions
             .groupBy { it[VersionTable.catalogItemId].value }
-            .mapValues { (_, versions) ->
-                versions.maxByOrNull { it[VersionTable.versionCode] }
-            }
-            .mapValues { (_, row) ->
-                row?.let { VersionEntity.wrapRow(it) }
-            }
 
         return catalogItemIds.associateWith { id ->
-            Pair(counts[id] ?: 0, latestVersions[id])
+            val versions = allVersions[id].orEmpty()
+            val latestRow = versions.maxByOrNull { it[VersionTable.versionCode] }
+            Pair(versions.size, latestRow?.let { VersionEntity.wrapRow(it) })
         }
     }
 
