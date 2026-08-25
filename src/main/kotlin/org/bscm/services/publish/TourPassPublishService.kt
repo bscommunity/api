@@ -25,16 +25,26 @@ class TourPassPublishService(
     private val uploadService: UploadService,
     private val storageService: StorageService,
     private val activityRepository: IActivityRepository,
+    private val publishEventService: PublishEventService,
 ) {
     suspend fun createAndPublish(
         uploader: User,
         request: CreateTourPassRequest,
         coverBytes: ByteArray?,
         coverContentType: ContentType?,
+        publishSessionId: String? = null,
     ): TourPass {
+        fun emitEvent(step: PublishStep, message: String = step.message) {
+            if (publishSessionId != null) {
+                publishEventService.emit(publishSessionId, step, message)
+            }
+        }
+
         if (coverBytes == null && request.coverUrl.isNullOrBlank()) {
             throw BadRequestException("coverUrl or cover file is required")
         }
+
+        emitEvent(PublishStep.PREPARING_BUNDLE, "Resolving tracklist")
 
         val chartIds = request.chartIds ?: emptyList()
         val charts = if (chartIds.isNotEmpty()) {
@@ -73,6 +83,7 @@ class TourPassPublishService(
 
         // Upload cover to storage if raw bytes were provided
         if (coverBytes != null) {
+            emitEvent(PublishStep.UPLOADING_COVER, "Uploading tour pass cover")
             val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
             storageService.uploadTourPassCover(catalogId, avifBytes)
         }
@@ -121,7 +132,10 @@ class TourPassPublishService(
             tracklist = tracklist,
         )
 
+        emitEvent(PublishStep.UPLOADING_TO_DISCORD, "Uploading tour pass to Discord")
         val discordResponse = uploadService.uploadTourPass(tourPassData)
+
+        emitEvent(PublishStep.CREATING_CHART, "Creating tour pass in database")
 
         val tourPass = tourPassRepository.createTourPass(
             userId = uploader.id,
@@ -139,11 +153,15 @@ class TourPassPublishService(
             discordResponse.id,
         )
 
+        emitEvent(PublishStep.LOGGING_ACTIVITY)
+
         activityRepository.logActivity(
             userId = uploader.id,
             type = ActivityType.CREATED_TOUR_PASS,
             targetId = tourPass.id
         )
+
+        emitEvent(PublishStep.COMPLETED)
 
         return tourPass
     }

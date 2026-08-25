@@ -194,6 +194,7 @@ fun mainModule(config: ApplicationConfig) = module {
             uploadService = get(),
             storageService = get(),
             activityRepository = get(),
+            publishEventService = get(),
         )
     }
     single {
@@ -203,6 +204,7 @@ fun mainModule(config: ApplicationConfig) = module {
             uploadService = get(),
             storageService = get(),
             activityRepository = get(),
+            publishEventService = get(),
         )
     }
     single {

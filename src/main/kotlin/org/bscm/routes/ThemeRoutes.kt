@@ -208,6 +208,7 @@ fun Route.themeRoutes(
                     }
 
                     val bundleFileBytes = multipart.files["bundle"]?.bytes
+                    val publishSessionId = call.request.headers["X-Publish-Session-Id"]
 
                     val theme = themePublishService.createAndPublish(
                         uploader = user,
@@ -218,7 +219,8 @@ fun Route.themeRoutes(
                             displayArtBytes = multipart.files["display"]?.bytes,
                             displayArtContentType = multipart.files["display"]?.contentType,
                             bundleBytes = bundleFileBytes,
-                        )
+                        ),
+                        publishSessionId = publishSessionId,
                     )
 
                     logger.info("Theme ${theme.id} created by user $userId")

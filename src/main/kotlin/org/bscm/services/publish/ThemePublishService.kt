@@ -28,6 +28,7 @@ class ThemePublishService(
     private val uploadService: UploadService,
     private val storageService: StorageService,
     private val activityRepository: IActivityRepository,
+    private val publishEventService: PublishEventService,
 ) {
     data class Assets(
         val coverArtBytes: ByteArray?,
@@ -41,7 +42,14 @@ class ThemePublishService(
         uploader: User,
         request: CreateThemeRequest,
         assets: Assets,
+        publishSessionId: String? = null,
     ): Theme {
+        fun emitEvent(step: PublishStep, message: String = step.message) {
+            if (publishSessionId != null) {
+                publishEventService.emit(publishSessionId, step, message)
+            }
+        }
+
         if (assets.coverArtBytes == null) {
             throw BadRequestException("Cover art file is required")
         }
@@ -56,6 +64,8 @@ class ThemePublishService(
             throw BadRequestException("Bundle file size exceeds 10MB limit")
         }
 
+        emitEvent(PublishStep.EXTRACTING_BUNDLE, "Validating theme bundle")
+
         val bundleHash = MessageDigest.getInstance("SHA-256")
             .digest(assets.bundleBytes)
             .joinToString("") { "%02x".format(it) }
@@ -67,6 +77,8 @@ class ThemePublishService(
         }
 
         val catalogId = NanoIdUtils.generateCatalogId()
+
+        emitEvent(PublishStep.UPLOADING_COVER, "Uploading theme artwork")
 
         if (assets.coverArtBytes != null) {
             val avifBytes = MediaConverter.convertToAvif(assets.coverArtBytes) ?: assets.coverArtBytes
@@ -96,6 +108,7 @@ class ThemePublishService(
         )
         val enrichedBundleBytes = DecodingUtils.injectBscmMetadata(assets.bundleBytes, bscmMetadata)
 
+        emitEvent(PublishStep.UPLOADING_TO_DISCORD, "Uploading theme to Discord")
         val discordResponse = uploadService.uploadTheme(
             UploadService.ThemePublishData(
                 title = request.name,
@@ -114,6 +127,8 @@ class ThemePublishService(
 
         val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
 
+        emitEvent(PublishStep.CREATING_CHART, "Creating theme in database")
+
         val (theme, version) = try {
             suspendTransaction {
                 val createdTheme = themeRepository.createTheme(
@@ -130,6 +145,8 @@ class ThemePublishService(
                     discordResponse.channelId,
                     discordResponse.id,
                 )
+
+                emitEvent(PublishStep.FINALIZING_VERSION)
 
                 val v = if (bundleAttachment != null) {
                     versionRepository.addVersion(
@@ -160,11 +177,15 @@ class ThemePublishService(
             throw e
         }
 
+        emitEvent(PublishStep.LOGGING_ACTIVITY)
+
         activityRepository.logActivity(
             userId = uploader.id,
             type = ActivityType.CREATED_THEME,
             targetId = theme.id
         )
+
+        emitEvent(PublishStep.COMPLETED)
 
         return theme.copy(
             latestVersion = version,

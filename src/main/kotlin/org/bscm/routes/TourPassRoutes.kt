@@ -103,11 +103,14 @@ fun Route.tourPassRoutes(
                     val coverBytes = multipart.files["cover"]?.bytes
                     val coverContentType = multipart.files["cover"]?.contentType
 
+                    val publishSessionId = call.request.headers["X-Publish-Session-Id"]
+
                     val tourPass = tourPassPublishService.createAndPublish(
                         uploader = user,
                         request = request,
                         coverBytes = coverBytes,
                         coverContentType = coverContentType,
+                        publishSessionId = publishSessionId,
                     )
 
                     logger.info("TourPass ${tourPass.id} created by user $userId")
