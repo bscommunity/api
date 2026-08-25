@@ -17,4 +17,5 @@ data class UpdateChartRequest (
     val isExplicit: Boolean? = null,
     val isFeatured: Boolean? = null,
     val visibility: Visibility? = null,
+    val previewVideoId: String? = null,
 )

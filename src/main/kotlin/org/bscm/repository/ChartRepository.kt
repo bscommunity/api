@@ -336,6 +336,9 @@ class ChartRepository(
         chart.visibility?.let { visibility ->
             catalogItemRepository.updateVisibility(id, visibility)
         }
+        chart.previewVideoId?.let { previewVideoId ->
+            catalogItemRepository.updatePreviewVideoId(id, previewVideoId)
+        }
 
         val query = ChartTable.selectAll().where { ChartTable.id eq id }
         getChart(query, ChartAddons(streamingLinks = true), requestingUserId = requestingUserId)

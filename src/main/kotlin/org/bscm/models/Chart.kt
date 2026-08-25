@@ -26,6 +26,9 @@ data class Chart(
 
     override val downloadsSum: Int,
 
+    val likesCount: Int = 0,
+    val bookmarksCount: Int = 0,
+
     override val contributors: List<Contributor>,
 
     override val createdAt: LocalDateTime,

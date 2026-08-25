@@ -5,10 +5,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Contributor
 import org.bscm.models.Theme
-import org.bscm.models.dao.CatalogItemEntity
-import org.bscm.models.dao.ThemeEntity
-import org.bscm.models.dao.UserEntity
-import org.bscm.models.dao.VersionEntity
+import org.bscm.models.dao.*
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.*
@@ -268,7 +265,16 @@ class ThemeRepository(
             this.previewUrl = previewUrl
         }
 
-        themeEntityToTheme(theme)
+        ContributorEntity.new {
+            this.catalogItem = catalogItem
+            this.user = UserEntity[userId]
+            this.role = ContributorRole.AUTHOR
+        }
+
+        val themeId = theme.id.value
+        val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(themeId))[themeId].orEmpty()
+
+        themeEntityToTheme(theme, contributors = contributors)
     }
 
     override suspend fun updateTheme(

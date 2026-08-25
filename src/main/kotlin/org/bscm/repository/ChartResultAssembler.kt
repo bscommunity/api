@@ -6,13 +6,15 @@ import org.bscm.models.Chart
 import org.bscm.models.Contributor
 import org.bscm.models.StreamingRef
 import org.bscm.models.dao.*
+import org.bscm.models.enums.CollectionKind
 import org.bscm.models.mappers.VersionMapper
-import org.bscm.models.tables.AlbumTable
-import org.bscm.models.tables.CatalogItemTable
-import org.bscm.models.tables.ChartTable
-import org.bscm.models.tables.TrackStreamingRefTable
+import org.bscm.models.tables.*
 import org.bscm.utils.StreamingPlatformUtils
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.jdbc.select
 import java.util.*
 
 class ChartResultAssembler(
@@ -29,6 +31,8 @@ class ChartResultAssembler(
         val latestVersion: VersionEntity? = null,
         val versionsCount: Int = 0,
         val bundleHash: String? = null,
+        val likesCount: Int = 0,
+        val bookmarksCount: Int = 0,
         val userStats: Pair<LocalDateTime?, LocalDateTime?>,
         val changelog: List<Changelog>,
         // Read from the pre-fetched row — avoids a lazy per-chart users query
@@ -41,6 +45,8 @@ class ChartResultAssembler(
         visibility = result.catalogItem.visibility,
         isFeatured = result.catalogItem.isFeatured,
         downloadsSum = result.catalogItem.downloadsSum,
+        likesCount = result.likesCount,
+        bookmarksCount = result.bookmarksCount,
         contributors = result.contributors,
         createdAt = result.catalogItem.createdAt,
         publishedAt = result.catalogItem.publishedAt,
@@ -63,6 +69,39 @@ class ChartResultAssembler(
         latestVersion = result.latestVersion?.let(VersionMapper::entityToVersion),
     )
 
+    /**
+     * Fetches aggregate likes/bookmarks counts for a batch of catalog items.
+     * Returns a map of catalogId -> (likesCount, bookmarksCount).
+     * Must be called within a transaction.
+     */
+    private fun fetchAggregateStats(catalogIds: List<String>): Map<String, Pair<Int, Int>> {
+        if (catalogIds.isEmpty()) return emptyMap()
+
+        val statsRows = CollectionItemTable
+            .innerJoin(CollectionTable, { CollectionItemTable.collectionId }, { CollectionTable.id })
+            .select(CollectionItemTable.catalogId, CollectionTable.kind, CollectionTable.userId)
+            .where {
+                (CollectionTable.kind inList listOf(CollectionKind.LIKES, CollectionKind.BOOKMARKS, CollectionKind.USER)) and
+                    (CollectionItemTable.catalogId inList catalogIds)
+            }
+            .toList()
+
+        return catalogIds.associateWith { catalogId ->
+            val rows = statsRows.filter { it[CollectionItemTable.catalogId].value == catalogId }
+            val likesCount = rows.filter { it[CollectionTable.kind] == CollectionKind.LIKES }
+                .map { it[CollectionTable.userId] }
+                .distinct()
+                .size
+            val bookmarksCount = rows.filter {
+                it[CollectionTable.kind] == CollectionKind.BOOKMARKS || it[CollectionTable.kind] == CollectionKind.USER
+            }
+                .map { it[CollectionTable.userId] }
+                .distinct()
+                .size
+            likesCount to bookmarksCount
+        }
+    }
+
     suspend fun processResultsInMemory(
         requestingUserId: UUID?,
         results: List<ResultRow>,
@@ -74,6 +113,7 @@ class ChartResultAssembler(
         }
         val catalogIds = groupedByChartId.keys.toList()
         val userStats = catalogItemRepository.fetchUserStats(requestingUserId, catalogIds)
+        val collectionStats = fetchAggregateStats(catalogIds)
         val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(catalogIds)
 
         val albumIds = groupedByChartId.values.flatten()
@@ -114,6 +154,8 @@ class ChartResultAssembler(
                 track = trackEntity,
                 contributors = contributorsByCatalogId[catalogItemEntity.id.value].orEmpty(),
                 streamingRefs = streamingRefs,
+                likesCount = collectionStats[catalogItemEntity.id.value]?.first ?: 0,
+                bookmarksCount = collectionStats[catalogItemEntity.id.value]?.second ?: 0,
                 userStats = userStats[catalogItemEntity.id.value] ?: Pair(null, null),
                 changelog = changelogs[catalogItemEntity.id.value] ?: emptyList(),
                 authorId = rows.first()[CatalogItemTable.authorId]?.value,

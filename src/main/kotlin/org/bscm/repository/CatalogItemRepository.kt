@@ -59,6 +59,10 @@ class CatalogItemRepository {
     ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.visibility = visibility
+            // Stamp the first time an item becomes public; preserve that date afterwards
+            if (visibility == Visibility.PUBLIC && it.publishedAt == null) {
+                it.publishedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+            }
             it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
     }
@@ -69,6 +73,16 @@ class CatalogItemRepository {
     ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.isFeatured = isFeatured
+            it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        }
+    }
+
+    fun updatePreviewVideoId(
+        catalogItemId: String,
+        previewVideoId: String,
+    ) {
+        CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
+            it.previewVideoId = previewVideoId
             it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
     }
