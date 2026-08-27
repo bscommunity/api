@@ -106,7 +106,6 @@ fun Application.configureRouting() {
 
         val userRepository by inject<IUserRepository>()
         val contributorRepository by inject<IContributorRepository>()
-        val changelogRepository by inject<IChangelogRepository>()
         val versionRepository by inject<IVersionRepository>()
         val collectionService by inject<CollectionService>()
         val activityRepository by inject<IActivityRepository>()
@@ -143,8 +142,6 @@ fun Application.configureRouting() {
         contributorRoutes(contributorRepository)
         debugRoutes(trackInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)
-        changelogRoutes(changelogRepository)
-
         // Discord interactions (slash commands, buttons, etc.)
         interactionsRoutes(
             application.environment.config.propertyOrNull("discord.publicKey")?.getString(),

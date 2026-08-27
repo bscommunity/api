@@ -11,7 +11,6 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.*
-import org.bscm.models.interfaces.IChangelogRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.tables.*
@@ -36,7 +35,6 @@ class ChartRepository(
     private val catalogItemRepository: CatalogItemRepository,
     private val versionRepository: IVersionRepository,
     private val albumRepository: AlbumRepository,
-    private val changelogRepository: IChangelogRepository,
 ) : IChartRepository {
 
     private val queryBuilder = ChartQueryBuilder()
@@ -67,14 +65,11 @@ class ChartRepository(
         queryBuilder.applyJoinsAndSelect(query, fetchStreamingRefs = addons?.streamingLinks == true)
 
         val results = query.toList()
-        val chartIds = results.map { it[ChartTable.id].value }.distinct()
-        val changelogs = changelogRepository.getByCatalogItemIds(chartIds)
 
         val processedResults = resultAssembler.processResultsInMemory(
             requestingUserId = requestingUserId,
             results = results,
             includeStreamingRefs = addons?.streamingLinks == true,
-            changelogs = changelogs,
         )
 
         val enrichedResults = enrichWithVersionData(processedResults)
@@ -124,12 +119,10 @@ class ChartRepository(
         queryBuilder.applyJoinsAndSelect(fullQuery, fetchStreamingRefs = addons?.streamingLinks == true)
 
         val results = fullQuery.toList()
-        val changelogs = changelogRepository.getByCatalogItemIds(paginatedIds)
         val processedResults = resultAssembler.processResultsInMemory(
             requestingUserId = requestingUserId,
             results = results,
             includeStreamingRefs = addons?.streamingLinks == true,
-            changelogs = changelogs,
         )
 
         val enrichedResults = enrichWithVersionData(processedResults)
@@ -181,12 +174,10 @@ class ChartRepository(
             queryBuilder.applyJoinsAndSelect(query, fetchStreamingRefs = addons?.streamingLinks == true)
 
             val results = query.toList()
-            val changelogs = changelogRepository.getByCatalogItemIds(catalogIds)
             val processedResults = resultAssembler.processResultsInMemory(
                 requestingUserId = requestingUserId,
                 results = results,
                 includeStreamingRefs = addons?.streamingLinks == true,
-                changelogs = changelogs,
             )
             enrichWithVersionData(processedResults).map { resultAssembler.toChart(it) }
         }

@@ -60,7 +60,7 @@ class VersionRepository : IVersionRepository {
                 this.catalogItem = CatalogItemEntity[catalogItemId]
                 this.versionCode = latestCode + 1
                 this.fileSizeBytes = version.fileSizeBytes
-                this.changelog = version.changelog.joinToString("\n").ifBlank { null }
+                this.changelog = version.changelog.ifBlank { null }
                 this.bundleHash = bundleHash
             }
         } else {
@@ -68,7 +68,7 @@ class VersionRepository : IVersionRepository {
                 this.catalogItem = CatalogItemEntity[catalogItemId]
                 this.versionCode = latestCode + 1
                 this.fileSizeBytes = version.fileSizeBytes
-                this.changelog = version.changelog.joinToString("\n").ifBlank { null }
+                this.changelog = version.changelog.ifBlank { null }
                 this.bundleHash = bundleHash
             }
         }

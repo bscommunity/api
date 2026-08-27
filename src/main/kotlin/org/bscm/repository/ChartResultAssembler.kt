@@ -1,7 +1,6 @@
 package org.bscm.repository
 
 import kotlinx.datetime.LocalDateTime
-import org.bscm.models.Changelog
 import org.bscm.models.Chart
 import org.bscm.models.Contributor
 import org.bscm.models.StreamingRef
@@ -34,7 +33,6 @@ class ChartResultAssembler(
         val likesCount: Int = 0,
         val bookmarksCount: Int = 0,
         val userStats: Pair<LocalDateTime?, LocalDateTime?>,
-        val changelog: List<Changelog>,
         // Read from the pre-fetched row — avoids a lazy per-chart users query
         val authorId: UUID? = null,
     )
@@ -65,7 +63,6 @@ class ChartResultAssembler(
         effectsAmount = result.chart.effectsAmount,
         isDeluxe = result.chart.isDeluxe,
         isExplicit = result.chart.isExplicit,
-        changelog = result.changelog,
         latestVersion = result.latestVersion?.let(VersionMapper::entityToVersion),
     )
 
@@ -106,7 +103,6 @@ class ChartResultAssembler(
         requestingUserId: UUID?,
         results: List<ResultRow>,
         includeStreamingRefs: Boolean,
-        changelogs: Map<String, List<Changelog>> = emptyMap(),
     ): List<ChartResult> {
         val groupedByChartId: Map<String, List<ResultRow>> = results.groupBy { row: ResultRow ->
             row[ChartTable.id].value
@@ -157,7 +153,6 @@ class ChartResultAssembler(
                 likesCount = collectionStats[catalogItemEntity.id.value]?.first ?: 0,
                 bookmarksCount = collectionStats[catalogItemEntity.id.value]?.second ?: 0,
                 userStats = userStats[catalogItemEntity.id.value] ?: Pair(null, null),
-                changelog = changelogs[catalogItemEntity.id.value] ?: emptyList(),
                 authorId = rows.first()[CatalogItemTable.authorId]?.value,
             )
         }

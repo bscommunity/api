@@ -13,7 +13,10 @@ import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
-import org.bscm.models.interfaces.*
+import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.IContributorRepository
+import org.bscm.models.interfaces.IUserRepository
+import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.utils.NanoIdUtils
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.koin.ktor.ext.inject
@@ -27,7 +30,6 @@ fun Application.seedDatabase() {
     val userRepository by inject<IUserRepository>()
     val versionRepository by inject<IVersionRepository>()
     val contributorRepository by inject<IContributorRepository>()
-    val knownIssueRepository by inject<IChangelogRepository>()
 
     runBlocking {
         generateRandomCharts(
@@ -36,7 +38,6 @@ fun Application.seedDatabase() {
             userRepository,
             versionRepository,
             contributorRepository,
-            knownIssueRepository
         )
     }
 }
@@ -51,7 +52,6 @@ private suspend fun generateRandomCharts(
     userRepository: IUserRepository,
     versionRepository: IVersionRepository,
     contributorRepository: IContributorRepository,
-    knownIssueRepository: IChangelogRepository
 ) = coroutineScope {
     // Create users first (sequentially since it's a small number)
     // Create or retrieve users
@@ -197,24 +197,9 @@ private suspend fun generateRandomCharts(
                             log.info("Added contributors for chart ID: ${chart.id}")
                         }
 
-                        // Add changelog randomly
-                        val issueJob = launch {
-                            if (Random.nextBoolean()) {
-                                val issuesCount = Random.nextInt(1, 3)
-                                repeat(issuesCount) {
-                                    knownIssueRepository.addIssue(
-                                        chart.id,
-                                        description = "${getRandomIssue()} (Generated for seeding)"
-                                    )
-                                }
-                                log.info("Added known issues for chart ID: ${chart.id}")
-                            }
-                        }
-
                         // Wait for all data for this chart to be added
                         versionJob.join()
                         contributorJob.join()
-                        issueJob.join()
                     }
 
                 } catch (e: Exception) {
@@ -301,19 +286,6 @@ private fun getRandomAlbum(): String {
         "Appetite for Destruction"
     )
     return albums.random()
-}
-
-private fun getRandomIssue(): String {
-    val issues = listOf(
-        "Notes out of sync with the beat",
-        "Missing effects at the chorus",
-        "Incorrect BPM in the bridge section",
-        "Overlapping notes in the second verse",
-        "Sound effects too loud in the mix",
-        "Chart crashes at the end of the song",
-        "Performance issues on older devices"
-    )
-    return issues.random()
 }
 
 private fun getRandomCoverUrl(): String {

@@ -15,8 +15,8 @@ data class CreateVersionRequest(
     val difficulty: Difficulty,
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
-    val bundleUrl: String,
+	val bundleUrl: String = "",
     val previewUrl: String? = null,
     val fileSizeBytes: Long = 0,
-    val changelog: List<String> = emptyList(),
+    val changelog: String = "",
 )

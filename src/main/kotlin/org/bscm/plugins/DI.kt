@@ -111,7 +111,7 @@ fun mainModule(config: ApplicationConfig) = module {
     single { AlbumRepository() }
     single { TrackRepository(storageService = get()) }
     single { BundleUrlCacheRepository() }
-    single<IChartRepository> { ChartRepository(get(), get(), get(), get(), get()) }
+    single<IChartRepository> { ChartRepository(get(), get(), get(), get()) }
     single<IContributorRepository> { ContributorRepository() }
     single<IVersionRepository> { VersionRepository() }
     single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get(), get()) }
@@ -119,7 +119,6 @@ fun mainModule(config: ApplicationConfig) = module {
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
     single<ITourPassRepository> { TourPassRepository(get(), get(), get()) }
     single<IThemeRepository> { ThemeRepository(get(), get()) }
-    single<IChangelogRepository> { ChangelogRepository() }
     single {
         JWTService(
             secret = config.property("jwt.secret").getString()
