@@ -28,6 +28,7 @@ import org.bscm.services.BundleDownloadService
 import org.bscm.services.UploadService
 import org.bscm.services.publish.ThemePublishService
 import org.bscm.services.track.clients.jsonClient
+import org.bscm.utils.getUserIdOrNull
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.security.MessageDigest
 import java.util.*
@@ -408,6 +409,34 @@ fun Route.themeRoutes(
                     logger.info("Version ${createdVersion.id} (v${createdVersion.versionCode}) created for theme $id")
 
                     call.respond(HttpStatusCode.Created, createdVersion)
+                }
+
+                delete("{id}/versions/{versionId}") {
+                    val catalogItemId = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing theme ID")
+
+                    val versionId = call.parameters["versionId"]?.toULongOrNull()
+                        ?: throw BadRequestException("Invalid or missing version ID")
+
+                    val version = versionRepository.getVersionById(versionId)
+                        ?: throw NotFoundException("Version not found")
+
+                    val theme = themeRepository.getThemeById(catalogItemId, userId = call.getUserIdOrNull())
+                        ?: throw NotFoundException("Theme not found")
+
+                    logger.info("Removing version $versionId from theme ${theme.id}")
+
+                    versionRepository.removeVersion(versionId)
+
+                    val versions = versionRepository.getVersions(theme.id)
+
+                    uploadService.deleteThemeVersion(
+                        theme = theme,
+                        versions = versions,
+                        versionId = versionId.toString()
+                    )
+
+                    call.respond(HttpStatusCode.NoContent)
                 }
             }
         }

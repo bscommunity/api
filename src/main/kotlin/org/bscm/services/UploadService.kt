@@ -574,6 +574,46 @@ class UploadService(
         return response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.OK
     }
 
+    suspend fun deleteThemeVersion(
+        theme: Theme,
+        versions: List<Version>,
+        versionId: String
+    ): Boolean {
+        val messageId = theme.discordMessageId
+            ?: throw IllegalStateException("Theme ${theme.id} has no Discord message ID")
+        val remainingVersions = versions.filter { it.id != versionId }
+
+        val payloadJson = jsonClient.encodeToString(
+            SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
+                attachments = remainingVersions.map {
+                    SimpleAttachment(
+                        id = it.id,
+                        filename = "theme_v${it.versionCode}.zip",
+                    )
+                },
+            )
+        )
+
+        logger.info("Current theme message attachments after deletion: $payloadJson")
+
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = "${editWebhookUrl}/${messageId}?with_components=true",
+            formData = formData {
+                append("payload_json", payloadJson, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+            }
+        ) {
+            method = HttpMethod.Patch
+        }
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to delete theme version: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        return response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.OK
+    }
+
     @OptIn(InternalAPI::class)
     suspend fun uploadThemeVersion(
         theme: Theme,
