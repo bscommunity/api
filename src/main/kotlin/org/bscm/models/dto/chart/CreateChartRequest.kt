@@ -13,6 +13,7 @@ data class CreateChartRequest (
     val artist: String,
     val track: String,
     val album: String? = null,
+    val isrc: String? = null,
     @Contextual val albumId: UUID? = null,
     val trackUrls: List<StreamingRef>,
     val previewUrl: String? = null,
@@ -33,8 +34,6 @@ data class CreateChartRequest (
     val bpm: Int,
     val difficulty: Difficulty,
     val isDeluxe: Boolean,
-    val bundleUrl: String,
     val fileSizeBytes: Long = 0,
     val bundleHash: String? = null,
-    val isrc: String? = null,
 )

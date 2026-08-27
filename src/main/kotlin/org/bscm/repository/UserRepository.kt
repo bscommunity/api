@@ -472,7 +472,8 @@ class UserRepository(
         difficulties: List<Difficulty>?,
         isDeluxe: Boolean?,
         limit: Int,
-        offset: Int
+        offset: Int,
+        includeVersions: Boolean,
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>> = suspendTransaction {
         // Base query on CatalogItemTable
         val contentQuery = CatalogItemTable
@@ -558,7 +559,8 @@ class UserRepository(
         // Fetch each type in bulk
         val charts = if (chartIds.isNotEmpty()) {
             chartRepository.getCharts(
-                filters = ChartRepository.ChartFilters(chartIds = chartIds, includePrivate = true)
+                filters = ChartRepository.ChartFilters(chartIds = chartIds, includePrivate = true),
+                addons = ChartRepository.ChartAddons(versions = includeVersions),
             ).first
         } else emptyList()
 
@@ -567,7 +569,7 @@ class UserRepository(
         } else emptyList()
 
         val themes = if (themeIds.isNotEmpty()) {
-            themeRepository.getThemes(catalogIds = themeIds)
+            themeRepository.getThemes(catalogIds = themeIds, includeVersions = includeVersions)
         } else emptyList()
 
         // Merge all items and preserve original ordering

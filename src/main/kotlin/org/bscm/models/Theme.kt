@@ -50,4 +50,6 @@ data class Theme(
     override val versionsCount: Int = 0,
     override val latestVersion: Version? = null,
     override val bundleHash: String? = null,
+
+    val versions: List<Version> = emptyList(),
 ) : CatalogItem, Versionable

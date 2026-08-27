@@ -13,11 +13,10 @@ import io.ktor.util.logging.*
 import io.ktor.utils.io.*
 import org.bscm.models.dto.chart.BundleDownloadResponse
 import org.bscm.models.dto.theme.CreateThemeRequest
-import org.bscm.models.dto.theme.CreateThemeVersionRequest
 import org.bscm.models.dto.theme.UpdateThemeRequest
 import org.bscm.models.dto.user.PagedResponse
 import org.bscm.models.dto.version.CreateVersionRequest
-import org.bscm.models.enums.Difficulty
+import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.Visibility
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.IUserRepository
@@ -178,6 +177,52 @@ fun Route.themeRoutes(
                     )
                     call.respondBytes(bytes, ContentType.Application.Zip)
                 }
+
+                /**
+                 * Returns all versions for a theme, sorted by version code ascending.
+                 *
+                 * Tag: Versions
+                 *
+                 * Path: id [String] Theme catalog item ID.
+                 *
+                 * Responses:
+                 *   - 200 application/json [Array] List of theme versions.
+                 *   - 400 application/json [Error] Invalid or missing ID parameter.
+                 *   - 401 application/json [Error] Unauthorized access.
+                 *   - 404 application/json [Error] Theme not found.
+                 */
+                get("{id}/versions") {
+                    val id = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing theme ID")
+
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
+                    val combinedPrincipal = call.principal<CombinedPrincipal>()
+
+                    if (jwtPrincipal == null && hmacPrincipal == null && combinedPrincipal == null) {
+                        throw UnauthorizedException("Unauthorized")
+                    }
+
+                    val requesterId = when {
+                        combinedPrincipal != null ->
+                            runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                        jwtPrincipal != null ->
+                            jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        else -> null
+                    }
+
+                    val theme = themeRepository.getThemeById(id, userId = requesterId)
+                        ?: throw NotFoundException("Theme not found")
+
+                    if (theme.visibility != Visibility.PUBLIC) {
+                        val isContributor = requesterId != null &&
+                                theme.contributors.any { contributor -> contributor.user.id == requesterId }
+                        if (!isContributor) throw NotFoundException("Theme not found")
+                    }
+
+                    val versions = versionRepository.getVersions(theme.id)
+                    call.respond(versions)
+                }
             }
         }
 
@@ -329,7 +374,7 @@ fun Route.themeRoutes(
                         .joinToString("") { "%02x".format(it) }
 
                     val createRequest = try {
-                        jsonClient.decodeFromString<CreateThemeVersionRequest>(versionJson)
+                        jsonClient.decodeFromString<CreateVersionRequest>(versionJson)
                     } catch (e: Exception) {
                         throw BadRequestException("Invalid version JSON: ${e.message}")
                     }
@@ -340,7 +385,6 @@ fun Route.themeRoutes(
 
                     val discordResponse = uploadService.uploadThemeVersion(
                         theme = theme,
-                        version = createRequest.copy(fileSizeBytes = bundleFileBytes.size.toLong()),
                         author = user,
                         themeBundle = bundleFileBytes,
                         existingVersions = existingVersions,
@@ -349,28 +393,13 @@ fun Route.themeRoutes(
                     val attachment = discordResponse.attachments.lastOrNull()
                         ?: throw BadRequestException("Discord returned no attachment after upload")
 
-                    val createRequestWithUrl = createRequest.copy(
-                        id = attachment.id.toULong(),
-                        bundleUrl = attachment.url
-                    )
-
                     val createdVersion = suspendTransaction {
                         versionRepository.addVersion(
                             theme.id,
-                            CreateVersionRequest(
-                                id = createRequestWithUrl.id,
-                                track = theme.name,
-                                artist = "",
-                                duration = 0f,
-                                notesAmount = 0,
-                                effectsAmount = 0,
-                                bpm = 0,
-                                difficulty = Difficulty.NORMAL,
-                                isDeluxe = false,
-                                isExplicit = false,
-                                bundleUrl = createRequestWithUrl.bundleUrl,
-                                fileSizeBytes = createRequestWithUrl.fileSizeBytes,
-                                changelog = createRequestWithUrl.changelog,
+                            VersionBundleData(
+                                id = attachment.id.toULong(),
+                                fileSizeBytes = bundleFileBytes.size.toLong(),
+                                changelog = createRequest.changelog,
                             ),
                             bundleHash,
                         )

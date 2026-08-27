@@ -5,6 +5,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Contributor
 import org.bscm.models.Theme
+import org.bscm.models.Version
 import org.bscm.models.dao.*
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IThemeRepository
@@ -67,6 +68,7 @@ class ThemeRepository(
         bookmarksCount: Int = 0,
         catalogRow: ResultRow? = null,
         contributors: List<Contributor> = emptyList(),
+        versions: List<Version> = emptyList(),
     ): Theme {
         val id = entity.id.value
         // When a pre-fetched catalog_items row is provided, use it directly to avoid
@@ -129,6 +131,7 @@ class ThemeRepository(
             versionsCount = versionsCount,
             latestVersion = latestVersionEntity?.let { org.bscm.models.mappers.VersionMapper.entityToVersion(it) },
             bundleHash = latestVersionEntity?.bundleHash,
+            versions = versions,
         )
     }
 
@@ -152,6 +155,7 @@ class ThemeRepository(
         search: String?,
         limit: Int?,
         offset: Int?,
+        includeVersions: Boolean,
     ): List<Theme> = suspendTransaction {
         val pageSize = limit ?: 20
         val pageOffset = offset ?: 0
@@ -189,7 +193,7 @@ class ThemeRepository(
         } else emptyMap()
 
         val aggregateStats = fetchAggregateStats(themeIds)
-        val versionData = enrichWithVersionData(themeIds)
+        val versionData = enrichWithVersionData(themeIds, includeVersions)
         val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(themeIds)
 
         // Batch-fetch catalog_items rows once instead of per-entity DAO lookups (N+1)
@@ -202,32 +206,33 @@ class ThemeRepository(
         paged.map { entity ->
             val id = entity.id.value
             val (likedAt, bookmarkedAt) = userStats[id] ?: (null to null)
-            val (vCount, vEntity) = versionData[id] ?: (0 to null)
+            val vData = versionData[id] ?: ThemeVersionData(0, null, emptyList())
             val (likesCount, bookmarksCount) = aggregateStats[id] ?: (0 to 0)
             themeEntityToTheme(
                 entity,
                 likedAt,
                 bookmarkedAt,
-                vCount,
-                vEntity,
+                vData.versionsCount,
+                vData.latestVersion,
                 likesCount,
                 bookmarksCount,
                 catalogRows[id],
                 contributorsByCatalogId[id].orEmpty(),
+                vData.versions,
             )
         }
     }
 
-    override suspend fun getThemeById(id: String, userId: UUID?): Theme? = suspendTransaction {
+    override suspend fun getThemeById(id: String, userId: UUID?, includeVersions: Boolean): Theme? = suspendTransaction {
         ThemeEntity.findById(id)?.let { entity ->
             val (likedAt, bookmarkedAt) = if (userId != null) {
                 UserStatsUtils.fetchUserStats(userId, listOf(id))[id] ?: (null to null)
             } else (null to null)
             val (likesCount, bookmarksCount) = fetchAggregateStats(listOf(id))[id] ?: (0 to 0)
-            val versionData = enrichWithVersionData(listOf(id))
-            val (vCount, vEntity) = versionData[id] ?: (0 to null)
+            val versionData = enrichWithVersionData(listOf(id), includeVersions)
+            val vData = versionData[id] ?: ThemeVersionData(0, null, emptyList())
             val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(id))[id].orEmpty()
-            themeEntityToTheme(entity, likedAt, bookmarkedAt, vCount, vEntity, likesCount, bookmarksCount, contributors = contributors)
+            themeEntityToTheme(entity, likedAt, bookmarkedAt, vData.versionsCount, vData.latestVersion, likesCount, bookmarksCount, contributors = contributors, versions = vData.versions)
         }
     }
 
@@ -306,7 +311,16 @@ class ThemeRepository(
         true
     }
 
-    private fun enrichWithVersionData(catalogItemIds: List<String>): Map<String, Pair<Int, VersionEntity?>> {
+    private data class ThemeVersionData(
+        val versionsCount: Int,
+        val latestVersion: VersionEntity?,
+        val versions: List<Version>,
+    )
+
+    private fun enrichWithVersionData(
+        catalogItemIds: List<String>,
+        includeVersions: Boolean = false,
+    ): Map<String, ThemeVersionData> {
         if (catalogItemIds.isEmpty()) return emptyMap()
 
         // Single pass: fetch version rows once, derive both counts and latest in memory
@@ -318,7 +332,13 @@ class ThemeRepository(
         return catalogItemIds.associateWith { id ->
             val versions = allVersions[id].orEmpty()
             val latestRow = versions.maxByOrNull { it[VersionTable.versionCode] }
-            Pair(versions.size, latestRow?.let { VersionEntity.wrapRow(it) })
+            ThemeVersionData(
+                versionsCount = versions.size,
+                latestVersion = latestRow?.let { VersionEntity.wrapRow(it) },
+                versions = if (includeVersions) {
+                    versions.map { org.bscm.models.mappers.VersionMapper.entityToVersion(VersionEntity.wrapRow(it)) }
+                } else emptyList(),
+            )
         }
     }
 

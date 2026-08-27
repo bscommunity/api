@@ -8,7 +8,7 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
-import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
@@ -141,7 +141,6 @@ private suspend fun generateRandomCharts(
                             isDeluxe = Random.nextBoolean(),
                             isExplicit = Random.nextBoolean(),
                             genres = listOf(Genre.entries.random()),
-                            bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
                             previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
                             fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
                             duration = Random.nextFloat() * 4 + 2, // 2-6 minutes
@@ -164,18 +163,7 @@ private suspend fun generateRandomCharts(
                                     suspendTransaction {
                                         versionRepository.addVersion(
                                             catalogItemId = chart.id,
-                                            CreateVersionRequest(
-                                                track = chart.track.title,
-                                                artist = chart.track.artist,
-                                                duration = Random.nextFloat() * 4 + 2,
-                                                notesAmount = Random.nextInt(100, 1000),
-                                                effectsAmount = Random.nextInt(10, 100),
-                                                bpm = Random.nextInt(80, 180),
-                                                difficulty = difficulties.random(),
-                                                isDeluxe = Random.nextBoolean(),
-                                                isExplicit = Random.nextBoolean(),
-                                                bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                                                previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
+                                            VersionBundleData(
                                                 fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
                                             ),
                                             bundleHash = seedBundleHash,

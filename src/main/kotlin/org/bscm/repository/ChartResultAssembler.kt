@@ -4,6 +4,7 @@ import kotlinx.datetime.LocalDateTime
 import org.bscm.models.Chart
 import org.bscm.models.Contributor
 import org.bscm.models.StreamingRef
+import org.bscm.models.Version
 import org.bscm.models.dao.*
 import org.bscm.models.enums.CollectionKind
 import org.bscm.models.mappers.VersionMapper
@@ -35,6 +36,7 @@ class ChartResultAssembler(
         val userStats: Pair<LocalDateTime?, LocalDateTime?>,
         // Read from the pre-fetched row — avoids a lazy per-chart users query
         val authorId: UUID? = null,
+        val versions: List<Version> = emptyList(),
     )
 
     fun toChart(result: ChartResult): Chart = Chart(
@@ -64,6 +66,7 @@ class ChartResultAssembler(
         isDeluxe = result.chart.isDeluxe,
         isExplicit = result.chart.isExplicit,
         latestVersion = result.latestVersion?.let(VersionMapper::entityToVersion),
+        versions = result.versions,
     )
 
     /**

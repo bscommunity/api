@@ -6,9 +6,8 @@ import org.bscm.models.Theme
 import org.bscm.models.User
 import org.bscm.models.dto.theme.CreateThemeRequest
 import org.bscm.models.dto.theme.UpdateThemeRequest
-import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.ActivityType
-import org.bscm.models.enums.Difficulty
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.IVersionRepository
@@ -151,20 +150,10 @@ class ThemePublishService(
                 val v = if (bundleAttachment != null) {
                     versionRepository.addVersion(
                         catalogItemId = catalogId,
-                        version = CreateVersionRequest(
+                        version = VersionBundleData(
                             id = bundleAttachment.id.toULong(),
-                            track = request.name,
-                            artist = "",
-                            duration = 0f,
-                            notesAmount = 0,
-                            effectsAmount = 0,
-                            bpm = 0,
-                            difficulty = Difficulty.NORMAL,
-                            isDeluxe = false,
-                            isExplicit = false,
-                            bundleUrl = bundleAttachment.url,
-                            previewUrl = request.previewUrl,
                             fileSizeBytes = assets.bundleBytes.size.toLong(),
+                            changelog = "",
                         ),
                         bundleHash = bundleHash,
                     )

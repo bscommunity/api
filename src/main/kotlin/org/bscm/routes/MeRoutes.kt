@@ -67,6 +67,8 @@ fun Route.meRoutes(
                     ?.split(",")
                     ?.any { it.trim().equals("DELUXE", ignoreCase = true) }
 
+                val includeVersions = call.request.queryParameters["includeVersions"]?.toBoolean() == true
+
                 val (items, counts) = userRepository.getUserUploads(
                     userId = userId,
                     types = requestedTypes,
@@ -76,7 +78,8 @@ fun Route.meRoutes(
                     difficulties = difficulties,
                     isDeluxe = isDeluxe,
                     limit = limit ?: 20,
-                    offset = offset ?: 0
+                    offset = offset ?: 0,
+                    includeVersions = includeVersions,
                 )
 
                 call.respond(

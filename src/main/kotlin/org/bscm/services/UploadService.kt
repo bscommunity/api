@@ -11,8 +11,6 @@ import kotlinx.serialization.Serializable
 import org.bscm.interactions.*
 import org.bscm.models.*
 import org.bscm.models.dto.chart.CreateChartRequest
-import org.bscm.models.dto.theme.CreateThemeVersionRequest
-import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.services.track.clients.applicationHttpClient
@@ -470,35 +468,33 @@ class UploadService(
     @OptIn(InternalAPI::class)
     suspend fun uploadVersion(
         chart: Chart,
-        version: CreateVersionRequest,
         author: User,
         chartBundle: ByteArray,
         existingVersions: List<Version>,
+        fileSizeBytes: Long,
     ): DiscordMessageResponse {
 
         val normalizedTrack = getNormalizedTrackName(chart.track.title)
 
         val nextIndex = (existingVersions.maxOfOrNull { it.versionCode } ?: 0) + 1
 
-        // We need to update the displayed info with the new version data
         val payloadJson = buildWebhookPayload(
                 CreateChartRequest(
-                    track = version.track,
-                    artist = version.artist,
-                    duration = version.duration,
-                    notesAmount = version.notesAmount,
-                    effectsAmount = version.effectsAmount,
-                    difficulty = version.difficulty,
-                    isDeluxe = version.isDeluxe,
-                    isExplicit = version.isExplicit,
+                    track = chart.track.title,
+                    artist = chart.track.artist,
+                    duration = chart.track.duration,
+                    notesAmount = chart.notesAmount,
+                    effectsAmount = chart.effectsAmount,
+                    difficulty = chart.difficulty,
+                    isDeluxe = chart.isDeluxe,
+                    isExplicit = chart.isExplicit,
                     trackPreviewUrl = chart.track.previewUrl,
-                    bpm = version.bpm,
-                    bundleUrl = version.bundleUrl,
-                    previewUrl = version.previewUrl,
+                    bpm = chart.track.bpm ?: 0,
+                    previewUrl = chart.track.previewUrl,
                     coverUrl = chart.track.coverUrl ?: "",
                     trackUrls = chart.track.streamingRefs,
                     catalogId = chart.id,
-                    fileSizeBytes = version.fileSizeBytes,
+                    fileSizeBytes = fileSizeBytes,
                 ),
             author,
                 attachments = existingVersions.map {
@@ -581,7 +577,6 @@ class UploadService(
     @OptIn(InternalAPI::class)
     suspend fun uploadThemeVersion(
         theme: Theme,
-        version: CreateThemeVersionRequest,
         author: User,
         themeBundle: ByteArray,
         existingVersions: List<Version>,

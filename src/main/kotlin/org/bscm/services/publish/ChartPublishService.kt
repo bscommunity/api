@@ -12,8 +12,8 @@ import org.bscm.models.StreamingRef
 import org.bscm.models.User
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
-import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.dto.version.SimplifiedVersion
+import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
@@ -237,7 +237,6 @@ class ChartPublishService(
             bpm = bpm,
             difficulty = difficultyEnum,
             isDeluxe = isDeluxe,
-            bundleUrl = "",
             fileSizeBytes = bundleBytes.size.toLong(),
             bundleHash = bundleHash,
             previewUrl = overrides.previewUrl,
@@ -293,20 +292,10 @@ class ChartPublishService(
 
                 val v = chartRepository.addVersion(
                     catalogItemId = chart.id,
-                    version = CreateVersionRequest(
+                    version = VersionBundleData(
                         id = bundleAttachment.id.toULong(),
-                        track = createForDb.track,
-                        artist = createForDb.artist,
-                        duration = createForDb.duration,
-                        notesAmount = createForDb.notesAmount,
-                        effectsAmount = createForDb.effectsAmount,
-                        bpm = createForDb.bpm,
-                        difficulty = createForDb.difficulty,
-                        isDeluxe = createForDb.isDeluxe,
-                        isExplicit = createForDb.isExplicit,
-                        bundleUrl = bundleAttachment.url,
-                        previewUrl = createForDb.previewUrl,
                         fileSizeBytes = createForDb.fileSizeBytes,
+                        changelog = "",
                     ),
                     bundleHash = bundleHash,
                 )

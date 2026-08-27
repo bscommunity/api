@@ -10,9 +10,10 @@ interface IThemeRepository {
         search: String? = null,
         limit: Int? = null,
         offset: Int? = null,
+        includeVersions: Boolean = false,
     ): List<Theme>
 
-    suspend fun getThemeById(id: String, userId: UUID? = null): Theme?
+    suspend fun getThemeById(id: String, userId: UUID? = null, includeVersions: Boolean = false): Theme?
     suspend fun createTheme(
         userId: UUID,
         name: String,

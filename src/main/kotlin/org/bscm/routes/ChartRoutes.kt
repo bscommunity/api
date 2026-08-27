@@ -1,6 +1,7 @@
 package org.bscm.routes
 
 import io.ktor.http.*
+import io.ktor.http.content.*
 import io.ktor.openapi.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
@@ -17,11 +18,14 @@ import org.bscm.models.dto.chart.BundleDownloadResponse
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.dto.user.PagedResponse
+import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.CombinedPrincipal
+import org.bscm.plugins.ConflictException
 import org.bscm.plugins.HMACPrincipal
 import org.bscm.plugins.UnauthorizedException
 import org.bscm.repository.ChartRepository
@@ -30,7 +34,12 @@ import org.bscm.services.UploadService
 import org.bscm.services.publish.ChartPublishService
 import org.bscm.services.publish.PublishEventService
 import org.bscm.services.track.clients.jsonClient
+import org.bscm.utils.DecodingUtils
+import org.bscm.utils.QueryUtils.getNormalizedQuery
+import org.bscm.utils.QueryUtils.similarity
 import org.bscm.utils.getUserIdOrNull
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
+import java.security.MessageDigest
 import java.util.*
 
 private val logger = KtorSimpleLogger("ChartRoutes")
@@ -257,6 +266,52 @@ fun Route.chartRoutes(
                     )
 
                     call.respond(BundleDownloadResponse(url = url))
+                }
+
+                /**
+                 * Returns all versions for a chart, sorted by version code ascending.
+                 *
+                 * Tag: Versions
+                 *
+                 * Path: id [String] Chart catalog item ID.
+                 *
+                 * Responses:
+                 *   - 200 application/json [Array] List of chart versions.
+                 *   - 400 application/json [Error] Invalid or missing ID parameter.
+                 *   - 401 application/json [Error] Unauthorized access.
+                 *   - 404 application/json [Error] Chart not found.
+                 */
+                get("{id}/versions") {
+                    val id = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing chart ID")
+
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
+                    val hmacPrincipal = call.principal<HMACPrincipal>()
+                    val combinedPrincipal = call.principal<CombinedPrincipal>()
+
+                    if (jwtPrincipal == null && hmacPrincipal == null && combinedPrincipal == null) {
+                        throw UnauthorizedException("Unauthorized")
+                    }
+
+                    val requesterId = when {
+                        combinedPrincipal != null ->
+                            runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                        jwtPrincipal != null ->
+                            jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        else -> null
+                    }
+
+                    val chart = chartRepository.getChartById(id, requestingUserId = requesterId)
+                        ?: throw NotFoundException("Chart not found")
+
+                    if (chart.visibility != Visibility.PUBLIC) {
+                        val isContributor = requesterId != null &&
+                                chart.contributors.any { contributor -> contributor.user.id == requesterId }
+                        if (!isContributor) throw NotFoundException("Chart not found")
+                    }
+
+                    val versions = versionRepository.getVersions(chart.id)
+                    call.respond(versions)
                 }
 
                 /**
@@ -580,8 +635,199 @@ fun Route.chartRoutes(
                     // Bug fix: was respond(NoContent, true) — 204 must have no body.
                 }
 
-                // Preview endpoint omitted — not yet implemented.
-                // Re-add as get("{id}/preview") when ChartPreviewService is ready.
+                /**
+                 * Add a new version to a chart.
+                 *
+                 * Tag: Versions
+                 *
+                 * Path: id [String] Chart catalog item ID.
+                 *
+                 * Responses:
+                 *   - 201 application/json [Object] Created version.
+                 *   - 400 application/json [Error] Invalid input or bundle hash conflict.
+                 *   - 401 application/json [Error] User not authenticated.
+                 *   - 404 application/json [Error] Chart not found.
+                 */
+                post("{id}/versions") {
+                    val catalogItemId = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing chart ID")
+
+                    val principal = call.principal<JWTPrincipal>()
+                    val userId = principal?.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        ?: throw UnauthorizedException("User unauthorized")
+
+                    val user = userRepository.getUserById(userId)
+                        ?: throw UnauthorizedException("User not found")
+
+                    val chart = chartRepository.getChartById(
+                        catalogItemId,
+                        ChartRepository.ChartAddons(versions = true),
+                        requestingUserId = userId,
+                    ) ?: throw NotFoundException("Chart not found")
+
+                    logger.info("Received request to add version $catalogItemId")
+
+                    val multipart = call.receiveMultipart()
+                    var versionJson: String? = null
+                    var bundleFileBytes: ByteArray? = null
+
+                    multipart.forEachPart { part ->
+                        when (part) {
+                            is PartData.FormItem -> if (part.name == "version") versionJson = part.value
+                            is PartData.FileItem -> if (part.name == "bundle") bundleFileBytes =
+                                part.provider().toByteArray()
+
+                            else -> {}
+                        }
+                        part.dispose()
+                    }
+
+                    if (versionJson == null || bundleFileBytes == null) {
+                        throw BadRequestException("Version data or bundle missing")
+                    }
+
+                    if (bundleFileBytes.size > 10 * 1024 * 1024) {
+                        throw BadRequestException("Bundle file size exceeds 10MB limit")
+                    }
+
+                    val bundleHash = MessageDigest.getInstance("SHA-256")
+                        .digest(bundleFileBytes)
+                        .joinToString("") { "%02x".format(it) }
+
+                    chartRepository.findChartByBundleHash(bundleHash)?.let { existing ->
+                        throw ConflictException(
+                            "A chart with this bundle already exists (id: ${existing.id})",
+                        )
+                    }
+
+                    // --- Similarity validation ---
+
+                    val bundleInfo = DecodingUtils.extractBundleInfo(bundleFileBytes) ?: throw BadRequestException("Failed to extract bundle info")
+
+                    val trackSimilarity = similarity(
+                        getNormalizedQuery(bundleInfo.title),
+                        getNormalizedQuery(chart.track.title)
+                    )
+                    val artistSimilarity = similarity(
+                        getNormalizedQuery(bundleInfo.artist),
+                        getNormalizedQuery(chart.track.artist)
+                    )
+
+                    if (trackSimilarity < 0.3 || artistSimilarity < 0.3) {
+                        throw BadRequestException("Track or artist does not match the chart")
+                    }
+
+                    logger.info("Creating version for $catalogItemId")
+
+                    val createRequest = try {
+                        jsonClient.decodeFromString<CreateVersionRequest>(versionJson)
+                    } catch (e: Exception) {
+                        throw BadRequestException("Invalid version JSON: ${e.message}")
+                    }
+
+                    // val existingVersions = versionRepository.getVersions(chart.id)
+
+                    val discordResponse = uploadService.uploadVersion(
+                        chart = chart,
+                        author = user,
+                        chartBundle = bundleFileBytes,
+                        existingVersions = chart.versions,
+                        fileSizeBytes = bundleFileBytes.size.toLong(),
+                    )
+
+                    val attachment = discordResponse.attachments.lastOrNull()
+                        ?: throw BadRequestException("Discord returned no attachment after upload")
+
+                    val createdVersion = suspendTransaction {
+                        versionRepository.addVersion(
+                            chart.id,
+                            VersionBundleData(
+                                id = attachment.id.toULong(),
+                                fileSizeBytes = bundleFileBytes.size.toLong(),
+                                changelog = createRequest.changelog,
+                            ),
+                            bundleHash,
+                        )
+                    }
+
+                    logger.info("Version ${createdVersion.id} (v${createdVersion.versionCode}) created for $catalogItemId")
+
+                    call.respond(HttpStatusCode.Created, createdVersion)
+
+                }.describe {
+                    tag("Versions")
+                    summary = "Add new version to a chart."
+                    requestBody {
+                        description = "Chart bundle upload with version metadata"
+                        required = true
+                        ContentType.MultiPart.FormData {
+                            schema = JsonSchema(
+                                type = JsonType.OBJECT,
+                                properties = mapOf(
+                                    "bundle" to ReferenceOr.Value(
+                                        JsonSchema(
+                                            type = JsonType.STRING,
+                                            format = "binary",
+                                            description = "The chart bundle file to upload"
+                                        )
+                                    ),
+                                    "version" to ReferenceOr.Value(
+                                        JsonSchema(
+                                            type = JsonType.STRING,
+                                            description = "JSON string containing CreateVersionRequest"
+                                        )
+                                    )
+                                ),
+                                required = listOf("bundle", "version")
+                            )
+                        }
+                    }
+                }
+
+                /**
+                 * Delete a version from a chart.
+                 *
+                 * Tag: Versions
+                 *
+                 * Path: id [String] Chart catalog item ID.
+                 * Path: versionId [ULong] Version ID.
+                 *
+                 * Responses:
+                 *   - 204 Version deleted successfully.
+                 *   - 400 application/json [Error] Invalid or missing parameters.
+                 *   - 401 application/json [Error] User not authenticated.
+                 *   - 404 application/json [Error] Version or chart not found.
+                 */
+                delete("{id}/versions/{versionId}") {
+                    val catalogItemId = call.parameters["id"]
+                        ?: throw BadRequestException("Invalid or missing chart ID")
+
+                    val versionId = call.parameters["versionId"]?.toULongOrNull()
+                        ?: throw BadRequestException("Invalid or missing version ID")
+
+                    val version = versionRepository.getVersionById(versionId)
+                        ?: throw NotFoundException("Version not found")
+
+                    val chart = chartRepository.getChartById(
+                        catalogItemId,
+                        ChartRepository.ChartAddons(versions = false),
+                        requestingUserId = call.getUserIdOrNull(),
+                    ) ?: throw NotFoundException("Chart not found")
+
+                    logger.info("Removing version $versionId from chart ${chart.id}")
+
+                    versionRepository.removeVersion(versionId)
+
+                    val versions = versionRepository.getVersions(chart.id)
+
+                    uploadService.deleteVersion(
+                        chart = chart,
+                        versions = versions,
+                        versionId = versionId.toString()
+                    )
+
+                    call.respond(HttpStatusCode.NoContent)
+                }
             }
         }
     }

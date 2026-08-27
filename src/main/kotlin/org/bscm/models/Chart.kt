@@ -56,5 +56,7 @@ data class Chart(
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
 
-    override val latestVersion: Version?
+    override val latestVersion: Version?,
+
+    val versions: List<Version> = emptyList(),
 ) : CatalogItem, Versionable

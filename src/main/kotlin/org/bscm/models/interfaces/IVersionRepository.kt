@@ -1,14 +1,14 @@
 package org.bscm.models.interfaces
 
 import org.bscm.models.Version
-import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.dto.version.VersionBundleData
 
 interface IVersionRepository {
     suspend fun getVersionById(id: ULong): Version?
     suspend fun getVersions(catalogItemId: String): List<Version>
     suspend fun getLatestVersionsByCatalogItemIds(catalogItemIds: List<String>): List<Version>
 
-    suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest, bundleHash: String): Version
+    suspend fun addVersion(catalogItemId: String, version: VersionBundleData, bundleHash: String): Version
 
     /**
      * Removes a version by its ID.
