@@ -103,6 +103,15 @@ class UploadService(
         return normalized
     }
 
+    private fun getNormalizedThemeName(name: String): String {
+        val normalized = name.trim()
+            .lowercase(Locale.getDefault())
+            .replace(Regex("[^a-zA-Z0-9 ]"), " ")    // replace non-alphanumeric with space
+            .replace(Regex("\\s+"), "_")             // collapse whitespace → underscore
+            .trim('_')                               // trim leading/trailing underscores
+        return normalized.ifEmpty { "theme" }
+    }
+
     private fun getButtonForPlatform(platform: StreamingPlatform, url: String): Button {
         return when (platform) {
             StreamingPlatform.SPOTIFY -> Button(
@@ -417,6 +426,8 @@ class UploadService(
     }
 
     suspend fun uploadTheme(data: ThemePublishData, themeBundle: ByteArray? = null): DiscordMessageResponse {
+        val normalizedTheme = getNormalizedThemeName(data.title)
+
         val payloadJson = jsonClient.encodeToString(
             WebhookPayload.serializer(),
             message {
@@ -450,7 +461,7 @@ class UploadService(
                     append("files[0]", themeBundle, Headers.build {
                         append(
                             HttpHeaders.ContentDisposition,
-                            "form-data; name=\"files[0]\"; filename=\"theme_v1.zip\""
+                            "form-data; name=\"files[0]\"; filename=\"${normalizedTheme}_v1.zip\""
                         )
                         append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                     })
@@ -581,6 +592,7 @@ class UploadService(
     ): Boolean {
         val messageId = theme.discordMessageId
             ?: throw IllegalStateException("Theme ${theme.id} has no Discord message ID")
+        val normalizedTheme = getNormalizedThemeName(theme.name)
         val remainingVersions = versions.filter { it.id != versionId }
 
         val payloadJson = jsonClient.encodeToString(
@@ -588,7 +600,7 @@ class UploadService(
                 attachments = remainingVersions.map {
                     SimpleAttachment(
                         id = it.id,
-                        filename = "theme_v${it.versionCode}.zip",
+                        filename = "${normalizedTheme}_v${it.versionCode}.zip",
                     )
                 },
             )
@@ -621,6 +633,7 @@ class UploadService(
         themeBundle: ByteArray,
         existingVersions: List<Version>,
     ): DiscordMessageResponse {
+        val normalizedTheme = getNormalizedThemeName(theme.name)
         val nextIndex = (existingVersions.maxOfOrNull { it.versionCode } ?: 0) + 1
 
         val payloadJson = jsonClient.encodeToString(
@@ -631,7 +644,7 @@ class UploadService(
                 attachments(existingVersions.map {
                     SimpleAttachment(
                         id = it.id,
-                        filename = "theme_v${it.versionCode}.zip",
+                        filename = "${normalizedTheme}_v${it.versionCode}.zip",
                     )
                 })
                 embed {
@@ -659,7 +672,7 @@ class UploadService(
                 append("file", themeBundle, Headers.build {
                     append(
                         HttpHeaders.ContentDisposition,
-                        "form-data; name=\"file\"; filename=\"theme_v${nextIndex}.zip\""
+                        "form-data; name=\"file\"; filename=\"${normalizedTheme}_v${nextIndex}.zip\""
                     )
                     append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
                 })
