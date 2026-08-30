@@ -349,10 +349,6 @@ class ChartRepository(
         catalogItemRepository.updateDiscordCoordinates(catalogItemId, channelId, messageId)
     }
 
-    override suspend fun updateCatalogStatus(catalogItemId: String, status: CatalogItemStatus) = suspendTransaction {
-        catalogItemRepository.updateStatus(catalogItemId, status)
-    }
-
     override suspend fun deleteChart(id: String): Boolean = suspendTransaction {
         val catalogItem = CatalogItemEntity.findById(id) ?: return@suspendTransaction false
         catalogItem.delete()

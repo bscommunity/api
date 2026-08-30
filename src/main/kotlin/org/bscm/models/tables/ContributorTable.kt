@@ -18,5 +18,6 @@ object ContributorTable : LongIdTable("contributors") {
 
     init {
         uniqueIndex(catalogItemId, userId, role)
+        index(false, userId, catalogItemId)
     }
 }

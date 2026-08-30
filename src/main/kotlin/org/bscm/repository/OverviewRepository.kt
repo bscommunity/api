@@ -15,7 +15,6 @@ import org.bscm.models.enums.CollectionKind
 import org.bscm.models.tables.*
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.select
-import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 import kotlin.time.Clock
 
@@ -36,7 +35,7 @@ class OverviewRepository {
         )
     }
 
-    suspend fun getPublishedCounts(userId: UUID): TypeBreakdown = suspendTransaction {
+    fun getPublishedCounts(userId: UUID): TypeBreakdown {
         val countColumn = CatalogItemTable.id.count()
         val rows = CatalogItemTable
             .select(CatalogItemTable.type, countColumn)
@@ -47,17 +46,17 @@ class OverviewRepository {
             .groupBy(CatalogItemTable.type)
             .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
 
-        TypeBreakdown(
+        return TypeBreakdown(
             charts = rows[CatalogItemType.CHART] ?: 0,
             tourPasses = rows[CatalogItemType.TOUR_PASS] ?: 0,
             themes = rows[CatalogItemType.THEME] ?: 0,
         )
     }
 
-    suspend fun getPublishedTrend(userId: UUID): Int = suspendTransaction {
+    fun getPublishedTrend(userId: UUID): Int {
         val weekAgo = rangeStartForDays(7)
 
-        CatalogItemTable
+        return CatalogItemTable
             .select(CatalogItemTable.id)
             .where {
                 (CatalogItemTable.authorId eq userId) and
@@ -68,7 +67,7 @@ class OverviewRepository {
             .toInt()
     }
 
-    suspend fun getContributedCounts(userId: UUID): TypeBreakdown = suspendTransaction {
+    fun getContributedCounts(userId: UUID): TypeBreakdown {
         val countColumn = CatalogItemTable.id.count()
         val rows = ContributorTable
             .innerJoin(CatalogItemTable, { ContributorTable.catalogItemId }, { CatalogItemTable.id })
@@ -80,14 +79,14 @@ class OverviewRepository {
             .groupBy(CatalogItemTable.type)
             .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
 
-        TypeBreakdown(
+        return TypeBreakdown(
             charts = rows[CatalogItemType.CHART] ?: 0,
             tourPasses = rows[CatalogItemType.TOUR_PASS] ?: 0,
             themes = rows[CatalogItemType.THEME] ?: 0,
         )
     }
 
-    suspend fun getVersionUpdateCounts(userId: UUID, rangeStart: LocalDateTime): TypeBreakdown = suspendTransaction {
+    fun getVersionUpdateCounts(userId: UUID, rangeStart: LocalDateTime): TypeBreakdown {
         val countColumn = VersionTable.id.count()
         val rows = VersionTable
             .innerJoin(CatalogItemTable, { VersionTable.catalogItemId }, { CatalogItemTable.id })
@@ -99,14 +98,14 @@ class OverviewRepository {
             .groupBy(CatalogItemTable.type)
             .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
 
-        TypeBreakdown(
+        return TypeBreakdown(
             charts = rows[CatalogItemType.CHART] ?: 0,
             tourPasses = rows[CatalogItemType.TOUR_PASS] ?: 0,
             themes = rows[CatalogItemType.THEME] ?: 0,
         )
     }
 
-    suspend fun getLatestVersionUpdate(userId: UUID): LatestUpdate? = suspendTransaction {
+    fun getLatestVersionUpdate(userId: UUID): LatestUpdate? {
         val row = VersionTable
             .innerJoin(CatalogItemTable, { VersionTable.catalogItemId }, { CatalogItemTable.id })
             .leftJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
@@ -125,7 +124,7 @@ class OverviewRepository {
             .where { CatalogItemTable.authorId eq userId }
             .orderBy(VersionTable.createdAt to SortOrder.DESC)
             .limit(1)
-            .firstOrNull() ?: return@suspendTransaction null
+            .firstOrNull() ?: return null
 
         val type = row[CatalogItemTable.type]
         val name = when (type) {
@@ -134,7 +133,7 @@ class OverviewRepository {
             CatalogItemType.THEME -> row[ThemeTable.name]
         }
 
-        LatestUpdate(
+        return LatestUpdate(
             catalogItemId = row[CatalogItemTable.id].value,
             name = name,
             type = type,
@@ -143,15 +142,15 @@ class OverviewRepository {
         )
     }
 
-    suspend fun getDownloadTotals(userId: UUID): Int = suspendTransaction {
+    fun getDownloadTotals(userId: UUID): Int {
         val sumColumn = CatalogItemTable.downloadsSum.sum()
-        CatalogItemTable
+        return CatalogItemTable
             .select(sumColumn)
             .where { CatalogItemTable.authorId eq userId }
             .first()[sumColumn] ?: 0
     }
 
-    suspend fun getDownloadTrendPercent(userId: UUID): Double? = suspendTransaction {
+    fun getDownloadTrendPercent(userId: UUID): Double? {
         val thirtyDaysAgo = rangeStartForDays(30)
         val sixtyDaysAgo = rangeStartForDays(60)
 
@@ -174,12 +173,12 @@ class OverviewRepository {
             }
             .count()
 
-        if (previousCount == 0L) return@suspendTransaction null
+        if (previousCount == 0L) return null
         val percent = ((recentCount - previousCount).toDouble() / previousCount.toDouble()) * 100.0
-        kotlin.math.round(percent * 10.0) / 10.0
+        return kotlin.math.round(percent * 10.0) / 10.0
     }
 
-    suspend fun getDownloadBreakdownByType(userId: UUID): TypeBreakdown = suspendTransaction {
+    fun getDownloadBreakdownByType(userId: UUID): TypeBreakdown {
         val sumColumn = CatalogItemTable.downloadsSum.sum()
         val rows = CatalogItemTable
             .select(CatalogItemTable.type, sumColumn)
@@ -187,14 +186,14 @@ class OverviewRepository {
             .groupBy(CatalogItemTable.type)
             .associate { it[CatalogItemTable.type] to (it[sumColumn] ?: 0) }
 
-        TypeBreakdown(
+        return TypeBreakdown(
             charts = rows[CatalogItemType.CHART] ?: 0,
             tourPasses = rows[CatalogItemType.TOUR_PASS] ?: 0,
             themes = rows[CatalogItemType.THEME] ?: 0,
         )
     }
 
-    suspend fun getDailyDownloads(userId: UUID, days: Int): List<DailyDownload> = suspendTransaction {
+    fun getDailyDownloads(userId: UUID, days: Int): List<DailyDownload> {
         val rangeStart = rangeStartForDays(days)
 
         val typeColumn = CatalogItemTable.type
@@ -212,7 +211,7 @@ class OverviewRepository {
 
         val byType = rows.associate { it[typeColumn] to it[countColumn].toInt() }
 
-        listOf(
+        return listOf(
             DailyDownload(
                 date = "total",
                 charts = byType[CatalogItemType.CHART] ?: 0,
@@ -222,8 +221,8 @@ class OverviewRepository {
         )
     }
 
-    suspend fun getRecentActivityFeedItems(userId: UUID, limit: Int): List<Triple<String, String, LocalDateTime>> = suspendTransaction {
-        UserActivityTable
+    fun getRecentActivityFeedItems(userId: UUID, limit: Int): List<Triple<String, String, LocalDateTime>> {
+        return UserActivityTable
             .select(UserActivityTable.type, UserActivityTable.targetId, UserActivityTable.createdAt)
             .where { UserActivityTable.userId eq userId }
             .orderBy(UserActivityTable.createdAt to SortOrder.DESC)
@@ -237,40 +236,40 @@ class OverviewRepository {
             }
     }
 
-    suspend fun getTotalLikes(userId: UUID): Int = suspendTransaction {
+    fun getTotalLikes(userId: UUID): Int {
         val collection = CollectionTable
             .select(CollectionTable.id)
             .where {
                 (CollectionTable.userId eq userId) and
                 (CollectionTable.kind eq CollectionKind.LIKES)
             }
-            .singleOrNull() ?: return@suspendTransaction 0
+            .singleOrNull() ?: return 0
 
-        CollectionItemTable
+        return CollectionItemTable
             .select(CollectionItemTable.id)
             .where { CollectionItemTable.collectionId eq collection[CollectionTable.id] }
             .count()
             .toInt()
     }
 
-    suspend fun getTotalBookmarks(userId: UUID): Int = suspendTransaction {
+    fun getTotalBookmarks(userId: UUID): Int {
         val collection = CollectionTable
             .select(CollectionTable.id)
             .where {
                 (CollectionTable.userId eq userId) and
                 (CollectionTable.kind eq CollectionKind.BOOKMARKS)
             }
-            .singleOrNull() ?: return@suspendTransaction 0
+            .singleOrNull() ?: return 0
 
-        CollectionItemTable
+        return CollectionItemTable
             .select(CollectionItemTable.id)
             .where { CollectionItemTable.collectionId eq collection[CollectionTable.id] }
             .count()
             .toInt()
     }
 
-    suspend fun getTopContent(userId: UUID, type: CatalogItemType, limit: Int): List<TopContentItem> = suspendTransaction {
-        when (type) {
+    fun getTopContent(userId: UUID, type: CatalogItemType, limit: Int): List<TopContentItem> {
+        return when (type) {
             CatalogItemType.CHART -> {
                 ChartTable
                     .innerJoin(CatalogItemTable, { ChartTable.id }, { CatalogItemTable.id })
@@ -325,10 +324,10 @@ class OverviewRepository {
         }
     }
 
-    suspend fun resolveActivityContentNames(
+    fun resolveActivityContentNames(
         targetIds: Map<String, ActivityType>
-    ): Map<String, Pair<String, CatalogItemType>> = suspendTransaction {
-        if (targetIds.isEmpty()) return@suspendTransaction emptyMap()
+    ): Map<String, Pair<String, CatalogItemType>> {
+        if (targetIds.isEmpty()) return emptyMap()
 
         val chartIds = mutableListOf<String>()
         val tourPassIds = mutableListOf<String>()
@@ -391,6 +390,6 @@ class OverviewRepository {
                 }
         }
 
-        result
+        return result
     }
 }

@@ -23,5 +23,6 @@ object VersionTable : ULongIdTable("catalog_item_versions") {
 
     init {
         uniqueIndex(catalogItemId, versionCode)
+        index(false, catalogItemId, createdAt)
     }
 }
