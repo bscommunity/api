@@ -178,6 +178,7 @@ class ThemePublishService(
 
         return theme.copy(
             latestVersion = version,
+            versions = listOfNotNull(version),
             versionsCount = if (version != null) 1 else 0,
         )
     }
