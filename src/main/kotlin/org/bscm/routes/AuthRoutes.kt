@@ -32,7 +32,24 @@ fun Route.authRoutes(
     googleOAuthService: GoogleOAuthService,
     jwtService: JWTService
 ) {
+    val isDevMode = System.getenv("DEV_MODE")?.lowercase() == "true"
+
     route("/auth") {
+        // Test-only login: POST /auth/test-login { "username": "nova" }
+        // Only available when DEV_MODE=true
+        if (isDevMode) {
+            post("/test-login") {
+                val body = try { call.receive<TestLoginRequest>() } catch (_: Exception) {
+                    return@post call.respondError(HttpStatusCode.BadRequest, "Invalid request body")
+                }
+
+                val user = userRepository.getUserByUsernameAsFull(body.username)
+                    ?: return@post call.respondError(HttpStatusCode.NotFound, "User '${body.username}' not found")
+
+                log.info("Test login: ${user.username} (DEV_MODE)")
+                call.respond(user.toAuthResult(jwtService))
+            }
+        }
         /**
          * Authenticate with Discord OAuth.
          *
@@ -275,3 +292,6 @@ data class AuthResponse(
 
 @Serializable
 data class OAuthResult(val scope: String)
+
+@Serializable
+data class TestLoginRequest(val username: String)

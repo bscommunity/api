@@ -288,6 +288,11 @@ class ChartPublishService(
                     messageId = discordResponse.id,
                 )
 
+                chartRepository.updateCatalogStatus(
+                    catalogItemId = chart.id,
+                    status = org.bscm.models.enums.CatalogItemStatus.PUBLISHED,
+                )
+
                 emitEvent(PublishStep.FINALIZING_VERSION)
 
                 val v = chartRepository.addVersion(

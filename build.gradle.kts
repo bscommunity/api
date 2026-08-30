@@ -49,6 +49,11 @@ exposed {
     }
 }
 
+tasks.register<JavaExec>("runSeed") {
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.bscm.plugins.SeedCommandKt")
+}
+
 dependencies {
     // Ktor (Client)
     implementation(libs.ktor.client.core.jvm)

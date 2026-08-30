@@ -21,7 +21,6 @@ CREATE INDEX catalog_items_status ON catalog_items (status);
 CREATE INDEX catalog_items_author_id ON catalog_items (author_id);
 CREATE TABLE IF NOT EXISTS bundle_url_cache (catalog_item_id VARCHAR(10) PRIMARY KEY, bundle_url TEXT NOT NULL, expires_at TIMESTAMP NOT NULL, last_validated_at TIMESTAMP NOT NULL);
 CREATE INDEX bundle_url_cache_expires_at ON bundle_url_cache (expires_at);
-CREATE TABLE IF NOT EXISTS changelogs (id uuid PRIMARY KEY, catalog_item_id VARCHAR(10) NOT NULL, description VARCHAR(1000) NOT NULL, created_at TIMESTAMP NOT NULL);
 CREATE TABLE IF NOT EXISTS tracks (id uuid PRIMARY KEY, title VARCHAR(200) NOT NULL, artist VARCHAR(255) NOT NULL, album_id uuid NULL, isrc VARCHAR(15) NULL, genres VARCHAR(255)[255] NULL, bpm INT NULL, duration REAL NOT NULL, normalized_title VARCHAR(200) NULL, normalized_artist VARCHAR(200) NULL, CONSTRAINT fk_tracks_album_id__id FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE SET NULL ON UPDATE RESTRICT);
 CREATE INDEX tracks_album_id ON tracks (album_id);
 CREATE INDEX tracks_isrc ON tracks (isrc);
@@ -63,7 +62,6 @@ ALTER TABLE users ADD CONSTRAINT fk_users_verified_by__id FOREIGN KEY (verified_
 ALTER TABLE accounts ADD CONSTRAINT fk_accounts_user_id__id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE RESTRICT;
 ALTER TABLE catalog_items ADD CONSTRAINT fk_catalog_items_author_id__id FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE RESTRICT;
 ALTER TABLE bundle_url_cache ADD CONSTRAINT fk_bundle_url_cache_catalog_item_id__id FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id) ON DELETE CASCADE ON UPDATE RESTRICT;
-ALTER TABLE changelogs ADD CONSTRAINT fk_changelogs_catalog_item_id__id FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id) ON DELETE CASCADE ON UPDATE RESTRICT;
 ALTER TABLE collections ADD CONSTRAINT fk_collections_user_id__id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
 ALTER TABLE collection_items ADD CONSTRAINT fk_collection_items_collection_id__id FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE ON UPDATE RESTRICT;
 ALTER TABLE collection_items ADD CONSTRAINT fk_collection_items_catalog_id__id FOREIGN KEY (catalog_id) REFERENCES catalog_items(id) ON DELETE CASCADE ON UPDATE RESTRICT;
