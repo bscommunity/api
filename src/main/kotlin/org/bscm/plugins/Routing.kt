@@ -30,9 +30,6 @@ import org.koin.ktor.ext.inject
 fun Application.configureRouting() {
     val cfg = environment.config
     val hasFullConfig = listOf(
-        /*"redis.host",
-        "redis.port",
-        "redis.password",*/
         "jwt.secret",
         "hmac.secret",
         "refresh.secret",

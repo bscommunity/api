@@ -7,7 +7,7 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
-import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.*
 import org.bscm.repository.*
@@ -189,7 +189,6 @@ private suspend fun createSeedCharts(
                             coverUrl = seedCover(), difficulty = difficulties.random(),
                             isDeluxe = Random.nextFloat() > 0.6f, isExplicit = Random.nextFloat() > 0.7f,
                             genres = listOf(Genre.entries.random()),
-                            bundleUrl = "https://example.com/charts/${hexId(10)}.bscm",
                             previewUrl = "https://example.com/chartpreviews/${hexId(10)}.jpg",
                             fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
                             duration = Random.nextFloat() * 4 + 2,
@@ -204,18 +203,13 @@ private suspend fun createSeedCharts(
                     if (Random.nextFloat() > 0.5f) {
                         repeat(Random.nextInt(1, 4)) {
                             suspendTransaction {
-                                versionRepo.addVersion(chart.id, CreateVersionRequest(
-                                    track = chart.track.title, artist = chart.track.artist,
-                                    duration = Random.nextFloat() * 4 + 2,
-                                    notesAmount = Random.nextInt(100, 1000),
-                                    effectsAmount = Random.nextInt(10, 100),
-                                    bpm = Random.nextInt(80, 180),
-                                    difficulty = difficulties.random(),
-                                    isDeluxe = Random.nextFloat() > 0.6f, isExplicit = Random.nextFloat() > 0.7f,
-                                    bundleUrl = "https://example.com/charts/${hexId(10)}.bscm",
-                                    previewUrl = "https://example.com/chartpreviews/${hexId(10)}.jpg",
-                                    fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
-                                ), bundleHash = hexId(64))
+                                versionRepo.addVersion(
+                                    catalogItemId = chart.id,
+                                    version = VersionBundleData(
+                                        fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
+                                    ),
+                                    bundleHash = hexId(64),
+                                )
                             }
                         }
                     }
@@ -279,7 +273,7 @@ private suspend fun createSeedThemes(
     seeds.forEachIndexed { i, s ->
         try {
             val owner = userIds[i % userIds.size]
-            val theme = repo.createTheme(userId = owner, name = s.name, replaces = s.replaces, previewUrl = s.preview, id = null)
+            val theme = repo.createTheme(userId = owner, name = s.name, replaces = s.replaces, previewUrl = s.preview, id = null, originalArtwork = null)
             activityRepo.logActivity(owner, ActivityType.CREATED_THEME, theme.id)
             println("[Seed]   theme: ${s.name}")
         } catch (e: Exception) {

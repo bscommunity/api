@@ -308,6 +308,7 @@ class ChartPublishService(
 
         val updatedChart = createdChart.copy(
             latestVersion = version,
+            versions = listOf(version),
             versionsCount = createdChart.versionsCount + 1,
         )
 

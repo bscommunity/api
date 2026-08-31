@@ -107,6 +107,7 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
 
+    single { OverviewRepository() }
     single { CatalogItemRepository() }
     single { AlbumRepository() }
     single { TrackRepository(storageService = get()) }
@@ -244,5 +245,8 @@ fun mainModule(config: ApplicationConfig) = module {
     }
     single {
         TrackCleanupService(storageService = get())
+    }
+    single {
+        OverviewService(overviewRepository = get())
     }
 }
