@@ -68,7 +68,7 @@ class OverviewService(
                 published = OverviewStat(
                     total = publishedCounts.charts + publishedCounts.tourPasses + publishedCounts.themes,
                     byType = publishedCounts,
-                    trend = TrendIndicator("+$publishedTrend this week"),
+                    trend = TrendIndicator(delta = publishedTrend, period = "week"),
                 ),
                 contributed = OverviewStat(
                     total = contributedCounts.charts + contributedCounts.tourPasses + contributedCounts.themes,

@@ -55,10 +55,12 @@ fun Application.seedDatabase() {
             contributorRepository = contributorRepository,
         )
 
-        createTourPasses(users, chartIds, tourPassRepository, activityRepository)
-        createThemes(users, themeRepository, activityRepository)
-        createCollections(users, chartIds, collectionRepository, activityRepository)
-        createFollows(users, userRepository, activityRepository)
+        coroutineScope {
+            launch { createTourPasses(users, chartIds, tourPassRepository, activityRepository) }
+            launch { createThemes(users, themeRepository, activityRepository) }
+            launch { createCollections(users, chartIds, collectionRepository, activityRepository) }
+            launch { createFollows(users, userRepository, activityRepository) }
+        }
 
         log.info("Seed completed: ${users.size} users, ${chartIds.size} charts, 8 tour passes, 6 themes, 12 collections")
     }
@@ -150,8 +152,8 @@ private suspend fun createCharts(
     val difficulties = Difficulty.entries.toTypedArray()
     val contributorRoles = ContributorRole.entries.toTypedArray()
 
-    val dispatcher = Dispatchers.IO.limitedParallelism(8)
-    val batchSize = 10
+    val dispatcher = Dispatchers.IO.limitedParallelism(20)
+    val batchSize = 15
 
     (0 until count step batchSize).map { batchStart ->
         val batchEnd = minOf(batchStart + batchSize, count)
@@ -198,51 +200,45 @@ private suspend fun createCharts(
 
                     batchIds.add(chart.id)
 
-                    coroutineScope {
-                        // Additional versions (50% chance)
-                        launch {
-                            if (Random.nextFloat() > 0.5f) {
-                                val count2 = Random.nextInt(1, 4)
-                                repeat(count2) {
-                                    val bundleHash = randomHexId(64)
-                                    suspendTransaction {
-                                        versionRepository.addVersion(
-                                            catalogItemId = chart.id,
-                                            CreateVersionRequest(
-                                                track = chart.track.title,
-                                                artist = chart.track.artist,
-                                                duration = Random.nextFloat() * 4 + 2,
-                                                notesAmount = Random.nextInt(100, 1000),
-                                                effectsAmount = Random.nextInt(10, 100),
-                                                bpm = Random.nextInt(80, 180),
-                                                difficulty = difficulties.random(),
-                                                isDeluxe = Random.nextFloat() > 0.6f,
-                                                isExplicit = Random.nextFloat() > 0.7f,
-                                                bundleUrl = "https://example.com/charts/${randomHexId(10)}.bscm",
-                                                previewUrl = "https://example.com/chartpreviews/${randomHexId(10)}.jpg",
-                                                fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
-                                                changelog = listOf(
-                                                    getRandomChangelog(),
-                                                    getRandomChangelog(),
-                                                ).filter { Random.nextFloat() > 0.5f },
-                                            ),
-                                            bundleHash = bundleHash,
-                                        )
-                                    }
-                                }
+                    // Additional versions (50% chance)
+                    if (Random.nextFloat() > 0.5f) {
+                        val count2 = Random.nextInt(1, 4)
+                        repeat(count2) {
+                            val bundleHash = randomHexId(64)
+                            suspendTransaction {
+                                versionRepository.addVersion(
+                                    catalogItemId = chart.id,
+                                    CreateVersionRequest(
+                                        track = chart.track.title,
+                                        artist = chart.track.artist,
+                                        duration = Random.nextFloat() * 4 + 2,
+                                        notesAmount = Random.nextInt(100, 1000),
+                                        effectsAmount = Random.nextInt(10, 100),
+                                        bpm = Random.nextInt(80, 180),
+                                        difficulty = difficulties.random(),
+                                        isDeluxe = Random.nextFloat() > 0.6f,
+                                        isExplicit = Random.nextFloat() > 0.7f,
+                                        bundleUrl = "https://example.com/charts/${randomHexId(10)}.bscm",
+                                        previewUrl = "https://example.com/chartpreviews/${randomHexId(10)}.jpg",
+                                        fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
+                                        changelog = listOf(
+                                            getRandomChangelog(),
+                                            getRandomChangelog(),
+                                        ).filter { Random.nextFloat() > 0.5f },
+                                    ),
+                                    bundleHash = bundleHash,
+                                )
                             }
                         }
+                    }
 
-                        // Contributors (1-3)
-                        launch {
-                            val count2 = Random.nextInt(1, 4)
-                            val contributors = userIds.filter { it != ownerId }.shuffled().take(count2)
-                        contributorRepository.addContributors(
-                            chart.id,
-                            contributors.map { SimplifiedContributor(it, contributorRoles.random()) }
-                        )
-                    }
-                    }
+                    // Contributors (1-3)
+                    val count2 = Random.nextInt(1, 4)
+                    val contributors = userIds.filter { it != ownerId }.shuffled().take(count2)
+                    contributorRepository.addContributors(
+                        chart.id,
+                        contributors.map { SimplifiedContributor(it, contributorRoles.random()) }
+                    )
                 } catch (e: Exception) {
                     log.error("Error generating chart $i: ${e.message}", e)
                 }

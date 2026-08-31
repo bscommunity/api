@@ -45,7 +45,8 @@ data class TypeBreakdown(
 
 @Serializable
 data class TrendIndicator(
-    val value: String,
+    val delta: Int,
+    val period: String,
 )
 
 @Serializable

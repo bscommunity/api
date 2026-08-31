@@ -1,7 +1,7 @@
 package org.bscm.plugins
 
 import io.ktor.util.logging.*
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import org.bscm.models.StreamingRef
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
@@ -101,17 +101,13 @@ fun main(): Unit = runBlocking {
     // ── Charts ─────────────────────────────────────────────────────────────
     val chartIds = createSeedCharts(50, userIds, chartRepository, versionRepository, contributorRepository)
 
-    // ── Tour Passes ────────────────────────────────────────────────────────
-    createSeedTourPasses(userIds, chartIds, tourPassRepository, activityRepository)
-
-    // ── Themes ─────────────────────────────────────────────────────────────
-    createSeedThemes(userIds, themeRepository, activityRepository)
-
-    // ── Collections ────────────────────────────────────────────────────────
-    createSeedCollections(userIds, chartIds, collectionRepository)
-
-    // ── Follows ────────────────────────────────────────────────────────────
-    createSeedFollows(userIds, userRepository, activityRepository)
+    // ── Post-chart steps (parallel) ────────────────────────────────────────
+    coroutineScope {
+        launch { createSeedTourPasses(userIds, chartIds, tourPassRepository, activityRepository) }
+        launch { createSeedThemes(userIds, themeRepository, activityRepository) }
+        launch { createSeedCollections(userIds, chartIds, collectionRepository) }
+        launch { createSeedFollows(userIds, userRepository, activityRepository) }
+    }
 
     println("[Seed] Done! ${users.size} users, ${chartIds.size} charts, 8 tour passes, 6 themes, 12 collections.")
 }
@@ -162,69 +158,82 @@ private suspend fun createSeedCharts(
     count: Int, userIds: List<UUID>,
     chartRepo: IChartRepository, versionRepo: IVersionRepository,
     contributorRepo: IContributorRepository,
-): List<String> {
+): List<String> = coroutineScope {
     val chartIds = mutableListOf<String>()
     val difficulties = Difficulty.entries.toTypedArray()
     val roles = ContributorRole.entries.toTypedArray()
 
-    for (i in 0 until count) {
-        try {
-            val ownerId = userIds.random()
-            val chart = chartRepo.createChart(
-                userId = ownerId,
-                chart = CreateChartRequest(
-                    catalogId = NanoIdUtils.generateCatalogId(),
-                    artist = seedArtist(), track = seedTrack(),
-                    album = if (Random.nextFloat() > 0.3f) seedAlbum() else null,
-                    trackUrls = listOf(
-                        StreamingRef(StreamingPlatform.SPOTIFY, "https://open.spotify.com/track/${hexId(22)}"),
-                        StreamingRef(StreamingPlatform.entries.random(), "https://example.com/track/${hexId(10)}"),
-                    ),
-                    trackPreviewUrl = "https://example.com/preview/${hexId(10)}.mp3",
-                    coverUrl = seedCover(), difficulty = difficulties.random(),
-                    isDeluxe = Random.nextFloat() > 0.6f, isExplicit = Random.nextFloat() > 0.7f,
-                    genres = listOf(Genre.entries.random()),
-                    bundleUrl = "https://example.com/charts/${hexId(10)}.bscm",
-                    previewUrl = "https://example.com/chartpreviews/${hexId(10)}.jpg",
-                    fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
-                    duration = Random.nextFloat() * 4 + 2,
-                    notesAmount = Random.nextInt(100, 1000),
-                    effectsAmount = Random.nextInt(10, 100),
-                    bpm = Random.nextInt(80, 180),
-                ),
-            )
-            chartIds.add(chart.id)
+    val dispatcher = Dispatchers.IO.limitedParallelism(20)
+    val batchSize = 15
 
-            // Versions (50%)
-            if (Random.nextFloat() > 0.5f) {
-                repeat(Random.nextInt(1, 4)) {
-                    suspendTransaction {
-                        versionRepo.addVersion(chart.id, CreateVersionRequest(
-                            track = chart.track.title, artist = chart.track.artist,
+    (0 until count step batchSize).map { batchStart ->
+        val batchEnd = minOf(batchStart + batchSize, count)
+
+        async(dispatcher) {
+            val batchIds = mutableListOf<String>()
+
+            (batchStart until batchEnd).forEach { i ->
+                try {
+                    val ownerId = userIds.random()
+                    val chart = chartRepo.createChart(
+                        userId = ownerId,
+                        chart = CreateChartRequest(
+                            catalogId = NanoIdUtils.generateCatalogId(),
+                            artist = seedArtist(), track = seedTrack(),
+                            album = if (Random.nextFloat() > 0.3f) seedAlbum() else null,
+                            trackUrls = listOf(
+                                StreamingRef(StreamingPlatform.SPOTIFY, "https://open.spotify.com/track/${hexId(22)}"),
+                                StreamingRef(StreamingPlatform.entries.random(), "https://example.com/track/${hexId(10)}"),
+                            ),
+                            trackPreviewUrl = "https://example.com/preview/${hexId(10)}.mp3",
+                            coverUrl = seedCover(), difficulty = difficulties.random(),
+                            isDeluxe = Random.nextFloat() > 0.6f, isExplicit = Random.nextFloat() > 0.7f,
+                            genres = listOf(Genre.entries.random()),
+                            bundleUrl = "https://example.com/charts/${hexId(10)}.bscm",
+                            previewUrl = "https://example.com/chartpreviews/${hexId(10)}.jpg",
+                            fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
                             duration = Random.nextFloat() * 4 + 2,
                             notesAmount = Random.nextInt(100, 1000),
                             effectsAmount = Random.nextInt(10, 100),
                             bpm = Random.nextInt(80, 180),
-                            difficulty = difficulties.random(),
-                            isDeluxe = Random.nextFloat() > 0.6f, isExplicit = Random.nextFloat() > 0.7f,
-                            bundleUrl = "https://example.com/charts/${hexId(10)}.bscm",
-                            previewUrl = "https://example.com/chartpreviews/${hexId(10)}.jpg",
-                            fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
-                        ), bundleHash = hexId(64))
+                        ),
+                    )
+                    batchIds.add(chart.id)
+
+                    // Versions (50%)
+                    if (Random.nextFloat() > 0.5f) {
+                        repeat(Random.nextInt(1, 4)) {
+                            suspendTransaction {
+                                versionRepo.addVersion(chart.id, CreateVersionRequest(
+                                    track = chart.track.title, artist = chart.track.artist,
+                                    duration = Random.nextFloat() * 4 + 2,
+                                    notesAmount = Random.nextInt(100, 1000),
+                                    effectsAmount = Random.nextInt(10, 100),
+                                    bpm = Random.nextInt(80, 180),
+                                    difficulty = difficulties.random(),
+                                    isDeluxe = Random.nextFloat() > 0.6f, isExplicit = Random.nextFloat() > 0.7f,
+                                    bundleUrl = "https://example.com/charts/${hexId(10)}.bscm",
+                                    previewUrl = "https://example.com/chartpreviews/${hexId(10)}.jpg",
+                                    fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
+                                ), bundleHash = hexId(64))
+                            }
+                        }
                     }
+
+                    // Contributors (1-3)
+                    val contribs = userIds.filter { it != ownerId }.shuffled().take(Random.nextInt(1, 4))
+                    contributorRepo.addContributors(chart.id, contribs.map { SimplifiedContributor(it, roles.random()) })
+                } catch (e: Exception) {
+                    System.err.println("[Seed]   FAILED chart $i: ${e.message}")
                 }
             }
 
-            // Contributors (1-3)
-            val contribs = userIds.filter { it != ownerId }.shuffled().take(Random.nextInt(1, 4))
-            contributorRepo.addContributors(chart.id, contribs.map { SimplifiedContributor(it, roles.random()) })
-
-            if ((i + 1) % 10 == 0 || i == count - 1) println("[Seed]   charts: ${i + 1}/$count")
-        } catch (e: Exception) {
-            System.err.println("[Seed]   FAILED chart $i: ${e.message}")
+            synchronized(chartIds) { batchIds.forEach { chartIds.add(it) } }
         }
-    }
-    return chartIds
+    }.awaitAll()
+
+    println("[Seed]   charts: ${chartIds.size}/$count")
+    chartIds
 }
 
 private suspend fun createSeedTourPasses(
