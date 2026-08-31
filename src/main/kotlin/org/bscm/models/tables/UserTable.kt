@@ -18,7 +18,7 @@ object UserTable : UUIDTable("users") {
 
     val isPublic = bool("is_public").default(true)
 
-    val role = enumerationByName("role", 20, UserRole::class)
+    val role = enumeration("role", UserRole::class)
         .default(UserRole.USER)
 
     val isVerified = bool("is_verified").default(false)

@@ -24,3 +24,13 @@ data class CatalogCounts(
     val collections: Int = 0,
 ) {
 }
+
+/**
+ * Uniform paginated response for public content listings.
+ * Pairs a page of items with an optional total count (present when `count=true`).
+ */
+@Serializable
+data class PagedResponse<T>(
+    val items: List<T>,
+    val total: Int? = null,
+)

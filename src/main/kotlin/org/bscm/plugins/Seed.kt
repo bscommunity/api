@@ -8,12 +8,15 @@ import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.SimplifiedUser
-import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.enums.StreamingPlatform
-import org.bscm.models.interfaces.*
+import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.IContributorRepository
+import org.bscm.models.interfaces.IUserRepository
+import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.utils.NanoIdUtils
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.koin.ktor.ext.inject
@@ -27,7 +30,6 @@ fun Application.seedDatabase() {
     val userRepository by inject<IUserRepository>()
     val versionRepository by inject<IVersionRepository>()
     val contributorRepository by inject<IContributorRepository>()
-    val knownIssueRepository by inject<IChangelogRepository>()
 
     runBlocking {
         generateRandomCharts(
@@ -36,7 +38,6 @@ fun Application.seedDatabase() {
             userRepository,
             versionRepository,
             contributorRepository,
-            knownIssueRepository
         )
     }
 }
@@ -51,7 +52,6 @@ private suspend fun generateRandomCharts(
     userRepository: IUserRepository,
     versionRepository: IVersionRepository,
     contributorRepository: IContributorRepository,
-    knownIssueRepository: IChangelogRepository
 ) = coroutineScope {
     // Create users first (sequentially since it's a small number)
     // Create or retrieve users
@@ -141,7 +141,6 @@ private suspend fun generateRandomCharts(
                             isDeluxe = Random.nextBoolean(),
                             isExplicit = Random.nextBoolean(),
                             genres = listOf(Genre.entries.random()),
-                            bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
                             previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
                             fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
                             duration = Random.nextFloat() * 4 + 2, // 2-6 minutes
@@ -164,18 +163,7 @@ private suspend fun generateRandomCharts(
                                     suspendTransaction {
                                         versionRepository.addVersion(
                                             catalogItemId = chart.id,
-                                            CreateVersionRequest(
-                                                track = chart.track.title,
-                                                artist = chart.track.artist,
-                                                duration = Random.nextFloat() * 4 + 2,
-                                                notesAmount = Random.nextInt(100, 1000),
-                                                effectsAmount = Random.nextInt(10, 100),
-                                                bpm = Random.nextInt(80, 180),
-                                                difficulty = difficulties.random(),
-                                                isDeluxe = Random.nextBoolean(),
-                                                isExplicit = Random.nextBoolean(),
-                                                bundleUrl = "https://example.com/charts/${getRandomId()}.bscm",
-                                                previewUrl = "https://example.com/chartpreviews/${getRandomId()}.jpg",
+                                            VersionBundleData(
                                                 fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
                                             ),
                                             bundleHash = seedBundleHash,
@@ -197,24 +185,9 @@ private suspend fun generateRandomCharts(
                             log.info("Added contributors for chart ID: ${chart.id}")
                         }
 
-                        // Add changelog randomly
-                        val issueJob = launch {
-                            if (Random.nextBoolean()) {
-                                val issuesCount = Random.nextInt(1, 3)
-                                repeat(issuesCount) {
-                                    knownIssueRepository.addIssue(
-                                        chart.id,
-                                        description = "${getRandomIssue()} (Generated for seeding)"
-                                    )
-                                }
-                                log.info("Added known issues for chart ID: ${chart.id}")
-                            }
-                        }
-
                         // Wait for all data for this chart to be added
                         versionJob.join()
                         contributorJob.join()
-                        issueJob.join()
                     }
 
                 } catch (e: Exception) {
@@ -301,19 +274,6 @@ private fun getRandomAlbum(): String {
         "Appetite for Destruction"
     )
     return albums.random()
-}
-
-private fun getRandomIssue(): String {
-    val issues = listOf(
-        "Notes out of sync with the beat",
-        "Missing effects at the chorus",
-        "Incorrect BPM in the bridge section",
-        "Overlapping notes in the second verse",
-        "Sound effects too loud in the mix",
-        "Chart crashes at the end of the song",
-        "Performance issues on older devices"
-    )
-    return issues.random()
 }
 
 private fun getRandomCoverUrl(): String {

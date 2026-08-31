@@ -35,7 +35,8 @@ class CatalogItemRepository {
         return if (resolvedId != null) {
             CatalogItemEntity.new(resolvedId) {
                 this.type = type
-                this.status = CatalogItemStatus.DRAFT
+                this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.previewVideoId = previewVideoId
                 this.author = UserEntity[authorId]
                 this.updatedAt = now
@@ -43,7 +44,8 @@ class CatalogItemRepository {
         } else {
             CatalogItemEntity.new {
                 this.type = type
-                this.status = CatalogItemStatus.DRAFT
+                this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.previewVideoId = previewVideoId
                 this.author = UserEntity[authorId]
                 this.updatedAt = now
@@ -57,6 +59,10 @@ class CatalogItemRepository {
     ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.visibility = visibility
+            // Stamp the first time an item becomes public; preserve that date afterwards
+            if (visibility == Visibility.PUBLIC && it.publishedAt == null) {
+                it.publishedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+            }
             it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
     }
@@ -67,6 +73,16 @@ class CatalogItemRepository {
     ) {
         CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
             it.isFeatured = isFeatured
+            it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        }
+    }
+
+    fun updatePreviewVideoId(
+        catalogItemId: String,
+        previewVideoId: String,
+    ) {
+        CatalogItemEntity.findByIdAndUpdate(catalogItemId) {
+            it.previewVideoId = previewVideoId
             it.updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         }
     }

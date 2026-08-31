@@ -17,6 +17,10 @@ import org.bscm.services.*
 import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.JWTService
+import org.bscm.services.publish.ChartPublishService
+import org.bscm.services.publish.PublishEventService
+import org.bscm.services.publish.ThemePublishService
+import org.bscm.services.publish.TourPassPublishService
 import org.bscm.services.track.TrackInfoService
 import org.bscm.services.track.clients.applicationHttpClient
 import org.koin.ktor.ext.inject
@@ -102,7 +106,6 @@ fun Application.configureRouting() {
 
         val userRepository by inject<IUserRepository>()
         val contributorRepository by inject<IContributorRepository>()
-        val changelogRepository by inject<IChangelogRepository>()
         val versionRepository by inject<IVersionRepository>()
         val collectionService by inject<CollectionService>()
         val activityRepository by inject<IActivityRepository>()
@@ -133,14 +136,11 @@ fun Application.configureRouting() {
             bundleDownloadService,
             publishEventService,
         )
-        versionRoutes(versionRepository, chartRepository, userRepository, uploadService)
         tourPassRoutes(tourPassPublishService, tourPassRepository, userRepository)
-        themeRoutes(themePublishService, themeRepository, userRepository, bundleDownloadService)
+        themeRoutes(themePublishService, themeRepository, userRepository, versionRepository, uploadService, bundleDownloadService)
         contributorRoutes(contributorRepository)
         debugRoutes(trackInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)
-        changelogRoutes(changelogRepository)
-
         // Discord interactions (slash commands, buttons, etc.)
         interactionsRoutes(
             application.environment.config.propertyOrNull("discord.publicKey")?.getString(),

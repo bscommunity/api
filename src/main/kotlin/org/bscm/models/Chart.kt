@@ -26,6 +26,9 @@ data class Chart(
 
     override val downloadsSum: Int,
 
+    val likesCount: Int = 0,
+    val bookmarksCount: Int = 0,
+
     override val contributors: List<Contributor>,
 
     override val createdAt: LocalDateTime,
@@ -53,7 +56,7 @@ data class Chart(
     val isDeluxe: Boolean,
     val isExplicit: Boolean,
 
-    val changelog: List<Changelog>,
+    override val latestVersion: Version?,
 
-    override val latestVersion: Version?
+    val versions: List<Version> = emptyList(),
 ) : CatalogItem, Versionable

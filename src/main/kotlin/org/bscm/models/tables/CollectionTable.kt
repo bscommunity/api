@@ -10,7 +10,7 @@ import kotlin.time.Clock
 
 object CollectionTable : UUIDTable("collections") {
     val userId = reference("user_id", UserTable, onDelete = ReferenceOption.CASCADE)
-    val kind = enumerationByName("kind", 20, CollectionKind::class).default(CollectionKind.USER)
+    val kind = enumeration("kind", CollectionKind::class).default(CollectionKind.USER)
     val slug = varchar("slug", 30).uniqueIndex().nullable()
 
     val name = varchar("name", 30)

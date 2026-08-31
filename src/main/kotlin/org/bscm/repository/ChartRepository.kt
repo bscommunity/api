@@ -9,16 +9,19 @@ import org.bscm.models.Version
 import org.bscm.models.dao.*
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
-import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.*
-import org.bscm.models.interfaces.IChangelogRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IVersionRepository
+import org.bscm.models.mappers.VersionMapper
 import org.bscm.models.tables.*
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.flushEntityCache
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.Query
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -33,7 +36,6 @@ class ChartRepository(
     private val catalogItemRepository: CatalogItemRepository,
     private val versionRepository: IVersionRepository,
     private val albumRepository: AlbumRepository,
-    private val changelogRepository: IChangelogRepository,
 ) : IChartRepository {
 
     private val queryBuilder = ChartQueryBuilder()
@@ -64,17 +66,14 @@ class ChartRepository(
         queryBuilder.applyJoinsAndSelect(query, fetchStreamingRefs = addons?.streamingLinks == true)
 
         val results = query.toList()
-        val chartIds = results.map { it[ChartTable.id].value }.distinct()
-        val changelogs = changelogRepository.getByCatalogItemIds(chartIds)
 
         val processedResults = resultAssembler.processResultsInMemory(
             requestingUserId = requestingUserId,
             results = results,
             includeStreamingRefs = addons?.streamingLinks == true,
-            changelogs = changelogs,
         )
 
-        val enrichedResults = enrichWithVersionData(processedResults)
+        val enrichedResults = enrichWithVersionData(processedResults, addons?.versions == true)
         return enrichedResults.firstOrNull()?.let { resultAssembler.toChart(it) }
     }
 
@@ -121,15 +120,13 @@ class ChartRepository(
         queryBuilder.applyJoinsAndSelect(fullQuery, fetchStreamingRefs = addons?.streamingLinks == true)
 
         val results = fullQuery.toList()
-        val changelogs = changelogRepository.getByCatalogItemIds(paginatedIds)
         val processedResults = resultAssembler.processResultsInMemory(
             requestingUserId = requestingUserId,
             results = results,
             includeStreamingRefs = addons?.streamingLinks == true,
-            changelogs = changelogs,
         )
 
-        val enrichedResults = enrichWithVersionData(processedResults)
+        val enrichedResults = enrichWithVersionData(processedResults, addons?.versions == true)
         val chartMap = enrichedResults.associateBy { it.chart.id.value }
         val sortedResults = paginatedIds.mapNotNull { id -> chartMap[id] }
 
@@ -178,48 +175,39 @@ class ChartRepository(
             queryBuilder.applyJoinsAndSelect(query, fetchStreamingRefs = addons?.streamingLinks == true)
 
             val results = query.toList()
-            val changelogs = changelogRepository.getByCatalogItemIds(catalogIds)
             val processedResults = resultAssembler.processResultsInMemory(
                 requestingUserId = requestingUserId,
                 results = results,
                 includeStreamingRefs = addons?.streamingLinks == true,
-                changelogs = changelogs,
             )
-            enrichWithVersionData(processedResults).map { resultAssembler.toChart(it) }
+            enrichWithVersionData(processedResults, addons?.versions == true).map { resultAssembler.toChart(it) }
         }
 
-    private fun enrichWithVersionData(results: List<ChartResultAssembler.ChartResult>): List<ChartResultAssembler.ChartResult> {
+    private fun enrichWithVersionData(
+        results: List<ChartResultAssembler.ChartResult>,
+        includeVersions: Boolean = false,
+    ): List<ChartResultAssembler.ChartResult> {
         val catalogIds = results.map { it.chart.id.value }
         if (catalogIds.isEmpty()) return results
 
-        val countColumn = VersionTable.id.count()
-        val counts = VersionTable
-            .select(VersionTable.catalogItemId, countColumn)
-            .where { VersionTable.catalogItemId inList catalogIds }
-            .groupBy(VersionTable.catalogItemId)
-            .toList()
-            .associate { it[VersionTable.catalogItemId].value to it[countColumn].toInt() }
-
+        // Single pass: fetch version rows once, derive both counts and latest in memory
         val allVersions = VersionTable.selectAll()
             .where { VersionTable.catalogItemId inList catalogIds }
             .toList()
-
-        val latestVersions = allVersions
             .groupBy { it[VersionTable.catalogItemId].value }
-            .mapValues { (_, versions) ->
-                versions.maxByOrNull { it[VersionTable.versionCode] }
-            }
-            .mapValues { (_, row) ->
-                row?.let { VersionEntity.wrapRow(it) }
-            }
 
         return results.map { result ->
             val chartId = result.chart.id.value
-            val latestVersionEntity = latestVersions[chartId]
+            val chartVersions = allVersions[chartId].orEmpty()
+            val latestRow = chartVersions.maxByOrNull { it[VersionTable.versionCode] }
+            val latestVersionEntity = latestRow?.let { VersionEntity.wrapRow(it) }
             result.copy(
-                versionsCount = counts[chartId] ?: 0,
+                versionsCount = chartVersions.size,
                 latestVersion = latestVersionEntity,
                 bundleHash = latestVersionEntity?.bundleHash,
+                versions = if (includeVersions) {
+                    chartVersions.map { VersionMapper.entityToVersion(VersionEntity.wrapRow(it)) }
+                } else emptyList(),
             )
         }
     }
@@ -315,7 +303,7 @@ class ChartRepository(
         )
     }
 
-    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest, bundleHash: String): Version = suspendTransaction {
+    override suspend fun addVersion(catalogItemId: String, version: VersionBundleData, bundleHash: String): Version = suspendTransaction {
         versionRepository.addVersion(catalogItemId, version, bundleHash)
     }
 
@@ -346,6 +334,9 @@ class ChartRepository(
         }
         chart.visibility?.let { visibility ->
             catalogItemRepository.updateVisibility(id, visibility)
+        }
+        chart.previewVideoId?.let { previewVideoId ->
+            catalogItemRepository.updatePreviewVideoId(id, previewVideoId)
         }
 
         val query = ChartTable.selectAll().where { ChartTable.id eq id }

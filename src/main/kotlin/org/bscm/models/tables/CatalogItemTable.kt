@@ -15,9 +15,9 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
     override val id = varchar("id", 10)
         .clientDefault { NanoIdUtils.generateCatalogId() }
         .entityId()
-    val type = enumerationByName("type", 20, CatalogItemType::class)
-    val status = enumerationByName("status", 20, CatalogItemStatus::class)
-    val visibility = enumerationByName("visibility", 20, Visibility::class)
+    val type = enumeration("type", CatalogItemType::class)
+    val status = enumeration("status", CatalogItemStatus::class)
+    val visibility = enumeration("visibility", Visibility::class)
         .default(Visibility.PUBLIC)
 
     val previewVideoId = varchar("preview_video_id", 12).nullable()

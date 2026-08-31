@@ -53,6 +53,23 @@ class BundleDownloadService(
         }
     }
 
+    /**
+     * Downloads the bundle bytes through this server so clients can read
+     * them same-origin (the Discord CDN does not send CORS headers).
+     */
+    suspend fun fetchBundleBytes(catalogItemId: String, messageId: String): ByteArray {
+        val url = resolveBundleUrl(catalogItemId, messageId)
+
+        val response: HttpResponse = client.get(url)
+        if (!response.status.isSuccess()) {
+            val msg = "Failed to download bundle for $catalogItemId from $url: ${response.status}"
+            log.error(msg)
+            throw RuntimeException(msg)
+        }
+
+        return response.bodyAsBytes()
+    }
+
     private fun computeExpiration(url: String): Instant {
         val ex = try {
             val query = URI(url).query ?: return defaultExpiration()

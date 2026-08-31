@@ -9,12 +9,8 @@ import io.ktor.utils.io.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.bscm.interactions.*
-import org.bscm.models.Chart
-import org.bscm.models.StreamingRef
-import org.bscm.models.User
-import org.bscm.models.Version
+import org.bscm.models.*
 import org.bscm.models.dto.chart.CreateChartRequest
-import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.StreamingPlatform
 import org.bscm.services.track.clients.applicationHttpClient
@@ -105,6 +101,15 @@ class UploadService(
             .replace(Regex("\\s+"), "_")             // collapse whitespace → underscore
             .trim('_')                               // trim leading/trailing underscores
         return normalized
+    }
+
+    private fun getNormalizedThemeName(name: String): String {
+        val normalized = name.trim()
+            .lowercase(Locale.getDefault())
+            .replace(Regex("[^a-zA-Z0-9 ]"), " ")    // replace non-alphanumeric with space
+            .replace(Regex("\\s+"), "_")             // collapse whitespace → underscore
+            .trim('_')                               // trim leading/trailing underscores
+        return normalized.ifEmpty { "theme" }
     }
 
     private fun getButtonForPlatform(platform: StreamingPlatform, url: String): Button {
@@ -420,7 +425,9 @@ class UploadService(
         return jsonClient.decodeFromString<DiscordMessageResponse>(bodyText)
     }
 
-    suspend fun uploadTheme(data: ThemePublishData): DiscordMessageResponse {
+    suspend fun uploadTheme(data: ThemePublishData, themeBundle: ByteArray? = null): DiscordMessageResponse {
+        val normalizedTheme = getNormalizedThemeName(data.title)
+
         val payloadJson = jsonClient.encodeToString(
             WebhookPayload.serializer(),
             message {
@@ -445,11 +452,20 @@ class UploadService(
         )
 
         val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
-            url = "${webhookUrl}?with_components=true",
+            url = "${webhookUrl}?wait=true&with_components=true",
             formData = formData {
                 append("payload_json", payloadJson, Headers.build {
                     append(HttpHeaders.ContentType, "application/json")
                 })
+                if (themeBundle != null) {
+                    append("files[0]", themeBundle, Headers.build {
+                        append(
+                            HttpHeaders.ContentDisposition,
+                            "form-data; name=\"files[0]\"; filename=\"${normalizedTheme}_v1.zip\""
+                        )
+                        append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
+                    })
+                }
             }
         )
 
@@ -463,35 +479,33 @@ class UploadService(
     @OptIn(InternalAPI::class)
     suspend fun uploadVersion(
         chart: Chart,
-        version: CreateVersionRequest,
         author: User,
         chartBundle: ByteArray,
         existingVersions: List<Version>,
+        fileSizeBytes: Long,
     ): DiscordMessageResponse {
 
         val normalizedTrack = getNormalizedTrackName(chart.track.title)
 
         val nextIndex = (existingVersions.maxOfOrNull { it.versionCode } ?: 0) + 1
 
-        // We need to update the displayed info with the new version data
         val payloadJson = buildWebhookPayload(
                 CreateChartRequest(
-                    track = version.track,
-                    artist = version.artist,
-                    duration = version.duration,
-                    notesAmount = version.notesAmount,
-                    effectsAmount = version.effectsAmount,
-                    difficulty = version.difficulty,
-                    isDeluxe = version.isDeluxe,
-                    isExplicit = version.isExplicit,
+                    track = chart.track.title,
+                    artist = chart.track.artist,
+                    duration = chart.track.duration,
+                    notesAmount = chart.notesAmount,
+                    effectsAmount = chart.effectsAmount,
+                    difficulty = chart.difficulty,
+                    isDeluxe = chart.isDeluxe,
+                    isExplicit = chart.isExplicit,
                     trackPreviewUrl = chart.track.previewUrl,
-                    bpm = version.bpm,
-                    bundleUrl = version.bundleUrl,
-                    previewUrl = version.previewUrl,
+                    bpm = chart.track.bpm ?: 0,
+                    previewUrl = chart.track.previewUrl,
                     coverUrl = chart.track.coverUrl ?: "",
                     trackUrls = chart.track.streamingRefs,
                     catalogId = chart.id,
-                    fileSizeBytes = version.fileSizeBytes,
+                    fileSizeBytes = fileSizeBytes,
                 ),
             author,
                 attachments = existingVersions.map {
@@ -569,6 +583,109 @@ class UploadService(
         }
 
         return response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.OK
+    }
+
+    suspend fun deleteThemeVersion(
+        theme: Theme,
+        versions: List<Version>,
+        versionId: String
+    ): Boolean {
+        val messageId = theme.discordMessageId
+            ?: throw IllegalStateException("Theme ${theme.id} has no Discord message ID")
+        val normalizedTheme = getNormalizedThemeName(theme.name)
+        val remainingVersions = versions.filter { it.id != versionId }
+
+        val payloadJson = jsonClient.encodeToString(
+            SimpleWebhookPayload.serializer(), SimpleWebhookPayload(
+                attachments = remainingVersions.map {
+                    SimpleAttachment(
+                        id = it.id,
+                        filename = "${normalizedTheme}_v${it.versionCode}.zip",
+                    )
+                },
+            )
+        )
+
+        logger.info("Current theme message attachments after deletion: $payloadJson")
+
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = "${editWebhookUrl}/${messageId}?with_components=true",
+            formData = formData {
+                append("payload_json", payloadJson, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+            }
+        ) {
+            method = HttpMethod.Patch
+        }
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to delete theme version: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        return response.status == HttpStatusCode.NoContent || response.status == HttpStatusCode.OK
+    }
+
+    @OptIn(InternalAPI::class)
+    suspend fun uploadThemeVersion(
+        theme: Theme,
+        author: User,
+        themeBundle: ByteArray,
+        existingVersions: List<Version>,
+    ): DiscordMessageResponse {
+        val normalizedTheme = getNormalizedThemeName(theme.name)
+        val nextIndex = (existingVersions.maxOfOrNull { it.versionCode } ?: 0) + 1
+
+        val payloadJson = jsonClient.encodeToString(
+            WebhookPayload.serializer(),
+            message {
+                username(workshopUsername)
+                avatar(workshopAvatarUrl)
+                attachments(existingVersions.map {
+                    SimpleAttachment(
+                        id = it.id,
+                        filename = "${normalizedTheme}_v${it.versionCode}.zip",
+                    )
+                })
+                embed {
+                    title = theme.name
+                    url = "https://bscm.netlify.app/link/theme/${theme.id}"
+                    color = 3820816
+                    theme.displayArtUrl?.takeIf { it.isNotBlank() }?.let { image(it) }
+                    theme.coverUrl?.takeIf { it.isNotBlank() }?.let { thumbnail(it) }
+                    author("Theme version updated")
+                    footer("Submitted by @${author.username}", author.avatarUrl)
+                    timestamp()
+                }
+            }
+        )
+
+        val messageId = theme.discordMessageId
+            ?: throw IllegalStateException("Theme ${theme.id} has no Discord message ID")
+
+        val response: HttpResponse = applicationHttpClient.submitFormWithBinaryData(
+            url = "${editWebhookUrl}/${messageId}?with_components=true",
+            formData = formData {
+                append("payload_json", payloadJson, Headers.build {
+                    append(HttpHeaders.ContentType, "application/json")
+                })
+                append("file", themeBundle, Headers.build {
+                    append(
+                        HttpHeaders.ContentDisposition,
+                        "form-data; name=\"file\"; filename=\"${normalizedTheme}_v${nextIndex}.zip\""
+                    )
+                    append(HttpHeaders.ContentType, ContentType.Application.Zip.toString())
+                })
+            }
+        ) {
+            method = HttpMethod.Patch
+        }
+
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to upload theme version: ${response.status}, ${response.bodyAsText()}")
+        }
+
+        return jsonClient.decodeFromString(DiscordMessageResponse.serializer(), response.bodyAsText())
     }
 
     suspend fun deleteMessage(messageId: String): Boolean {

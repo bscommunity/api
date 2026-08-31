@@ -6,6 +6,7 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
+import org.bscm.models.enums.BeatstarThemeId
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.Visibility
@@ -17,12 +18,16 @@ import java.util.*
 @SerialName("theme")
 data class Theme(
     val name: String,
-    val replaces: String,
+    val replaces: BeatstarThemeId,
+    val originalArtwork: String? = null,
     val displayArtUrl: String? = null,
     val previewUrl: String? = null,
     val coverUrl: String? = null,
 
     override val contributors: List<Contributor> = emptyList(),
+
+    val likesCount: Int = 0,
+    val bookmarksCount: Int = 0,
 
     override val createdAt: LocalDateTime,
     override val publishedAt: LocalDateTime?,
@@ -45,4 +50,6 @@ data class Theme(
     override val versionsCount: Int = 0,
     override val latestVersion: Version? = null,
     override val bundleHash: String? = null,
+
+    val versions: List<Version> = emptyList(),
 ) : CatalogItem, Versionable

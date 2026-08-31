@@ -62,7 +62,8 @@ interface IUserRepository {
         difficulties: List<Difficulty>? = null,
         isDeluxe: Boolean? = null,
         limit: Int,
-        offset: Int
+        offset: Int,
+        includeVersions: Boolean = false,
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>>
 
     suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int>

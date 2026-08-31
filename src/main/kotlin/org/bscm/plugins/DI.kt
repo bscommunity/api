@@ -12,6 +12,10 @@ import org.bscm.services.auth.JWTService
 import org.bscm.services.preview.resolvers.DeezerPreviewResolver
 import org.bscm.services.preview.resolvers.ItunesPreviewResolver
 import org.bscm.services.preview.resolvers.PreviewResolverRegistry
+import org.bscm.services.publish.ChartPublishService
+import org.bscm.services.publish.PublishEventService
+import org.bscm.services.publish.ThemePublishService
+import org.bscm.services.publish.TourPassPublishService
 import org.bscm.services.track.TrackInfoService
 import org.bscm.services.track.clients.*
 import org.bscm.storage.S3StorageAdapter
@@ -107,7 +111,7 @@ fun mainModule(config: ApplicationConfig) = module {
     single { AlbumRepository() }
     single { TrackRepository(storageService = get()) }
     single { BundleUrlCacheRepository() }
-    single<IChartRepository> { ChartRepository(get(), get(), get(), get(), get()) }
+    single<IChartRepository> { ChartRepository(get(), get(), get(), get()) }
     single<IContributorRepository> { ContributorRepository() }
     single<IVersionRepository> { VersionRepository() }
     single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get(), get()) }
@@ -115,7 +119,6 @@ fun mainModule(config: ApplicationConfig) = module {
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
     single<ITourPassRepository> { TourPassRepository(get(), get(), get()) }
     single<IThemeRepository> { ThemeRepository(get(), get()) }
-    single<IChangelogRepository> { ChangelogRepository() }
     single {
         JWTService(
             secret = config.property("jwt.secret").getString()
@@ -190,14 +193,17 @@ fun mainModule(config: ApplicationConfig) = module {
             uploadService = get(),
             storageService = get(),
             activityRepository = get(),
+            publishEventService = get(),
         )
     }
     single {
         ThemePublishService(
             themeRepository = get(),
+            versionRepository = get(),
             uploadService = get(),
             storageService = get(),
             activityRepository = get(),
+            publishEventService = get(),
         )
     }
     single {

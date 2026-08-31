@@ -281,8 +281,7 @@ class UserRepository(
         // Apply text search on theme metadata if query is provided
         query?.let { searchQuery ->
             contentQuery.andWhere {
-                (ThemeTable.name like "%$searchQuery%") or
-                (ThemeTable.replaces like "%$searchQuery%")
+                ThemeTable.name like "%$searchQuery%"
             }
         }
 
@@ -473,7 +472,8 @@ class UserRepository(
         difficulties: List<Difficulty>?,
         isDeluxe: Boolean?,
         limit: Int,
-        offset: Int
+        offset: Int,
+        includeVersions: Boolean,
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>> = suspendTransaction {
         // Base query on CatalogItemTable
         val contentQuery = CatalogItemTable
@@ -496,8 +496,7 @@ class UserRepository(
                 (TrackTable.title like "%$searchQuery%") or
                 (TourPassTable.name like "%$searchQuery%") or
                 (TourPassTable.description like "%$searchQuery%") or
-                (ThemeTable.name like "%$searchQuery%") or
-                (ThemeTable.replaces like "%$searchQuery%")
+                (ThemeTable.name like "%$searchQuery%")
             }
         }
 
@@ -533,33 +532,25 @@ class UserRepository(
                 contentQuery.orderBy(CatalogItemTable.updatedAt to SortOrder.DESC)
         }
 
-        // Get counts before pagination
-        val countQuery = CatalogItemTable
-            .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
-            .select(CatalogItemTable.id)
+        // Single grouped count query (no subtype joins needed — type lives on catalog_items)
+        val countColumn = CatalogItemTable.id.count()
+        val typeCounts: Map<CatalogItemType, Int> = CatalogItemTable
+            .select(CatalogItemTable.type, countColumn)
             .where { CatalogItemTable.authorId eq userId }
-        val chartCount = countQuery.count().toInt()
+            .groupBy(CatalogItemTable.type)
+            .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
+        val chartCount = typeCounts[CatalogItemType.CHART] ?: 0
+        val tourPassCount = typeCounts[CatalogItemType.TOUR_PASS] ?: 0
+        val themeCount = typeCounts[CatalogItemType.THEME] ?: 0
 
-        val tpCountQuery = CatalogItemTable
-            .innerJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
-            .select(CatalogItemTable.id)
-            .where { CatalogItemTable.authorId eq userId }
-        val tourPassCount = tpCountQuery.count().toInt()
-
-        val themeCountQuery = CatalogItemTable
-            .innerJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
-            .select(CatalogItemTable.id)
-            .where { CatalogItemTable.authorId eq userId }
-        val themeCount = themeCountQuery.count().toInt()
-
-        // Apply pagination
-        val paginatedQuery = contentQuery.limit(limit).offset(offset.toLong())
-        val catalogIds = paginatedQuery.map { it[CatalogItemTable.id].value }
+        // Apply pagination and materialize once — reusing the Query object would re-execute the SQL
+        val pageRows = contentQuery.limit(limit).offset(offset.toLong()).toList()
+        val catalogIds = pageRows.map { it[CatalogItemTable.id].value }
 
         if (catalogIds.isEmpty()) return@suspendTransaction Pair(emptyList(), Triple(chartCount, tourPassCount, themeCount))
 
         // Group IDs by type for bulk fetching
-        val typeMap = paginatedQuery.associate { it[CatalogItemTable.id].value to it[CatalogItemTable.type] }
+        val typeMap = pageRows.associate { it[CatalogItemTable.id].value to it[CatalogItemTable.type] }
 
         val chartIds = catalogIds.filter { typeMap[it] == CatalogItemType.CHART }
         val tourPassIds = catalogIds.filter { typeMap[it] == CatalogItemType.TOUR_PASS }
@@ -568,7 +559,8 @@ class UserRepository(
         // Fetch each type in bulk
         val charts = if (chartIds.isNotEmpty()) {
             chartRepository.getCharts(
-                filters = ChartRepository.ChartFilters(chartIds = chartIds, includePrivate = true)
+                filters = ChartRepository.ChartFilters(chartIds = chartIds, includePrivate = true),
+                addons = ChartRepository.ChartAddons(versions = includeVersions),
             ).first
         } else emptyList()
 
@@ -577,7 +569,7 @@ class UserRepository(
         } else emptyList()
 
         val themes = if (themeIds.isNotEmpty()) {
-            themeRepository.getThemes(catalogIds = themeIds)
+            themeRepository.getThemes(catalogIds = themeIds, includeVersions = includeVersions)
         } else emptyList()
 
         // Merge all items and preserve original ordering

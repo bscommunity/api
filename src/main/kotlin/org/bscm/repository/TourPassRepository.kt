@@ -70,30 +70,9 @@ class TourPassRepository(
         }
     }
 
-    private fun fetchContributorsByCatalogIds(catalogIds: List<String>): Map<String, List<Contributor>> {
-        if (catalogIds.isEmpty()) return emptyMap()
-
-        val entityIds = catalogIds.map { EntityID(it, CatalogItemTable) }
-        val rows = ContributorTable
-            .innerJoin(UserTable, { ContributorTable.userId }, { UserTable.id })
-            .select(ContributorTable.columns + UserTable.columns)
-            .where { ContributorTable.catalogItemId inList entityIds }
-            .toList()
-
-        return rows.groupBy { it[ContributorTable.catalogItemId].value }
-            .mapValues { (_, contributorRows) ->
-                contributorRows.map { row ->
-                    ContributorRepository.contributorEntityToContributor(
-                        ContributorEntity.wrapRow(row),
-                        UserEntity.wrapRow(row),
-                    )
-                }
-            }
-    }
-
     private fun buildTourPass(
         entity: TourPassEntity,
-        catalogItem: CatalogItemEntity,
+        catalogRow: ResultRow,
         charts: List<Chart>,
         likesCount: Int,
         bookmarksCount: Int,
@@ -111,19 +90,20 @@ class TourPassRepository(
             likedAt = likedAt,
             bookmarkedAt = bookmarkedAt,
             contributors = contributors,
-            createdAt = catalogItem.createdAt,
-            publishedAt = catalogItem.publishedAt,
-            updatedAt = catalogItem.updatedAt,
+            createdAt = catalogRow[CatalogItemTable.createdAt],
+            publishedAt = catalogRow[CatalogItemTable.publishedAt],
+            updatedAt = catalogRow[CatalogItemTable.updatedAt],
             id = entity.id.value,
             type = CatalogItemType.TOUR_PASS,
-            status = catalogItem.status,
-            visibility = catalogItem.visibility,
-            isFeatured = catalogItem.isFeatured,
-            downloadsSum = catalogItem.downloadsSum,
-            previewVideoId = catalogItem.previewVideoId,
-            discordChannelId = catalogItem.discordChannelId,
-            discordMessageId = catalogItem.discordMessageId,
-            authorId = catalogItem.author?.id?.value,
+            status = catalogRow[CatalogItemTable.status],
+            visibility = catalogRow[CatalogItemTable.visibility],
+            isFeatured = catalogRow[CatalogItemTable.isFeatured],
+            downloadsSum = catalogRow[CatalogItemTable.downloadsSum],
+            previewVideoId = catalogRow[CatalogItemTable.previewVideoId],
+            discordChannelId = catalogRow[CatalogItemTable.discordChannelId],
+            discordMessageId = catalogRow[CatalogItemTable.discordMessageId],
+            // Read from the pre-fetched row — avoids a lazy per-item users query
+            authorId = catalogRow[CatalogItemTable.authorId]?.value,
         )
     }
 
@@ -168,13 +148,12 @@ class TourPassRepository(
         val (likedAt, bookmarkedAt) = if (userId != null) {
             UserStatsUtils.fetchUserStats(userId, listOf(entity.id.value))[entity.id.value] ?: (null to null)
         } else (null to null)
-        val contributors = fetchContributorsByCatalogIds(listOf(entity.id.value))[entity.id.value].orEmpty()
-        val catalogItem = CatalogItemTable.selectAll()
+        val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(entity.id.value))[entity.id.value].orEmpty()
+        val catalogRow = CatalogItemTable.selectAll()
             .where { CatalogItemTable.id eq EntityID(entity.id.value, CatalogItemTable) }
             .firstOrNull()
-            ?.let { CatalogItemEntity.wrapRow(it) }
             ?: error("Catalog item not found for tour pass ${entity.id.value}")
-        return buildTourPass(entity, catalogItem, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt, contributors)
+        return buildTourPass(entity, catalogRow, charts, likesCount, bookmarksCount, likedAt, bookmarkedAt, contributors)
     }
 
     override suspend fun getTourPasses(
@@ -188,15 +167,18 @@ class TourPassRepository(
         val pageOffset = offset ?: 0
 
         val query = TourPassTable.selectAll()
+        // When filtering by explicit catalogIds (e.g., a pre-paginated page from an
+        // orchestrator), skip ordering/pagination — the caller already applied both.
+        val isIdFiltered = catalogIds != null && catalogIds.isNotEmpty()
 
         when {
-            catalogIds != null && catalogIds.isNotEmpty() && search != null -> {
+            isIdFiltered && search != null -> {
                 query.where {
                     (TourPassTable.id inList catalogIds.map { EntityID(it, TourPassTable) }) and
                     ((TourPassTable.name like "%${search}%") or (TourPassTable.description like "%${search}%"))
                 }
             }
-            catalogIds != null && catalogIds.isNotEmpty() -> {
+            isIdFiltered -> {
                 query.where { TourPassTable.id inList catalogIds.map { EntityID(it, TourPassTable) } }
             }
             search != null -> {
@@ -204,8 +186,11 @@ class TourPassRepository(
             }
         }
 
-        query.orderBy(TourPassTable.id to SortOrder.DESC)
-        val paged = query.limit(pageSize).offset(pageOffset.toLong()).toList()
+        if (!isIdFiltered) {
+            query.orderBy(TourPassTable.id to SortOrder.DESC)
+            query.limit(pageSize).offset(pageOffset.toLong())
+        }
+        val paged = query.toList()
             .map { TourPassEntity.wrapRow(it) }
 
         if (paged.isEmpty()) return@suspendTransaction emptyList()
@@ -230,22 +215,22 @@ class TourPassRepository(
             UserStatsUtils.fetchUserStats(userId, allTourPassIds)
         } else emptyMap()
 
-        val contributorsByCatalogId = fetchContributorsByCatalogIds(allTourPassIds)
+        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(allTourPassIds)
 
-        val catalogItemsById = CatalogItemTable.selectAll()
+        val catalogRowsById = CatalogItemTable.selectAll()
             .where { CatalogItemTable.id inList allTourPassIds.map { EntityID(it, CatalogItemTable) } }
             .toList()
-            .associate { it[CatalogItemTable.id].value to CatalogItemEntity.wrapRow(it) }
+            .associateBy { it[CatalogItemTable.id].value }
 
         paged.map { entity ->
             val charts = chartIdsByTourPass[entity.id.value].orEmpty().mapNotNull { chartMap[it] }
             val (likesCount, bookmarksCount) = allStats[entity.id.value] ?: (0 to 0)
             val (likedAt, bookmarkedAt) = userStats[entity.id.value] ?: (null to null)
-            val catalogItem = catalogItemsById[entity.id.value]
+            val catalogRow = catalogRowsById[entity.id.value]
                 ?: error("Catalog item not found for tour pass ${entity.id.value}")
             buildTourPass(
                 entity,
-                catalogItem,
+                catalogRow,
                 charts,
                 likesCount,
                 bookmarksCount,
@@ -274,6 +259,7 @@ class TourPassRepository(
             CatalogItemEntity.new(id) {
                 this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }
@@ -281,6 +267,7 @@ class TourPassRepository(
             CatalogItemEntity.new {
                 this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
+                this.publishedAt = now
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }

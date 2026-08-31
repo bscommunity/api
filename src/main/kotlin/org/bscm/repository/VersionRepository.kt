@@ -3,7 +3,7 @@ package org.bscm.repository
 import org.bscm.models.Version
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.VersionEntity
-import org.bscm.models.dto.version.CreateVersionRequest
+import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.models.mappers.VersionMapper.entityToVersion
@@ -46,7 +46,7 @@ class VersionRepository : IVersionRepository {
                 }
         }
 
-    override suspend fun addVersion(catalogItemId: String, version: CreateVersionRequest, bundleHash: String): Version = suspendTransaction {
+    override suspend fun addVersion(catalogItemId: String, version: VersionBundleData, bundleHash: String): Version = suspendTransaction {
         val itemType = CatalogItemEntity[catalogItemId].type
         require(itemType in listOf(CatalogItemType.CHART, CatalogItemType.THEME)) {
             "Catalog item $catalogItemId of type $itemType is not versionable"
@@ -60,7 +60,7 @@ class VersionRepository : IVersionRepository {
                 this.catalogItem = CatalogItemEntity[catalogItemId]
                 this.versionCode = latestCode + 1
                 this.fileSizeBytes = version.fileSizeBytes
-                this.changelog = version.changelog.joinToString("\n").ifBlank { null }
+                this.changelog = version.changelog.ifBlank { null }
                 this.bundleHash = bundleHash
             }
         } else {
@@ -68,7 +68,7 @@ class VersionRepository : IVersionRepository {
                 this.catalogItem = CatalogItemEntity[catalogItemId]
                 this.versionCode = latestCode + 1
                 this.fileSizeBytes = version.fileSizeBytes
-                this.changelog = version.changelog.joinToString("\n").ifBlank { null }
+                this.changelog = version.changelog.ifBlank { null }
                 this.bundleHash = bundleHash
             }
         }

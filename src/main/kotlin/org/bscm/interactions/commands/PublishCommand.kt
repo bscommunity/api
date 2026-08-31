@@ -14,8 +14,8 @@ import org.bscm.interactions.CommandHandler.immediateEphemeralResponse
 import org.bscm.interactions.I18n
 import org.bscm.interactions.message
 import org.bscm.models.interfaces.IUserRepository
-import org.bscm.services.ChartPublishService
 import org.bscm.services.InteractionResponseService
+import org.bscm.services.publish.ChartPublishService
 import org.bscm.services.track.clients.applicationHttpClient
 import org.koin.ktor.ext.getKoin
 
