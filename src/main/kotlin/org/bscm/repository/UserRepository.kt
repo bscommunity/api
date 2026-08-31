@@ -579,6 +579,114 @@ class UserRepository(
         Pair(orderedItems, Triple(chartCount, tourPassCount, themeCount))
     }
 
+    override suspend fun getUserSharedUploads(
+        userId: UUID,
+        types: List<CatalogItemType>?,
+        query: String?,
+        sortBy: SortOption?,
+        genres: List<Genre>?,
+        difficulties: List<Difficulty>?,
+        isDeluxe: Boolean?,
+        limit: Int,
+        offset: Int,
+        includeVersions: Boolean,
+    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>> = suspendTransaction {
+        val contributorFilter = (ContributorTable.userId eq userId) and (CatalogItemTable.authorId neq userId)
+
+        val contentQuery = ContributorTable
+            .innerJoin(CatalogItemTable, { ContributorTable.catalogItemId }, { CatalogItemTable.id })
+            .leftJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })
+            .leftJoin(TrackTable, { ChartTable.trackId }, { TrackTable.id })
+            .leftJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
+            .leftJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
+            .select(CatalogItemTable.id, CatalogItemTable.type)
+            .where { contributorFilter }
+
+        types?.let { requestedTypes ->
+            contentQuery.andWhere { CatalogItemTable.type inList requestedTypes }
+        }
+
+        query?.let { searchQuery ->
+            contentQuery.andWhere {
+                (TrackTable.artist like "%$searchQuery%") or
+                (TrackTable.title like "%$searchQuery%") or
+                (TourPassTable.name like "%$searchQuery%") or
+                (TourPassTable.description like "%$searchQuery%") or
+                (ThemeTable.name like "%$searchQuery%")
+            }
+        }
+
+        genres?.takeIf { it.isNotEmpty() }?.let { genreList ->
+            contentQuery.andWhere {
+                genreList.map { genre ->
+                    stringParam(genre.name) eq anyFrom(TrackTable.genres)
+                }.fold(Op.FALSE as Op<Boolean>) { acc, next -> acc.or(next) }
+            }
+        }
+
+        difficulties?.takeIf { it.isNotEmpty() }?.let { diffList ->
+            contentQuery.andWhere { ChartTable.difficulty inList diffList }
+        }
+
+        isDeluxe?.let { deluxe ->
+            contentQuery.andWhere { ChartTable.isDeluxe eq deluxe }
+        }
+
+        when (sortBy) {
+            SortOption.ALPHA_ASC -> contentQuery.orderBy(
+                org.jetbrains.exposed.v1.core.coalesce(TrackTable.title, TourPassTable.name, ThemeTable.name) to SortOrder.ASC
+            )
+            SortOption.ALPHA_DESC -> contentQuery.orderBy(
+                org.jetbrains.exposed.v1.core.coalesce(TrackTable.title, TourPassTable.name, ThemeTable.name) to SortOrder.DESC
+            )
+            SortOption.MOST_DOWNLOADED -> contentQuery.orderBy(CatalogItemTable.downloadsSum to SortOrder.DESC)
+            SortOption.LAST_UPDATED, SortOption.WEEKLY_RANK, SortOption.MOST_LIKED, null ->
+                contentQuery.orderBy(CatalogItemTable.updatedAt to SortOrder.DESC)
+        }
+
+        val countColumn = CatalogItemTable.id.count()
+        val typeCounts: Map<CatalogItemType, Int> = ContributorTable
+            .innerJoin(CatalogItemTable, { ContributorTable.catalogItemId }, { CatalogItemTable.id })
+            .select(CatalogItemTable.type, countColumn)
+            .where { contributorFilter }
+            .groupBy(CatalogItemTable.type)
+            .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
+        val chartCount = typeCounts[CatalogItemType.CHART] ?: 0
+        val tourPassCount = typeCounts[CatalogItemType.TOUR_PASS] ?: 0
+        val themeCount = typeCounts[CatalogItemType.THEME] ?: 0
+
+        val pageRows = contentQuery.limit(limit).offset(offset.toLong()).toList()
+        val catalogIds = pageRows.map { it[CatalogItemTable.id].value }
+
+        if (catalogIds.isEmpty()) return@suspendTransaction Pair(emptyList(), Triple(chartCount, tourPassCount, themeCount))
+
+        val typeMap = pageRows.associate { it[CatalogItemTable.id].value to it[CatalogItemTable.type] }
+
+        val chartIds = catalogIds.filter { typeMap[it] == CatalogItemType.CHART }
+        val tourPassIds = catalogIds.filter { typeMap[it] == CatalogItemType.TOUR_PASS }
+        val themeIds = catalogIds.filter { typeMap[it] == CatalogItemType.THEME }
+
+        val charts = if (chartIds.isNotEmpty()) {
+            chartRepository.getCharts(
+                filters = ChartRepository.ChartFilters(chartIds = chartIds, includePrivate = false),
+                addons = ChartRepository.ChartAddons(versions = includeVersions),
+            ).first
+        } else emptyList()
+
+        val tourPasses = if (tourPassIds.isNotEmpty()) {
+            tourPassRepository.getTourPasses(catalogIds = tourPassIds)
+        } else emptyList()
+
+        val themes = if (themeIds.isNotEmpty()) {
+            themeRepository.getThemes(catalogIds = themeIds, includeVersions = includeVersions)
+        } else emptyList()
+
+        val allItems = (charts + tourPasses + themes).associateBy { it.id }
+        val orderedItems = catalogIds.mapNotNull { allItems[it] }
+
+        Pair(orderedItems, Triple(chartCount, tourPassCount, themeCount))
+    }
+
     override suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int> = suspendTransaction {
         val charts = CatalogItemTable
             .innerJoin(ChartTable, { CatalogItemTable.id }, { ChartTable.id })

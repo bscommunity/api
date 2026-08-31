@@ -10,6 +10,7 @@ import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IContributorRepository
+import org.bscm.utils.getUserId
 import java.util.*
 
 fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
@@ -32,6 +33,19 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
                 val contributors = contributorRepository.addContributors(catalogItemId, request.contributors)
 
                 call.respond(contributors)
+            }
+
+            delete("self") {
+                val catalogItemId = call.parameters["catalogItemId"]
+                    ?: throw BadRequestException("Invalid or missing catalog item ID")
+                val userId = call.getUserId()
+
+                val removed = contributorRepository.removeContributor(catalogItemId, userId, null)
+                if (removed) {
+                    call.respond(HttpStatusCode.NoContent)
+                } else {
+                    throw NotFoundException("Contributor not found")
+                }
             }
 
             put("{userId}") {

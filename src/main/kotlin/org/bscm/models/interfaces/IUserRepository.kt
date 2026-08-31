@@ -66,6 +66,19 @@ interface IUserRepository {
         includeVersions: Boolean = false,
     ): Pair<List<CatalogItem>, Triple<Int, Int, Int>>
 
+    suspend fun getUserSharedUploads(
+        userId: UUID,
+        types: List<CatalogItemType>?,
+        query: String?,
+        sortBy: SortOption?,
+        genres: List<Genre>? = null,
+        difficulties: List<Difficulty>? = null,
+        isDeluxe: Boolean? = null,
+        limit: Int,
+        offset: Int,
+        includeVersions: Boolean = false,
+    ): Pair<List<CatalogItem>, Triple<Int, Int, Int>>
+
     suspend fun getLibraryCounts(userId: UUID): Triple<Int, Int, Int>
 
     suspend fun getSystemCollectionItems(
