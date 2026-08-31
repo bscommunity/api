@@ -94,4 +94,7 @@ interface IUserRepository {
     suspend fun getFollowers(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser>
     suspend fun getFollowing(userId: UUID, limit: Int, offset: Int): List<SimplifiedUser>
     suspend fun isFollowing(followerId: UUID, followedId: UUID): Boolean
+
+    // Contributor invite policy
+    suspend fun getContributorInvitePolicies(userIds: List<UUID>): Map<UUID, ContributorInvitePolicy>
 }

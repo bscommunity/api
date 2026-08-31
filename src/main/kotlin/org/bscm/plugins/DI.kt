@@ -117,6 +117,7 @@ fun mainModule(config: ApplicationConfig) = module {
     single<IVersionRepository> { VersionRepository() }
     single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get(), get()) }
     single<IActivityRepository> { ActivityRepository() }
+    single<INotificationRepository> { NotificationRepository() }
     single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
     single<ITourPassRepository> { TourPassRepository(get(), get(), get()) }
     single<IThemeRepository> { ThemeRepository(get(), get()) }
@@ -248,5 +249,8 @@ fun mainModule(config: ApplicationConfig) = module {
     }
     single {
         OverviewService(overviewRepository = get())
+    }
+    single {
+        NotificationService(notificationRepository = get())
     }
 }

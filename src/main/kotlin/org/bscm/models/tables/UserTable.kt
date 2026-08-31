@@ -2,6 +2,7 @@ package org.bscm.models.tables
 
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.bscm.models.enums.ContributorInvitePolicy
 import org.bscm.models.enums.UserRole
 import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
 import org.jetbrains.exposed.v1.datetime.datetime
@@ -31,6 +32,9 @@ object UserTable : UUIDTable("users") {
 
     val followerCount = integer("follower_count").default(0)
     val followingCount = integer("following_count").default(0)
+
+    val allowContributorInvitesFrom = enumeration("allow_contributor_invites_from", ContributorInvitePolicy::class)
+        .default(ContributorInvitePolicy.EVERYONE)
 
     val discordId = varchar("discord_id", 255).uniqueIndex()
     val createdAt = datetime("created_at").clientDefault { Clock.System.now().toLocalDateTime(TimeZone.UTC) }

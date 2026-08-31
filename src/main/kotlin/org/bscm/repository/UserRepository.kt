@@ -46,6 +46,8 @@ class UserRepository(
 
             followerCount = entity.followerCount,
             followingCount = entity.followingCount,
+
+            allowContributorInvitesFrom = entity.allowContributorInvitesFrom,
         )
 
         fun userEntityToSimplifiedUser(entity: UserEntity): SimplifiedUser = SimplifiedUser(
@@ -119,6 +121,7 @@ class UserRepository(
             accentColor = user.accentColor ?: accentColor
             bio = user.bio.let { if (it.isNullOrBlank()) bio else it }
             isPublic = user.isPublic ?: isPublic
+            user.allowContributorInvitesFrom?.let { allowContributorInvitesFrom = it }
         }
         userEntityToUser(existingUser)
     }
@@ -461,6 +464,14 @@ class UserRepository(
         UserFollowTable.selectAll().where {
             (UserFollowTable.follower eq followerId) and (UserFollowTable.followed eq followedId)
         }.empty().not()
+    }
+
+    override suspend fun getContributorInvitePolicies(userIds: List<UUID>): Map<UUID, ContributorInvitePolicy> = suspendTransaction {
+        if (userIds.isEmpty()) return@suspendTransaction emptyMap()
+        UserTable
+            .select(UserTable.id, UserTable.allowContributorInvitesFrom)
+            .where { UserTable.id inList userIds }
+            .associate { it[UserTable.id].value to it[UserTable.allowContributorInvitesFrom] }
     }
 
     override suspend fun getUserUploads(

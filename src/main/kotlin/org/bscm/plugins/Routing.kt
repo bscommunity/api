@@ -120,6 +120,7 @@ fun Application.configureRouting() {
         val themePublishService by inject<ThemePublishService>()
         val publishEventService by inject<PublishEventService>()
         val overviewService by inject<OverviewService>()
+        val notificationService by inject<NotificationService>()
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
         userRoutes(userRepository, profileService, collectionService, activityRepository)
@@ -137,7 +138,8 @@ fun Application.configureRouting() {
         )
         tourPassRoutes(tourPassPublishService, tourPassRepository, userRepository)
         themeRoutes(themePublishService, themeRepository, userRepository, versionRepository, uploadService, bundleDownloadService)
-        contributorRoutes(contributorRepository)
+        contributorRoutes(contributorRepository, notificationService, userRepository)
+        notificationRoutes(notificationService)
         debugRoutes(trackInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)
         // Discord interactions (slash commands, buttons, etc.)

@@ -8,12 +8,19 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
+import org.bscm.models.enums.ContributorInvitePolicy
 import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IContributorRepository
+import org.bscm.models.interfaces.IUserRepository
+import org.bscm.services.NotificationService
 import org.bscm.utils.getUserId
 import java.util.*
 
-fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
+fun Route.contributorRoutes(
+    contributorRepository: IContributorRepository,
+    notificationService: NotificationService,
+    userRepository: IUserRepository
+) {
     route("/contributors/{catalogItemId}") {
 
         get {
@@ -28,9 +35,35 @@ fun Route.contributorRoutes(contributorRepository: IContributorRepository) {
             post {
                 val catalogItemId = call.parameters["catalogItemId"]
                     ?: throw BadRequestException("Invalid or missing catalog item ID")
+                val actorId = call.getUserId()
 
                 val request = call.receive<CreateContributorRequest>()
+                val targetUserIds = request.contributors.map { it.userId }.distinct()
+
+                val policies = userRepository.getContributorInvitePolicies(targetUserIds)
+                val blocked = mutableListOf<UUID>()
+
+                for (userId in targetUserIds) {
+                    when (policies[userId]) {
+                        ContributorInvitePolicy.NOBODY -> blocked.add(userId)
+                        ContributorInvitePolicy.FOLLOWING -> {
+                            val follows = userRepository.isFollowing(actorId, userId)
+                            if (!follows) blocked.add(userId)
+                        }
+                        ContributorInvitePolicy.EVERYONE, null -> { /* allowed */ }
+                    }
+                }
+
+                if (blocked.isNotEmpty()) {
+                    throw io.ktor.server.plugins.BadRequestException(
+                        "Cannot add contributor(s): ${blocked.joinToString()} do not accept contributor invites from you"
+                    )
+                }
+
                 val contributors = contributorRepository.addContributors(catalogItemId, request.contributors)
+
+                val recipientIds = request.contributors.map { it.userId }.distinct()
+                notificationService.notifyContributorAdded(catalogItemId, actorId, recipientIds)
 
                 call.respond(contributors)
             }
