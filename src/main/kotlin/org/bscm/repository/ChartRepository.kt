@@ -23,6 +23,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.Query
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
@@ -359,6 +360,17 @@ class ChartRepository(
             OperationOption.INSTALL, OperationOption.UPDATE -> {
                 val chart = ChartEntity.findById(chartId) ?: throw NotFoundException("Chart not found")
                 catalogItemRepository.incrementDownloads(chart.id.value)
+
+                val eventType = if (action == OperationOption.INSTALL) {
+                    DownloadEventType.INSTALL
+                } else {
+                    DownloadEventType.UPDATE
+                }
+                DownloadEventTable.insert {
+                    it[catalogItemId] = chart.id
+                    it[DownloadEventTable.eventType] = eventType
+                }
+
                 log.info("Download analytics recorded for chart $chartId")
                 true
             }

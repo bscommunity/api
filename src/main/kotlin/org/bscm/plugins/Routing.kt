@@ -122,10 +122,12 @@ fun Application.configureRouting() {
         val tourPassPublishService by inject<TourPassPublishService>()
         val themePublishService by inject<ThemePublishService>()
         val publishEventService by inject<PublishEventService>()
+        val overviewService by inject<OverviewService>()
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
         userRoutes(userRepository, profileService, collectionService, activityRepository)
         meRoutes(collectionService, profileService, chartRepository, userRepository)
+        overviewRoutes(overviewService)
 
         chartRoutes(
             chartRepository,
