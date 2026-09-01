@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS users (id uuid PRIMARY KEY, username VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, image_url VARCHAR(255) NULL, banner_url VARCHAR(255) NULL, avatar_url VARCHAR(255) NULL, accent_color INT NULL, bio TEXT NULL, is_public BOOLEAN DEFAULT TRUE NOT NULL, "role" INT DEFAULT 0 NOT NULL, is_verified BOOLEAN DEFAULT FALSE NOT NULL, verified_at TIMESTAMP NULL, verified_by uuid NULL, follower_count INT DEFAULT 0 NOT NULL, following_count INT DEFAULT 0 NOT NULL, discord_id VARCHAR(255) NOT NULL, created_at TIMESTAMP NOT NULL);
+CREATE TABLE IF NOT EXISTS users (id uuid PRIMARY KEY, username VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, image_url VARCHAR(255) NULL, banner_url VARCHAR(255) NULL, avatar_url VARCHAR(255) NULL, accent_color INT NULL, bio TEXT NULL, is_public BOOLEAN DEFAULT TRUE NOT NULL, "role" INT DEFAULT 0 NOT NULL, is_verified BOOLEAN DEFAULT FALSE NOT NULL, verified_at TIMESTAMP NULL, verified_by uuid NULL, follower_count INT DEFAULT 0 NOT NULL, following_count INT DEFAULT 0 NOT NULL, allow_contributor_invites_from INT DEFAULT 0 NOT NULL, discord_id VARCHAR(255) NOT NULL, created_at TIMESTAMP NOT NULL);
 ALTER TABLE users ADD CONSTRAINT users_username_unique UNIQUE (username);
 ALTER TABLE users ADD CONSTRAINT users_email_unique UNIQUE (email);
 ALTER TABLE users ADD CONSTRAINT users_discord_id_unique UNIQUE (discord_id);
@@ -43,6 +43,8 @@ CREATE INDEX contributors_user_id_catalog_item_id ON contributors (user_id, cata
 CREATE TABLE IF NOT EXISTS download_events (id uuid PRIMARY KEY, catalog_item_id VARCHAR(10) NOT NULL, event_type VARCHAR(10) NOT NULL, created_at TIMESTAMP NOT NULL);
 CREATE INDEX download_events_catalog_item_id_created_at ON download_events (catalog_item_id, created_at);
 CREATE INDEX download_events_created_at ON download_events (created_at);
+CREATE TABLE IF NOT EXISTS notifications (id BIGSERIAL PRIMARY KEY, user_id uuid NOT NULL, actor_id uuid NOT NULL, "type" VARCHAR(50) NOT NULL, catalog_item_id VARCHAR(10) NULL, message TEXT NOT NULL, created_at TIMESTAMP NOT NULL);
+CREATE INDEX notifications_user_id_created_at ON notifications (user_id, created_at);
 CREATE TABLE IF NOT EXISTS themes (id VARCHAR(10) PRIMARY KEY, "name" VARCHAR(255) NOT NULL, replaces INT NOT NULL, original_artwork VARCHAR(512) NULL, preview_url VARCHAR(512) NULL);
 CREATE INDEX themes_name ON themes ("name");
 CREATE TABLE IF NOT EXISTS tour_passes (id VARCHAR(10) PRIMARY KEY, "name" VARCHAR(255) NOT NULL, description VARCHAR(500) NULL, artist VARCHAR(255) NULL);
@@ -75,6 +77,9 @@ ALTER TABLE collection_items ADD CONSTRAINT fk_collection_items_catalog_id__id F
 ALTER TABLE contributors ADD CONSTRAINT fk_contributors_catalog_item_id__id FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id) ON DELETE CASCADE ON UPDATE RESTRICT;
 ALTER TABLE contributors ADD CONSTRAINT fk_contributors_user_id__id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
 ALTER TABLE download_events ADD CONSTRAINT fk_download_events_catalog_item_id__id FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id) ON DELETE CASCADE ON UPDATE RESTRICT;
+ALTER TABLE notifications ADD CONSTRAINT fk_notifications_user_id__id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
+ALTER TABLE notifications ADD CONSTRAINT fk_notifications_actor_id__id FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
+ALTER TABLE notifications ADD CONSTRAINT fk_notifications_catalog_item_id__id FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id) ON DELETE CASCADE ON UPDATE RESTRICT;
 ALTER TABLE user_activity ADD CONSTRAINT fk_user_activity_user_id__id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
 ALTER TABLE user_badges ADD CONSTRAINT fk_user_badges_user_id__id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE RESTRICT;
 ALTER TABLE user_badges ADD CONSTRAINT fk_user_badges_badge_id__id FOREIGN KEY (badge_id) REFERENCES badges(id) ON DELETE RESTRICT ON UPDATE RESTRICT;
@@ -85,5 +90,6 @@ ALTER TABLE catalog_item_versions ADD CONSTRAINT fk_catalog_item_versions_catalo
 CREATE SEQUENCE IF NOT EXISTS album_streaming_refs_id_seq START WITH 1 MINVALUE 1 MAXVALUE 9223372036854775807;
 CREATE SEQUENCE IF NOT EXISTS collection_items_id_seq START WITH 1 MINVALUE 1 MAXVALUE 9223372036854775807;
 CREATE SEQUENCE IF NOT EXISTS contributors_id_seq START WITH 1 MINVALUE 1 MAXVALUE 9223372036854775807;
+CREATE SEQUENCE IF NOT EXISTS notifications_id_seq START WITH 1 MINVALUE 1 MAXVALUE 9223372036854775807;
 CREATE SEQUENCE IF NOT EXISTS track_streaming_refs_id_seq START WITH 1 MINVALUE 1 MAXVALUE 9223372036854775807;
 CREATE SEQUENCE IF NOT EXISTS catalog_item_versions_id_seq START WITH 1 MINVALUE 1 MAXVALUE 9223372036854775807;

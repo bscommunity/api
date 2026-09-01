@@ -168,6 +168,9 @@ class TourPassPublishService(
 
     suspend fun deleteAndCleanup(id: String, userId: UUID): Boolean {
         val tourPass = tourPassRepository.getTourPassById(id, userId) ?: return false
+        if (tourPass.authorId != userId) {
+            throw SecurityException("You are not the author of this tour pass")
+        }
         val deleted = tourPassRepository.deleteTourPass(id, userId)
         if (!deleted) return false
 

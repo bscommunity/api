@@ -200,6 +200,9 @@ class ChartRepository(
         return results.map { result ->
             val chartId = result.chart.id.value
             val chartVersions = allVersions[chartId].orEmpty()
+            if (chartVersions.isEmpty()) {
+                log.warn("Chart $chartId has no versions in VersionTable — published chart without a version")
+            }
             val latestRow = chartVersions.maxByOrNull { it[VersionTable.versionCode] }
             val latestVersionEntity = latestRow?.let { VersionEntity.wrapRow(it) }
             result.copy(
@@ -224,7 +227,12 @@ class ChartRepository(
         result
     }
 
-    override suspend fun createChart(userId: UUID, chart: CreateChartRequest): Chart = suspendTransaction {
+    override suspend fun createChart(
+        userId: UUID,
+        chart: CreateChartRequest,
+        initialVersion: VersionBundleData?,
+        bundleHash: String?,
+    ): Chart = suspendTransaction {
         val catalogItem = catalogItemRepository.create(
             type = CatalogItemType.CHART,
             authorId = userId,
@@ -286,6 +294,11 @@ class ChartRepository(
             }
         }
 
+        if (initialVersion != null) {
+            requireNotNull(bundleHash) { "bundleHash is required when initialVersion is provided" }
+            versionRepository.addVersion(catalogItem.id.value, initialVersion, bundleHash)
+        }
+
         val query = ChartTable.selectAll().where { ChartTable.id eq newChart.id.value }
         getChart(query, ChartAddons(streamingLinks = true), requestingUserId = userId)
             ?: throw IllegalStateException("Failed to load chart after creation")
@@ -311,6 +324,13 @@ class ChartRepository(
     override suspend fun refreshChartsBundles(messages: Map<String, org.bscm.services.UploadService.RefreshData>): Boolean = true
 
     override suspend fun updateChart(id: String, chart: UpdateChartRequest, requestingUserId: UUID?): Chart = suspendTransaction<Chart> {
+        if (requestingUserId != null) {
+            val catalogItem = CatalogItemEntity.findById(id) ?: throw NotFoundException("Chart with ID $id not found")
+            if (catalogItem.author?.id?.value != requestingUserId) {
+                throw SecurityException("You are not the author of this chart")
+            }
+        }
+
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
             it.difficulty = chart.difficulty ?: it.difficulty

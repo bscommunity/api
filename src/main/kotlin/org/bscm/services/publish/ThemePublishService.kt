@@ -185,6 +185,9 @@ class ThemePublishService(
 
     suspend fun deleteAndCleanup(id: String, userId: UUID): Boolean {
         val theme = themeRepository.getThemeById(id, userId) ?: return false
+        if (theme.authorId != userId) {
+            throw SecurityException("You are not the author of this theme")
+        }
         val deleted = themeRepository.deleteTheme(id, userId)
         if (!deleted) return false
 

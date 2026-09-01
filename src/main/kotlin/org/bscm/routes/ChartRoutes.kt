@@ -665,6 +665,10 @@ fun Route.chartRoutes(
                         requestingUserId = userId,
                     ) ?: throw NotFoundException("Chart not found")
 
+                    if (chart.authorId != userId) {
+                        throw SecurityException("You are not the author of this chart")
+                    }
+
                     logger.info("Received request to add version $catalogItemId")
 
                     val multipart = call.receiveMultipart()
@@ -813,6 +817,10 @@ fun Route.chartRoutes(
                         ChartRepository.ChartAddons(versions = false),
                         requestingUserId = call.getUserIdOrNull(),
                     ) ?: throw NotFoundException("Chart not found")
+
+                    if (chart.authorId != call.getUserIdOrNull()) {
+                        throw SecurityException("You are not the author of this chart")
+                    }
 
                     logger.info("Removing version $versionId from chart ${chart.id}")
 

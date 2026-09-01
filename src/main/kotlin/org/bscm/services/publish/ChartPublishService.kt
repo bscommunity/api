@@ -275,11 +275,20 @@ class ChartPublishService(
         val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
             ?: throw IllegalStateException("Discord response missing bundle attachment")
 
-        // Single transaction for all DB writes (chart, Discord coords, version)
+        // Single transaction for all DB writes (chart + version + Discord coords)
         emitEvent(PublishStep.CREATING_CHART)
-        val (createdChart, version) = try {
+        val createdChart = try {
             suspendTransaction {
-                val chart = chartRepository.createChart(user.id, createForDb)
+                val chart = chartRepository.createChart(
+                    userId = user.id,
+                    chart = createForDb,
+                    initialVersion = VersionBundleData(
+                        id = bundleAttachment.id.toULong(),
+                        fileSizeBytes = createForDb.fileSizeBytes,
+                        changelog = "",
+                    ),
+                    bundleHash = bundleHash,
+                )
                 log.info("Created chart ${chart.id}")
 
                 chartRepository.updateDiscordCoordinates(
@@ -288,28 +297,22 @@ class ChartPublishService(
                     messageId = discordResponse.id,
                 )
 
-                emitEvent(PublishStep.FINALIZING_VERSION)
-
-                val v = chartRepository.addVersion(
-                    catalogItemId = chart.id,
-                    version = VersionBundleData(
-                        id = bundleAttachment.id.toULong(),
-                        fileSizeBytes = createForDb.fileSizeBytes,
-                        changelog = "",
-                    ),
-                    bundleHash = bundleHash,
-                )
-                Pair(chart, v)
+                chart
             }
         } catch (e: Exception) {
             runCatching { uploadService.deleteMessage(discordResponse.id) }
             throw e
         }
 
+        emitEvent(PublishStep.FINALIZING_VERSION)
+
+        val version = createdChart.latestVersion
+            ?: throw IllegalStateException(
+                "Chart ${createdChart.id} was published but has no version — this is a critical invariant violation"
+            )
+
         val updatedChart = createdChart.copy(
-            latestVersion = version,
             versions = listOf(version),
-            versionsCount = createdChart.versionsCount + 1,
         )
 
         emitEvent(PublishStep.GENERATING_PREVIEW)

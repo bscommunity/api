@@ -6,6 +6,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dto.contributor.CreateContributorRequest
 import org.bscm.models.dto.contributor.UpdateContributorRequest
 import org.bscm.models.enums.ContributorInvitePolicy
@@ -14,7 +15,17 @@ import org.bscm.models.interfaces.IContributorRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.NotificationService
 import org.bscm.utils.getUserId
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
+
+private suspend fun verifyCatalogItemOwner(catalogItemId: String, userId: UUID) {
+    val catalogItem = suspendTransaction {
+        CatalogItemEntity.findById(catalogItemId)
+    } ?: throw NotFoundException("Catalog item not found")
+    if (catalogItem.author?.id?.value != userId) {
+        throw SecurityException("Only the author can manage contributors")
+    }
+}
 
 fun Route.contributorRoutes(
     contributorRepository: IContributorRepository,
@@ -36,6 +47,8 @@ fun Route.contributorRoutes(
                 val catalogItemId = call.parameters["catalogItemId"]
                     ?: throw BadRequestException("Invalid or missing catalog item ID")
                 val actorId = call.getUserId()
+
+                verifyCatalogItemOwner(catalogItemId, actorId)
 
                 val request = call.receive<CreateContributorRequest>()
                 val targetUserIds = request.contributors.map { it.userId }.distinct()
@@ -84,23 +97,29 @@ fun Route.contributorRoutes(
             put("{userId}") {
                 val catalogItemId = call.parameters["catalogItemId"]
                     ?: throw BadRequestException("Invalid or missing catalog item ID")
-                val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
+                val actorId = call.getUserId()
+                val targetUserId = call.parameters["userId"]?.let { UUID.fromString(it) }
                     ?: throw BadRequestException("Invalid or missing user ID")
 
+                verifyCatalogItemOwner(catalogItemId, actorId)
+
                 val updatedRequest = call.receive<UpdateContributorRequest>()
-                val updated = contributorRepository.updateContributorRoles(catalogItemId, userId, updatedRequest.roles)
+                val updated = contributorRepository.updateContributorRoles(catalogItemId, targetUserId, updatedRequest.roles)
                 call.respond(updated)
             }
 
             delete("{userId}") {
                 val catalogItemId = call.parameters["catalogItemId"]
                     ?: throw BadRequestException("Invalid or missing catalog item ID")
-                val userId = call.parameters["userId"]?.let { UUID.fromString(it) }
+                val actorId = call.getUserId()
+                val targetUserId = call.parameters["userId"]?.let { UUID.fromString(it) }
                     ?: throw BadRequestException("Invalid or missing user ID")
                 val role = call.request.queryParameters["role"]
                     ?.let { runCatching { ContributorRole.valueOf(it) }.getOrNull() }
 
-                val removed = contributorRepository.removeContributor(catalogItemId, userId, role)
+                verifyCatalogItemOwner(catalogItemId, actorId)
+
+                val removed = contributorRepository.removeContributor(catalogItemId, targetUserId, role)
                 if (removed) {
                     call.respond(HttpStatusCode.NoContent)
                 } else {
