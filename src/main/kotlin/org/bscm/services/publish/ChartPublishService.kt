@@ -306,14 +306,10 @@ class ChartPublishService(
 
         emitEvent(PublishStep.FINALIZING_VERSION)
 
-        val version = createdChart.latestVersion
+        createdChart.latestVersion
             ?: throw IllegalStateException(
                 "Chart ${createdChart.id} was published but has no version — this is a critical invariant violation"
             )
-
-        val updatedChart = createdChart.copy(
-            versions = listOf(version),
-        )
 
         emitEvent(PublishStep.GENERATING_PREVIEW)
 
@@ -326,7 +322,7 @@ class ChartPublishService(
         coverUploadJob?.join()
 
         val result = Result(
-            chart = updatedChart,
+            chart = createdChart,
             initialVersion = SimplifiedVersion(
                 difficulty = createForDb.difficulty,
                 duration = createForDb.duration,

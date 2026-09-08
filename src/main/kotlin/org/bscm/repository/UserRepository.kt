@@ -612,6 +612,7 @@ class UserRepository(
             .leftJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
             .select(CatalogItemTable.id, CatalogItemTable.type)
             .where { contributorFilter }
+            .withDistinct(true)
 
         types?.let { requestedTypes ->
             contentQuery.andWhere { CatalogItemTable.type inList requestedTypes }

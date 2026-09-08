@@ -19,10 +19,12 @@ import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 private suspend fun verifyCatalogItemOwner(catalogItemId: String, userId: UUID) {
-    val catalogItem = suspendTransaction {
-        CatalogItemEntity.findById(catalogItemId)
-    } ?: throw NotFoundException("Catalog item not found")
-    if (catalogItem.author?.id?.value != userId) {
+    val isOwner = suspendTransaction {
+        val catalogItem = CatalogItemEntity.findById(catalogItemId)
+            ?: throw NotFoundException("Catalog item not found")
+        catalogItem.author?.id?.value == userId
+    }
+    if (!isOwner) {
         throw SecurityException("Only the author can manage contributors")
     }
 }

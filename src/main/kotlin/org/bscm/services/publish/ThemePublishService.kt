@@ -79,14 +79,11 @@ class ThemePublishService(
 
         emitEvent(PublishStep.UPLOADING_COVER, "Uploading theme artwork")
 
-        if (assets.coverArtBytes != null) {
-            val avifBytes = MediaConverter.convertToAvif(assets.coverArtBytes) ?: assets.coverArtBytes
-            storageService.uploadThemeCover(catalogId, avifBytes)
-        }
-        if (assets.displayArtBytes != null) {
-            val avifBytes = MediaConverter.convertToAvif(assets.displayArtBytes) ?: assets.displayArtBytes
-            storageService.uploadThemeDisplay(catalogId, avifBytes)
-        }
+        val avifCoverBytes = MediaConverter.convertToAvif(assets.coverArtBytes) ?: assets.coverArtBytes
+        storageService.uploadThemeCover(catalogId, avifCoverBytes)
+
+        val avifDisplayBytes = MediaConverter.convertToAvif(assets.displayArtBytes) ?: assets.displayArtBytes
+        storageService.uploadThemeDisplay(catalogId, avifDisplayBytes)
 
         val coverUrl = storageService.themeCoverUrl(catalogId)
         val displayArtUrl = storageService.themeDisplayUrl(catalogId)
@@ -125,6 +122,7 @@ class ThemePublishService(
         )
 
         val bundleAttachment = discordResponse.attachments.firstOrNull { it.filename.endsWith(".zip") }
+            ?: throw IllegalStateException("Discord response missing bundle attachment after theme upload")
 
         emitEvent(PublishStep.CREATING_CHART, "Creating theme in database")
 
@@ -147,17 +145,15 @@ class ThemePublishService(
 
                 emitEvent(PublishStep.FINALIZING_VERSION)
 
-                val v = if (bundleAttachment != null) {
-                    versionRepository.addVersion(
-                        catalogItemId = catalogId,
-                        version = VersionBundleData(
-                            id = bundleAttachment.id.toULong(),
-                            fileSizeBytes = assets.bundleBytes.size.toLong(),
-                            changelog = "",
-                        ),
-                        bundleHash = bundleHash,
-                    )
-                } else null
+                val v = versionRepository.addVersion(
+                    catalogItemId = catalogId,
+                    version = VersionBundleData(
+                        id = bundleAttachment.id.toULong(),
+                        fileSizeBytes = assets.bundleBytes.size.toLong(),
+                        changelog = "",
+                    ),
+                    bundleHash = bundleHash,
+                )
 
                 Pair(createdTheme, v)
             }
@@ -178,8 +174,8 @@ class ThemePublishService(
 
         return theme.copy(
             latestVersion = version,
-            versions = listOfNotNull(version),
-            versionsCount = if (version != null) 1 else 0,
+            versions = listOf(version),
+            versionsCount = 1,
         )
     }
 

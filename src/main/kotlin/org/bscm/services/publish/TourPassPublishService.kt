@@ -17,6 +17,7 @@ import org.bscm.storage.StorageService
 import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils
 import org.bscm.utils.StreamingPlatformUtils
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
 class TourPassPublishService(
@@ -137,21 +138,30 @@ class TourPassPublishService(
 
         emitEvent(PublishStep.CREATING_CHART, "Creating tour pass in database")
 
-        val tourPass = tourPassRepository.createTourPass(
-            userId = uploader.id,
-            name = request.name,
-            description = request.description,
-            artist = request.artist,
-            playlistUrls = normalizedPlaylistUrls,
-            chartIds = chartIds,
-            id = catalogId,
-        )
+        val tourPass = try {
+            suspendTransaction {
+                val created = tourPassRepository.createTourPass(
+                    userId = uploader.id,
+                    name = request.name,
+                    description = request.description,
+                    artist = request.artist,
+                    playlistUrls = normalizedPlaylistUrls,
+                    chartIds = chartIds,
+                    id = catalogId,
+                )
 
-        tourPassRepository.updateDiscordCoordinates(
-            catalogId,
-            discordResponse.channelId,
-            discordResponse.id,
-        )
+                tourPassRepository.updateDiscordCoordinates(
+                    catalogId,
+                    discordResponse.channelId,
+                    discordResponse.id,
+                )
+
+                created
+            }
+        } catch (e: Exception) {
+            runCatching { uploadService.deleteMessage(discordResponse.id) }
+            throw e
+        }
 
         emitEvent(PublishStep.LOGGING_ACTIVITY)
 
