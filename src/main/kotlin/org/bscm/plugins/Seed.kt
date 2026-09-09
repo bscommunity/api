@@ -199,6 +199,22 @@ private suspend fun createCharts(
 
                     batchIds.add(chart.id)
 
+                    // Always create at least one version
+                    val initialBundleHash = randomHexId(64)
+                    suspendTransaction {
+                        versionRepository.addVersion(
+                            catalogItemId = chart.id,
+                            version = VersionBundleData(
+                                fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
+                                changelog = listOf(
+                                    getRandomChangelog(),
+                                    getRandomChangelog(),
+                                ).filter { Random.nextFloat() > 0.5f }.joinToString("\n"),
+                            ),
+                            bundleHash = initialBundleHash,
+                        )
+                    }
+
                     // Additional versions (50% chance)
                     if (Random.nextFloat() > 0.5f) {
                         val count2 = Random.nextInt(1, 4)

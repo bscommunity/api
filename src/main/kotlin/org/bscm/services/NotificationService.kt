@@ -1,6 +1,6 @@
 package org.bscm.services
 
-import org.bscm.models.Notification
+import org.bscm.models.NotificationMessage
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.NotificationType
@@ -17,21 +17,17 @@ class NotificationService(
     private val notificationRepository: INotificationRepository
 ) {
 
-    suspend fun getNotifications(userId: UUID, limit: Int, offset: Int): List<Notification> {
-        return notificationRepository.getNotifications(userId, limit, offset)
-    }
+    suspend fun getNotifications(userId: UUID, limit: Int, offset: Int) =
+        notificationRepository.getNotifications(userId, limit, offset)
 
-    suspend fun getUnreadCount(userId: UUID): Int {
-        return notificationRepository.getUnreadCount(userId)
-    }
+    suspend fun getUnreadCount(userId: UUID) =
+        notificationRepository.getUnreadCount(userId)
 
-    suspend fun deleteNotification(userId: UUID, notificationId: Long): Boolean {
-        return notificationRepository.deleteNotification(userId, notificationId)
-    }
+    suspend fun deleteNotification(userId: UUID, notificationId: Long) =
+        notificationRepository.deleteNotification(userId, notificationId)
 
-    suspend fun deleteAllNotifications(userId: UUID): Int {
-        return notificationRepository.deleteAllNotifications(userId)
-    }
+    suspend fun deleteAllNotifications(userId: UUID) =
+        notificationRepository.deleteAllNotifications(userId)
 
     suspend fun notifyContributorAdded(
         catalogItemId: String,
@@ -41,11 +37,13 @@ class NotificationService(
         if (recipientIds.isEmpty()) return
 
         val itemInfo = resolveCatalogItemInfo(catalogItemId) ?: return
-        val typeName = itemInfo.first.lowercase().replace("_", " ")
-        val itemName = itemInfo.second
-
         val actorName = resolveUsername(actorId) ?: return
-        val message = "@$actorName shared a $typeName ($itemName) with you"
+
+        val message = NotificationMessage.ContributorAdded(
+            actorName = actorName,
+            itemType = itemInfo.first,
+            itemName = itemInfo.second
+        )
 
         for (recipientId in recipientIds) {
             if (recipientId == actorId) continue
@@ -59,7 +57,7 @@ class NotificationService(
         }
     }
 
-    private suspend fun resolveCatalogItemInfo(catalogItemId: String): Pair<String, String>? = suspendTransaction {
+    private suspend fun resolveCatalogItemInfo(catalogItemId: String): Pair<CatalogItemType, String>? = suspendTransaction {
         val row = CatalogItemTable
             .selectAll()
             .where { CatalogItemTable.id eq catalogItemId }
@@ -91,7 +89,7 @@ class NotificationService(
             }
         }
 
-        Pair(type.name, name)
+        Pair(type, name)
     }
 
     private suspend fun resolveUsername(userId: UUID): String? = suspendTransaction {

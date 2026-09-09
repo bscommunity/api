@@ -93,7 +93,8 @@ class OverviewRepository {
             .select(CatalogItemTable.type, countColumn)
             .where {
                 (CatalogItemTable.authorId eq userId) and
-                (VersionTable.createdAt greaterEq rangeStart)
+                (VersionTable.createdAt greaterEq rangeStart) and
+                (VersionTable.versionCode greater 1)
             }
             .groupBy(CatalogItemTable.type)
             .associate { it[CatalogItemTable.type] to it[countColumn].toInt() }
@@ -121,7 +122,10 @@ class OverviewRepository {
                 VersionTable.versionCode,
                 VersionTable.createdAt,
             )
-            .where { CatalogItemTable.authorId eq userId }
+            .where {
+                (CatalogItemTable.authorId eq userId) and
+                (VersionTable.versionCode greater 1)
+            }
             .orderBy(VersionTable.createdAt to SortOrder.DESC)
             .limit(1)
             .firstOrNull() ?: return null

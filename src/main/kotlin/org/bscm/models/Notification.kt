@@ -11,7 +11,7 @@ data class Notification(
     val type: String,
     val actor: SimplifiedUser,
     val catalogItemId: String?,
-    val message: String,
+    val message: NotificationMessage,
     @Serializable(with = LocalDateTimeSerializer::class)
     val createdAt: LocalDateTime
 )

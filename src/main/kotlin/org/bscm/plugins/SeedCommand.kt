@@ -199,7 +199,18 @@ private suspend fun createSeedCharts(
                     )
                     batchIds.add(chart.id)
 
-                    // Versions (50%)
+                    // Always create at least one version
+                    suspendTransaction {
+                        versionRepo.addVersion(
+                            catalogItemId = chart.id,
+                            version = VersionBundleData(
+                                fileSizeBytes = Random.nextLong(1_000_000, 30_000_000),
+                            ),
+                            bundleHash = hexId(64),
+                        )
+                    }
+
+                    // Additional versions (50% chance)
                     if (Random.nextFloat() > 0.5f) {
                         repeat(Random.nextInt(1, 4)) {
                             suspendTransaction {

@@ -610,7 +610,15 @@ class UserRepository(
             .leftJoin(TrackTable, { ChartTable.trackId }, { TrackTable.id })
             .leftJoin(TourPassTable, { CatalogItemTable.id }, { TourPassTable.id })
             .leftJoin(ThemeTable, { CatalogItemTable.id }, { ThemeTable.id })
-            .select(CatalogItemTable.id, CatalogItemTable.type)
+            .select(
+                CatalogItemTable.id,
+                CatalogItemTable.type,
+                CatalogItemTable.updatedAt,
+                CatalogItemTable.downloadsSum,
+                TrackTable.title,
+                TourPassTable.name,
+                ThemeTable.name,
+            )
             .where { contributorFilter }
             .withDistinct(true)
 

@@ -1,6 +1,7 @@
 package org.bscm.models.interfaces
 
 import org.bscm.models.Notification
+import org.bscm.models.NotificationMessage
 import java.util.*
 
 interface INotificationRepository {
@@ -9,7 +10,7 @@ interface INotificationRepository {
         actorId: UUID,
         type: String,
         catalogItemId: String?,
-        message: String
+        message: NotificationMessage
     ): Notification
 
     suspend fun getNotifications(userId: UUID, limit: Int, offset: Int): List<Notification>

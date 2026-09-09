@@ -2,7 +2,9 @@ package org.bscm.repository
 
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.serialization.json.Json
 import org.bscm.models.Notification
+import org.bscm.models.NotificationMessage
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.user.SimplifiedUser
 import org.bscm.models.interfaces.INotificationRepository
@@ -23,14 +25,17 @@ import kotlin.time.Clock
 
 class NotificationRepository : INotificationRepository {
 
+    private val json = Json { ignoreUnknownKeys = true }
+
     override suspend fun createNotification(
         userId: UUID,
         actorId: UUID,
         type: String,
         catalogItemId: String?,
-        message: String
+        message: NotificationMessage
     ): Notification = suspendTransaction {
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val messageJson = json.encodeToString(NotificationMessage.serializer(), message)
 
         val id = NotificationTable.insertAndGetId {
             it[NotificationTable.userId] = userId
@@ -39,7 +44,7 @@ class NotificationRepository : INotificationRepository {
             it[NotificationTable.catalogItemId] = catalogItemId?.let { cid ->
                 EntityID(cid, CatalogItemTable)
             }
-            it[NotificationTable.message] = message
+            it[NotificationTable.message] = messageJson
             it[NotificationTable.createdAt] = now
         }
 
@@ -72,6 +77,8 @@ class NotificationRepository : INotificationRepository {
             .offset(offset.toLong())
             .map { row ->
                 val actor = UserEntity.wrapRow(row)
+                val messageJson = row[NotificationTable.message]
+                val message = json.decodeFromString(NotificationMessage.serializer(), messageJson)
                 Notification(
                     id = row[NotificationTable.id].value,
                     type = row[NotificationTable.type],
@@ -85,7 +92,7 @@ class NotificationRepository : INotificationRepository {
                         accentColor = actor.accentColor,
                     ),
                     catalogItemId = row[NotificationTable.catalogItemId]?.value,
-                    message = row[NotificationTable.message],
+                    message = message,
                     createdAt = row[NotificationTable.createdAt]
                 )
             }
