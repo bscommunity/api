@@ -290,6 +290,11 @@ class ThemeRepository(
         originalArtwork: String?,
         previewUrl: String?,
     ): Theme = suspendTransaction {
+        val catalogItem = CatalogItemEntity.findById(id) ?: throw IllegalArgumentException("Theme $id not found")
+        if (catalogItem.author?.id?.value != userId) {
+            throw SecurityException("You are not the author of this theme")
+        }
+
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val entity = ThemeEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
@@ -307,7 +312,11 @@ class ThemeRepository(
     }
 
     override suspend fun deleteTheme(id: String, userId: UUID): Boolean = suspendTransaction {
-        CatalogItemEntity.findById(id)?.delete() ?: return@suspendTransaction false
+        val catalogItem = CatalogItemEntity.findById(id) ?: return@suspendTransaction false
+        if (catalogItem.author?.id?.value != userId) {
+            throw SecurityException("You are not the author of this theme")
+        }
+        catalogItem.delete()
         true
     }
 

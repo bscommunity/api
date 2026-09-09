@@ -349,6 +349,10 @@ fun Route.themeRoutes(
                     val theme = themeRepository.getThemeById(id, userId = userId)
                         ?: throw NotFoundException("Theme not found")
 
+                    if (theme.authorId != userId) {
+                        throw SecurityException("You are not the author of this theme")
+                    }
+
                     val multipart = call.receiveMultipart()
                     var versionJson: String? = null
                     var bundleFileBytes: ByteArray? = null
@@ -423,6 +427,10 @@ fun Route.themeRoutes(
 
                     val theme = themeRepository.getThemeById(catalogItemId, userId = call.getUserIdOrNull())
                         ?: throw NotFoundException("Theme not found")
+
+                    if (theme.authorId != call.getUserIdOrNull()) {
+                        throw SecurityException("You are not the author of this theme")
+                    }
 
                     logger.info("Removing version $versionId from theme ${theme.id}")
 

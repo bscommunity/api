@@ -5,6 +5,7 @@ package org.bscm.models
 import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
+import org.bscm.models.enums.ContributorInvitePolicy
 import org.bscm.models.enums.UserRole
 import org.bscm.serialization.LocalDateTimeSerializer
 import org.bscm.serialization.UUIDSerializer
@@ -31,6 +32,8 @@ data class User(
 
     val followerCount: Int,
     val followingCount: Int,
+
+    val allowContributorInvitesFrom: ContributorInvitePolicy = ContributorInvitePolicy.EVERYONE,
 
     val badges: List<Badge>? = null,
 )

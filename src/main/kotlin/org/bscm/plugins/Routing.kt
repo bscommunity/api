@@ -30,9 +30,6 @@ import org.koin.ktor.ext.inject
 fun Application.configureRouting() {
     val cfg = environment.config
     val hasFullConfig = listOf(
-        /*"redis.host",
-        "redis.port",
-        "redis.password",*/
         "jwt.secret",
         "hmac.secret",
         "refresh.secret",
@@ -122,10 +119,13 @@ fun Application.configureRouting() {
         val tourPassPublishService by inject<TourPassPublishService>()
         val themePublishService by inject<ThemePublishService>()
         val publishEventService by inject<PublishEventService>()
+        val overviewService by inject<OverviewService>()
+        val notificationService by inject<NotificationService>()
 
         authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
         userRoutes(userRepository, profileService, collectionService, activityRepository)
         meRoutes(collectionService, profileService, chartRepository, userRepository)
+        overviewRoutes(overviewService)
 
         chartRoutes(
             chartRepository,
@@ -138,7 +138,8 @@ fun Application.configureRouting() {
         )
         tourPassRoutes(tourPassPublishService, tourPassRepository, userRepository)
         themeRoutes(themePublishService, themeRepository, userRepository, versionRepository, uploadService, bundleDownloadService)
-        contributorRoutes(contributorRepository)
+        contributorRoutes(contributorRepository, notificationService, userRepository)
+        notificationRoutes(notificationService)
         debugRoutes(trackInfoService, refreshService, jwtService, chartRepository)
         collectionRoutes(collectionService)
         // Discord interactions (slash commands, buttons, etc.)

@@ -306,6 +306,11 @@ class TourPassRepository(
         artist: String?,
         chartIds: List<String>?,
     ): TourPass = suspendTransaction {
+        val catalogItem = CatalogItemEntity.findById(id) ?: throw IllegalArgumentException("TourPass $id not found")
+        if (catalogItem.author?.id?.value != userId) {
+            throw SecurityException("You are not the author of this tour pass")
+        }
+
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val entity = TourPassEntity.findByIdAndUpdate(id) { entity ->
             name?.let { entity.name = it }
@@ -334,7 +339,11 @@ class TourPassRepository(
     }
 
     override suspend fun deleteTourPass(id: String, userId: UUID): Boolean = suspendTransaction {
-        CatalogItemEntity.findById(id)?.delete() ?: return@suspendTransaction false
+        val catalogItem = CatalogItemEntity.findById(id) ?: return@suspendTransaction false
+        if (catalogItem.author?.id?.value != userId) {
+            throw SecurityException("You are not the author of this tour pass")
+        }
+        catalogItem.delete()
         true
     }
 

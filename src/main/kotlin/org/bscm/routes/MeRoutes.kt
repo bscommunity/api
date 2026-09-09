@@ -32,9 +32,14 @@ fun Route.meRoutes(
              *
              * Tag: Me
              *
+             * Query: view [String] View mode: "owned" (default) for authored content, "shared" for contributed content.
              * Query: types [String] Optional comma-separated content types to filter (CHART, TOUR_PASS, THEME).
              * Query: query [String] Optional search query across all types.
              * Query: sortBy [String] Sort option (LAST_UPDATED, MOST_DOWNLOADED, ALPHA_ASC, ALPHA_DESC).
+             * Query: genres [String] Optional comma-separated genres to filter.
+             * Query: difficulties [String] Optional comma-separated difficulties to filter.
+             * Query: versions [String] Optional filter by version status (DELUXE).
+             * Query: includeVersions [Boolean] Whether to include version data in response.
              * Query: limit [Integer] Optional limit for results (max 50).
              * Query: offset [Integer] Optional pagination offset (default 0).
              *
@@ -47,6 +52,7 @@ fun Route.meRoutes(
             get("/uploads") {
                 val userId = call.getUserId()
                 val (limit, offset) = call.getPagination(coerceLimit = 50, defaultOffset = 0)
+                val view = call.request.queryParameters["view"]?.lowercase() ?: "owned"
 
                 val requestedTypes = call.getContentTypeOrNull()
                 val query = call.request.queryParameters["query"]?.takeIf { it.isNotBlank() }
@@ -69,18 +75,33 @@ fun Route.meRoutes(
 
                 val includeVersions = call.request.queryParameters["includeVersions"]?.toBoolean() == true
 
-                val (items, counts) = userRepository.getUserUploads(
-                    userId = userId,
-                    types = requestedTypes,
-                    query = query,
-                    sortBy = sortBy,
-                    genres = genres,
-                    difficulties = difficulties,
-                    isDeluxe = isDeluxe,
-                    limit = limit ?: 20,
-                    offset = offset ?: 0,
-                    includeVersions = includeVersions,
-                )
+                val (items, counts) = if (view == "shared") {
+                    userRepository.getUserSharedUploads(
+                        userId = userId,
+                        types = requestedTypes,
+                        query = query,
+                        sortBy = sortBy,
+                        genres = genres,
+                        difficulties = difficulties,
+                        isDeluxe = isDeluxe,
+                        limit = limit ?: 20,
+                        offset = offset ?: 0,
+                        includeVersions = includeVersions,
+                    )
+                } else {
+                    userRepository.getUserUploads(
+                        userId = userId,
+                        types = requestedTypes,
+                        query = query,
+                        sortBy = sortBy,
+                        genres = genres,
+                        difficulties = difficulties,
+                        isDeluxe = isDeluxe,
+                        limit = limit ?: 20,
+                        offset = offset ?: 0,
+                        includeVersions = includeVersions,
+                    )
+                }
 
                 call.respond(
                     ItemsPage(

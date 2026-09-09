@@ -46,6 +46,9 @@ fun Application.module() {
         log.info("[DiscordCmd] Not registered: botToken or clientId missing")
     }
 
-    // Optional: Seed the database if needed
-    // Seed the database
+    // Seed the database if SEED_DATABASE=true
+    if (System.getenv("SEED_DATABASE")?.lowercase() == "true" && hasAll("storage.jdbcURL", "storage.user", "storage.password")) {
+        log.info("SEED_DATABASE=true — running database seed")
+        seedDatabase()
+    }
 }

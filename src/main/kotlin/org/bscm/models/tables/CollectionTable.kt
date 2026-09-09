@@ -24,5 +24,6 @@ object CollectionTable : UUIDTable("collections") {
     init {
         // TODO: Add unique index for (userId, kind) when kind is not CollectionKind.USER
         index(true, userId, name)
+        index(false, userId, kind)
     }
 }

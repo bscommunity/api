@@ -49,4 +49,6 @@ class UserEntity(id: EntityID<UUID>) : UUIDEntity(id) {
 
     val followerCount by UserTable.followerCount
     val followingCount by UserTable.followingCount
+
+    var allowContributorInvitesFrom by UserTable.allowContributorInvitesFrom
 }

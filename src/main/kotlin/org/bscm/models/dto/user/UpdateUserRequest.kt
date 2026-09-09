@@ -1,6 +1,7 @@
 package org.bscm.models.dto.user
 
 import kotlinx.serialization.Serializable
+import org.bscm.models.enums.ContributorInvitePolicy
 
 @Serializable
 data class UpdateUserRequest(
@@ -12,4 +13,5 @@ data class UpdateUserRequest(
     val avatarUrl: String? = null,
     val bannerUrl: String? = null,
     val accentColor: Int? = null,
+    val allowContributorInvitesFrom: ContributorInvitePolicy? = null,
 )

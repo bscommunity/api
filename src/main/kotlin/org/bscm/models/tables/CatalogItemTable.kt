@@ -41,5 +41,6 @@ object CatalogItemTable : IdTable<String>("catalog_items") {
         index(false, type)
         index(false, status)
         index(false, authorId)
+        index(false, authorId, status, createdAt)
     }
 }
