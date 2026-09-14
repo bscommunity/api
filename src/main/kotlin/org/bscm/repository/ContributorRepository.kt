@@ -115,13 +115,26 @@ class ContributorRepository : IContributorRepository {
             }
 
             val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
-            contributors.forEach { contributor ->
-                if (contributor.role == ContributorRole.AUTHOR && contributor.userId == authorId) {
-                    return@forEach
-                }
-                UserEntity.findById(contributor.userId)
-                    ?: throw IllegalArgumentException("User not found: ${contributor.userId}")
 
+            // Single batched lookup instead of one findById per contributor (N+1):
+            // validates existence up front and warms the EntityCache, so the
+            // UserEntity references below resolve without extra queries.
+            val extras = contributors
+                .filterNot { it.role == ContributorRole.AUTHOR && it.userId == authorId }
+                .distinctBy { it.userId to it.role }
+            val userEntities = if (extras.isEmpty()) {
+                emptyMap()
+            } else {
+                UserEntity.find { UserTable.id inList extras.map { it.userId }.distinct() }
+                    .associateBy { it.id.value }
+            }
+            extras.forEach { contributor ->
+                if (contributor.userId !in userEntities) {
+                    throw IllegalArgumentException("User not found: ${contributor.userId}")
+                }
+            }
+
+            extras.forEach { contributor ->
                 val existing = ContributorEntity.find {
                     (ContributorTable.catalogItemId eq catalogItemEntityId) and
                         (ContributorTable.userId eq contributor.userId) and
@@ -131,7 +144,7 @@ class ContributorRepository : IContributorRepository {
                 if (existing == null) {
                     ContributorEntity.new {
                         this.catalogItem = CatalogItemEntity[catalogItemId]
-                        this.user = UserEntity[contributor.userId]
+                        this.user = userEntities.getValue(contributor.userId)
                         this.role = contributor.role
                     }
                 }

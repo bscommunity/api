@@ -474,6 +474,33 @@ class UserRepository(
             .associate { it[UserTable.id].value to it[UserTable.allowContributorInvitesFrom] }
     }
 
+    override suspend fun getUsersByIds(userIds: List<UUID>): Map<UUID, SimplifiedUser> = suspendTransaction {
+        if (userIds.isEmpty()) return@suspendTransaction emptyMap()
+        UserTable
+            .select(
+                UserTable.id,
+                UserTable.username,
+                UserTable.avatarUrl,
+                UserTable.bannerUrl,
+                UserTable.isVerified,
+                UserTable.bio,
+                UserTable.accentColor,
+            )
+            .where { UserTable.id inList userIds.distinct() }
+            .associate { row ->
+                val id = row[UserTable.id].value
+                id to SimplifiedUser(
+                    id = id,
+                    username = row[UserTable.username],
+                    avatarUrl = row[UserTable.avatarUrl],
+                    bannerUrl = row[UserTable.bannerUrl],
+                    bio = row[UserTable.bio],
+                    accentColor = row[UserTable.accentColor],
+                    isVerified = row[UserTable.isVerified],
+                )
+            }
+    }
+
     override suspend fun getUserUploads(
         userId: UUID,
         types: List<CatalogItemType>?,

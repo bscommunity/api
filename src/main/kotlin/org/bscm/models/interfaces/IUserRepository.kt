@@ -97,4 +97,7 @@ interface IUserRepository {
 
     // Contributor invite policy
     suspend fun getContributorInvitePolicies(userIds: List<UUID>): Map<UUID, ContributorInvitePolicy>
+
+    // Single-query batch lookup (prefer over one getUserById per user)
+    suspend fun getUsersByIds(userIds: List<UUID>): Map<UUID, SimplifiedUser>
 }

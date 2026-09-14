@@ -2,13 +2,15 @@ package org.bscm.services.publish
 
 import io.ktor.http.*
 import io.ktor.server.plugins.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.bscm.models.Theme
 import org.bscm.models.User
 import org.bscm.models.dto.theme.CreateThemeRequest
 import org.bscm.models.dto.theme.UpdateThemeRequest
 import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.ActivityType
-import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.IUserRepository
@@ -52,12 +54,6 @@ class ThemePublishService(
             }
         }
 
-        if (assets.coverArtBytes == null) {
-            throw BadRequestException("Cover art file is required")
-        }
-        if (assets.displayArtBytes == null) {
-            throw BadRequestException("Display art file is required")
-        }
         if (assets.bundleBytes == null) {
             throw BadRequestException("Bundle file is required")
         }
@@ -82,41 +78,36 @@ class ThemePublishService(
 
         emitEvent(PublishStep.UPLOADING_COVER, "Uploading theme artwork")
 
-        val avifCoverBytes = MediaConverter.convertToAvif(assets.coverArtBytes) ?: assets.coverArtBytes
-        storageService.uploadThemeCover(catalogId, avifCoverBytes)
+        // Hoisted to locals so the concurrent uploads below need no casts.
+        val coverArtBytes: ByteArray = assets.coverArtBytes
+            ?: throw BadRequestException("Cover art file is required")
+        val displayArtBytes: ByteArray = assets.displayArtBytes
+            ?: throw BadRequestException("Display art file is required")
 
-        val avifDisplayBytes = MediaConverter.convertToAvif(assets.displayArtBytes) ?: assets.displayArtBytes
-        storageService.uploadThemeDisplay(catalogId, avifDisplayBytes)
+        // The two artwork uploads are independent — run them concurrently.
+        // Fail-fast is preserved: the first failure cancels its sibling and propagates.
+        coroutineScope {
+            awaitAll(
+                async {
+                    val avifCoverBytes = MediaConverter.convertToAvif(coverArtBytes) ?: coverArtBytes
+                    storageService.uploadThemeCover(catalogId, avifCoverBytes)
+                },
+                async {
+                    val avifDisplayBytes = MediaConverter.convertToAvif(displayArtBytes) ?: displayArtBytes
+                    storageService.uploadThemeDisplay(catalogId, avifDisplayBytes)
+                },
+            )
+        }
 
         val coverUrl = storageService.themeCoverUrl(catalogId)
         val displayArtUrl = storageService.themeDisplayUrl(catalogId)
 
-        // The bundle carries the same initial contributors persisted to the DB below,
-        // so offline clients (Android reads bscm.json) credit everyone, not just the author.
-        // Role names are lowercase enum names ("art", "textures", ...) — the exact keys
-        // the Android ChartStorageScanner.roleIdsByName map resolves.
-        val metadataContributors = buildList {
-            add(
-                DecodingUtils.MetadataContributor(
-                    username = uploader.username,
-                    avatarUrl = uploader.avatarUrl,
-                    role = "author",
-                )
-            )
-            request.contributors
-                .filterNot { it.role == ContributorRole.AUTHOR && it.userId == uploader.id }
-                .mapNotNull { contributor ->
-                    val contributorUser = userRepository.getUserById(contributor.userId)
-                        ?: return@mapNotNull null
-                    DecodingUtils.MetadataContributor(
-                        username = contributorUser.username,
-                        avatarUrl = contributorUser.avatarUrl,
-                        role = contributor.role.name.lowercase(),
-                    )
-                }
-                .distinct()
-                .forEach { add(it) }
-        }
+        val metadataContributors = userRepository.resolveMetadataContributors(
+            authorId = uploader.id,
+            authorUsername = uploader.username,
+            authorAvatarUrl = uploader.avatarUrl,
+            contributors = request.contributors,
+        )
         val themeMetadata = DecodingUtils.ThemeMetadata(
             catalogId = catalogId,
             name = request.name,

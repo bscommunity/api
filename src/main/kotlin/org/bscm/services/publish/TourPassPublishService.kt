@@ -48,10 +48,13 @@ class TourPassPublishService(
         emitEvent(PublishStep.PREPARING_BUNDLE, "Resolving tracklist")
 
         val chartIds = request.chartIds ?: emptyList()
+        // streamingLinks disabled on purpose: these charts feed only the tracklist
+        // text, difficulty label and duration sum below. Enabling it would add a
+        // LEFT JOIN fan-out plus an extra album-refs query for data nobody reads here.
         val charts = if (chartIds.isNotEmpty()) {
             chartRepository.getCharts(
                 filters = ChartRepository.ChartFilters(chartIds = chartIds),
-                addons = ChartRepository.ChartAddons(streamingLinks = true),
+                addons = ChartRepository.ChartAddons(streamingLinks = false),
                 limit = null,
                 offset = null,
             ).first

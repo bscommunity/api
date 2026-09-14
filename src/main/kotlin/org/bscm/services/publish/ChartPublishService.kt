@@ -15,7 +15,6 @@ import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.version.SimplifiedVersion
 import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.ActivityType
-import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.interfaces.IActivityRepository
@@ -249,32 +248,12 @@ class ChartPublishService(
         )
 
         // Build enriched bundle before Discord upload (catalogId doubles as chart ID)
-        // The bundle carries the same initial contributors persisted to the DB below,
-        // so offline clients (Android reads bscm.json) credit everyone, not just the author.
-        // Role names are lowercase enum names ("chart", "audio", ...) — the exact keys
-        // the Android ChartStorageScanner.roleIdsByName map resolves.
-        val metadataContributors = buildList {
-            add(
-                DecodingUtils.MetadataContributor(
-                    username = user.username,
-                    avatarUrl = user.avatarUrl,
-                    role = "author",
-                )
-            )
-            overrides.contributors.orEmpty()
-                .filterNot { it.role == ContributorRole.AUTHOR && it.userId == user.id }
-                .mapNotNull { contributor ->
-                    val contributorUser = userRepository.getUserById(contributor.userId)
-                        ?: return@mapNotNull null
-                    DecodingUtils.MetadataContributor(
-                        username = contributorUser.username,
-                        avatarUrl = contributorUser.avatarUrl,
-                        role = contributor.role.name.lowercase(),
-                    )
-                }
-                .distinct()
-                .forEach { add(it) }
-        }
+        val metadataContributors = userRepository.resolveMetadataContributors(
+            authorId = user.id,
+            authorUsername = user.username,
+            authorAvatarUrl = user.avatarUrl,
+            contributors = overrides.contributors.orEmpty(),
+        )
         val chartMetadata = DecodingUtils.ChartMetadata(
             catalogId = catalogId,
             coverId = albumEntity.id.value.toString(),
