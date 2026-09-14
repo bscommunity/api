@@ -329,12 +329,12 @@ private suspend fun createThemes(
     )
 
     val seeds = listOf(
-        ThemeSeed("Midnight Dark", "Dark Mode", "https://images.unsplash.com/photo-1557683316-973673baf926?w=400"),
-        ThemeSeed("Ocean Blue", "Default Theme", "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=400"),
-        ThemeSeed("Sunset Glow", "Accent Colors", "https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?w=400"),
-        ThemeSeed("Forest Green", "Default Theme", "https://images.unsplash.com/photo-1557682268-e3955ed5d83f?w=400"),
-        ThemeSeed("Neon Pulse", "Dark Mode", "https://images.unsplash.com/photo-1557682260-96773506d070?w=400"),
-        ThemeSeed("Pastel Dreams", "Accent Colors", "https://images.unsplash.com/photo-1557682254-62e0f12dfa1e?w=400"),
+        ThemeSeed("Midnight Dark", "ultraviolet", "https://images.unsplash.com/photo-1557683316-973673baf926?w=400"),
+        ThemeSeed("Ocean Blue", "poseidon", "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=400"),
+        ThemeSeed("Sunset Glow", "summer-sundown", "https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?w=400"),
+        ThemeSeed("Forest Green", "green-game-jam-2024", "https://images.unsplash.com/photo-1557682268-e3955ed5d83f?w=400"),
+        ThemeSeed("Neon Pulse", "neon", "https://images.unsplash.com/photo-1557682260-96773506d070?w=400"),
+        ThemeSeed("Pastel Dreams", "cherry-blossom", "https://images.unsplash.com/photo-1557682254-62e0f12dfa1e?w=400"),
     )
 
     seeds.forEachIndexed { index, seed ->

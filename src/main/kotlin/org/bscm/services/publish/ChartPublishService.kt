@@ -246,8 +246,7 @@ class ChartPublishService(
         )
 
         // Build enriched bundle before Discord upload (catalogId doubles as chart ID)
-        val coverCdnUrl = storageService.albumCoverUrl(albumEntity.id.value)
-        val bscmMetadata = DecodingUtils.BscmMetadata(
+        val bscmChartMetadata = DecodingUtils.ChartMetadata(
             chartId = catalogId,
             track = trackName,
             artist = artistName,
@@ -259,15 +258,15 @@ class ChartPublishService(
             notes = computedStats.notesAmount,
             effects = computedStats.effectsAmount,
             contributors = listOf(
-                DecodingUtils.BscmContributor(
+                DecodingUtils.MetadataContributor(
                     username = user.username,
                     avatarUrl = user.avatarUrl,
                     role = "author",
                 )
             ),
-            cover = coverCdnUrl.ifEmpty { null },
+            coverId = albumEntity.id.value.toString(),
         )
-        val enrichedBundleBytes = DecodingUtils.injectBscmMetadata(bundleBytes, bscmMetadata)
+        val enrichedBundleBytes = DecodingUtils.injectMetadata(bundleBytes, bscmChartMetadata)
 
         // Upload enriched bundle to Discord before any DB writes
         emitEvent(PublishStep.UPLOADING_TO_DISCORD)

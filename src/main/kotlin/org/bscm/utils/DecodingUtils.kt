@@ -165,17 +165,17 @@ object DecodingUtils {
         val duration: Float,
     )
 
-    data class BscmContributor(
+    data class MetadataContributor(
         val username: String,
         val avatarUrl: String?,
         val role: String,
     )
 
-    interface BscmMetadataBundle {
+    interface MetadataBundle {
         fun toJson(): String
     }
 
-    data class BscmMetadata(
+    data class ChartMetadata(
         val version: Int = 1,
         val chartId: String,
         val track: String,
@@ -187,14 +187,15 @@ object DecodingUtils {
         val duration: Float,
         val notes: Int,
         val effects: Int,
-        val contributors: List<BscmContributor>,
-        val cover: String?,
-    ) : BscmMetadataBundle {
+        val contributors: List<MetadataContributor>,
+        val coverId: String,
+    ) : MetadataBundle {
         override fun toJson(): String {
             val sb = StringBuilder()
             sb.appendLine("{")
             sb.appendLine("  \"version\": $version,")
             sb.appendLine("  \"chartId\": \"${chartId.escapeJson()}\",")
+            sb.appendLine("  \"coverId\": ${coverId.escapeJson().let { "\"$it\"" }},")
             sb.appendLine("  \"track\": \"${track.escapeJson()}\",")
             sb.appendLine("  \"artist\": \"${artist.escapeJson()}\",")
             sb.appendLine("  \"difficulty\": $difficulty,")
@@ -212,21 +213,20 @@ object DecodingUtils {
             }
             sb.appendLine()
             sb.appendLine("  ],")
-            sb.appendLine("  \"cover\": ${cover?.let { "\"${it.escapeJson()}\"" } ?: "null"}")
             sb.append("}")
             return sb.toString()
         }
     }
 
-    data class ThemeBscmMetadata(
+    data class ThemeMetadata(
         val version: Int = 1,
         val themeId: String,
         val name: String,
         val replaces: String,
-        val contributors: List<BscmContributor>,
+        val contributors: List<MetadataContributor>,
         val cover: String?,
         val displayArt: String?,
-    ) : BscmMetadataBundle {
+    ) : MetadataBundle {
         override fun toJson(): String {
             val sb = StringBuilder()
             sb.appendLine("{")
@@ -260,8 +260,8 @@ object DecodingUtils {
      * Injects a `bscm.json` file into the zip bundle.
      * Returns modified zip bytes with the new entry added.
      */
-    fun injectBscmMetadata(zipBytes: ByteArray, metadata: BscmMetadataBundle): ByteArray {
-        val bscmJson = metadata.toJson().encodeToByteArray()
+    fun injectMetadata(zipBytes: ByteArray, metadata: MetadataBundle): ByteArray {
+        val metadataJson = metadata.toJson().encodeToByteArray()
 
         val outputBuffer = ByteArrayOutputStream()
         ZipArchiveOutputStream(outputBuffer).use { zipOut ->
@@ -279,9 +279,9 @@ object DecodingUtils {
 
                 // Add bscm.json
                 val bscmEntry = ZipArchiveEntry("bscm.json")
-                bscmEntry.size = bscmJson.size.toLong()
+                bscmEntry.size = metadataJson.size.toLong()
                 zipOut.putArchiveEntry(bscmEntry)
-                zipOut.write(bscmJson)
+                zipOut.write(metadataJson)
                 zipOut.closeArchiveEntry()
             }
         }

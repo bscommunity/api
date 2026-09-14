@@ -14,6 +14,7 @@ import io.ktor.server.routing.openapi.*
 import io.ktor.server.sse.*
 import io.ktor.util.logging.*
 import io.ktor.utils.io.*
+import org.bscm.models.dto.chart.BatchChartIdsRequest
 import org.bscm.models.dto.chart.BundleDownloadResponse
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
@@ -43,6 +44,9 @@ import java.security.MessageDigest
 import java.util.*
 
 private val logger = KtorSimpleLogger("ChartRoutes")
+
+/** Max chart ids accepted per hydration batch request. */
+private const val MAX_BATCH_IDS = 100
 
 @OptIn(ExperimentalKtorApi::class)
 fun Route.chartRoutes(
@@ -343,28 +347,96 @@ fun Route.chartRoutes(
                  *
                  * Tag: Charts
                  *
-                 * Query: ids [String] Comma-separated catalog IDs.
+                 * Query: ids [String] Comma-separated catalog IDs (max 100 per request).
                  * Responses:
-                 *  - 200 application/json [Array] List of chart details.
+                 *  - 200 application/json [Array] List of found chart details.
+                 *    Unknown ids are skipped; an empty list is returned when
+                 *    nothing matches instead of 404 so a single local-only id
+                 *    cannot fail the whole hydration batch.
                  *  - 401 application/json [Error] Unauthorized access.
-                 *  - 404 application/json [Error] No charts found for the given catalog IDs.
-                * */
+                 * */
                 get("catalog") {
                     val idsParam = call.request.queryParameters["ids"]
                         ?: throw BadRequestException("Missing catalog IDs")
 
-                    call.principal<HMACPrincipal>() ?: throw UnauthorizedException("Unauthorized")
+                    call.principal<HMACPrincipal>()
+                        ?: call.principal<CombinedPrincipal>()
+                        ?: call.principal<JWTPrincipal>()
+                        ?: throw UnauthorizedException("Unauthorized")
 
                     val catalogIds = idsParam.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
                     if (catalogIds.isEmpty()) {
-                        throw BadRequestException("No valid catalog IDs provided")
+                        call.respond(emptyList<org.bscm.models.Chart>())
+                        return@get
+                    }
+
+                    if (catalogIds.size > MAX_BATCH_IDS) {
+                        throw BadRequestException("Too many catalog IDs (max $MAX_BATCH_IDS)")
                     }
 
                     val charts = chartRepository.getChartsByCatalogIds(catalogIds)
 
-                    if (charts.isEmpty()) {
-                        throw NotFoundException("No charts found for the given catalog IDs")
+                    call.respond(charts)
+                }
+
+                /**
+                 * Batch-resolve charts by catalog IDs (hydration endpoint).
+                 *
+                 * Prefer this over one `GET /charts/{id}` per installed chart:
+                 * a single POST resolves a whole on-disk library in one
+                 * round-trip. Unknown ids are skipped and an empty list is
+                 * returned when nothing matches.
+                 *
+                 * Tag: Charts
+                 *
+                 * Body: application/json [BatchChartIdsRequest] ids (max 100).
+                 *
+                 * Responses:
+                 *   - 200 application/json [Array] List of found chart details.
+                 *   - 400 application/json [Error] Invalid or missing IDs.
+                 *   - 401 application/json [Error] Unauthorized access.
+                 */
+                post("batch") {
+                    call.principal<HMACPrincipal>()
+                        ?: call.principal<CombinedPrincipal>()
+                        ?: call.principal<JWTPrincipal>()
+                        ?: throw UnauthorizedException("Unauthorized")
+
+                    val request = runCatching { call.receive<BatchChartIdsRequest>() }.getOrNull()
+                        ?: throw BadRequestException("Invalid batch request body")
+
+                    val catalogIds = request.ids.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+                    if (catalogIds.isEmpty()) {
+                        call.respond(emptyList<org.bscm.models.Chart>())
+                        return@post
+                    }
+
+                    if (catalogIds.size > MAX_BATCH_IDS) {
+                        throw BadRequestException("Too many chart IDs (max $MAX_BATCH_IDS)")
+                    }
+
+                    val jwtPrincipal = call.principal<JWTPrincipal>()
+                    val combinedPrincipal = call.principal<CombinedPrincipal>()
+                    val requesterId = when {
+                        combinedPrincipal != null ->
+                            runCatching { UUID.fromString(combinedPrincipal.jwtPrincipal.subject) }.getOrNull()
+                        jwtPrincipal != null ->
+                            jwtPrincipal.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        else -> null
+                    }
+
+                    val charts = chartRepository.getChartsByCatalogIds(
+                        catalogIds,
+                        requestingUserId = requesterId,
+                    ).filter { chart ->
+                        // Private charts are only visible to their contributors.
+                        // Return 404-equivalent behavior per item: skip silently
+                        // to avoid leaking existence to non-contributors.
+                        if (chart.visibility == Visibility.PUBLIC) true
+                        else requesterId != null &&
+                            chart.contributors.any { contributor -> contributor.user.id == requesterId }
                     }
 
                     call.respond(charts)
