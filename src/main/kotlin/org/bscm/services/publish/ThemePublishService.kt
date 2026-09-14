@@ -135,6 +135,7 @@ class ThemePublishService(
                     originalArtwork = request.originalArtwork,
                     previewUrl = request.previewUrl,
                     id = catalogId,
+                    contributors = request.contributors,
                 )
 
                 themeRepository.updateDiscordCoordinates(

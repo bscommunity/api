@@ -1,6 +1,7 @@
 package org.bscm.models.interfaces
 
 import org.bscm.models.Theme
+import org.bscm.models.dto.contributor.SimplifiedContributor
 import java.util.*
 
 interface IThemeRepository {
@@ -21,6 +22,7 @@ interface IThemeRepository {
         originalArtwork: String?,
         previewUrl: String?,
         id: String?,
+        contributors: List<SimplifiedContributor> = emptyList(),
     ): Theme
 
     suspend fun updateTheme(

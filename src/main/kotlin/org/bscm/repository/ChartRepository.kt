@@ -6,7 +6,10 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Chart
 import org.bscm.models.Version
-import org.bscm.models.dao.*
+import org.bscm.models.dao.AlbumEntity
+import org.bscm.models.dao.CatalogItemEntity
+import org.bscm.models.dao.ChartEntity
+import org.bscm.models.dao.VersionEntity
 import org.bscm.models.dto.chart.CreateChartRequest
 import org.bscm.models.dto.chart.UpdateChartRequest
 import org.bscm.models.dto.version.VersionBundleData
@@ -17,8 +20,6 @@ import org.bscm.models.mappers.VersionMapper
 import org.bscm.models.tables.*
 import org.bscm.utils.QueryUtils
 import org.bscm.utils.flushEntityCache
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
@@ -263,36 +264,11 @@ class ChartRepository(
             this.isExplicit = chart.isExplicit
         }
 
-        ContributorEntity.new {
-            this.catalogItem = CatalogItemEntity[catalogItem.id.value]
-            this.user = UserEntity[userId]
-            this.role = ContributorRole.AUTHOR
-        }
-
-        chart.contributors.forEach { contributor ->
-            // The author is always added as AUTHOR above; skip duplicates to respect
-            // the (catalogItemId, userId, role) unique index.
-            if (contributor.role == ContributorRole.AUTHOR && contributor.userId == userId) {
-                return@forEach
-            }
-            UserEntity.findById(contributor.userId)
-                ?: throw IllegalArgumentException("User not found: ${contributor.userId}")
-
-            val catalogItemEntityId = EntityID(catalogItem.id.value, CatalogItemTable)
-            val existing = ContributorEntity.find {
-                (ContributorTable.catalogItemId eq catalogItemEntityId) and
-                    (ContributorTable.userId eq contributor.userId) and
-                    (ContributorTable.role eq contributor.role)
-            }.singleOrNull()
-
-            if (existing == null) {
-                ContributorEntity.new {
-                    this.catalogItem = CatalogItemEntity[catalogItem.id.value]
-                    this.user = UserEntity[contributor.userId]
-                    this.role = contributor.role
-                }
-            }
-        }
+        ContributorRepository.persistCreationContributors(
+            catalogItemId = catalogItem.id.value,
+            authorId = userId,
+            contributors = chart.contributors,
+        )
 
         if (initialVersion != null) {
             requireNotNull(bundleHash) { "bundleHash is required when initialVersion is provided" }

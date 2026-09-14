@@ -92,6 +92,51 @@ class ContributorRepository : IContributorRepository {
         fun contributorEntityToContributor(entity: ContributorEntity, user: UserEntity): Contributor {
             return contributorEntityToContributor(entity.catalogItem.id.value, entity, user)
         }
+
+        /**
+         * Persists the author row plus any extra [contributors] for a newly created
+         * catalog item. Must be called within an existing transaction — repositories
+         * own their `suspendTransaction {}` blocks and call this inside them.
+         *
+         * Mirrors the chart creation contract: the author is always added as AUTHOR,
+         * duplicate (user, AUTHOR) entries for the author are skipped to respect the
+         * (catalogItemId, userId, role) unique index, unknown users fail fast, and
+         * existing (user, role) rows are left untouched (idempotent).
+         */
+        fun persistCreationContributors(
+            catalogItemId: String,
+            authorId: UUID,
+            contributors: List<SimplifiedContributor>,
+        ) {
+            ContributorEntity.new {
+                this.catalogItem = CatalogItemEntity[catalogItemId]
+                this.user = UserEntity[authorId]
+                this.role = ContributorRole.AUTHOR
+            }
+
+            val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
+            contributors.forEach { contributor ->
+                if (contributor.role == ContributorRole.AUTHOR && contributor.userId == authorId) {
+                    return@forEach
+                }
+                UserEntity.findById(contributor.userId)
+                    ?: throw IllegalArgumentException("User not found: ${contributor.userId}")
+
+                val existing = ContributorEntity.find {
+                    (ContributorTable.catalogItemId eq catalogItemEntityId) and
+                        (ContributorTable.userId eq contributor.userId) and
+                        (ContributorTable.role eq contributor.role)
+                }.singleOrNull()
+
+                if (existing == null) {
+                    ContributorEntity.new {
+                        this.catalogItem = CatalogItemEntity[catalogItemId]
+                        this.user = UserEntity[contributor.userId]
+                        this.role = contributor.role
+                    }
+                }
+            }
+        }
     }
 
     override suspend fun addContributors(catalogItemId: String, contributors: List<SimplifiedContributor>): List<Contributor> = suspendTransaction {

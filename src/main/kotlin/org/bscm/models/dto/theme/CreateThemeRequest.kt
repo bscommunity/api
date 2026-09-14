@@ -1,6 +1,7 @@
 package org.bscm.models.dto.theme
 
 import kotlinx.serialization.Serializable
+import org.bscm.models.dto.contributor.SimplifiedContributor
 
 @Serializable
 data class CreateThemeRequest(
@@ -8,5 +9,6 @@ data class CreateThemeRequest(
     val description: String? = null,
     val replaces: String,
     val originalArtwork: String? = null,
-    val previewUrl: String? = null
+    val previewUrl: String? = null,
+    val contributors: List<SimplifiedContributor> = emptyList(),
 )

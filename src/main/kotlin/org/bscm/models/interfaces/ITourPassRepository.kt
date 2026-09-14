@@ -2,6 +2,7 @@ package org.bscm.models.interfaces
 
 import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
+import org.bscm.models.dto.contributor.SimplifiedContributor
 import java.util.*
 
 interface ITourPassRepository {
@@ -22,6 +23,7 @@ interface ITourPassRepository {
         playlistUrls: List<StreamingRef>? = null,
         chartIds: List<String>? = null,
         id: String? = null,
+        contributors: List<SimplifiedContributor> = emptyList(),
     ): TourPass
 
     suspend fun updateTourPass(

@@ -148,6 +148,7 @@ class TourPassPublishService(
                     playlistUrls = normalizedPlaylistUrls,
                     chartIds = chartIds,
                     id = catalogId,
+                    contributors = request.contributors,
                 )
 
                 tourPassRepository.updateDiscordCoordinates(

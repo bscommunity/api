@@ -8,13 +8,12 @@ import org.bscm.models.Contributor
 import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
 import org.bscm.models.dao.CatalogItemEntity
-import org.bscm.models.dao.ContributorEntity
 import org.bscm.models.dao.TourPassEntity
 import org.bscm.models.dao.UserEntity
+import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
-import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.models.tables.*
@@ -253,6 +252,7 @@ class TourPassRepository(
         playlistUrls: List<StreamingRef>?,
         chartIds: List<String>?,
         id: String?,
+        contributors: List<SimplifiedContributor>,
     ): TourPass = suspendTransaction {
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val catalogItem = if (id != null) {
@@ -279,11 +279,11 @@ class TourPassRepository(
             this.artist = artist
         }
 
-        ContributorEntity.new {
-            this.catalogItem = CatalogItemEntity[catalogItem.id.value]
-            this.user = UserEntity[userId]
-            this.role = ContributorRole.AUTHOR
-        }
+        ContributorRepository.persistCreationContributors(
+            catalogItemId = catalogItem.id.value,
+            authorId = userId,
+            contributors = contributors,
+        )
 
         flushEntityCache()
 
