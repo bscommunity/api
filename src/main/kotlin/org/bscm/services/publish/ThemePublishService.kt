@@ -88,8 +88,8 @@ class ThemePublishService(
         val coverUrl = storageService.themeCoverUrl(catalogId)
         val displayArtUrl = storageService.themeDisplayUrl(catalogId)
 
-        val bscmMetadata = DecodingUtils.ThemeMetadata(
-            themeId = catalogId,
+        val themeMetadata = DecodingUtils.ThemeMetadata(
+            catalogId = catalogId,
             name = request.name,
             replaces = request.replaces,
             contributors = listOf(
@@ -99,10 +99,8 @@ class ThemePublishService(
                     role = "author",
                 )
             ),
-            cover = coverUrl.ifEmpty { null },
-            displayArt = displayArtUrl.ifEmpty { null },
         )
-        val enrichedBundleBytes = DecodingUtils.injectMetadata(assets.bundleBytes, bscmMetadata)
+        val enrichedBundleBytes = DecodingUtils.injectMetadata(assets.bundleBytes, themeMetadata)
 
         emitEvent(PublishStep.UPLOADING_TO_DISCORD, "Uploading theme to Discord")
         val discordResponse = uploadService.uploadTheme(

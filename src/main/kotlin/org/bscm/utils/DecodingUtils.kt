@@ -177,7 +177,7 @@ object DecodingUtils {
 
     data class ChartMetadata(
         val version: Int = 1,
-        val chartId: String,
+        val catalogId: String,
         val track: String,
         val artist: String,
         val difficulty: Int,
@@ -194,13 +194,13 @@ object DecodingUtils {
             val sb = StringBuilder()
             sb.appendLine("{")
             sb.appendLine("  \"version\": $version,")
-            sb.appendLine("  \"chartId\": \"${chartId.escapeJson()}\",")
-            sb.appendLine("  \"coverId\": ${coverId.escapeJson().let { "\"$it\"" }},")
+            sb.appendLine("  \"catalog\": \"${catalogId.escapeJson()}\",")
+            sb.appendLine("  \"cover\": ${coverId.escapeJson().let { "\"$it\"" }},")
             sb.appendLine("  \"track\": \"${track.escapeJson()}\",")
             sb.appendLine("  \"artist\": \"${artist.escapeJson()}\",")
             sb.appendLine("  \"difficulty\": $difficulty,")
-            sb.appendLine("  \"isDeluxe\": $isDeluxe,")
-            sb.appendLine("  \"isExplicit\": $isExplicit,")
+            sb.appendLine("  \"deluxe\": $isDeluxe,")
+            sb.appendLine("  \"explicit\": $isExplicit,")
             sb.appendLine("  \"bpm\": $bpm,")
             sb.appendLine("  \"duration\": $duration,")
             sb.appendLine("  \"notes\": $notes,")
@@ -220,18 +220,16 @@ object DecodingUtils {
 
     data class ThemeMetadata(
         val version: Int = 1,
-        val themeId: String,
+        val catalogId: String,
         val name: String,
         val replaces: String,
         val contributors: List<MetadataContributor>,
-        val cover: String?,
-        val displayArt: String?,
     ) : MetadataBundle {
         override fun toJson(): String {
             val sb = StringBuilder()
             sb.appendLine("{")
             sb.appendLine("  \"version\": $version,")
-            sb.appendLine("  \"themeId\": \"${themeId.escapeJson()}\",")
+            sb.appendLine("  \"catalog\": \"${catalogId.escapeJson()}\",")
             sb.appendLine("  \"name\": \"${name.escapeJson()}\",")
             sb.appendLine("  \"replaces\": \"${replaces.escapeJson()}\",")
             sb.append("  \"contributors\": [")
@@ -242,8 +240,6 @@ object DecodingUtils {
             }
             sb.appendLine()
             sb.appendLine("  ],")
-            sb.appendLine("  \"cover\": ${cover?.let { "\"${it.escapeJson()}\"" } ?: "null"},")
-            sb.appendLine("  \"displayArt\": ${displayArt?.let { "\"${it.escapeJson()}\"" } ?: "null"}")
             sb.append("}")
             return sb.toString()
         }
