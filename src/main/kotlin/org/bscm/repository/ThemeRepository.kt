@@ -16,6 +16,7 @@ import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.*
 import org.bscm.storage.StorageService
 import org.bscm.utils.UserStatsUtils
+import org.bscm.utils.flushEntityCache
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.select
@@ -281,10 +282,14 @@ class ThemeRepository(
             contributors = contributors,
         )
 
-        val themeId = theme.id.value
-        val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(themeId))[themeId].orEmpty()
+        // Flush DAO writes before the raw DSL read below — raw queries bypass
+        // the EntityCache and would otherwise miss the new contributor rows.
+        flushEntityCache()
 
-        themeEntityToTheme(theme, contributors = contributors)
+        val themeId = theme.id.value
+        val createdContributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(themeId))[themeId].orEmpty()
+
+        themeEntityToTheme(theme, contributors = createdContributors)
     }
 
     override suspend fun updateTheme(

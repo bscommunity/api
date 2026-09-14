@@ -275,6 +275,10 @@ class ChartRepository(
             versionRepository.addVersion(catalogItem.id.value, initialVersion, bundleHash)
         }
 
+        // Flush DAO writes (contributors, version) before the raw DSL read below —
+        // raw queries bypass the EntityCache and would otherwise miss them.
+        flushEntityCache()
+
         val query = ChartTable.selectAll().where { ChartTable.id eq newChart.id.value }
         getChart(query, ChartAddons(streamingLinks = true), requestingUserId = userId)
             ?: throw IllegalStateException("Failed to load chart after creation")

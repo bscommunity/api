@@ -186,6 +186,7 @@ fun mainModule(config: ApplicationConfig) = module {
             activityRepository = get(),
             publishEventService = get(),
             albumRepository = get(),
+            userRepository = get(),
         )
     }
     single {
@@ -206,6 +207,7 @@ fun mainModule(config: ApplicationConfig) = module {
             storageService = get(),
             activityRepository = get(),
             publishEventService = get(),
+            userRepository = get(),
         )
     }
     single {

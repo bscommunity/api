@@ -15,10 +15,12 @@ import org.bscm.models.dto.contributor.SimplifiedContributor
 import org.bscm.models.dto.version.SimplifiedVersion
 import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.ActivityType
+import org.bscm.models.enums.ContributorRole
 import org.bscm.models.enums.Difficulty
 import org.bscm.models.enums.Genre
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
+import org.bscm.models.interfaces.IUserRepository
 import org.bscm.plugins.ConflictException
 import org.bscm.protobuf.ChartParser
 import org.bscm.repository.AlbumRepository
@@ -46,6 +48,7 @@ class ChartPublishService(
     private val activityRepository: IActivityRepository,
     private val publishEventService: PublishEventService,
     private val albumRepository: AlbumRepository,
+    private val userRepository: IUserRepository,
 ) {
     enum class CoverSource { BUNDLE, MEDIA_INFO }
 
@@ -246,6 +249,32 @@ class ChartPublishService(
         )
 
         // Build enriched bundle before Discord upload (catalogId doubles as chart ID)
+        // The bundle carries the same initial contributors persisted to the DB below,
+        // so offline clients (Android reads bscm.json) credit everyone, not just the author.
+        // Role names are lowercase enum names ("chart", "audio", ...) — the exact keys
+        // the Android ChartStorageScanner.roleIdsByName map resolves.
+        val metadataContributors = buildList {
+            add(
+                DecodingUtils.MetadataContributor(
+                    username = user.username,
+                    avatarUrl = user.avatarUrl,
+                    role = "author",
+                )
+            )
+            overrides.contributors.orEmpty()
+                .filterNot { it.role == ContributorRole.AUTHOR && it.userId == user.id }
+                .mapNotNull { contributor ->
+                    val contributorUser = userRepository.getUserById(contributor.userId)
+                        ?: return@mapNotNull null
+                    DecodingUtils.MetadataContributor(
+                        username = contributorUser.username,
+                        avatarUrl = contributorUser.avatarUrl,
+                        role = contributor.role.name.lowercase(),
+                    )
+                }
+                .distinct()
+                .forEach { add(it) }
+        }
         val chartMetadata = DecodingUtils.ChartMetadata(
             catalogId = catalogId,
             coverId = albumEntity.id.value.toString(),
@@ -258,13 +287,7 @@ class ChartPublishService(
             duration = computedStats.duration,
             notes = computedStats.notesAmount,
             effects = computedStats.effectsAmount,
-            contributors = listOf(
-                DecodingUtils.MetadataContributor(
-                    username = user.username,
-                    avatarUrl = user.avatarUrl,
-                    role = "author",
-                )
-            ),
+            contributors = metadataContributors,
         )
         val enrichedBundleBytes = DecodingUtils.injectMetadata(bundleBytes, chartMetadata)
 

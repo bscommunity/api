@@ -8,8 +8,10 @@ import org.bscm.models.dto.theme.CreateThemeRequest
 import org.bscm.models.dto.theme.UpdateThemeRequest
 import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.ActivityType
+import org.bscm.models.enums.ContributorRole
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IThemeRepository
+import org.bscm.models.interfaces.IUserRepository
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.ConflictException
 import org.bscm.services.UploadService
@@ -28,6 +30,7 @@ class ThemePublishService(
     private val storageService: StorageService,
     private val activityRepository: IActivityRepository,
     private val publishEventService: PublishEventService,
+    private val userRepository: IUserRepository,
 ) {
     data class Assets(
         val coverArtBytes: ByteArray?,
@@ -88,17 +91,37 @@ class ThemePublishService(
         val coverUrl = storageService.themeCoverUrl(catalogId)
         val displayArtUrl = storageService.themeDisplayUrl(catalogId)
 
-        val themeMetadata = DecodingUtils.ThemeMetadata(
-            catalogId = catalogId,
-            name = request.name,
-            replaces = request.replaces,
-            contributors = listOf(
+        // The bundle carries the same initial contributors persisted to the DB below,
+        // so offline clients (Android reads bscm.json) credit everyone, not just the author.
+        // Role names are lowercase enum names ("art", "textures", ...) — the exact keys
+        // the Android ChartStorageScanner.roleIdsByName map resolves.
+        val metadataContributors = buildList {
+            add(
                 DecodingUtils.MetadataContributor(
                     username = uploader.username,
                     avatarUrl = uploader.avatarUrl,
                     role = "author",
                 )
-            ),
+            )
+            request.contributors
+                .filterNot { it.role == ContributorRole.AUTHOR && it.userId == uploader.id }
+                .mapNotNull { contributor ->
+                    val contributorUser = userRepository.getUserById(contributor.userId)
+                        ?: return@mapNotNull null
+                    DecodingUtils.MetadataContributor(
+                        username = contributorUser.username,
+                        avatarUrl = contributorUser.avatarUrl,
+                        role = contributor.role.name.lowercase(),
+                    )
+                }
+                .distinct()
+                .forEach { add(it) }
+        }
+        val themeMetadata = DecodingUtils.ThemeMetadata(
+            catalogId = catalogId,
+            name = request.name,
+            replaces = request.replaces,
+            contributors = metadataContributors,
         )
         val enrichedBundleBytes = DecodingUtils.injectMetadata(assets.bundleBytes, themeMetadata)
 

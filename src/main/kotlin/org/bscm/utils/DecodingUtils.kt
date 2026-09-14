@@ -172,6 +172,7 @@ object DecodingUtils {
     )
 
     interface MetadataBundle {
+        val id: String
         fun toJson(): String
     }
 
@@ -190,6 +191,7 @@ object DecodingUtils {
         val contributors: List<MetadataContributor>,
         val coverId: String,
     ) : MetadataBundle {
+        override val id = catalogId
         override fun toJson(): String {
             val sb = StringBuilder()
             sb.appendLine("{")
@@ -212,7 +214,7 @@ object DecodingUtils {
                 sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"role\": \"${c.role.escapeJson()}\"}$comma")
             }
             sb.appendLine()
-            sb.appendLine("  ],")
+            sb.appendLine("  ]")
             sb.append("}")
             return sb.toString()
         }
@@ -225,6 +227,7 @@ object DecodingUtils {
         val replaces: String,
         val contributors: List<MetadataContributor>,
     ) : MetadataBundle {
+        override val id = catalogId
         override fun toJson(): String {
             val sb = StringBuilder()
             sb.appendLine("{")
@@ -239,7 +242,7 @@ object DecodingUtils {
                 sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"role\": \"${c.role.escapeJson()}\"}$comma")
             }
             sb.appendLine()
-            sb.appendLine("  ],")
+            sb.appendLine("  ]")
             sb.append("}")
             return sb.toString()
         }
@@ -274,7 +277,7 @@ object DecodingUtils {
                 }
 
                 // Add bscm.json
-                val bscmEntry = ZipArchiveEntry("bscm.json")
+                val bscmEntry = ZipArchiveEntry("bscm_${metadata.id}.json")
                 bscmEntry.size = metadataJson.size.toLong()
                 zipOut.putArchiveEntry(bscmEntry)
                 zipOut.write(metadataJson)

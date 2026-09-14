@@ -14,10 +14,7 @@ import io.ktor.server.routing.openapi.*
 import io.ktor.server.sse.*
 import io.ktor.util.logging.*
 import io.ktor.utils.io.*
-import org.bscm.models.dto.chart.BatchChartIdsRequest
-import org.bscm.models.dto.chart.BundleDownloadResponse
-import org.bscm.models.dto.chart.CreateChartRequest
-import org.bscm.models.dto.chart.UpdateChartRequest
+import org.bscm.models.dto.chart.*
 import org.bscm.models.dto.user.PagedResponse
 import org.bscm.models.dto.version.CreateVersionRequest
 import org.bscm.models.dto.version.VersionBundleData
@@ -571,8 +568,13 @@ fun Route.chartRoutes(
                         // with the rest of the file which uses throw.
                     }
 
+                    // Lenient parse: the website sends its full CreateChartPayload shape
+                    // here (singular `genre`, nullable `coverUrl`/`bpm`), which does not
+                    // match the strict CreateChartRequest. Decoding is limited to the
+                    // fields actually consumed below, so unknown/mismatched keys cannot
+                    // silently drop contributors anymore.
                     val overrides = chartJson?.let {
-                        runCatching { jsonClient.decodeFromString<CreateChartRequest>(it) }
+                        runCatching { jsonClient.decodeFromString<ChartPublishOverrides>(it) }
                             .getOrNull()
                         // Silent parse failure is intentional — overrides are optional,
                         // a malformed JSON just means "no overrides".
