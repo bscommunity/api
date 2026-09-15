@@ -45,7 +45,7 @@ CREATE INDEX download_events_catalog_item_id_created_at ON download_events (cata
 CREATE INDEX download_events_created_at ON download_events (created_at);
 CREATE TABLE IF NOT EXISTS notifications (id BIGSERIAL PRIMARY KEY, user_id uuid NOT NULL, actor_id uuid NOT NULL, "type" VARCHAR(50) NOT NULL, catalog_item_id VARCHAR(10) NULL, message TEXT NOT NULL, created_at TIMESTAMP NOT NULL);
 CREATE INDEX notifications_user_id_created_at ON notifications (user_id, created_at);
-CREATE TABLE IF NOT EXISTS themes (id VARCHAR(10) PRIMARY KEY, "name" VARCHAR(255) NOT NULL, replaces INT NOT NULL, original_artwork VARCHAR(512) NULL, preview_url VARCHAR(512) NULL);
+CREATE TABLE IF NOT EXISTS themes (id VARCHAR(10) PRIMARY KEY, "name" VARCHAR(255) NOT NULL, replaces INT NOT NULL, original_artwork VARCHAR(512) NULL);
 CREATE INDEX themes_name ON themes ("name");
 CREATE TABLE IF NOT EXISTS tour_passes (id VARCHAR(10) PRIMARY KEY, "name" VARCHAR(255) NOT NULL, description VARCHAR(500) NULL, artist VARCHAR(255) NULL);
 CREATE TABLE IF NOT EXISTS tour_pass_charts (tour_pass_id VARCHAR(10), chart_id VARCHAR(10), "position" INT DEFAULT 0 NOT NULL, CONSTRAINT pk_tour_pass_charts PRIMARY KEY (tour_pass_id, chart_id), CONSTRAINT fk_tour_pass_charts_tour_pass_id__id FOREIGN KEY (tour_pass_id) REFERENCES tour_passes(id) ON DELETE CASCADE ON UPDATE RESTRICT, CONSTRAINT fk_tour_pass_charts_chart_id__id FOREIGN KEY (chart_id) REFERENCES charts(id) ON DELETE CASCADE ON UPDATE RESTRICT);

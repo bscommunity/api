@@ -11,7 +11,6 @@ object ThemeTable : IdTable<String>("themes") {
     val name = varchar("name", 255)
     val replaces = enumeration("replaces", BeatstarThemeId::class)
     val originalArtwork = varchar("original_artwork", 512).nullable()
-    val previewUrl = varchar("preview_url", 512).nullable()
 
     override val primaryKey = PrimaryKey(id)
 

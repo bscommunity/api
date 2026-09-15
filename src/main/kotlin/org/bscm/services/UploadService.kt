@@ -64,7 +64,6 @@ class UploadService(
         val description: String?,
         val context: PublishContext,
         val replaces: String,
-        val trailerUrl: String?,
         val coverArtUrl: String?,
         val displayArtUrl: String?,
     )
@@ -443,7 +442,6 @@ class UploadService(
                     data.displayArtUrl?.takeIf { it.isNotBlank() }?.let { image(it) }
                     data.coverArtUrl?.takeIf { it.isNotBlank() }?.let { thumbnail(it) }
                     field("<:refresh:1490158323197022449> Replaces", data.replaces, false)
-                    data.trailerUrl?.takeIf { it.isNotBlank() }?.let { field("Trailer", it, false) }
                 }
                 buildComponents(data.context.trackUrls).forEach { component(it) }
                 val appUrl = getWorkshopContentUrl("theme", data.context.catalogId)

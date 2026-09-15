@@ -113,7 +113,6 @@ class ThemeRepository(
             replaces = entity.replaces,
             originalArtwork = entity.originalArtwork,
             displayArtUrl = storageService.themeDisplayUrl(id),
-            previewUrl = entity.previewUrl,
             coverUrl = storageService.themeCoverUrl(id),
             contributors = contributors,
             likesCount = likesCount,
@@ -246,7 +245,6 @@ class ThemeRepository(
         name: String,
         replaces: String,
         originalArtwork: String?,
-        previewUrl: String?,
         id: String?,
         contributors: List<SimplifiedContributor>,
     ): Theme = suspendTransaction {
@@ -273,7 +271,6 @@ class ThemeRepository(
             this.name = name
             this.replaces = BeatstarThemeId.fromBeatstarId(replaces)
             this.originalArtwork = originalArtwork
-            this.previewUrl = previewUrl
         }
 
         ContributorRepository.persistCreationContributors(
@@ -298,7 +295,6 @@ class ThemeRepository(
         name: String?,
         replaces: String?,
         originalArtwork: String?,
-        previewUrl: String?,
     ): Theme = suspendTransaction {
         val catalogItem = CatalogItemEntity.findById(id) ?: throw IllegalArgumentException("Theme $id not found")
         if (catalogItem.author?.id?.value != userId) {
@@ -310,7 +306,6 @@ class ThemeRepository(
             name?.let { entity.name = it }
             replaces?.let { entity.replaces = BeatstarThemeId.fromBeatstarId(it) }
             originalArtwork?.let { entity.originalArtwork = it }
-            previewUrl?.let { entity.previewUrl = it }
         } ?: throw IllegalArgumentException("Theme $id not found")
 
         CatalogItemEntity.findByIdAndUpdate(id) {

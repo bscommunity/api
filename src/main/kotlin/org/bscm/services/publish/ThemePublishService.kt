@@ -126,7 +126,6 @@ class ThemePublishService(
                     submittedBy = UploadService.SubmittedBy.fromUser(uploader)
                 ),
                 replaces = request.replaces,
-                trailerUrl = request.previewUrl,
                 coverArtUrl = coverUrl,
                 displayArtUrl = displayArtUrl,
             ),
@@ -145,7 +144,6 @@ class ThemePublishService(
                     name = request.name,
                     replaces = request.replaces,
                     originalArtwork = request.originalArtwork,
-                    previewUrl = request.previewUrl,
                     id = catalogId,
                     contributors = request.contributors,
                 )
@@ -234,8 +232,7 @@ class ThemePublishService(
             userId = userId,
             name = request.name,
             replaces = request.replaces,
-            originalArtwork = request.originalArtwork,
-            previewUrl = request.previewUrl
+            originalArtwork = request.originalArtwork
         )
     }
 }

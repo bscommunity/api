@@ -20,7 +20,6 @@ interface IThemeRepository {
         name: String,
         replaces: String,
         originalArtwork: String?,
-        previewUrl: String?,
         id: String?,
         contributors: List<SimplifiedContributor> = emptyList(),
     ): Theme
@@ -31,7 +30,6 @@ interface IThemeRepository {
         name: String?,
         replaces: String?,
         originalArtwork: String?,
-        previewUrl: String?,
     ): Theme
 
     suspend fun deleteTheme(id: String, userId: UUID): Boolean

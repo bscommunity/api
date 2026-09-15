@@ -22,7 +22,6 @@ data class Theme(
     val coverUrl: String,
     val displayArtUrl: String,
     val originalArtwork: String? = null,
-    val previewUrl: String? = null,
 
     override val contributors: List<Contributor> = emptyList(),
 

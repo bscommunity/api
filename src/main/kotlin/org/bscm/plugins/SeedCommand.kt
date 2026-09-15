@@ -272,19 +272,19 @@ private suspend fun createSeedTourPasses(
 private suspend fun createSeedThemes(
     userIds: List<UUID>, repo: IThemeRepository, activityRepo: IActivityRepository,
 ) {
-    data class Seed(val name: String, val replaces: String, val preview: String)
+    data class Seed(val name: String, val replaces: String)
     val seeds = listOf(
-        Seed("Midnight Dark", "ultraviolet", "https://images.unsplash.com/photo-1557683316-973673baf926?w=400"),
-        Seed("Ocean Blue", "poseidon", "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=400"),
-        Seed("Sunset Glow", "summer-sundown", "https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?w=400"),
-        Seed("Forest Green", "green-game-jam-2024", "https://images.unsplash.com/photo-1557682268-e3955ed5d83f?w=400"),
-        Seed("Neon Pulse", "neon", "https://images.unsplash.com/photo-1557682260-96773506d070?w=400"),
-        Seed("Pastel Dreams", "cherry-blossom", "https://images.unsplash.com/photo-1557682254-62e0f12dfa1e?w=400"),
+        Seed("Midnight Dark", "ultraviolet"),
+        Seed("Ocean Blue", "poseidon"),
+        Seed("Sunset Glow", "summer-sundown"),
+        Seed("Forest Green", "green-game-jam-2024"),
+        Seed("Neon Pulse", "neon"),
+        Seed("Pastel Dreams", "cherry-blossom"),
     )
     seeds.forEachIndexed { i, s ->
         try {
             val owner = userIds[i % userIds.size]
-            val theme = repo.createTheme(userId = owner, name = s.name, replaces = s.replaces, previewUrl = s.preview, id = null, originalArtwork = null)
+            val theme = repo.createTheme(userId = owner, name = s.name, replaces = s.replaces, id = null, originalArtwork = null)
             activityRepo.logActivity(owner, ActivityType.CREATED_THEME, theme.id)
             println("[Seed]   theme: ${s.name}")
         } catch (e: Exception) {
