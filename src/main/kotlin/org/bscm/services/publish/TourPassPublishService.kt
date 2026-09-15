@@ -206,24 +206,18 @@ class TourPassPublishService(
         userId: UUID,
         request: UpdateTourPassRequest,
         coverBytes: ByteArray?,
-        coverContentType: ContentType?,
     ): TourPass {
         if (coverBytes != null) {
             val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes
             storageService.uploadTourPassCover(id, avifBytes)
         }
 
-        val normalizedPlaylistUrls = request.playlistUrls
-            ?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
+        // val normalizedPlaylistUrls = request.playlistUrls?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
 
         return tourPassRepository.updateTourPass(
             id = id,
             userId = userId,
-            name = request.name,
-            description = request.description,
-            artist = request.artist,
-            chartIds = request.chartIds,
-            previewVideoId = request.previewVideoId
+            request = request
         )
     }
 }

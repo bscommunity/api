@@ -2,6 +2,7 @@ package org.bscm.models.interfaces
 
 import org.bscm.models.Theme
 import org.bscm.models.dto.contributor.SimplifiedContributor
+import org.bscm.models.dto.theme.UpdateThemeRequest
 import java.util.*
 
 interface IThemeRepository {
@@ -27,10 +28,7 @@ interface IThemeRepository {
     suspend fun updateTheme(
         id: String,
         userId: UUID,
-        name: String?,
-        replaces: String?,
-        originalArtwork: String?,
-        previewVideoId: String?,
+        request: UpdateThemeRequest,
     ): Theme
 
     suspend fun deleteTheme(id: String, userId: UUID): Boolean

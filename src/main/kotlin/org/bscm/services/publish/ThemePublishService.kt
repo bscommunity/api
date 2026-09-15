@@ -230,10 +230,7 @@ class ThemePublishService(
         return themeRepository.updateTheme(
             id = id,
             userId = userId,
-            name = request.name,
-            replaces = request.replaces,
-            originalArtwork = request.originalArtwork,
-            previewVideoId = request.previewVideoId
+            request = request
         )
     }
 }

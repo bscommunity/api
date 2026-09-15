@@ -11,6 +11,7 @@ import org.bscm.models.dao.ThemeEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dao.VersionEntity
 import org.bscm.models.dto.contributor.SimplifiedContributor
+import org.bscm.models.dto.theme.UpdateThemeRequest
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.tables.*
@@ -292,10 +293,7 @@ class ThemeRepository(
     override suspend fun updateTheme(
         id: String,
         userId: UUID,
-        name: String?,
-        replaces: String?,
-        originalArtwork: String?,
-        previewVideoId: String?,
+        request: UpdateThemeRequest,
     ): Theme = suspendTransaction {
         val catalogItem = CatalogItemEntity.findById(id) ?: throw IllegalArgumentException("Theme $id not found")
         if (catalogItem.author?.id?.value != userId) {
@@ -304,16 +302,16 @@ class ThemeRepository(
 
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val entity = ThemeEntity.findByIdAndUpdate(id) { entity ->
-            name?.let { entity.name = it }
-            replaces?.let { entity.replaces = BeatstarThemeId.fromBeatstarId(it) }
-            originalArtwork?.let { entity.originalArtwork = it }
+            request.name?.let { entity.name = it }
+            request.replaces?.let { entity.replaces = BeatstarThemeId.fromBeatstarId(it) }
+            request.originalArtwork?.let { entity.originalArtwork = it }
         } ?: throw IllegalArgumentException("Theme $id not found")
 
         CatalogItemEntity.findByIdAndUpdate(id) {
             it.updatedAt = now
         }
 
-        previewVideoId?.let { catalogItemRepository.updatePreviewVideoId(id, it) }
+        request.previewVideoId?.let { catalogItemRepository.updatePreviewVideoId(id, it) }
 
         val (likesCount, bookmarksCount) = fetchAggregateStats(listOf(id))[id] ?: (0 to 0)
         themeEntityToTheme(entity, likesCount = likesCount, bookmarksCount = bookmarksCount)

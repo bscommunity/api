@@ -3,6 +3,7 @@ package org.bscm.models.interfaces
 import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
 import org.bscm.models.dto.contributor.SimplifiedContributor
+import org.bscm.models.dto.tourpass.UpdateTourPassRequest
 import java.util.*
 
 interface ITourPassRepository {
@@ -29,11 +30,7 @@ interface ITourPassRepository {
     suspend fun updateTourPass(
         id: String,
         userId: UUID,
-        name: String?,
-        description: String?,
-        artist: String?,
-        chartIds: List<String>? = null,
-        previewVideoId: String? = null,
+        request: UpdateTourPassRequest,
     ): TourPass
 
     suspend fun deleteTourPass(id: String, userId: UUID): Boolean

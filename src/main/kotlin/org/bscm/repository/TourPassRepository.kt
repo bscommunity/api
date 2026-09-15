@@ -11,6 +11,7 @@ import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.TourPassEntity
 import org.bscm.models.dao.UserEntity
 import org.bscm.models.dto.contributor.SimplifiedContributor
+import org.bscm.models.dto.tourpass.UpdateTourPassRequest
 import org.bscm.models.enums.CatalogItemStatus
 import org.bscm.models.enums.CatalogItemType
 import org.bscm.models.enums.CollectionKind
@@ -301,11 +302,7 @@ class TourPassRepository(
     override suspend fun updateTourPass(
         id: String,
         userId: UUID,
-        name: String?,
-        description: String?,
-        artist: String?,
-        chartIds: List<String>?,
-        previewVideoId: String?,
+        request: UpdateTourPassRequest,
     ): TourPass = suspendTransaction {
         val catalogItem = CatalogItemEntity.findById(id) ?: throw IllegalArgumentException("TourPass $id not found")
         if (catalogItem.author?.id?.value != userId) {
@@ -314,20 +311,20 @@ class TourPassRepository(
 
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val entity = TourPassEntity.findByIdAndUpdate(id) { entity ->
-            name?.let { entity.name = it }
-            description?.let { entity.description = it }
-            artist?.let { entity.artist = it }
+            request.name?.let { entity.name = it }
+            request.description?.let { entity.description = it }
+            request.artist?.let { entity.artist = it }
         } ?: throw IllegalArgumentException("TourPass $id not found")
 
         CatalogItemEntity.findByIdAndUpdate(id) {
             it.updatedAt = now
         }
 
-        previewVideoId?.let { catalogItemRepository.updatePreviewVideoId(id, it) }
+        request.previewVideoId?.let { catalogItemRepository.updatePreviewVideoId(id, it) }
 
         flushEntityCache()
 
-        chartIds?.let { newChartIds ->
+        request.chartIds?.let { newChartIds ->
             TourPassChartTable.deleteWhere { TourPassChartTable.tourPassId eq EntityID(id, TourPassTable) }
             newChartIds.forEachIndexed { index, cid ->
                 TourPassChartTable.insertIgnore {
