@@ -12,4 +12,5 @@ data class UpdateTourPassRequest(
     val previewUrl: String? = null,
     val chartIds: List<String>? = null,
     val playlistUrls: List<StreamingRef>? = null,
+    val previewVideoId: String? = null,
 )

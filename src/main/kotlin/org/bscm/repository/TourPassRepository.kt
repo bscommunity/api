@@ -305,6 +305,7 @@ class TourPassRepository(
         description: String?,
         artist: String?,
         chartIds: List<String>?,
+        previewVideoId: String?,
     ): TourPass = suspendTransaction {
         val catalogItem = CatalogItemEntity.findById(id) ?: throw IllegalArgumentException("TourPass $id not found")
         if (catalogItem.author?.id?.value != userId) {
@@ -321,6 +322,8 @@ class TourPassRepository(
         CatalogItemEntity.findByIdAndUpdate(id) {
             it.updatedAt = now
         }
+
+        previewVideoId?.let { catalogItemRepository.updatePreviewVideoId(id, it) }
 
         flushEntityCache()
 

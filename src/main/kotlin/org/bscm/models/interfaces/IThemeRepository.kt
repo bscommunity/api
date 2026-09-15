@@ -30,6 +30,7 @@ interface IThemeRepository {
         name: String?,
         replaces: String?,
         originalArtwork: String?,
+        previewVideoId: String?,
     ): Theme
 
     suspend fun deleteTheme(id: String, userId: UUID): Boolean

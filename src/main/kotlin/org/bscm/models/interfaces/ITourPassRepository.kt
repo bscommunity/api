@@ -33,6 +33,7 @@ interface ITourPassRepository {
         description: String?,
         artist: String?,
         chartIds: List<String>? = null,
+        previewVideoId: String? = null,
     ): TourPass
 
     suspend fun deleteTourPass(id: String, userId: UUID): Boolean

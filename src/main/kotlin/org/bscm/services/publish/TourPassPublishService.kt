@@ -222,7 +222,8 @@ class TourPassPublishService(
             name = request.name,
             description = request.description,
             artist = request.artist,
-            chartIds = request.chartIds
+            chartIds = request.chartIds,
+            previewVideoId = request.previewVideoId
         )
     }
 }

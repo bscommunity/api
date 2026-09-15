@@ -295,6 +295,7 @@ class ThemeRepository(
         name: String?,
         replaces: String?,
         originalArtwork: String?,
+        previewVideoId: String?,
     ): Theme = suspendTransaction {
         val catalogItem = CatalogItemEntity.findById(id) ?: throw IllegalArgumentException("Theme $id not found")
         if (catalogItem.author?.id?.value != userId) {
@@ -311,6 +312,8 @@ class ThemeRepository(
         CatalogItemEntity.findByIdAndUpdate(id) {
             it.updatedAt = now
         }
+
+        previewVideoId?.let { catalogItemRepository.updatePreviewVideoId(id, it) }
 
         val (likesCount, bookmarksCount) = fetchAggregateStats(listOf(id))[id] ?: (0 to 0)
         themeEntityToTheme(entity, likesCount = likesCount, bookmarksCount = bookmarksCount)

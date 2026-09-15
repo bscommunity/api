@@ -232,7 +232,8 @@ class ThemePublishService(
             userId = userId,
             name = request.name,
             replaces = request.replaces,
-            originalArtwork = request.originalArtwork
+            originalArtwork = request.originalArtwork,
+            previewVideoId = request.previewVideoId
         )
     }
 }
