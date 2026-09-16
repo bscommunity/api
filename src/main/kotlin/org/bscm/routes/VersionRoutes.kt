@@ -38,8 +38,6 @@ fun Route.versionRoutes(
                  * Tag: Versions
                  *
                  * Query: ids [String] Comma-separated catalog item IDs (max 100).
-                 *   Aliases `chartIds` and `catalogItemIds` are accepted for
-                 *   backward compatibility with per-type clients.
                  *
                  * Responses:
                  *   - 200 application/json [Array] List of latest versions.
@@ -51,14 +49,6 @@ fun Route.versionRoutes(
                         ?.split(",")
                         ?.map { it.trim() }
                         ?.filter { it.isNotEmpty() }
-                        ?: call.request.queryParameters["catalogItemIds"]
-                            ?.split(",")
-                            ?.map { it.trim() }
-                            ?.filter { it.isNotEmpty() }
-                        ?: call.request.queryParameters["chartIds"]
-                            ?.split(",")
-                            ?.map { it.trim() }
-                            ?.filter { it.isNotEmpty() }
                         ?: emptyList()
 
                     if (ids.size > MAX_BATCH_IDS) {

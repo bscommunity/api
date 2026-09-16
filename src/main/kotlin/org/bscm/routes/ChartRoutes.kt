@@ -492,38 +492,6 @@ fun Route.chartRoutes(
                     call.respond(chartRepository.postAnalytics(id, type))
                 }
             }
-
-            rateLimit(RateLimitName("restricted")) {
-                /**
-                 * Returns the latest version for each of the given chart IDs.
-                 * Used by the mobile app to check for updates on installed charts.
-                 *
-                 * Deprecated: prefer `GET /versions/latest-versions?ids=...`,
-                 * which batch-fetches latest versions across all versionable
-                 * content types (charts, themes) in one round-trip. Kept for
-                 * backward compatibility.
-                 *
-                 * Tag: Charts
-                 *
-                 * Query: chartIds [String] Comma-separated chart IDs.
-                 *
-                 * Responses:
-                 *   - 200 application/json [Array] List of latest chart versions.
-                 *
-                 * Security: auth-hmac
-                 */
-                get("latest-versions") {
-                    val chartIds = call.request.queryParameters["chartIds"]
-                        ?.split(",")
-                        ?.map { it.trim() }
-                        ?.filter { it.isNotEmpty() }
-                        ?: emptyList()
-
-                    logger.info("Fetching latest versions for ${chartIds.size} chart IDs")
-
-                    call.respond(versionRepository.getLatestVersionsByCatalogItemIds(chartIds))
-                }
-            }
         }
 
         // -----------------------------------------------------------------

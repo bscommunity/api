@@ -107,13 +107,4 @@ class HMACService {
 
         return result == 0
     }
-
-    /**
-     * Legacy method for backward compatibility.
-     * Use verifyAppSignature for the new certificate-based verification.
-     */
-    @Deprecated("Use verifyAppSignature instead", ReplaceWith("constantTimeEquals(providedSignature, expectedSignature)"))
-    fun verifySignature(providedSignature: String, expectedSignature: String): Boolean {
-        return constantTimeEquals(providedSignature, expectedSignature)
-    }
 }
