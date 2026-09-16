@@ -17,6 +17,7 @@ import org.bscm.models.interfaces.IUserRepository
 import org.bscm.services.InteractionResponseService
 import org.bscm.services.publish.ChartPublishService
 import org.bscm.services.track.clients.applicationHttpClient
+import org.bscm.utils.VideoIdUtils
 import org.koin.ktor.ext.getKoin
 
 private val log = KtorSimpleLogger("PublishCommand")
@@ -166,7 +167,9 @@ object PublishCommand {
                         bundleBytes = bundleBytes,
                         overrides = ChartPublishService.Overrides(
                             isExplicit = explicitVal,
-                            previewUrl = gameplayUrl,
+                            // Discord takes a full gameplay URL; the API stores
+                            // only the raw YouTube ID (normalized in publish).
+                            previewVideoId = gameplayUrl?.let { VideoIdUtils.extractYoutubeId(it) },
                         )
                     )
                 } catch (e: Exception) {

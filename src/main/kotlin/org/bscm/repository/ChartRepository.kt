@@ -237,7 +237,7 @@ class ChartRepository(
         val catalogItem = catalogItemRepository.create(
             type = CatalogItemType.CHART,
             authorId = userId,
-            previewVideoId = null,
+            previewVideoId = chart.previewVideoId,
             catalogId = chart.catalogId,
         )
 

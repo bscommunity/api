@@ -120,8 +120,37 @@ class TrackRepository(
         duration = entity.duration,
         streamingRefs = streamingRefs,
         coverUrl = entity.album?.let { storageService.albumCoverUrl(it.id.value) } ?: "",
-        previewUrl = storageService.trackPreviewUrl(entity.id.value),
+        audioPreviewUrl = storageService.trackAudioPreviewUrl(entity.id.value),
     )
+
+    /**
+     * Idempotent track resolution that owns its transaction, mirroring
+     * [AlbumRepository.findOrCreate]. Used by the chart publish pipeline to
+     * derive the deterministic audio-preview storage key *before* the bundle
+     * metadata (`bscm.json`) is injected — the key is computable from the
+     * track ID, while the opus file itself lands later via
+     * [AudioPreviewService.publish]. Returns only the ID (never the entity)
+     * since Exposed entities must not escape their transaction.
+     */
+    suspend fun findOrCreateTrackId(
+        title: String,
+        artist: String,
+        album: AlbumEntity?,
+        isrc: String?,
+        genres: List<Genre>,
+        bpm: Int?,
+        duration: Float,
+    ): UUID = org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction {
+        findOrCreate(
+            title = title,
+            artist = artist,
+            album = album,
+            isrc = isrc,
+            genres = genres,
+            bpm = bpm,
+            duration = duration,
+        ).id.value
+    }
 
     fun toStreamingRefs(entities: List<TrackStreamingRefEntity>): List<StreamingRef> =
         entities.map {

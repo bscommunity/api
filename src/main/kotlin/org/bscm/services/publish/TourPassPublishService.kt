@@ -2,6 +2,7 @@ package org.bscm.services.publish
 
 import io.ktor.http.*
 import io.ktor.server.plugins.*
+import io.ktor.util.logging.*
 import org.bscm.models.TourPass
 import org.bscm.models.User
 import org.bscm.models.dto.tourpass.CreateTourPassRequest
@@ -17,8 +18,11 @@ import org.bscm.storage.StorageService
 import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils
 import org.bscm.utils.StreamingPlatformUtils
+import org.bscm.utils.VideoIdUtils
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
+
+private val log = KtorSimpleLogger("TourPassPublishService")
 
 class TourPassPublishService(
     private val tourPassRepository: ITourPassRepository,
@@ -85,6 +89,17 @@ class TourPassPublishService(
 
         val catalogId = NanoIdUtils.generateCatalogId()
 
+        // Single source of truth: the raw YouTube ID persists to catalog_items
+        // and the Discord trailer link is derived from it. Lenient — video is
+        // optional and must never fail a publish.
+        val previewVideoId = request.previewVideoId?.let { raw ->
+            VideoIdUtils.extractYoutubeId(raw) ?: run {
+                log.warn("Ignoring unparseable previewVideoId: $raw")
+                null
+            }
+        }
+        val trailerUrl = previewVideoId?.let { "https://www.youtube.com/watch?v=$it" }
+
         // Upload cover to storage if raw bytes were provided
         if (coverBytes != null) {
             emitEvent(PublishStep.UPLOADING_COVER, "Uploading tour pass cover")
@@ -132,7 +147,7 @@ class TourPassPublishService(
             durationSeconds = charts.sumOf { it.track.duration.toInt() },
             tracksAmount = charts.size,
             difficultyLabel = difficultyLabel,
-            trailerUrl = request.previewUrl,
+            trailerUrl = trailerUrl,
             tracklist = tracklist,
         )
 
@@ -152,6 +167,7 @@ class TourPassPublishService(
                     chartIds = chartIds,
                     id = catalogId,
                     contributors = request.contributors,
+                    previewVideoId = previewVideoId,
                 )
 
                 tourPassRepository.updateDiscordCoordinates(
@@ -213,8 +229,8 @@ class TourPassPublishService(
             storageService.uploadTourPassCover(id, avifBytes)
         }
 
-        // val normalizedPlaylistUrls = request.playlistUrls?.let { StreamingPlatformUtils.processLinksWithPrioritization(it) }
-
+        // Updates don't re-publish the Discord message (no trailer to refresh);
+        // request.previewVideoId still persists to catalog_items.
         return tourPassRepository.updateTourPass(
             id = id,
             userId = userId,

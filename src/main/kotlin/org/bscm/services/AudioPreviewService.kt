@@ -37,7 +37,7 @@ class AudioPreviewService(
 
             storageService.uploadTrackPreview(trackId, opusBytes)
 
-            storageService.trackPreviewUrl(trackId).also {
+            storageService.trackAudioPreviewUrl(trackId).also {
                 log.info("Published preview for track $trackId: $it")
             }
         } catch (e: Exception) {

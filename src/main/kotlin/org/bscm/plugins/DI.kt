@@ -196,6 +196,7 @@ fun mainModule(config: ApplicationConfig) = module {
             activityRepository = get(),
             publishEventService = get(),
             albumRepository = get(),
+            trackRepository = get(),
             userRepository = get(),
             avatarService = get(),
         )

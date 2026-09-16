@@ -25,6 +25,7 @@ interface ITourPassRepository {
         chartIds: List<String>? = null,
         id: String? = null,
         contributors: List<SimplifiedContributor> = emptyList(),
+        previewVideoId: String? = null,
     ): TourPass
 
     suspend fun updateTourPass(

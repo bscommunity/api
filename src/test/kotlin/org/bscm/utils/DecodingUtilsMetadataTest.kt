@@ -70,6 +70,63 @@ class DecodingUtilsMetadataTest {
     }
 
     @Test
+    fun `chart metadata embeds audio preview key and video id`() {
+        val json = DecodingUtils.ChartMetadata(
+            catalogId = "abc123",
+            track = "Track",
+            artist = "Artist",
+            difficulty = 1,
+            isDeluxe = false,
+            isExplicit = false,
+            bpm = 120,
+            duration = 187f,
+            notes = 512,
+            effects = 64,
+            contributors = contributors,
+            coverId = "cover-id",
+            audioPreviewKey = "tracks/track-id/preview.opus",
+            previewVideoId = "dQw4w9WgXcQ",
+        ).toJson()
+
+        assertTrue(json.contains("\"audioPreviewKey\": \"tracks/track-id/preview.opus\""), "audio key missing:\n$json")
+        assertTrue(json.contains("\"previewVideoId\": \"dQw4w9WgXcQ\""), "video id missing:\n$json")
+    }
+
+    @Test
+    fun `chart metadata omits previews as null when unset`() {
+        val json = DecodingUtils.ChartMetadata(
+            catalogId = "abc123",
+            track = "Track",
+            artist = "Artist",
+            difficulty = 1,
+            isDeluxe = false,
+            isExplicit = false,
+            bpm = 120,
+            duration = 187f,
+            notes = 512,
+            effects = 64,
+            contributors = contributors,
+            coverId = "cover-id",
+        ).toJson()
+
+        assertTrue(json.contains("\"audioPreviewKey\": null"), "audio key should be null:\n$json")
+        assertTrue(json.contains("\"previewVideoId\": null"), "video id should be null:\n$json")
+    }
+
+    @Test
+    fun `theme metadata embeds video id`() {
+        val json = DecodingUtils.ThemeMetadata(
+            catalogId = "abc123",
+            name = "Theme",
+            replaces = "replaces-id",
+            contributors = contributors,
+            previewVideoId = "dQw4w9WgXcQ",
+        ).toJson()
+
+        assertTrue(json.contains("\"previewVideoId\": \"dQw4w9WgXcQ\""), "video id missing:\n$json")
+    }
+
+    @Test
     fun `chart bundle carries fixed bscm_json manifest`() {
         val metadata = DecodingUtils.ChartMetadata(
             catalogId = "abc123",

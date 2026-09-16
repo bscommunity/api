@@ -27,19 +27,19 @@ class StorageService(
 
     // ── Tracks ──────────────────────────────────────────────────────────
 
-    fun trackPreviewUrl(trackId: UUID): String = publicUrl(StoragePaths.trackPreview(trackId))
+    fun trackAudioPreviewUrl(trackId: UUID): String = publicUrl(StoragePaths.trackAudioPreview(trackId))
 
     suspend fun downloadTrackPreview(trackId: UUID): ByteArray =
-        adapter.getObject(publicBucket, StoragePaths.trackPreview(trackId))
+        adapter.getObject(publicBucket, StoragePaths.trackAudioPreview(trackId))
 
     suspend fun deleteTrackPreview(trackId: UUID) {
-        adapter.deleteObject(publicBucket, StoragePaths.trackPreview(trackId))
+        adapter.deleteObject(publicBucket, StoragePaths.trackAudioPreview(trackId))
     }
 
     suspend fun uploadTrackPreview(trackId: UUID, bytes: ByteArray) {
         adapter.putObject(
             bucket = publicBucket,
-            path = StoragePaths.trackPreview(trackId),
+            path = StoragePaths.trackAudioPreview(trackId),
             bytes = bytes,
             contentType = StorageContentTypes.AUDIO_OPUS,
         )

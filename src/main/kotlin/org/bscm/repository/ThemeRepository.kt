@@ -248,6 +248,7 @@ class ThemeRepository(
         originalArtwork: String?,
         id: String?,
         contributors: List<SimplifiedContributor>,
+        previewVideoId: String?,
     ): Theme = suspendTransaction {
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val catalogItem = if (id != null) {
@@ -255,6 +256,7 @@ class ThemeRepository(
                 this.type = CatalogItemType.THEME
                 this.status = CatalogItemStatus.PUBLISHED
                 this.publishedAt = now
+                this.previewVideoId = previewVideoId
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }
@@ -263,6 +265,7 @@ class ThemeRepository(
                 this.type = CatalogItemType.THEME
                 this.status = CatalogItemStatus.PUBLISHED
                 this.publishedAt = now
+                this.previewVideoId = previewVideoId
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }

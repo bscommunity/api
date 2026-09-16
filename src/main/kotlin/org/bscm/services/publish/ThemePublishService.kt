@@ -2,6 +2,7 @@ package org.bscm.services.publish
 
 import io.ktor.http.*
 import io.ktor.server.plugins.*
+import io.ktor.util.logging.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -22,9 +23,12 @@ import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
 import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils
+import org.bscm.utils.VideoIdUtils
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.security.MessageDigest
 import java.util.*
+
+private val log = KtorSimpleLogger("ThemePublishService")
 
 class ThemePublishService(
     private val themeRepository: IThemeRepository,
@@ -78,6 +82,15 @@ class ThemePublishService(
 
         val catalogId = NanoIdUtils.generateCatalogId()
 
+        // Normalize to a raw YouTube ID before anything is persisted or
+        // embedded. Lenient: video is optional and must never fail a publish.
+        val previewVideoId = request.previewVideoId?.let { raw ->
+            VideoIdUtils.extractYoutubeId(raw) ?: run {
+                log.warn("Ignoring unparseable previewVideoId: $raw")
+                null
+            }
+        }
+
         emitEvent(PublishStep.UPLOADING_COVER, "Uploading theme artwork")
 
         // Hoisted to locals so the concurrent uploads below need no casts.
@@ -121,6 +134,7 @@ class ThemePublishService(
             name = request.name,
             replaces = request.replaces,
             contributors = metadataContributors,
+            previewVideoId = previewVideoId,
         )
         val enrichedBundleBytes = DecodingUtils.injectMetadata(assets.bundleBytes, themeMetadata)
 
@@ -154,6 +168,7 @@ class ThemePublishService(
                     originalArtwork = request.originalArtwork,
                     id = catalogId,
                     contributors = request.contributors,
+                    previewVideoId = previewVideoId,
                 )
 
                 themeRepository.updateDiscordCoordinates(

@@ -563,7 +563,8 @@ fun Route.chartRoutes(
                         bundleBytes = bundleFileBytes,
                         overrides = ChartPublishService.Overrides(
                             isExplicit = overrides?.isExplicit,
-                            previewUrl = overrides?.previewUrl,
+                            audioPreviewUrl = overrides?.audioPreviewUrl,
+                            previewVideoId = overrides?.previewVideoId,
                             contributors = overrides?.contributors,
                         ),
                         publishSessionId = publishSessionId,

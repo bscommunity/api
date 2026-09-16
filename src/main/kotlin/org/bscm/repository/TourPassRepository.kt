@@ -254,6 +254,7 @@ class TourPassRepository(
         chartIds: List<String>?,
         id: String?,
         contributors: List<SimplifiedContributor>,
+        previewVideoId: String?,
     ): TourPass = suspendTransaction {
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         val catalogItem = if (id != null) {
@@ -261,6 +262,7 @@ class TourPassRepository(
                 this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
                 this.publishedAt = now
+                this.previewVideoId = previewVideoId
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }
@@ -269,6 +271,7 @@ class TourPassRepository(
                 this.type = CatalogItemType.TOUR_PASS
                 this.status = CatalogItemStatus.PUBLISHED
                 this.publishedAt = now
+                this.previewVideoId = previewVideoId
                 this.author = UserEntity[userId]
                 this.updatedAt = now
             }

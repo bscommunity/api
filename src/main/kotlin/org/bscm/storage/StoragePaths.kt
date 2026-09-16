@@ -5,7 +5,7 @@ import java.util.*
 object StoragePaths {
     fun albumCover(albumId: UUID): String = "albums/$albumId/cover.avif"
 
-    fun trackPreview(trackId: UUID): String = "tracks/$trackId/preview.opus"
+    fun trackAudioPreview(trackId: UUID): String = "tracks/$trackId/preview.opus"
 
     fun themeCover(themeId: String): String = "themes/$themeId/cover.avif"
 

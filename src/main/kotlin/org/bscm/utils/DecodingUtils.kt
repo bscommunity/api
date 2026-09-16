@@ -205,6 +205,15 @@ object DecodingUtils {
         val effects: Int,
         val contributors: List<MetadataContributor>,
         val coverId: String,
+        /**
+         * Storage key of the track audio preview
+         * (e.g. `tracks/<trackId>/preview.opus`), resolved client-side like
+         * `cover`/`avatarKey` — never a full URL, so old bundles survive CDN
+         * base-URL changes. Null when no preview exists yet.
+         */
+        val audioPreviewKey: String? = null,
+        /** YouTube video ID (`catalog_items.preview_video_id`). Null when unset. */
+        val previewVideoId: String? = null,
     ) : MetadataBundle {
         override val manifestFileName = "bscm.json"
         override fun toJson(): String {
@@ -222,6 +231,8 @@ object DecodingUtils {
             sb.appendLine("  \"duration\": $duration,")
             sb.appendLine("  \"notes\": $notes,")
             sb.appendLine("  \"effects\": $effects,")
+            sb.appendLine("  \"audioPreviewKey\": ${audioPreviewKey?.let { "\"${it.escapeJson()}\"" } ?: "null"},")
+            sb.appendLine("  \"previewVideoId\": ${previewVideoId?.let { "\"${it.escapeJson()}\"" } ?: "null"},")
             sb.append("  \"contributors\": [")
             contributors.forEachIndexed { i, c ->
                 val comma = if (i < contributors.lastIndex) "," else ""
@@ -241,6 +252,8 @@ object DecodingUtils {
         val name: String,
         val replaces: String,
         val contributors: List<MetadataContributor>,
+        /** YouTube video ID (`catalog_items.preview_video_id`). Null when unset. */
+        val previewVideoId: String? = null,
     ) : MetadataBundle {
         override val manifestFileName get() = "bscm_${catalogId}.json"
         override fun toJson(): String {
@@ -250,6 +263,7 @@ object DecodingUtils {
             sb.appendLine("  \"catalog\": \"${catalogId.escapeJson()}\",")
             sb.appendLine("  \"name\": \"${name.escapeJson()}\",")
             sb.appendLine("  \"replaces\": \"${replaces.escapeJson()}\",")
+            sb.appendLine("  \"previewVideoId\": ${previewVideoId?.let { "\"${it.escapeJson()}\"" } ?: "null"},")
             sb.append("  \"contributors\": [")
             contributors.forEachIndexed { i, c ->
                 val comma = if (i < contributors.lastIndex) "," else ""

@@ -23,6 +23,7 @@ interface IThemeRepository {
         originalArtwork: String?,
         id: String?,
         contributors: List<SimplifiedContributor> = emptyList(),
+        previewVideoId: String? = null,
     ): Theme
 
     suspend fun updateTheme(

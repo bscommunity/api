@@ -23,15 +23,18 @@ import org.bscm.models.interfaces.IUserRepository
 import org.bscm.plugins.ConflictException
 import org.bscm.protobuf.ChartParser
 import org.bscm.repository.AlbumRepository
+import org.bscm.repository.TrackRepository
 import org.bscm.services.AudioPreviewService
 import org.bscm.services.AvatarService
 import org.bscm.services.UploadService
 import org.bscm.services.track.TrackInfoService
 import org.bscm.services.track.clients.applicationHttpClient
+import org.bscm.storage.StoragePaths
 import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
 import org.bscm.utils.MediaConverter
 import org.bscm.utils.NanoIdUtils
+import org.bscm.utils.VideoIdUtils
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.security.MessageDigest
 import java.util.*
@@ -48,6 +51,7 @@ class ChartPublishService(
     private val activityRepository: IActivityRepository,
     private val publishEventService: PublishEventService,
     private val albumRepository: AlbumRepository,
+    private val trackRepository: TrackRepository,
     private val userRepository: IUserRepository,
     private val avatarService: AvatarService,
 ) {
@@ -61,7 +65,8 @@ class ChartPublishService(
         val track: String? = null,
         val artist: String? = null,
         val isExplicit: Boolean? = null,
-        val previewUrl: String? = null,
+        val audioPreviewUrl: String? = null,
+        val previewVideoId: String? = null,
         val coverUrl: String? = null,
         val bpm: Int? = null,
         val isDeluxe: Boolean? = null,
@@ -226,6 +231,38 @@ class ChartPublishService(
         val isDeluxe = overrides.isDeluxe ?: (bundleInfo?.type?.equals("Promode", ignoreCase = true) ?: false)
         val isExplicit = overrides.isExplicit ?: mediaInfo?.isExplicit ?: false
 
+        // Normalize to a raw YouTube ID (dashboard sends IDs, Discord may send
+        // full URLs). Unparseable input degrades to null with a warning — video
+        // is optional and must never break a publish.
+        val previewVideoId = overrides.previewVideoId?.let { raw ->
+            VideoIdUtils.extractYoutubeId(raw) ?: run {
+                log.warn("Ignoring unparseable previewVideoId override: $raw")
+                null
+            }
+        }
+
+        // Pre-resolve the track so the bundle metadata can embed the
+        // deterministic audio-preview storage key. findOrCreate is idempotent:
+        // createChart below resolves the same row again. The opus file itself
+        // still lands later via audioPreviewService.publish — same pattern as
+        // the cover URL, which is computable before the upload lands.
+        val resolvedGenres = (overrides.genres ?: mediaInfo?.genres).orEmpty()
+        val audioPreviewKey = runCatching {
+            val trackId = trackRepository.findOrCreateTrackId(
+                title = mediaInfo?.track ?: trackName,
+                artist = mediaInfo?.artist ?: artistName,
+                album = albumEntity,
+                isrc = resolvedIsrc,
+                genres = resolvedGenres,
+                bpm = bpm,
+                duration = computedStats.duration,
+            )
+            StoragePaths.trackAudioPreview(trackId)
+        }.getOrElse { e ->
+            log.warn("Failed to pre-resolve track for audio preview key: ${e.message}")
+            null
+        }
+
         val createForDb = CreateChartRequest(
             artist = mediaInfo?.artist ?: artistName,
             track = mediaInfo?.track ?: trackName,
@@ -233,7 +270,7 @@ class ChartPublishService(
             albumId = albumEntity.id.value,
             trackUrls = streamingLinks,
             coverUrl = storageService.albumCoverUrl(albumEntity.id.value),
-            genres = (overrides.genres ?: mediaInfo?.genres).orEmpty(),
+            genres = resolvedGenres,
             isExplicit = isExplicit,
             duration = computedStats.duration,
             notesAmount = computedStats.notesAmount,
@@ -243,7 +280,8 @@ class ChartPublishService(
             isDeluxe = isDeluxe,
             fileSizeBytes = bundleBytes.size.toLong(),
             bundleHash = bundleHash,
-            previewUrl = overrides.previewUrl,
+            audioPreviewUrl = overrides.audioPreviewUrl,
+            previewVideoId = previewVideoId,
             catalogId = catalogId,
             isrc = resolvedIsrc,
             contributors = overrides.contributors.orEmpty(),
@@ -275,6 +313,8 @@ class ChartPublishService(
             notes = computedStats.notesAmount,
             effects = computedStats.effectsAmount,
             contributors = metadataContributors,
+            audioPreviewKey = audioPreviewKey,
+            previewVideoId = previewVideoId,
         )
         val enrichedBundleBytes = DecodingUtils.injectMetadata(bundleBytes, chartMetadata)
 

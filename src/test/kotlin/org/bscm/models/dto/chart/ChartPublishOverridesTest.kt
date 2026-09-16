@@ -27,8 +27,8 @@ class ChartPublishOverridesTest {
           "track": "Track Title",
           "album": null,
           "trackUrls": [],
-          "previewUrl": null,
-          "trackPreviewUrl": null,
+          "audioPreviewUrl": null,
+          "previewVideoId": null,
           "coverUrl": null,
           "genre": null,
           "isExplicit": true,
@@ -50,7 +50,8 @@ class ChartPublishOverridesTest {
         val overrides = jsonClient.decodeFromString<ChartPublishOverrides>(websitePayload)
 
         assertEquals(true, overrides.isExplicit)
-        assertNull(overrides.previewUrl)
+        assertNull(overrides.audioPreviewUrl)
+        assertNull(overrides.previewVideoId)
         assertEquals(2, overrides.contributors.size)
         assertEquals(
             UUID.fromString("123e4567-e89b-12d3-a456-426614174000"),
@@ -75,6 +76,16 @@ class ChartPublishOverridesTest {
 
         assertEquals(emptyList(), overrides.contributors)
         assertNull(overrides.isExplicit)
-        assertNull(overrides.previewUrl)
+        assertNull(overrides.audioPreviewUrl)
+        assertNull(overrides.previewVideoId)
+    }
+
+    @Test
+    fun `preview video id override decodes`() {
+        val overrides = jsonClient.decodeFromString<ChartPublishOverrides>(
+            """{"previewVideoId": "dQw4w9WgXcQ"}"""
+        )
+
+        assertEquals("dQw4w9WgXcQ", overrides.previewVideoId)
     }
 }

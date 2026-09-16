@@ -23,5 +23,5 @@ data class Track(
     val duration: Float,
     val streamingRefs: List<StreamingRef> = emptyList(),
     val coverUrl: String? = null,
-    val previewUrl: String? = null,
+    val audioPreviewUrl: String? = null,
 )
