@@ -1,1 +1,0 @@
-ALTER TABLE themes DROP COLUMN IF EXISTS preview_url;

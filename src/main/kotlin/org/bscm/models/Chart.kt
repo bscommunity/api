@@ -29,7 +29,7 @@ data class Chart(
     val likesCount: Int = 0,
     val bookmarksCount: Int = 0,
 
-    override val contributors: List<Contributor>,
+    override val contributors: List<ContributorWithRoles>,
 
     override val createdAt: LocalDateTime,
     override val publishedAt: LocalDateTime?,

@@ -68,4 +68,56 @@ class DecodingUtilsMetadataTest {
         assertTrue(json.contains("\"username\": \"charterUser\""), "charter missing:\n$json")
         assertTrue(json.contains("\"username\": \"audioUser\""), "audio contributor missing:\n$json")
     }
+
+    @Test
+    fun `chart bundle carries fixed bscm_json manifest`() {
+        val metadata = DecodingUtils.ChartMetadata(
+            catalogId = "abc123",
+            track = "Track",
+            artist = "Artist",
+            difficulty = 1,
+            isDeluxe = false,
+            isExplicit = false,
+            bpm = 120,
+            duration = 187f,
+            notes = 512,
+            effects = 64,
+            contributors = contributors,
+            coverId = "cover-id",
+        )
+
+        val entries = zipEntryNames(DecodingUtils.injectMetadata(emptyZip(), metadata))
+
+        assertTrue(entries.contains("bscm.json"), "chart manifest entry missing: $entries")
+    }
+
+    @Test
+    fun `theme bundle carries per-id manifest`() {
+        val metadata = DecodingUtils.ThemeMetadata(
+            catalogId = "abc123",
+            name = "Theme",
+            replaces = "replaces-id",
+            contributors = contributors,
+        )
+
+        val entries = zipEntryNames(DecodingUtils.injectMetadata(emptyZip(), metadata))
+
+        assertTrue(entries.contains("bscm_abc123.json"), "theme manifest entry missing: $entries")
+    }
+
+    private fun emptyZip(): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(out).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("info.json"))
+            zip.write("{}".toByteArray())
+            zip.closeEntry()
+        }
+        return out.toByteArray()
+    }
+
+    private fun zipEntryNames(zipBytes: ByteArray): List<String> {
+        java.util.zip.ZipInputStream(zipBytes.inputStream()).use { zip ->
+            return generateSequence { zip.nextEntry }.map { it.name }.toList()
+        }
+    }
 }

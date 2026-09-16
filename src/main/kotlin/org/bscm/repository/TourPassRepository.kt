@@ -4,7 +4,7 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bscm.models.Chart
-import org.bscm.models.Contributor
+import org.bscm.models.ContributorWithRoles
 import org.bscm.models.StreamingRef
 import org.bscm.models.TourPass
 import org.bscm.models.dao.CatalogItemEntity
@@ -78,7 +78,7 @@ class TourPassRepository(
         bookmarksCount: Int,
         likedAt: LocalDateTime? = null,
         bookmarkedAt: LocalDateTime? = null,
-        contributors: List<Contributor>,
+        contributors: List<ContributorWithRoles>,
     ): TourPass {
         return TourPass(
             name = entity.name,

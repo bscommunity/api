@@ -1,6 +1,6 @@
 package org.bscm.repository
 
-import org.bscm.models.Contributor
+import org.bscm.models.ContributorWithRoles
 import org.bscm.models.dao.CatalogItemEntity
 import org.bscm.models.dao.ContributorEntity
 import org.bscm.models.dao.UserEntity
@@ -11,11 +11,8 @@ import org.bscm.models.interfaces.IContributorRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ContributorTable
 import org.bscm.models.tables.UserTable
-import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
@@ -23,10 +20,11 @@ import java.util.*
 class ContributorRepository : IContributorRepository {
     companion object {
         /**
-         * Batch-fetches contributors (with their users) for multiple catalog items.
+         * Batch-fetches contributors (with their users) for multiple catalog items,
+         * grouped to one entry per user with all their roles.
          * Returns a map of catalogId -> contributors. Must be called within a transaction.
          */
-        fun fetchContributorsByCatalogIds(catalogIds: List<String>): Map<String, List<Contributor>> {
+        fun fetchContributorsByCatalogIds(catalogIds: List<String>): Map<String, List<ContributorWithRoles>> {
             if (catalogIds.isEmpty()) return emptyMap()
 
             val entityIds = catalogIds.map { EntityID(it, CatalogItemTable) }
@@ -38,59 +36,56 @@ class ContributorRepository : IContributorRepository {
 
             return rows.groupBy { it[ContributorTable.catalogItemId].value }
                 .mapValues { (_, contributorRows) ->
-                    contributorRows.map { row ->
-                        contributorEntityToContributor(
-                            row[ContributorTable.catalogItemId].value,
-                            ContributorEntity.wrapRow(row),
-                            UserEntity.wrapRow(row),
-                        )
-                    }
+                    groupRows(contributorRows)
                 }
         }
 
-        fun contributorEntityToContributor(entity: ContributorEntity): Contributor {
-            return Contributor(
-                user = SimplifiedUser(
-                    id = entity.user.id.value,
-                    username = entity.user.username,
-                    avatarUrl = entity.user.avatarUrl,
-                    bannerUrl = entity.user.bannerUrl,
-                    isVerified = entity.user.isVerified,
-                    bio = entity.user.bio,
-                    accentColor = entity.user.accentColor,
-                ),
-                catalogItemId = entity.catalogItem.id.value,
-                role = entity.role,
-                note = entity.note,
-                joinedAt = entity.joinedAt,
+        private fun toSimplifiedUser(user: UserEntity): SimplifiedUser {
+            return SimplifiedUser(
+                id = user.id.value,
+                username = user.username,
+                avatarUrl = user.avatarUrl,
+                bannerUrl = user.bannerUrl,
+                isVerified = user.isVerified,
+                bio = user.bio,
+                accentColor = user.accentColor,
             )
         }
 
-        // catalogItemId passed explicitly — avoids a lazy catalogItem reference lookup per contributor
-        fun contributorEntityToContributor(
-            catalogItemId: String,
-            entity: ContributorEntity,
-            user: UserEntity,
-        ): Contributor {
-            return Contributor(
-                user = SimplifiedUser(
-                    id = user.id.value,
-                    username = user.username,
-                    avatarUrl = user.avatarUrl,
-                    bannerUrl = user.bannerUrl,
-                    isVerified = user.isVerified,
-                    bio = user.bio,
-                    accentColor = user.accentColor,
-                ),
-                catalogItemId = catalogItemId,
-                role = entity.role,
-                note = entity.note,
-                joinedAt = entity.joinedAt,
-            )
+        /**
+         * Groups raw joined rows (same catalog item) into one entry per user.
+         * Roles are sorted by enum id for a stable order; joinedAt is the earliest
+         * row; note is the first non-null note, if any.
+         */
+        private fun groupRows(rows: List<ResultRow>): List<ContributorWithRoles> {
+            return rows.groupBy { it[ContributorTable.userId].value }.map { (_, userRows) ->
+                val first = userRows.first()
+                val catalogItemId = first[ContributorTable.catalogItemId].value
+                val user = toSimplifiedUser(UserEntity.wrapRow(first))
+                val roles = userRows.map { ContributorEntity.wrapRow(it).role }.distinct()
+                    .sortedBy { it.id }
+                ContributorWithRoles(
+                    user = user,
+                    catalogItemId = catalogItemId,
+                    roles = roles,
+                    note = userRows.mapNotNull { it.getOrNull(ContributorTable.note) }.firstOrNull(),
+                    joinedAt = userRows.minOf { it[ContributorTable.joinedAt] },
+                )
+            }.sortedWith(compareBy({ it.joinedAt }, { it.user.username }))
         }
 
-        fun contributorEntityToContributor(entity: ContributorEntity, user: UserEntity): Contributor {
-            return contributorEntityToContributor(entity.catalogItem.id.value, entity, user)
+        private fun groupEntities(catalogItemId: String, entities: List<ContributorEntity>): List<ContributorWithRoles> {
+            return entities.groupBy { it.user.id.value }.map { (_, userEntities) ->
+                val first = userEntities.first()
+                val roles = userEntities.map { it.role }.distinct().sortedBy { it.id }
+                ContributorWithRoles(
+                    user = toSimplifiedUser(first.user),
+                    catalogItemId = catalogItemId,
+                    roles = roles,
+                    note = userEntities.mapNotNull { it.note }.firstOrNull(),
+                    joinedAt = userEntities.minOf { it.joinedAt },
+                )
+            }.sortedWith(compareBy({ it.joinedAt }, { it.user.username }))
         }
 
         /**
@@ -152,11 +147,13 @@ class ContributorRepository : IContributorRepository {
         }
     }
 
-    override suspend fun addContributors(catalogItemId: String, contributors: List<SimplifiedContributor>): List<Contributor> = suspendTransaction {
+    override suspend fun addContributors(catalogItemId: String, contributors: List<SimplifiedContributor>): List<ContributorWithRoles> = suspendTransaction {
         CatalogItemEntity.findById(catalogItemId) ?: throw IllegalArgumentException("CatalogItem not found")
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
 
-        val contributorEntities = contributors.map { contributor ->
+        val affectedUserIds = contributors.map { it.userId }.distinct()
+
+        contributors.distinctBy { it.userId to it.role }.forEach { contributor ->
             UserEntity.findById(contributor.userId) ?: throw IllegalArgumentException("User not found")
 
             val existing = ContributorEntity.find {
@@ -165,19 +162,21 @@ class ContributorRepository : IContributorRepository {
                     (ContributorTable.role eq contributor.role)
             }.singleOrNull()
 
-            if (existing != null) {
-                contributorEntityToContributor(existing)
-            } else {
-                val newContributor = ContributorEntity.new {
+            if (existing == null) {
+                ContributorEntity.new {
                     this.catalogItem = CatalogItemEntity[catalogItemId]
                     this.user = UserEntity[contributor.userId]
                     this.role = contributor.role
                 }
-                contributorEntityToContributor(newContributor)
             }
         }
 
-        contributorEntities
+        val entities = ContributorEntity.find {
+            (ContributorTable.catalogItemId eq catalogItemEntityId) and
+                (ContributorTable.userId inList affectedUserIds)
+        }.toList()
+
+        groupEntities(catalogItemId, entities)
     }
 
     override suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole?): Boolean = suspendTransaction {
@@ -208,7 +207,7 @@ class ContributorRepository : IContributorRepository {
         catalogItemId: String,
         userId: UUID,
         roles: List<ContributorRole>
-    ): List<Contributor> = suspendTransaction {
+    ): List<ContributorWithRoles> = suspendTransaction {
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
 
         // Remove all existing roles for this user on this catalog item
@@ -220,19 +219,19 @@ class ContributorRepository : IContributorRepository {
         // Add the new roles
         val userEntity = UserEntity.findById(userId) ?: throw IllegalArgumentException("User not found")
 
-        roles.map { role ->
-            val newEntity = ContributorEntity.new {
+        val newEntities = roles.distinct().map { role ->
+            ContributorEntity.new {
                 this.catalogItem = CatalogItemEntity[catalogItemId]
                 this.user = userEntity
                 this.role = role
             }
-            contributorEntityToContributor(newEntity, userEntity)
         }
+        groupEntities(catalogItemId, newEntities)
     }
 
-    override suspend fun getContributors(catalogItemId: String): List<Contributor> = suspendTransaction {
+    override suspend fun getContributors(catalogItemId: String): List<ContributorWithRoles> = suspendTransaction {
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
-        ContributorEntity.find { ContributorTable.catalogItemId eq catalogItemEntityId }
-            .map { contributorEntityToContributor(it) }
+        val entities = ContributorEntity.find { ContributorTable.catalogItemId eq catalogItemEntityId }.toList()
+        groupEntities(catalogItemId, entities)
     }
 }

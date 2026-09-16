@@ -27,7 +27,7 @@ sealed interface CatalogItem {
 
     val downloadsSum: Int
 
-    val contributors: List<Contributor>
+    val contributors: List<ContributorWithRoles>
 
     val createdAt: LocalDateTime
     val publishedAt: LocalDateTime?

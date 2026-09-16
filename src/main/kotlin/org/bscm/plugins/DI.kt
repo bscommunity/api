@@ -83,8 +83,12 @@ fun mainModule(config: ApplicationConfig) = module {
     // Repositories
     single {
         val assetsConfig = config.config("assets")
-        val publicBucket = assetsConfig.propertyOrNull("publicBucket")?.getString() ?: "public"
-        val publicBaseUrl = assetsConfig.propertyOrNull("publicBaseUrl")?.getString() ?: "https://bscm-assets.s3.amazonaws.com"
+        val publicBucket = assetsConfig.propertyOrNull("publicBucket")?.getString()
+        val publicBaseUrl = assetsConfig.propertyOrNull("publicBaseUrl")?.getString()
+
+        if (publicBucket == null || publicBaseUrl == null) {
+            throw IllegalStateException("Missing required assets configuration: publicBucket and publicBaseUrl must be set")
+        }
 
         val adapter = if (assetsConfig.propertyOrNull("s3.endpoint") != null &&
             assetsConfig.propertyOrNull("s3.accessKey") != null &&

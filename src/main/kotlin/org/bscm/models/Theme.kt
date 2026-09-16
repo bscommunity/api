@@ -23,7 +23,7 @@ data class Theme(
     val displayArtUrl: String,
     val originalArtwork: String? = null,
 
-    override val contributors: List<Contributor> = emptyList(),
+    override val contributors: List<ContributorWithRoles> = emptyList(),
 
     val likesCount: Int = 0,
     val bookmarksCount: Int = 0,

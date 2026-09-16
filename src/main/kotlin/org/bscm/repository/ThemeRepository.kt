@@ -3,7 +3,7 @@ package org.bscm.repository
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import org.bscm.models.Contributor
+import org.bscm.models.ContributorWithRoles
 import org.bscm.models.Theme
 import org.bscm.models.Version
 import org.bscm.models.dao.CatalogItemEntity
@@ -73,7 +73,7 @@ class ThemeRepository(
         likesCount: Int = 0,
         bookmarksCount: Int = 0,
         catalogRow: ResultRow? = null,
-        contributors: List<Contributor> = emptyList(),
+        contributors: List<ContributorWithRoles> = emptyList(),
         versions: List<Version> = emptyList(),
     ): Theme {
         val id = entity.id.value

@@ -206,6 +206,7 @@ class TourPassPublishService(
         userId: UUID,
         request: UpdateTourPassRequest,
         coverBytes: ByteArray?,
+        coverContentType: ContentType?,
     ): TourPass {
         if (coverBytes != null) {
             val avifBytes = MediaConverter.convertToAvif(coverBytes) ?: coverBytes

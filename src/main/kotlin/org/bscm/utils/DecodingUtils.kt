@@ -172,7 +172,16 @@ object DecodingUtils {
     )
 
     interface MetadataBundle {
-        val id: String
+        /**
+         * File name of the injected manifest entry inside the bundle zip.
+         *
+         * Charts extract to an isolated `songs/bscm_<id>` folder, so a fixed
+         * `bscm.json` can never collide. Themes are copied file-by-file into
+         * the flat shared `streamedimages` folder, so they keep the
+         * per-id `bscm_<id>.json` name (absorbed into the root manifest by
+         * the app instead of being copied).
+         */
+        val manifestFileName: String
         fun toJson(): String
     }
 
@@ -191,7 +200,7 @@ object DecodingUtils {
         val contributors: List<MetadataContributor>,
         val coverId: String,
     ) : MetadataBundle {
-        override val id = catalogId
+        override val manifestFileName = "bscm.json"
         override fun toJson(): String {
             val sb = StringBuilder()
             sb.appendLine("{")
@@ -227,7 +236,7 @@ object DecodingUtils {
         val replaces: String,
         val contributors: List<MetadataContributor>,
     ) : MetadataBundle {
-        override val id = catalogId
+        override val manifestFileName get() = "bscm_${catalogId}.json"
         override fun toJson(): String {
             val sb = StringBuilder()
             sb.appendLine("{")
@@ -256,7 +265,7 @@ object DecodingUtils {
         .replace("\t", "\\t")
 
     /**
-     * Injects a `bscm.json` file into the zip bundle.
+     * Injects the bundle metadata file into the zip bundle.
      * Returns modified zip bytes with the new entry added.
      */
     fun injectMetadata(zipBytes: ByteArray, metadata: MetadataBundle): ByteArray {
@@ -276,8 +285,9 @@ object DecodingUtils {
                     zipOut.closeArchiveEntry()
                 }
 
-                // Add bscm.json
-                val bscmEntry = ZipArchiveEntry("bscm_${metadata.id}.json")
+                // Add the manifest entry (`bscm.json` for charts,
+                // `bscm_<id>.json` for themes — see `manifestFileName`).
+                val bscmEntry = ZipArchiveEntry(metadata.manifestFileName)
                 bscmEntry.size = metadataJson.size.toLong()
                 zipOut.putArchiveEntry(bscmEntry)
                 zipOut.write(metadataJson)

@@ -2,7 +2,7 @@ package org.bscm.repository
 
 import kotlinx.datetime.LocalDateTime
 import org.bscm.models.Chart
-import org.bscm.models.Contributor
+import org.bscm.models.ContributorWithRoles
 import org.bscm.models.StreamingRef
 import org.bscm.models.Version
 import org.bscm.models.dao.*
@@ -26,7 +26,7 @@ class ChartResultAssembler(
         val chart: ChartEntity,
         val catalogItem: CatalogItemEntity,
         val track: TrackEntity,
-        val contributors: List<Contributor>,
+        val contributors: List<ContributorWithRoles>,
         val streamingRefs: List<StreamingRef>,
         val latestVersion: VersionEntity? = null,
         val versionsCount: Int = 0,

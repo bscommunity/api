@@ -22,7 +22,7 @@ data class TourPass(
     val charts: List<Chart>,
     val coverUrl: String? = null,
 
-    override val contributors: List<Contributor> = emptyList(),
+    override val contributors: List<ContributorWithRoles> = emptyList(),
 
     override val createdAt: LocalDateTime,
     override val publishedAt: LocalDateTime?,
