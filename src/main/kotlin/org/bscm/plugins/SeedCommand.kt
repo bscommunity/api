@@ -227,7 +227,7 @@ private suspend fun createSeedCharts(
 
                     // Contributors (1-3)
                     val contribs = userIds.filter { it != ownerId }.shuffled().take(Random.nextInt(1, 4))
-                    contributorRepo.addContributors(chart.id, contribs.map { SimplifiedContributor(it, roles.random()) })
+                    contributorRepo.addContributors(chart.id, contribs.map { SimplifiedContributor(it, listOf(roles.random())) })
                 } catch (e: Exception) {
                     System.err.println("[Seed]   FAILED chart $i: ${e.message}")
                 }

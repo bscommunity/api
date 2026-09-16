@@ -114,33 +114,35 @@ class ContributorRepository : IContributorRepository {
             // Single batched lookup instead of one findById per contributor (N+1):
             // validates existence up front and warms the EntityCache, so the
             // UserEntity references below resolve without extra queries.
+            // Flatten grouped input to one (userId, role) pair per role.
             val extras = contributors
-                .filterNot { it.role == ContributorRole.AUTHOR && it.userId == authorId }
-                .distinctBy { it.userId to it.role }
+                .flatMap { contributor -> contributor.roles.distinct().map { contributor.userId to it } }
+                .filterNot { (userId, role) -> role == ContributorRole.AUTHOR && userId == authorId }
+                .distinct()
             val userEntities = if (extras.isEmpty()) {
                 emptyMap()
             } else {
-                UserEntity.find { UserTable.id inList extras.map { it.userId }.distinct() }
+                UserEntity.find { UserTable.id inList extras.map { it.first }.distinct() }
                     .associateBy { it.id.value }
             }
-            extras.forEach { contributor ->
-                if (contributor.userId !in userEntities) {
-                    throw IllegalArgumentException("User not found: ${contributor.userId}")
+            extras.forEach { (userId, _) ->
+                if (userId !in userEntities) {
+                    throw IllegalArgumentException("User not found: $userId")
                 }
             }
 
-            extras.forEach { contributor ->
+            extras.forEach { (userId, role) ->
                 val existing = ContributorEntity.find {
                     (ContributorTable.catalogItemId eq catalogItemEntityId) and
-                        (ContributorTable.userId eq contributor.userId) and
-                        (ContributorTable.role eq contributor.role)
+                        (ContributorTable.userId eq userId) and
+                        (ContributorTable.role eq role)
                 }.singleOrNull()
 
                 if (existing == null) {
                     ContributorEntity.new {
                         this.catalogItem = CatalogItemEntity[catalogItemId]
-                        this.user = userEntities.getValue(contributor.userId)
-                        this.role = contributor.role
+                        this.user = userEntities.getValue(userId)
+                        this.role = role
                     }
                 }
             }
@@ -153,20 +155,22 @@ class ContributorRepository : IContributorRepository {
 
         val affectedUserIds = contributors.map { it.userId }.distinct()
 
-        contributors.distinctBy { it.userId to it.role }.forEach { contributor ->
-            UserEntity.findById(contributor.userId) ?: throw IllegalArgumentException("User not found")
+        contributors.flatMap { contributor ->
+            contributor.roles.distinct().map { contributor.userId to it }
+        }.distinct().forEach { (userId, role) ->
+            UserEntity.findById(userId) ?: throw IllegalArgumentException("User not found")
 
             val existing = ContributorEntity.find {
                 (ContributorTable.catalogItemId eq catalogItemEntityId) and
-                    (ContributorTable.userId eq contributor.userId) and
-                    (ContributorTable.role eq contributor.role)
+                    (ContributorTable.userId eq userId) and
+                    (ContributorTable.role eq role)
             }.singleOrNull()
 
             if (existing == null) {
                 ContributorEntity.new {
                     this.catalogItem = CatalogItemEntity[catalogItemId]
-                    this.user = UserEntity[contributor.userId]
-                    this.role = contributor.role
+                    this.user = UserEntity[userId]
+                    this.role = role
                 }
             }
         }

@@ -39,8 +39,8 @@ class ChartPublishOverridesTest {
           "difficulty": "HARD",
           "isDeluxe": false,
           "contributors": [
-            {"userId": "123e4567-e89b-12d3-a456-426614174000", "role": "CHART"},
-            {"userId": "123e4567-e89b-12d3-a456-426614174001", "role": "AUDIO"}
+            {"userId": "123e4567-e89b-12d3-a456-426614174000", "roles": ["CHART", "AUDIO"]},
+            {"userId": "123e4567-e89b-12d3-a456-426614174001", "roles": ["AUDIO"]}
           ]
         }
     """.trimIndent()
@@ -56,8 +56,8 @@ class ChartPublishOverridesTest {
             UUID.fromString("123e4567-e89b-12d3-a456-426614174000"),
             overrides.contributors[0].userId,
         )
-        assertEquals(ContributorRole.CHART, overrides.contributors[0].role)
-        assertEquals(ContributorRole.AUDIO, overrides.contributors[1].role)
+        assertEquals(listOf(ContributorRole.CHART, ContributorRole.AUDIO), overrides.contributors[0].roles)
+        assertEquals(listOf(ContributorRole.AUDIO), overrides.contributors[1].roles)
     }
 
     @Test

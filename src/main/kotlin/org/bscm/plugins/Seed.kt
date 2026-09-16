@@ -241,7 +241,7 @@ private suspend fun createCharts(
                     val contributors = userIds.filter { it != ownerId }.shuffled().take(count2)
                     contributorRepository.addContributors(
                         chart.id,
-                        contributors.map { SimplifiedContributor(it, contributorRoles.random()) }
+                        contributors.map { SimplifiedContributor(it, listOf(contributorRoles.random())) }
                     )
                 } catch (e: Exception) {
                     log.error("Error generating chart $i: ${e.message}", e)

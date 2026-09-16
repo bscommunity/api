@@ -34,21 +34,23 @@ suspend fun IUserRepository.resolveMetadataContributors(
             role = "author",
         )
     )
-    // Dedupe up front so the batched lookup below covers each user once.
+    // Flatten grouped input to one (userId, role) pair per role, then dedupe
+    // up front so the batched lookup below covers each user once.
     // Equivalent to distinct() on the mapped output, since the mapping is deterministic.
     val extras = contributors
-        .filterNot { it.role == ContributorRole.AUTHOR && it.userId == authorId }
-        .distinctBy { it.userId to it.role }
+        .flatMap { contributor -> contributor.roles.distinct().map { contributor.userId to it } }
+        .filterNot { (userId, role) -> role == ContributorRole.AUTHOR && userId == authorId }
+        .distinct()
     if (extras.isEmpty()) return@buildList
 
-    val usersById = getUsersByIds(extras.map { it.userId })
-    extras.mapNotNull { contributor ->
-        val contributorUser = usersById[contributor.userId]
+    val usersById = getUsersByIds(extras.map { it.first }.distinct())
+    extras.mapNotNull { (userId, role) ->
+        val contributorUser = usersById[userId]
             ?: return@mapNotNull null
         DecodingUtils.MetadataContributor(
             username = contributorUser.username,
             avatarUrl = contributorUser.avatarUrl,
-            role = contributor.role.name.lowercase(),
+            role = role.name.lowercase(),
         )
     }.forEach { add(it) }
 }
