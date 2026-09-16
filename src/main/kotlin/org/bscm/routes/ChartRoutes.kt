@@ -498,6 +498,11 @@ fun Route.chartRoutes(
                  * Returns the latest version for each of the given chart IDs.
                  * Used by the mobile app to check for updates on installed charts.
                  *
+                 * Deprecated: prefer `GET /versions/latest-versions?ids=...`,
+                 * which batch-fetches latest versions across all versionable
+                 * content types (charts, themes) in one round-trip. Kept for
+                 * backward compatibility.
+                 *
                  * Tag: Charts
                  *
                  * Query: chartIds [String] Comma-separated chart IDs.
