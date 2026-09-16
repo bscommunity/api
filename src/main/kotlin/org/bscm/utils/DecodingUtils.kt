@@ -168,7 +168,7 @@ object DecodingUtils {
     data class MetadataContributor(
         val username: String,
         val avatarUrl: String?,
-        val role: String,
+        val roles: List<String>,
     )
 
     interface MetadataBundle {
@@ -220,7 +220,7 @@ object DecodingUtils {
             contributors.forEachIndexed { i, c ->
                 val comma = if (i < contributors.lastIndex) "," else ""
                 sb.appendLine()
-                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"role\": \"${c.role.escapeJson()}\"}$comma")
+                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"roles\": [${c.roles.joinToString(", ") { "\"${it.escapeJson()}\"" }}]}$comma")
             }
             sb.appendLine()
             sb.appendLine("  ]")
@@ -248,7 +248,7 @@ object DecodingUtils {
             contributors.forEachIndexed { i, c ->
                 val comma = if (i < contributors.lastIndex) "," else ""
                 sb.appendLine()
-                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"role\": \"${c.role.escapeJson()}\"}$comma")
+                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"roles\": [${c.roles.joinToString(", ") { "\"${it.escapeJson()}\"" }}]}$comma")
             }
             sb.appendLine()
             sb.appendLine("  ]")

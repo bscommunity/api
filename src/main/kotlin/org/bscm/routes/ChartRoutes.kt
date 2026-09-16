@@ -461,7 +461,7 @@ fun Route.chartRoutes(
         }
 
         // -----------------------------------------------------------------
-        // HMAC-only routes (mobile app analytics + version sync)
+        // HMAC-only routes (mobile app analytics)
         // -----------------------------------------------------------------
         authenticate("auth-public", "auth-hmac") {
             rateLimit(RateLimitName("unrestricted")) {

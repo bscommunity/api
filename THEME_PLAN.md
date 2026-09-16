@@ -25,7 +25,7 @@ All 9 enums currently using `enumerationByName` (varchar storage) are converted 
 | `Visibility` | `visibility` | `catalog_items.visibility` | PUBLIC, UNLISTED, PRIVATE |
 | `Difficulty` | `difficulty` | `charts.difficulty` | NORMAL, HARD, EXTREME |
 | `StreamingPlatform` | `streaming_platform` | `track_streaming_refs.platform`, `album_streaming_refs.platform` | SPOTIFY, APPLE_MUSIC, ... (17 values) |
-| `ContributorRole` | `contributor_role` | `contributors.role` | AUTHOR, CHART, AUDIO, REVISION, EFFECTS, SYNC, GAMEPLAY, ART, TEXTURES |
+| `ContributorRole` | `contributor_role` | `contributors.role` | AUTHOR, CHART, AUDIO, REVISION, EFFECTS, SYNC, GAMEPLAY, ART, TEXTURES, CURATION, VIDEO |
 | `ActivityType` | `activity_type` | `user_activity.type` | CREATED_CHART, CREATED_TOUR_PASS, CREATED_THEME, LIKED_CHART, LIKED_TOUR_PASS, LIKED_THEME, BOOKMARKED_CHART, BOOKMARKED_TOUR_PASS, BOOKMARKED_THEME, FOLLOWED_USER |
 | `UserRole` | `user_role` | `users.role` | USER, MODERATOR, ADMIN |
 | `CollectionKind` | `collection_kind` | `collections.kind` | USER, LIKES, BOOKMARKS |

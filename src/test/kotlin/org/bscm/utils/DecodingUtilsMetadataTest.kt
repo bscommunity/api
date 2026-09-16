@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
  * `contributors` array as "The following users contributed to this chart".
  * An author-only array here means mobile credits only the author, no matter
  * what rows exist in the API database — so creation must embed every initial
- * contributor with an Android-compatible lowercase role name.
+ * contributor, one entry per user with Android-compatible lowercase role names.
  */
 class DecodingUtilsMetadataTest {
 
@@ -18,17 +18,17 @@ class DecodingUtilsMetadataTest {
         DecodingUtils.MetadataContributor(
             username = "authorUser",
             avatarUrl = "https://example.com/author.png",
-            role = "author",
+            roles = listOf("author"),
         ),
         DecodingUtils.MetadataContributor(
             username = "charterUser",
             avatarUrl = null,
-            role = "chart",
+            roles = listOf("chart", "audio"),
         ),
         DecodingUtils.MetadataContributor(
             username = "audioUser",
             avatarUrl = "https://example.com/audio.png",
-            role = "audio",
+            roles = listOf("audio"),
         ),
     )
 
@@ -52,7 +52,7 @@ class DecodingUtilsMetadataTest {
         assertTrue(json.contains("\"username\": \"authorUser\""), "author missing:\n$json")
         assertTrue(json.contains("\"username\": \"charterUser\""), "charter missing:\n$json")
         assertTrue(json.contains("\"username\": \"audioUser\""), "audio contributor missing:\n$json")
-        assertTrue(json.contains("\"role\": \"chart\""), "lowercase role missing:\n$json")
+        assertTrue(json.contains("\"roles\": [\"chart\", \"audio\"]"), "grouped lowercase roles missing:\n$json")
     }
 
     @Test
