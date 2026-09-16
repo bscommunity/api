@@ -24,6 +24,7 @@ import org.bscm.plugins.ConflictException
 import org.bscm.protobuf.ChartParser
 import org.bscm.repository.AlbumRepository
 import org.bscm.services.AudioPreviewService
+import org.bscm.services.AvatarService
 import org.bscm.services.UploadService
 import org.bscm.services.track.TrackInfoService
 import org.bscm.services.track.clients.applicationHttpClient
@@ -48,6 +49,7 @@ class ChartPublishService(
     private val publishEventService: PublishEventService,
     private val albumRepository: AlbumRepository,
     private val userRepository: IUserRepository,
+    private val avatarService: AvatarService,
 ) {
     enum class CoverSource { BUNDLE, MEDIA_INFO }
 
@@ -247,11 +249,17 @@ class ChartPublishService(
             contributors = overrides.contributors.orEmpty(),
         )
 
+        // Backfill self-hosted avatars for everyone credited below, so the
+        // manifest embeds our CDN URLs instead of raw Discord URLs. Already-
+        // mirrored users cost a single batched read and no downloads.
+        avatarService.ensureMirrored(
+            listOf(user.id) + overrides.contributors.orEmpty().map { it.userId }
+        )
+
         // Build enriched bundle before Discord upload (catalogId doubles as chart ID)
         val metadataContributors = userRepository.resolveMetadataContributors(
             authorId = user.id,
             authorUsername = user.username,
-            authorAvatarUrl = user.avatarUrl,
             contributors = overrides.contributors.orEmpty(),
         )
         val chartMetadata = DecodingUtils.ChartMetadata(

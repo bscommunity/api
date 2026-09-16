@@ -117,12 +117,12 @@ fun mainModule(config: ApplicationConfig) = module {
     single { TrackRepository(storageService = get()) }
     single { BundleUrlCacheRepository() }
     single<IChartRepository> { ChartRepository(get(), get(), get(), get()) }
-    single<IContributorRepository> { ContributorRepository() }
+    single<IContributorRepository> { ContributorRepository(get()) }
     single<IVersionRepository> { VersionRepository() }
     single<ICollectionRepository> { CollectionRepository(get(), get(), get(), get(), get()) }
     single<IActivityRepository> { ActivityRepository() }
-    single<INotificationRepository> { NotificationRepository() }
-    single<IUserRepository> { UserRepository(get(), get(), get(), get()) }
+    single<INotificationRepository> { NotificationRepository(get()) }
+    single<IUserRepository> { UserRepository(get(), get(), get(), get(), get()) }
     single<ITourPassRepository> { TourPassRepository(get(), get(), get()) }
     single<IThemeRepository> { ThemeRepository(get(), get()) }
     single {
@@ -178,6 +178,12 @@ fun mainModule(config: ApplicationConfig) = module {
         )
     }
     single {
+        AvatarService(
+            storageService = get(),
+            client = get()
+        )
+    }
+    single {
         PublishEventService()
     }
     single {
@@ -191,6 +197,7 @@ fun mainModule(config: ApplicationConfig) = module {
             publishEventService = get(),
             albumRepository = get(),
             userRepository = get(),
+            avatarService = get(),
         )
     }
     single {
@@ -212,6 +219,7 @@ fun mainModule(config: ApplicationConfig) = module {
             activityRepository = get(),
             publishEventService = get(),
             userRepository = get(),
+            avatarService = get(),
         )
     }
     single {

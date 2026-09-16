@@ -16,6 +16,7 @@ import org.bscm.models.interfaces.IThemeRepository
 import org.bscm.models.interfaces.IUserRepository
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.ConflictException
+import org.bscm.services.AvatarService
 import org.bscm.services.UploadService
 import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
@@ -33,6 +34,7 @@ class ThemePublishService(
     private val activityRepository: IActivityRepository,
     private val publishEventService: PublishEventService,
     private val userRepository: IUserRepository,
+    private val avatarService: AvatarService,
 ) {
     data class Assets(
         val coverArtBytes: ByteArray?,
@@ -102,10 +104,16 @@ class ThemePublishService(
         val coverUrl = storageService.themeCoverUrl(catalogId)
         val displayArtUrl = storageService.themeDisplayUrl(catalogId)
 
+        // Backfill self-hosted avatars for everyone credited below, so the
+        // manifest embeds our CDN URLs instead of raw Discord URLs. Already-
+        // mirrored users cost a single batched read and no downloads.
+        avatarService.ensureMirrored(
+            listOf(uploader.id) + request.contributors.map { it.userId }
+        )
+
         val metadataContributors = userRepository.resolveMetadataContributors(
             authorId = uploader.id,
             authorUsername = uploader.username,
-            authorAvatarUrl = uploader.avatarUrl,
             contributors = request.contributors,
         )
         val themeMetadata = DecodingUtils.ThemeMetadata(

@@ -93,4 +93,22 @@ class StorageService(
     suspend fun deleteTourPassCover(tourPassId: String) {
         adapter.deleteObject(publicBucket, StoragePaths.tourPassCover(tourPassId))
     }
+
+    // ── User avatars ────────────────────────────────────────────────────
+
+    /** Resolves a stored avatar key (see `UserTable.avatarKey`) to its CDN URL. */
+    fun userAvatarUrl(avatarKey: String): String = publicUrl(avatarKey)
+
+    suspend fun uploadUserAvatar(userId: UUID, bytes: ByteArray) {
+        adapter.putObject(
+            bucket = publicBucket,
+            path = StoragePaths.userAvatar(userId),
+            bytes = bytes,
+            contentType = StorageContentTypes.IMAGE_AVIF,
+        )
+    }
+
+    suspend fun deleteUserAvatar(userId: UUID) {
+        adapter.deleteObject(publicBucket, StoragePaths.userAvatar(userId))
+    }
 }

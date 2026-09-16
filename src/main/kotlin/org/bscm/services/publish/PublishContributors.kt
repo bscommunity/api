@@ -16,21 +16,24 @@ import java.util.*
  * enum names ("chart", "audio", ...) — the exact keys the Android
  * `ChartStorageScanner.roleIdsByName` map resolves.
  *
- * Unknown user IDs are skipped: the repository layer rejects them right after,
- * aborting the publish with Discord cleanup, so they must never reach the bundle.
+ * Like `cover`, avatars are embedded as storage keys (`users.avatar_key`),
+ * resolved client-side — never full URLs, so old bundles survive CDN
+ * base-URL changes. Unknown user IDs are skipped: the repository layer rejects
+ * them right after, aborting the publish with Discord cleanup, so they must
+ * never reach the bundle.
  *
- * Users are resolved with a single batched [IUserRepository.getUsersByIds] lookup
- * instead of one query per contributor (N+1).
+ * Users are resolved with batched [IUserRepository.getUsersByIds] /
+ * [IUserRepository.getAvatarKeys] lookups instead of one query per contributor
+ * (N+1).
  */
 suspend fun IUserRepository.resolveMetadataContributors(
     authorId: UUID,
     authorUsername: String,
-    authorAvatarUrl: String?,
     contributors: List<SimplifiedContributor>,
 ): List<DecodingUtils.MetadataContributor> = buildList {
     // Flatten grouped input to one (userId, role) pair per role, then group by
     // user so the bundle carries one entry per user. Dedupe up front so the
-    // batched lookup below covers each user once.
+    // batched lookups below cover each user once.
     val rolesByUser = contributors
         .flatMap { contributor -> contributor.roles.distinct().map { contributor.userId to it } }
         .filterNot { (userId, role) -> role == ContributorRole.AUTHOR && userId == authorId }
@@ -41,7 +44,7 @@ suspend fun IUserRepository.resolveMetadataContributors(
         add(
             DecodingUtils.MetadataContributor(
                 username = authorUsername,
-                avatarUrl = authorAvatarUrl,
+                avatarKey = getAvatarKeys(listOf(authorId))[authorId],
                 roles = listOf("author"),
             )
         )
@@ -49,12 +52,13 @@ suspend fun IUserRepository.resolveMetadataContributors(
     }
 
     val usersById = getUsersByIds(rolesByUser.keys.toList())
+    val avatarKeys = getAvatarKeys((rolesByUser.keys + authorId).toList())
 
     // Author first, merging any extra roles they hold beyond AUTHOR.
     add(
         DecodingUtils.MetadataContributor(
             username = authorUsername,
-            avatarUrl = authorAvatarUrl,
+            avatarKey = avatarKeys[authorId],
             roles = buildList {
                 add("author")
                 rolesByUser[authorId]?.let { addAll(it) }
@@ -69,7 +73,7 @@ suspend fun IUserRepository.resolveMetadataContributors(
                 ?: return@mapNotNull null
             DecodingUtils.MetadataContributor(
                 username = contributorUser.username,
-                avatarUrl = contributorUser.avatarUrl,
+                avatarKey = avatarKeys[userId],
                 roles = roles,
             )
         }.forEach { add(it) }

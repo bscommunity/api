@@ -148,7 +148,7 @@ class TourPassRepository(
         val (likedAt, bookmarkedAt) = if (userId != null) {
             UserStatsUtils.fetchUserStats(userId, listOf(entity.id.value))[entity.id.value] ?: (null to null)
         } else (null to null)
-        val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(entity.id.value))[entity.id.value].orEmpty()
+        val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(entity.id.value), storageService)[entity.id.value].orEmpty()
         val catalogRow = CatalogItemTable.selectAll()
             .where { CatalogItemTable.id eq EntityID(entity.id.value, CatalogItemTable) }
             .firstOrNull()
@@ -215,7 +215,7 @@ class TourPassRepository(
             UserStatsUtils.fetchUserStats(userId, allTourPassIds)
         } else emptyMap()
 
-        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(allTourPassIds)
+        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(allTourPassIds, storageService)
 
         val catalogRowsById = CatalogItemTable.selectAll()
             .where { CatalogItemTable.id inList allTourPassIds.map { EntityID(it, CatalogItemTable) } }

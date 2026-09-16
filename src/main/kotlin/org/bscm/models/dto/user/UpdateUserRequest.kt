@@ -10,7 +10,7 @@ data class UpdateUserRequest(
     val bio: String? = null,
     val isPublic: Boolean? = null,
     val discordId: String? = null,
-    val avatarUrl: String? = null,
+    val avatarHash: String? = null,
     val bannerUrl: String? = null,
     val accentColor: Int? = null,
     val allowContributorInvitesFrom: ContributorInvitePolicy? = null,

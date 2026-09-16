@@ -80,7 +80,11 @@ object MediaConverter {
         }
     }
 
-    suspend fun convertToAvif(inputBytes: ByteArray): ByteArray? = withContext(Dispatchers.IO) {
+    /**
+     * Converts any input image to AVIF, downscaling so the longest side fits
+     * within [maxDimension] px (covers use 512, avatars use 256).
+     */
+    suspend fun convertToAvif(inputBytes: ByteArray, maxDimension: Int = 512): ByteArray? = withContext(Dispatchers.IO) {
         val tmpIn = Files.createTempFile("cover-in", ".png")
         val tmpOut = Files.createTempFile("cover-out", ".avif")
         try {
@@ -93,7 +97,7 @@ object MediaConverter {
                 "-hide_banner",
                 "-loglevel", "error",
                 "-i", tmpIn.toAbsolutePath().toString(),
-                "-vf", "scale=w='min(512,iw)':h='min(512,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+                "-vf", "scale=w='min($maxDimension,iw)':h='min($maxDimension,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
                 "-c:v", "libsvtav1",
                 "-preset", "6",
                 "-crf", "40",

@@ -100,4 +100,8 @@ interface IUserRepository {
 
     // Single-query batch lookup (prefer over one getUserById per user)
     suspend fun getUsersByIds(userIds: List<UUID>): Map<UUID, SimplifiedUser>
+
+    // Single-query batch lookup of stored avatar keys (null = never mirrored).
+    // Used for bundle manifests, which embed keys rather than resolved URLs.
+    suspend fun getAvatarKeys(userIds: List<UUID>): Map<UUID, String?>
 }

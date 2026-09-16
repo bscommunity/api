@@ -17,6 +17,7 @@ import org.bscm.models.dto.account.CreateAccountRequest
 import org.bscm.models.dto.user.CreateUserRequest
 import org.bscm.models.dto.user.UpdateUserRequest
 import org.bscm.models.interfaces.IUserRepository
+import org.bscm.services.AvatarService
 import org.bscm.services.auth.DiscordOAuthService
 import org.bscm.services.auth.GoogleOAuthService
 import org.bscm.services.auth.JWTService
@@ -30,7 +31,8 @@ fun Route.authRoutes(
     userRepository: IUserRepository,
     discordOAuthService: DiscordOAuthService,
     googleOAuthService: GoogleOAuthService,
-    jwtService: JWTService
+    jwtService: JWTService,
+    avatarService: AvatarService,
 ) {
     val isDevMode = System.getenv("DEV_MODE")?.lowercase() == "true"
 
@@ -89,9 +91,7 @@ fun Route.authRoutes(
                             existingUser.id, UpdateUserRequest(
                                 username = discordUser.username,
                                 email = discordUser.email,
-                                avatarUrl = discordUser.avatar?.let {
-                                    discordOAuthService.getAvatarUrl(discordUser.id, it)
-                                },
+                                avatarHash = discordUser.avatar,
                                 bannerUrl = discordUser.banner?.let {
                                     discordOAuthService.getBannerUrl(discordUser.id, it)
                                 },
@@ -103,9 +103,7 @@ fun Route.authRoutes(
                             username = discordUser.username,
                             email = discordUser.email,
                             discordId = discordUser.id,
-                            avatarUrl = discordUser.avatar?.let {
-                                discordOAuthService.getAvatarUrl(discordUser.id, it)
-                            },
+                            avatarHash = discordUser.avatar,
                             bannerUrl = discordUser.banner?.let {
                                 discordOAuthService.getBannerUrl(discordUser.id, it)
                             },
@@ -113,9 +111,17 @@ fun Route.authRoutes(
                         )
                     )
 
-                log.info("User authenticated via Discord: $user")
+                // Mirror the Discord avatar into our own storage when it is new
+                // or changed (best effort — login still succeeds on failure).
+                runCatching { avatarService.syncUserAvatar(user.id, discordUser.id, discordUser.avatar) }
+                    .onFailure { log.warn("Avatar mirror failed for user ${user.id}: ${it.message}") }
 
-                call.respond(user.toAuthResult(jwtService))
+                // Re-read so the response carries the mirrored avatar URL.
+                val freshUser = userRepository.getUserById(user.id) ?: user
+
+                log.info("User authenticated via Discord: $freshUser")
+
+                call.respond(freshUser.toAuthResult(jwtService))
             } catch (e: Exception) {
                 log.error("Error during Discord authentication: ${e.message}")
                 call.respondError(HttpStatusCode.InternalServerError, "Authentication failed: ${e.message}")

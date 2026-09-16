@@ -199,7 +199,7 @@ class ThemeRepository(
 
         val aggregateStats = fetchAggregateStats(themeIds)
         val versionData = enrichWithVersionData(themeIds, includeVersions)
-        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(themeIds)
+        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(themeIds, storageService)
 
         // Batch-fetch catalog_items rows once instead of per-entity DAO lookups (N+1)
         val catalogRows = if (themeIds.isNotEmpty()) {
@@ -236,7 +236,7 @@ class ThemeRepository(
             val (likesCount, bookmarksCount) = fetchAggregateStats(listOf(id))[id] ?: (0 to 0)
             val versionData = enrichWithVersionData(listOf(id), includeVersions)
             val vData = versionData[id] ?: ThemeVersionData(0, null, emptyList())
-            val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(id))[id].orEmpty()
+            val contributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(id), storageService)[id].orEmpty()
             themeEntityToTheme(entity, likedAt, bookmarkedAt, vData.versionsCount, vData.latestVersion, likesCount, bookmarksCount, contributors = contributors, versions = vData.versions)
         }
     }
@@ -285,7 +285,7 @@ class ThemeRepository(
         flushEntityCache()
 
         val themeId = theme.id.value
-        val createdContributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(themeId))[themeId].orEmpty()
+        val createdContributors = ContributorRepository.fetchContributorsByCatalogIds(listOf(themeId), storageService)[themeId].orEmpty()
 
         themeEntityToTheme(theme, contributors = createdContributors)
     }

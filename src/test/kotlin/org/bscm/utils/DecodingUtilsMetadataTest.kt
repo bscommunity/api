@@ -17,17 +17,17 @@ class DecodingUtilsMetadataTest {
     private val contributors = listOf(
         DecodingUtils.MetadataContributor(
             username = "authorUser",
-            avatarUrl = "https://example.com/author.png",
+            avatarKey = "users/author-id/avatar.avif",
             roles = listOf("author"),
         ),
         DecodingUtils.MetadataContributor(
             username = "charterUser",
-            avatarUrl = null,
+            avatarKey = null,
             roles = listOf("chart", "audio"),
         ),
         DecodingUtils.MetadataContributor(
             username = "audioUser",
-            avatarUrl = "https://example.com/audio.png",
+            avatarKey = "users/audio-id/avatar.avif",
             roles = listOf("audio"),
         ),
     )

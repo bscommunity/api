@@ -11,20 +11,29 @@ import org.bscm.models.interfaces.IContributorRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.ContributorTable
 import org.bscm.models.tables.UserTable
+import org.bscm.storage.StorageService
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 
-class ContributorRepository : IContributorRepository {
+class ContributorRepository(
+    private val storageService: StorageService,
+) : IContributorRepository {
     companion object {
         /**
          * Batch-fetches contributors (with their users) for multiple catalog items,
          * grouped to one entry per user with all their roles.
          * Returns a map of catalogId -> contributors. Must be called within a transaction.
+         *
+         * Avatars resolve to self-hosted CDN URLs via [storageService] — the raw
+         * Discord URL is never exposed.
          */
-        fun fetchContributorsByCatalogIds(catalogIds: List<String>): Map<String, List<ContributorWithRoles>> {
+        fun fetchContributorsByCatalogIds(
+            catalogIds: List<String>,
+            storageService: StorageService,
+        ): Map<String, List<ContributorWithRoles>> {
             if (catalogIds.isEmpty()) return emptyMap()
 
             val entityIds = catalogIds.map { EntityID(it, CatalogItemTable) }
@@ -36,15 +45,15 @@ class ContributorRepository : IContributorRepository {
 
             return rows.groupBy { it[ContributorTable.catalogItemId].value }
                 .mapValues { (_, contributorRows) ->
-                    groupRows(contributorRows)
+                    groupRows(contributorRows, storageService)
                 }
         }
 
-        private fun toSimplifiedUser(user: UserEntity): SimplifiedUser {
+        private fun toSimplifiedUser(user: UserEntity, storageService: StorageService): SimplifiedUser {
             return SimplifiedUser(
                 id = user.id.value,
                 username = user.username,
-                avatarUrl = user.avatarUrl,
+                avatarUrl = UserRepository.avatarUrl(storageService, user.avatarKey),
                 bannerUrl = user.bannerUrl,
                 isVerified = user.isVerified,
                 bio = user.bio,
@@ -57,11 +66,11 @@ class ContributorRepository : IContributorRepository {
          * Roles are sorted by enum id for a stable order; joinedAt is the earliest
          * row; note is the first non-null note, if any.
          */
-        private fun groupRows(rows: List<ResultRow>): List<ContributorWithRoles> {
+        private fun groupRows(rows: List<ResultRow>, storageService: StorageService): List<ContributorWithRoles> {
             return rows.groupBy { it[ContributorTable.userId].value }.map { (_, userRows) ->
                 val first = userRows.first()
                 val catalogItemId = first[ContributorTable.catalogItemId].value
-                val user = toSimplifiedUser(UserEntity.wrapRow(first))
+                val user = toSimplifiedUser(UserEntity.wrapRow(first), storageService)
                 val roles = userRows.map { ContributorEntity.wrapRow(it).role }.distinct()
                     .sortedBy { it.id }
                 ContributorWithRoles(
@@ -74,12 +83,16 @@ class ContributorRepository : IContributorRepository {
             }.sortedWith(compareBy({ it.joinedAt }, { it.user.username }))
         }
 
-        private fun groupEntities(catalogItemId: String, entities: List<ContributorEntity>): List<ContributorWithRoles> {
+        private fun groupEntities(
+            catalogItemId: String,
+            entities: List<ContributorEntity>,
+            storageService: StorageService,
+        ): List<ContributorWithRoles> {
             return entities.groupBy { it.user.id.value }.map { (_, userEntities) ->
                 val first = userEntities.first()
                 val roles = userEntities.map { it.role }.distinct().sortedBy { it.id }
                 ContributorWithRoles(
-                    user = toSimplifiedUser(first.user),
+                    user = toSimplifiedUser(first.user, storageService),
                     catalogItemId = catalogItemId,
                     roles = roles,
                     note = userEntities.mapNotNull { it.note }.firstOrNull(),
@@ -180,7 +193,7 @@ class ContributorRepository : IContributorRepository {
                 (ContributorTable.userId inList affectedUserIds)
         }.toList()
 
-        groupEntities(catalogItemId, entities)
+        groupEntities(catalogItemId, entities, storageService)
     }
 
     override suspend fun removeContributor(catalogItemId: String, userId: UUID, role: ContributorRole?): Boolean = suspendTransaction {
@@ -230,12 +243,12 @@ class ContributorRepository : IContributorRepository {
                 this.role = role
             }
         }
-        groupEntities(catalogItemId, newEntities)
+        groupEntities(catalogItemId, newEntities, storageService)
     }
 
     override suspend fun getContributors(catalogItemId: String): List<ContributorWithRoles> = suspendTransaction {
         val catalogItemEntityId = EntityID(catalogItemId, CatalogItemTable)
         val entities = ContributorEntity.find { ContributorTable.catalogItemId eq catalogItemEntityId }.toList()
-        groupEntities(catalogItemId, entities)
+        groupEntities(catalogItemId, entities, storageService)
     }
 }

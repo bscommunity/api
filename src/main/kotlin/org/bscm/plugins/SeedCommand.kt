@@ -66,7 +66,7 @@ fun main(): Unit = runBlocking {
         TrackRepository(storageService), catalogItemRepository, versionRepository,
         AlbumRepository()
     )
-    val contributorRepository: IContributorRepository = ContributorRepository()
+    val contributorRepository: IContributorRepository = ContributorRepository(storageService)
     val tourPassRepository: ITourPassRepository = TourPassRepository(
         chartRepository, catalogItemRepository, storageService
     )
@@ -76,7 +76,7 @@ fun main(): Unit = runBlocking {
     )
     val activityRepository: IActivityRepository = ActivityRepository()
     val userRepository: IUserRepository = UserRepository(
-        chartRepository, themeRepository, tourPassRepository, collectionRepository
+        chartRepository, themeRepository, tourPassRepository, collectionRepository, storageService
     )
 
     // Check if data already exists
@@ -119,20 +119,20 @@ fun main(): Unit = runBlocking {
 private suspend fun createSeedUsers(userRepository: IUserRepository): List<SimplifiedUser> {
     data class UserSeed(
         val username: String, val email: String, val discordId: String,
-        val avatarUrl: String?, val bannerUrl: String?, val accentColor: Int?, val bio: String?,
+        val bannerUrl: String?, val accentColor: Int?, val bio: String?,
     )
 
     val seeds = listOf(
-        UserSeed("nova", "nova@example.com", "1000000000000000001", "https://i.pravatar.cc/150?u=nova", "https://images.unsplash.com/photo-1557683316-973673baf926?w=600", 0xFF6C63FF.toInt(), "Chart creator & rhythm game enthusiast"),
-        UserSeed("axel", "axel@example.com", "1000000000000000002", "https://i.pravatar.cc/150?u=axel", "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=600", 0xFFFF6B6B.toInt(), "Audio engineer | BPM detective"),
-        UserSeed("luna", "luna@example.com", "1000000000000000003", "https://i.pravatar.cc/150?u=luna", "https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?w=600", 0xFFFFE66D.toInt(), "Making charts since 2019"),
-        UserSeed("kai", "kai@example.com", "1000000000000000004", "https://i.pravatar.cc/150?u=kai", "https://images.unsplash.com/photo-1557682268-e3955ed5d83f?w=600", 0xFF4ECDC4.toInt(), "Hard mode only"),
-        UserSeed("ember", "ember@example.com", "1000000000000000005", "https://i.pravatar.cc/150?u=ember", "https://images.unsplash.com/photo-1557682260-96773506d070?w=600", 0xFFFF4757.toInt(), "Tour pass curator"),
-        UserSeed("sage", "sage@example.com", "1000000000000000006", "https://i.pravatar.cc/150?u=sage", "https://images.unsplash.com/photo-1557682254-62e0f12dfa1e?w=600", 0xFF2ED573.toInt(), "Theme designer & UI nerd"),
-        UserSeed("riley", "riley@example.com", "1000000000000000007", "https://i.pravatar.cc/150?u=riley", "https://images.unsplash.com/photo-1557682254-62e0f12dfa1e?w=600", 0xFFA29BFE.toInt(), "Chart reviewer | QA"),
-        UserSeed("zara", "zara@example.com", "1000000000000000008", "https://i.pravatar.cc/150?u=zara", "https://images.unsplash.com/photo-1557683311-eac922347aa1?w=600", 0xFFFF9FF3.toInt(), "Collector of rare charts"),
-        UserSeed("orion", "orion@example.com", "1000000000000000009", "https://i.pravatar.cc/150?u=orion", "https://images.unsplash.com/photo-1557682237-64a0d53d6307?w=600", 0xFF1DD1A1.toInt(), "Extreme enjoyer"),
-        UserSeed("pixel", "pixel@example.com", "1000000000000000010", "https://i.pravatar.cc/150?u=pixel", "https://images.unsplash.com/photo-1557682250-0bf86a8e8aaf?w=600", 0xFFF8A5C2.toInt(), "New here, learning the ropes"),
+        UserSeed("nova", "nova@example.com", "1000000000000000001", "https://images.unsplash.com/photo-1557683316-973673baf926?w=600", 0xFF6C63FF.toInt(), "Chart creator & rhythm game enthusiast"),
+        UserSeed("axel", "axel@example.com", "1000000000000000002", "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=600", 0xFFFF6B6B.toInt(), "Audio engineer | BPM detective"),
+        UserSeed("luna", "luna@example.com", "1000000000000000003", "https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?w=600", 0xFFFFE66D.toInt(), "Making charts since 2019"),
+        UserSeed("kai", "kai@example.com", "1000000000000000004", "https://images.unsplash.com/photo-1557682268-e3955ed5d83f?w=600", 0xFF4ECDC4.toInt(), "Hard mode only"),
+        UserSeed("ember", "ember@example.com", "1000000000000000005", "https://images.unsplash.com/photo-1557682260-96773506d070?w=600", 0xFFFF4757.toInt(), "Tour pass curator"),
+        UserSeed("sage", "sage@example.com", "1000000000000000006", "https://images.unsplash.com/photo-1557682254-62e0f12dfa1e?w=600", 0xFF2ED573.toInt(), "Theme designer & UI nerd"),
+        UserSeed("riley", "riley@example.com", "1000000000000000007", "https://images.unsplash.com/photo-1557682254-62e0f12dfa1e?w=600", 0xFFA29BFE.toInt(), "Chart reviewer | QA"),
+        UserSeed("zara", "zara@example.com", "1000000000000000008", "https://images.unsplash.com/photo-1557683311-eac922347aa1?w=600", 0xFFFF9FF3.toInt(), "Collector of rare charts"),
+        UserSeed("orion", "orion@example.com", "1000000000000000009", "https://images.unsplash.com/photo-1557682237-64a0d53d6307?w=600", 0xFF1DD1A1.toInt(), "Extreme enjoyer"),
+        UserSeed("pixel", "pixel@example.com", "1000000000000000010", "https://images.unsplash.com/photo-1557682250-0bf86a8e8aaf?w=600", 0xFFF8A5C2.toInt(), "New here, learning the ropes"),
     )
 
     val users = mutableListOf<SimplifiedUser>()
@@ -140,7 +140,7 @@ private suspend fun createSeedUsers(userRepository: IUserRepository): List<Simpl
         try {
             val user = userRepository.createUser(CreateUserRequest(
                 username = s.username, email = s.email, discordId = s.discordId,
-                avatarUrl = s.avatarUrl, bannerUrl = s.bannerUrl, accentColor = s.accentColor,
+                bannerUrl = s.bannerUrl, accentColor = s.accentColor,
             ))
             users.add(SimplifiedUser(
                 id = user.id, username = user.username, avatarUrl = user.avatarUrl,

@@ -9,6 +9,7 @@ data class SimplifiedUser(
     @Serializable(with = UUIDSerializer::class)
     val id: UUID,
     val username: String,
+    /** Self-hosted CDN URL mirrored from Discord (see `users.avatar_key`), null when never mirrored. */
     val avatarUrl: String?,
     val bannerUrl: String?,
     val bio: String?,

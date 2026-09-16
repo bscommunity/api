@@ -15,6 +15,7 @@ import org.bscm.models.dto.user.UserProfileCounts
 import org.bscm.models.enums.*
 import org.bscm.models.interfaces.*
 import org.bscm.models.tables.*
+import org.bscm.storage.StorageService
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
@@ -24,53 +25,62 @@ class UserRepository(
     private val chartRepository: IChartRepository,
     private val themeRepository: IThemeRepository,
     private val tourPassRepository: ITourPassRepository,
-    private val collectionRepository: ICollectionRepository
+    private val collectionRepository: ICollectionRepository,
+    private val storageService: StorageService,
 ) : IUserRepository {
     companion object {
-        fun userEntityToUser(entity: UserEntity): User = User(
-            id = entity.id.value,
-            username = entity.username,
-            email = entity.email,
-            avatarUrl = entity.avatarUrl,
-            bannerUrl = entity.bannerUrl,
-            accentColor = entity.accentColor,
-            bio = entity.bio,
-            isPublic = entity.isPublic,
-
-            role = entity.role,
-            isVerified = entity.isVerified,
-            verifiedAt = entity.verifiedAt,
-
-            discordId = entity.discordId,
-            createdAt = entity.createdAt,
-
-            followerCount = entity.followerCount,
-            followingCount = entity.followingCount,
-
-            allowContributorInvitesFrom = entity.allowContributorInvitesFrom,
-        )
-
-        fun userEntityToSimplifiedUser(entity: UserEntity): SimplifiedUser = SimplifiedUser(
-            id = entity.id.value,
-            username = entity.username,
-            avatarUrl = entity.avatarUrl,
-            bannerUrl = entity.bannerUrl,
-            isVerified = entity.isVerified,
-            bio = entity.bio,
-            accentColor = entity.accentColor
-        )
-
-        fun accountEntityToAccount(entity: AccountEntity): Account = Account(
-            id = entity.id.value,
-            provider = entity.provider,
-            providerAccountId = entity.providerAccountId,
-            refreshToken = entity.refreshToken,
-            accessToken = entity.accessToken,
-            expiresAt = entity.expiresAt,
-            tokenType = entity.tokenType,
-            scope = entity.scope,
-        )
+        /**
+         * Resolves a stored avatar key to its self-hosted CDN URL.
+         * A null key (never mirrored, or mirror failed) resolves to null —
+         * the raw Discord CDN URL is never exposed.
+         */
+        fun avatarUrl(storageService: StorageService, avatarKey: String?): String? =
+            avatarKey?.let { storageService.userAvatarUrl(it) }
     }
+
+    private fun userEntityToUser(entity: UserEntity): User = User(
+        id = entity.id.value,
+        username = entity.username,
+        email = entity.email,
+        avatarUrl = avatarUrl(storageService, entity.avatarKey),
+        bannerUrl = entity.bannerUrl,
+        accentColor = entity.accentColor,
+        bio = entity.bio,
+        isPublic = entity.isPublic,
+
+        role = entity.role,
+        isVerified = entity.isVerified,
+        verifiedAt = entity.verifiedAt,
+
+        discordId = entity.discordId,
+        createdAt = entity.createdAt,
+
+        followerCount = entity.followerCount,
+        followingCount = entity.followingCount,
+
+        allowContributorInvitesFrom = entity.allowContributorInvitesFrom,
+    )
+
+    private fun userEntityToSimplifiedUser(entity: UserEntity): SimplifiedUser = SimplifiedUser(
+        id = entity.id.value,
+        username = entity.username,
+        avatarUrl = avatarUrl(storageService, entity.avatarKey),
+        bannerUrl = entity.bannerUrl,
+        isVerified = entity.isVerified,
+        bio = entity.bio,
+        accentColor = entity.accentColor
+    )
+
+    private fun accountEntityToAccount(entity: AccountEntity): Account = Account(
+        id = entity.id.value,
+        provider = entity.provider,
+        providerAccountId = entity.providerAccountId,
+        refreshToken = entity.refreshToken,
+        accessToken = entity.accessToken,
+        expiresAt = entity.expiresAt,
+        tokenType = entity.tokenType,
+        scope = entity.scope,
+    )
 
 
     override suspend fun getUsers(query: String?): List<User> = suspendTransaction {
@@ -104,7 +114,9 @@ class UserRepository(
             this.username = user.username
             this.email = user.email
             this.discordId = user.discordId
-            this.avatarUrl = user.avatarUrl
+            // The Discord hash is stored; the mirror itself runs right after
+            // (AvatarService.syncUserAvatar on login) and fills avatarKey.
+            this.avatarHash = user.avatarHash
             this.bannerUrl = user.bannerUrl
             this.accentColor = user.accentColor
         }
@@ -116,7 +128,7 @@ class UserRepository(
         existingUser.apply {
             username = user.username.let { if (it.isNullOrBlank()) username else it }
             email = user.email.let { if (it.isNullOrBlank()) email else it }
-            avatarUrl = user.avatarUrl.let { if (it.isNullOrBlank()) avatarUrl else it }
+            avatarHash = user.avatarHash.let { if (it.isNullOrBlank()) avatarHash else it }
             bannerUrl = user.bannerUrl.let { if (it.isNullOrBlank()) bannerUrl else it }
             accentColor = user.accentColor ?: accentColor
             bio = user.bio.let { if (it.isNullOrBlank()) bio else it }
@@ -474,13 +486,21 @@ class UserRepository(
             .associate { it[UserTable.id].value to it[UserTable.allowContributorInvitesFrom] }
     }
 
+    override suspend fun getAvatarKeys(userIds: List<UUID>): Map<UUID, String?> = suspendTransaction {
+        if (userIds.isEmpty()) return@suspendTransaction emptyMap()
+        UserTable
+            .select(UserTable.id, UserTable.avatarKey)
+            .where { UserTable.id inList userIds.distinct() }
+            .associate { it[UserTable.id].value to it[UserTable.avatarKey] }
+    }
+
     override suspend fun getUsersByIds(userIds: List<UUID>): Map<UUID, SimplifiedUser> = suspendTransaction {
         if (userIds.isEmpty()) return@suspendTransaction emptyMap()
         UserTable
             .select(
                 UserTable.id,
                 UserTable.username,
-                UserTable.avatarUrl,
+                UserTable.avatarKey,
                 UserTable.bannerUrl,
                 UserTable.isVerified,
                 UserTable.bio,
@@ -492,7 +512,7 @@ class UserRepository(
                 id to SimplifiedUser(
                     id = id,
                     username = row[UserTable.username],
-                    avatarUrl = row[UserTable.avatarUrl],
+                    avatarUrl = avatarUrl(storageService, row[UserTable.avatarKey]),
                     bannerUrl = row[UserTable.bannerUrl],
                     bio = row[UserTable.bio],
                     accentColor = row[UserTable.accentColor],

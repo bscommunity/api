@@ -12,4 +12,6 @@ object StoragePaths {
     fun themeDisplay(themeId: String): String = "themes/$themeId/display.avif"
 
     fun tourPassCover(tourPassId: String): String = "tour-passes/$tourPassId/cover.avif"
+
+    fun userAvatar(userId: UUID): String = "users/$userId/avatar.avif"
 }

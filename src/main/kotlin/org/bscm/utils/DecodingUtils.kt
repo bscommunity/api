@@ -165,9 +165,15 @@ object DecodingUtils {
         val duration: Float,
     )
 
+    /**
+     * One contributor entry in `bscm.json`. Like `cover`, the avatar is a
+     * storage key ([UserTable.avatarKey], e.g. `users/<uuid>/avatar.avif`),
+     * resolved client-side — never a full URL, so old bundles survive CDN
+     * base-URL changes. Null when the user was never mirrored.
+     */
     data class MetadataContributor(
         val username: String,
-        val avatarUrl: String?,
+        val avatarKey: String?,
         val roles: List<String>,
     )
 
@@ -220,7 +226,7 @@ object DecodingUtils {
             contributors.forEachIndexed { i, c ->
                 val comma = if (i < contributors.lastIndex) "," else ""
                 sb.appendLine()
-                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"roles\": [${c.roles.joinToString(", ") { "\"${it.escapeJson()}\"" }}]}$comma")
+                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarKey\": ${c.avatarKey?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"roles\": [${c.roles.joinToString(", ") { "\"${it.escapeJson()}\"" }}]}$comma")
             }
             sb.appendLine()
             sb.appendLine("  ]")
@@ -248,7 +254,7 @@ object DecodingUtils {
             contributors.forEachIndexed { i, c ->
                 val comma = if (i < contributors.lastIndex) "," else ""
                 sb.appendLine()
-                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarUrl\": ${c.avatarUrl?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"roles\": [${c.roles.joinToString(", ") { "\"${it.escapeJson()}\"" }}]}$comma")
+                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarKey\": ${c.avatarKey?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"roles\": [${c.roles.joinToString(", ") { "\"${it.escapeJson()}\"" }}]}$comma")
             }
             sb.appendLine()
             sb.appendLine("  ]")

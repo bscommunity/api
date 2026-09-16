@@ -47,7 +47,7 @@ class CollectionRepository(
     private fun ResultRow.toSimplifiedUser(): SimplifiedUser = SimplifiedUser(
         id = this[UserTable.id].value,
         username = this[UserTable.username],
-        avatarUrl = this[UserTable.avatarUrl],
+        avatarUrl = UserRepository.avatarUrl(storageService, this[UserTable.avatarKey]),
         bannerUrl = this[UserTable.bannerUrl],
         bio = this[UserTable.bio],
         accentColor = this[UserTable.accentColor],
@@ -80,7 +80,7 @@ class CollectionRepository(
         val owner = SimplifiedUser(
             id = user.id.value,
             username = user.username,
-            avatarUrl = user.avatarUrl,
+            avatarUrl = UserRepository.avatarUrl(storageService, user.avatarKey),
             bannerUrl = user.bannerUrl,
             bio = user.bio,
             accentColor = user.accentColor,

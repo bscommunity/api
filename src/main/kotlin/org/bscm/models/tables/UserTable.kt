@@ -13,7 +13,11 @@ object UserTable : UUIDTable("users") {
     val email = varchar("email", 255).uniqueIndex()
     val imageUrl = varchar("image_url", 255).nullable()
     val bannerUrl = varchar("banner_url", 255).nullable()
-    val avatarUrl = varchar("avatar_url", 255).nullable()
+    // Self-hosted avatar mirror: storage object key (e.g. users/<uuid>/avatar.avif),
+    // resolved to a CDN URL via StorageService. Replaces the old Discord CDN avatar_url.
+    val avatarKey = varchar("avatar_key", 255).nullable()
+    // Last-mirrored Discord avatar hash — drives change detection (re-fetch on change).
+    val avatarHash = varchar("avatar_hash", 255).nullable()
     val accentColor = integer("accent_color").nullable() // e.g., "16711680"
     val bio = text("bio").nullable()
 

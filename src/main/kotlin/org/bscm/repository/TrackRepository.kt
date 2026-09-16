@@ -19,7 +19,7 @@ import org.jetbrains.exposed.v1.jdbc.batchInsert
 import java.util.*
 
 class TrackRepository(
-    private val storageService: StorageService,
+    val storageService: StorageService,
 ) {
     fun findOrCreate(
         title: String,

@@ -121,8 +121,9 @@ fun Application.configureRouting() {
         val publishEventService by inject<PublishEventService>()
         val overviewService by inject<OverviewService>()
         val notificationService by inject<NotificationService>()
+        val avatarService by inject<AvatarService>()
 
-        authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService)
+        authRoutes(userRepository, discordOAuthService, googleOAuthService, jwtService, avatarService)
         userRoutes(userRepository, profileService, collectionService, activityRepository)
         meRoutes(collectionService, profileService, chartRepository, userRepository)
         overviewRoutes(overviewService)

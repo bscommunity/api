@@ -15,7 +15,8 @@ class UserEntity(id: EntityID<UUID>) : UUIDEntity(id) {
 
     var username by UserTable.username
     var email by UserTable.email
-    var avatarUrl by UserTable.avatarUrl
+    var avatarKey by UserTable.avatarKey
+    var avatarHash by UserTable.avatarHash
     var bannerUrl by UserTable.bannerUrl
     var accentColor by UserTable.accentColor
     var bio by UserTable.bio

@@ -11,6 +11,7 @@ import org.bscm.models.interfaces.INotificationRepository
 import org.bscm.models.tables.CatalogItemTable
 import org.bscm.models.tables.NotificationTable
 import org.bscm.models.tables.UserTable
+import org.bscm.storage.StorageService
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
@@ -23,7 +24,9 @@ import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.util.*
 import kotlin.time.Clock
 
-class NotificationRepository : INotificationRepository {
+class NotificationRepository(
+    private val storageService: StorageService,
+) : INotificationRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -55,7 +58,7 @@ class NotificationRepository : INotificationRepository {
             actor = SimplifiedUser(
                 id = actor.id.value,
                 username = actor.username,
-                avatarUrl = actor.avatarUrl,
+                avatarUrl = UserRepository.avatarUrl(storageService, actor.avatarKey),
                 bannerUrl = actor.bannerUrl,
                 isVerified = actor.isVerified,
                 bio = actor.bio,
@@ -85,7 +88,7 @@ class NotificationRepository : INotificationRepository {
                     actor = SimplifiedUser(
                         id = actor.id.value,
                         username = actor.username,
-                        avatarUrl = actor.avatarUrl,
+                        avatarUrl = UserRepository.avatarUrl(storageService, actor.avatarKey),
                         bannerUrl = actor.bannerUrl,
                         isVerified = actor.isVerified,
                         bio = actor.bio,

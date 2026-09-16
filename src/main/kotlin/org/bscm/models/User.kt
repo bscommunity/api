@@ -17,6 +17,7 @@ data class User(
     val username: String,
     val email: String,
     val bannerUrl: String?,
+    /** Self-hosted CDN URL mirrored from Discord (see `users.avatar_key`), null when never mirrored. */
     val avatarUrl: String?,
     val accentColor: Int?,
     val bio: String?,

@@ -113,7 +113,7 @@ class ChartResultAssembler(
         val catalogIds = groupedByChartId.keys.toList()
         val userStats = catalogItemRepository.fetchUserStats(requestingUserId, catalogIds)
         val collectionStats = fetchAggregateStats(catalogIds)
-        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(catalogIds)
+        val contributorsByCatalogId = ContributorRepository.fetchContributorsByCatalogIds(catalogIds, trackRepository.storageService)
 
         val albumIds = groupedByChartId.values.flatten()
             .mapNotNull { it.getOrNull(AlbumTable.id)?.value }
