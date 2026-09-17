@@ -1,6 +1,8 @@
 package org.bscm.utils
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -17,17 +19,17 @@ class DecodingUtilsMetadataTest {
     private val contributors = listOf(
         DecodingUtils.MetadataContributor(
             username = "authorUser",
-            avatarKey = "users/author-id/avatar.avif",
+            avatarUserId = "author-id",
             roles = listOf("author"),
         ),
         DecodingUtils.MetadataContributor(
             username = "charterUser",
-            avatarKey = null,
+            avatarUserId = null,
             roles = listOf("chart", "audio"),
         ),
         DecodingUtils.MetadataContributor(
             username = "audioUser",
-            avatarKey = "users/audio-id/avatar.avif",
+            avatarUserId = "audio-id",
             roles = listOf("audio"),
         ),
     )
@@ -49,10 +51,16 @@ class DecodingUtilsMetadataTest {
             coverId = "cover-id",
         ).toJson()
 
-        assertTrue(json.contains("\"username\": \"authorUser\""), "author missing:\n$json")
-        assertTrue(json.contains("\"username\": \"charterUser\""), "charter missing:\n$json")
-        assertTrue(json.contains("\"username\": \"audioUser\""), "audio contributor missing:\n$json")
-        assertTrue(json.contains("\"roles\": [\"chart\", \"audio\"]"), "grouped lowercase roles missing:\n$json")
+        assertTrue(json.contains("\"username\":\"authorUser\""), "author missing:\n$json")
+        assertTrue(json.contains("\"username\":\"charterUser\""), "charter missing:\n$json")
+        assertTrue(json.contains("\"username\":\"audioUser\""), "audio contributor missing:\n$json")
+        assertTrue(json.contains("\"roles\":[\"chart\",\"audio\"]"), "grouped lowercase roles missing:\n$json")
+        assertTrue(json.contains("\"avatar\":\"author-id\""), "avatar id missing:\n$json")
+        assertTrue(
+            json.contains("{\"username\":\"charterUser\",\"roles\":[\"chart\",\"audio\"]}"),
+            "avatar must be omitted when null:\n$json",
+        )
+        assertFalse(json.contains("\n"), "manifest must be minified:\n$json")
     }
 
     @Test
@@ -64,14 +72,14 @@ class DecodingUtilsMetadataTest {
             contributors = contributors,
         ).toJson()
 
-        assertTrue(json.contains("\"username\": \"authorUser\""), "author missing:\n$json")
-        assertTrue(json.contains("\"username\": \"charterUser\""), "charter missing:\n$json")
-        assertTrue(json.contains("\"username\": \"audioUser\""), "audio contributor missing:\n$json")
+        assertTrue(json.contains("\"username\":\"authorUser\""), "author missing:\n$json")
+        assertTrue(json.contains("\"username\":\"charterUser\""), "charter missing:\n$json")
+        assertTrue(json.contains("\"username\":\"audioUser\""), "audio contributor missing:\n$json")
     }
 
     @Test
     fun `chart metadata embeds audio preview key and video id`() {
-        val json = DecodingUtils.ChartMetadata(
+        val metadata = DecodingUtils.ChartMetadata(
             catalogId = "abc123",
             track = "Track",
             artist = "Artist",
@@ -84,16 +92,19 @@ class DecodingUtilsMetadataTest {
             effects = 64,
             contributors = contributors,
             coverId = "cover-id",
-            audioPreviewKey = "tracks/track-id/preview.opus",
+            audioTrackId = "track-id",
             previewVideoId = "dQw4w9WgXcQ",
-        ).toJson()
+        )
+        val json = metadata.toJson()
 
-        assertTrue(json.contains("\"audioPreviewKey\": \"tracks/track-id/preview.opus\""), "audio key missing:\n$json")
-        assertTrue(json.contains("\"previewVideoId\": \"dQw4w9WgXcQ\""), "video id missing:\n$json")
+        assertEquals(1, metadata.version, "chart manifest must be v1")
+        assertTrue(json.contains("\"version\":1"), "version missing:\n$json")
+        assertTrue(json.contains("\"audio\":\"track-id\""), "audio id missing:\n$json")
+        assertTrue(json.contains("\"video\":\"dQw4w9WgXcQ\""), "video id missing:\n$json")
     }
 
     @Test
-    fun `chart metadata omits previews as null when unset`() {
+    fun `chart metadata omits unset previews`() {
         val json = DecodingUtils.ChartMetadata(
             catalogId = "abc123",
             track = "Track",
@@ -109,8 +120,8 @@ class DecodingUtilsMetadataTest {
             coverId = "cover-id",
         ).toJson()
 
-        assertTrue(json.contains("\"audioPreviewKey\": null"), "audio key should be null:\n$json")
-        assertTrue(json.contains("\"previewVideoId\": null"), "video id should be null:\n$json")
+        assertFalse(json.contains("\"audio\":"), "unset audio must be omitted:\n$json")
+        assertFalse(json.contains("\"video\":"), "unset video must be omitted:\n$json")
     }
 
     @Test
@@ -123,7 +134,7 @@ class DecodingUtilsMetadataTest {
             previewVideoId = "dQw4w9WgXcQ",
         ).toJson()
 
-        assertTrue(json.contains("\"previewVideoId\": \"dQw4w9WgXcQ\""), "video id missing:\n$json")
+        assertTrue(json.contains("\"video\":\"dQw4w9WgXcQ\""), "video id missing:\n$json")
     }
 
     @Test

@@ -324,6 +324,8 @@ class TourPassRepository(
         }
 
         request.previewVideoId?.let { catalogItemRepository.updatePreviewVideoId(id, it) }
+        request.visibility?.let { catalogItemRepository.updateVisibility(id, it) }
+        request.isFeatured?.let { catalogItemRepository.updateFeatured(id, it) }
 
         flushEntityCache()
 

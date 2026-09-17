@@ -166,16 +166,24 @@ object DecodingUtils {
     )
 
     /**
-     * One contributor entry in `bscm.json`. Like `cover`, the avatar is a
-     * storage key ([UserTable.avatarKey], e.g. `users/<uuid>/avatar.avif`),
-     * resolved client-side — never a full URL, so old bundles survive CDN
-     * base-URL changes. Null when the user was never mirrored.
+     * One contributor entry in `bscm.json`. Like `cover`, the avatar is an
+     * **id** ([authorId]/[userId] UUID string), resolved client-side to
+     * `users/<id>/avatar.avif` — never a full URL or storage key, so old
+     * bundles survive CDN base-URL changes. Null when the user was never
+     * mirrored.
      */
     data class MetadataContributor(
         val username: String,
-        val avatarKey: String?,
+        val avatarUserId: String?,
         val roles: List<String>,
-    )
+    ) {
+        /** Minified encoding; null `avatar` is omitted. */
+        fun toJson(): String = buildString {
+            append("{\"username\":\"${username.escapeJson()}\",")
+            avatarUserId?.let { append("\"avatar\":\"${it.escapeJson()}\",") }
+            append("\"roles\":[${roles.joinToString(",") { "\"${it.escapeJson()}\"" }}]}")
+        }
+    }
 
     interface MetadataBundle {
         /**
@@ -206,43 +214,41 @@ object DecodingUtils {
         val contributors: List<MetadataContributor>,
         val coverId: String,
         /**
-         * Storage key of the track audio preview
-         * (e.g. `tracks/<trackId>/preview.opus`), resolved client-side like
-         * `cover`/`avatarKey` — never a full URL, so old bundles survive CDN
-         * base-URL changes. Null when no preview exists yet.
+         * Track id behind the audio preview. The client derives the storage
+         * key (`tracks/<id>/preview.opus`) from it, like `cover` derives the
+         * album cover — never a full URL or path, so old bundles survive CDN
+         * base-URL changes. Omitted when no preview exists yet.
          */
-        val audioPreviewKey: String? = null,
-        /** YouTube video ID (`catalog_items.preview_video_id`). Null when unset. */
+        val audioTrackId: String? = null,
+        /** YouTube video ID (`catalog_items.preview_video_id`). Omitted when unset. */
         val previewVideoId: String? = null,
     ) : MetadataBundle {
         override val manifestFileName = "bscm.json"
-        override fun toJson(): String {
-            val sb = StringBuilder()
-            sb.appendLine("{")
-            sb.appendLine("  \"version\": $version,")
-            sb.appendLine("  \"catalog\": \"${catalogId.escapeJson()}\",")
-            sb.appendLine("  \"cover\": ${coverId.escapeJson().let { "\"$it\"" }},")
-            sb.appendLine("  \"track\": \"${track.escapeJson()}\",")
-            sb.appendLine("  \"artist\": \"${artist.escapeJson()}\",")
-            sb.appendLine("  \"difficulty\": $difficulty,")
-            sb.appendLine("  \"deluxe\": $isDeluxe,")
-            sb.appendLine("  \"explicit\": $isExplicit,")
-            sb.appendLine("  \"bpm\": $bpm,")
-            sb.appendLine("  \"duration\": $duration,")
-            sb.appendLine("  \"notes\": $notes,")
-            sb.appendLine("  \"effects\": $effects,")
-            sb.appendLine("  \"audioPreviewKey\": ${audioPreviewKey?.let { "\"${it.escapeJson()}\"" } ?: "null"},")
-            sb.appendLine("  \"previewVideoId\": ${previewVideoId?.let { "\"${it.escapeJson()}\"" } ?: "null"},")
-            sb.append("  \"contributors\": [")
+        /**
+         * Minified single-line encoding; null/empty fields are omitted, so
+         * manifests only carry what exists.
+         */
+        override fun toJson(): String = buildString {
+            append("{\"version\":$version,")
+            append("\"catalog\":\"${catalogId.escapeJson()}\",")
+            append("\"cover\":\"${coverId.escapeJson()}\",")
+            append("\"track\":\"${track.escapeJson()}\",")
+            append("\"artist\":\"${artist.escapeJson()}\",")
+            append("\"difficulty\":$difficulty,")
+            append("\"deluxe\":$isDeluxe,")
+            append("\"explicit\":$isExplicit,")
+            append("\"bpm\":$bpm,")
+            append("\"duration\":$duration,")
+            append("\"notes\":$notes,")
+            append("\"effects\":$effects,")
+            audioTrackId?.let { append("\"audio\":\"${it.escapeJson()}\",") }
+            previewVideoId?.let { append("\"video\":\"${it.escapeJson()}\",") }
+            append("\"contributors\":[")
             contributors.forEachIndexed { i, c ->
-                val comma = if (i < contributors.lastIndex) "," else ""
-                sb.appendLine()
-                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarKey\": ${c.avatarKey?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"roles\": [${c.roles.joinToString(", ") { "\"${it.escapeJson()}\"" }}]}$comma")
+                if (i > 0) append(",")
+                append(c.toJson())
             }
-            sb.appendLine()
-            sb.appendLine("  ]")
-            sb.append("}")
-            return sb.toString()
+            append("]}")
         }
     }
 
@@ -252,28 +258,23 @@ object DecodingUtils {
         val name: String,
         val replaces: String,
         val contributors: List<MetadataContributor>,
-        /** YouTube video ID (`catalog_items.preview_video_id`). Null when unset. */
+        /** YouTube video ID (`catalog_items.preview_video_id`). Omitted when unset. */
         val previewVideoId: String? = null,
     ) : MetadataBundle {
         override val manifestFileName get() = "bscm_${catalogId}.json"
-        override fun toJson(): String {
-            val sb = StringBuilder()
-            sb.appendLine("{")
-            sb.appendLine("  \"version\": $version,")
-            sb.appendLine("  \"catalog\": \"${catalogId.escapeJson()}\",")
-            sb.appendLine("  \"name\": \"${name.escapeJson()}\",")
-            sb.appendLine("  \"replaces\": \"${replaces.escapeJson()}\",")
-            sb.appendLine("  \"previewVideoId\": ${previewVideoId?.let { "\"${it.escapeJson()}\"" } ?: "null"},")
-            sb.append("  \"contributors\": [")
+        /** Minified single-line encoding; null fields are omitted. */
+        override fun toJson(): String = buildString {
+            append("{\"version\":$version,")
+            append("\"catalog\":\"${catalogId.escapeJson()}\",")
+            append("\"name\":\"${name.escapeJson()}\",")
+            append("\"replaces\":\"${replaces.escapeJson()}\",")
+            previewVideoId?.let { append("\"video\":\"${it.escapeJson()}\",") }
+            append("\"contributors\":[")
             contributors.forEachIndexed { i, c ->
-                val comma = if (i < contributors.lastIndex) "," else ""
-                sb.appendLine()
-                sb.append("    {\"username\": \"${c.username.escapeJson()}\", \"avatarKey\": ${c.avatarKey?.let { "\"${it.escapeJson()}\"" } ?: "null"}, \"roles\": [${c.roles.joinToString(", ") { "\"${it.escapeJson()}\"" }}]}$comma")
+                if (i > 0) append(",")
+                append(c.toJson())
             }
-            sb.appendLine()
-            sb.appendLine("  ]")
-            sb.append("}")
-            return sb.toString()
+            append("]}")
         }
     }
 

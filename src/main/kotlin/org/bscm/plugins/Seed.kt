@@ -169,7 +169,6 @@ private suspend fun createCharts(
                             catalogId = NanoIdUtils.generateCatalogId(),
                             artist = getRandomArtist(),
                             track = getRandomTrack(),
-                            album = if (Random.nextFloat() > 0.3f) getRandomAlbum() else null,
                             trackUrls = listOf(
                                 StreamingRef(
                                     platform = StreamingPlatform.SPOTIFY,
@@ -180,7 +179,6 @@ private suspend fun createCharts(
                                     url = "https://example.com/track/${randomHexId(10)}",
                                 ),
                             ),
-                            audioPreviewUrl = "https://example.com/preview/${randomHexId(10)}.mp3",
                             previewVideoId = "dQw4w9WgXcQ",
                             coverUrl = getRandomCoverUrl(),
                             difficulty = difficulties.random(),
@@ -486,16 +484,6 @@ private fun getRandomTrack(): String = listOf(
     "Humble", "Lose Yourself", "Stronger", "Blank Space", "Wonderwall",
     "Song 2", "Californication", "Smells Like Teen Spirit", "Enter Sandman", "Sweet Child O Mine",
     "One More Time", "Titanium", "Scary Monsters", "Bangarang", "Alone",
-).random()
-
-private fun getRandomAlbum(): String = listOf(
-    "True", "Viva la Vida", "Evolve", "After Hours", "Future Nostalgia",
-    "Hybrid Theory", "Map of the Soul", "When We All Fall Asleep", "1989",
-    "A Night at the Opera", "Abbey Road", "Thriller", "Purple Rain",
-    "Goodbye Yellow Brick Road", "Teenage Dream", "Views", "Lemonade",
-    "24K Magic", "21", "Sweetener", "Fine Line", "Pure Heroine",
-    "DAMN", "The Eminem Show", "Red", "Definitely Maybe", "Nevermind",
-    "Discovery", "Random Access Memories", "Worlds",
 ).random()
 
 private fun getRandomChangelog(): String = listOf(

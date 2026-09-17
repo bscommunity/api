@@ -497,7 +497,6 @@ class UploadService(
                     difficulty = chart.difficulty,
                     isDeluxe = chart.isDeluxe,
                     isExplicit = chart.isExplicit,
-                    audioPreviewUrl = chart.track.audioPreviewUrl,
                     bpm = chart.track.bpm ?: 0,
                     coverUrl = chart.track.coverUrl ?: "",
                     trackUrls = chart.track.streamingRefs,

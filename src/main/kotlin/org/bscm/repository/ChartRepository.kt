@@ -312,9 +312,7 @@ class ChartRepository(
         }
 
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
-        val existingChart = ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
-            it.difficulty = chart.difficulty ?: it.difficulty
-            it.isDeluxe = chart.isDeluxe ?: it.isDeluxe
+        ChartEntity.findSingleByAndUpdate(ChartTable.id eq id) {
             it.isExplicit = chart.isExplicit ?: it.isExplicit
         } ?: throw NotFoundException("Chart with ID $id not found")
 
@@ -322,17 +320,6 @@ class ChartRepository(
             it.updatedAt = now
         }
 
-        trackRepository.applyMetadataUpdates(
-            track = existingChart.track,
-            title = chart.track,
-            artist = chart.artist,
-            album = chart.album?.let { albumRepository.findOrCreate(it) },
-            genres = chart.genres,
-        )
-
-        chart.isFeatured?.let { featured ->
-            catalogItemRepository.updateFeatured(id, featured)
-        }
         chart.visibility?.let { visibility ->
             catalogItemRepository.updateVisibility(id, visibility)
         }

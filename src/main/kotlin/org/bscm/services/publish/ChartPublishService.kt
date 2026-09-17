@@ -16,7 +16,6 @@ import org.bscm.models.dto.version.SimplifiedVersion
 import org.bscm.models.dto.version.VersionBundleData
 import org.bscm.models.enums.ActivityType
 import org.bscm.models.enums.Difficulty
-import org.bscm.models.enums.Genre
 import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.IUserRepository
@@ -26,10 +25,10 @@ import org.bscm.repository.AlbumRepository
 import org.bscm.repository.TrackRepository
 import org.bscm.services.AudioPreviewService
 import org.bscm.services.AvatarService
+import org.bscm.services.NotificationService
 import org.bscm.services.UploadService
 import org.bscm.services.track.TrackInfoService
 import org.bscm.services.track.clients.applicationHttpClient
-import org.bscm.storage.StoragePaths
 import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
 import org.bscm.utils.MediaConverter
@@ -54,6 +53,7 @@ class ChartPublishService(
     private val trackRepository: TrackRepository,
     private val userRepository: IUserRepository,
     private val avatarService: AvatarService,
+    private val notificationService: NotificationService,
 ) {
     enum class CoverSource { BUNDLE, MEDIA_INFO }
 
@@ -65,14 +65,11 @@ class ChartPublishService(
         val track: String? = null,
         val artist: String? = null,
         val isExplicit: Boolean? = null,
-        val audioPreviewUrl: String? = null,
         val previewVideoId: String? = null,
         val coverUrl: String? = null,
         val bpm: Int? = null,
         val isDeluxe: Boolean? = null,
         val trackUrls: List<StreamingRef>? = null,
-        val album: String? = null,
-        val genres: List<Genre>? = null,
         val contributors: List<SimplifiedContributor>? = null,
     )
 
@@ -180,8 +177,8 @@ class ChartPublishService(
             }
         }
 
-        // 5b. Resolve album entity — always create one so cover has a home
-        val albumName = overrides.album ?: mediaInfo?.album ?: "$trackName – Single"
+        // Album always comes from media enrichment (or falls back to single).
+        val albumName = mediaInfo?.album ?: "$trackName – Single"
         val albumEntity = albumRepository.findOrCreate(albumName)
 
         // Fire cover upload in background — the deterministic URL is already computable
@@ -241,14 +238,15 @@ class ChartPublishService(
             }
         }
 
-        // Pre-resolve the track so the bundle metadata can embed the
-        // deterministic audio-preview storage key. findOrCreate is idempotent:
-        // createChart below resolves the same row again. The opus file itself
-        // still lands later via audioPreviewService.publish — same pattern as
-        // the cover URL, which is computable before the upload lands.
-        val resolvedGenres = (overrides.genres ?: mediaInfo?.genres).orEmpty()
-        val audioPreviewKey = runCatching {
-            val trackId = trackRepository.findOrCreateTrackId(
+        // Pre-resolve the track so the bundle metadata can embed its id (the
+        // client derives the audio-preview storage key from it, like `cover`
+        // derives the album cover). findOrCreate is idempotent: createChart
+        // below resolves the same row again. The opus file itself still lands
+        // later via audioPreviewService.publish — same pattern as the cover
+        // URL, which is computable before the upload lands.
+        val resolvedGenres = mediaInfo?.genres.orEmpty()
+        val audioTrackId = runCatching {
+            trackRepository.findOrCreateTrackId(
                 title = mediaInfo?.track ?: trackName,
                 artist = mediaInfo?.artist ?: artistName,
                 album = albumEntity,
@@ -256,17 +254,15 @@ class ChartPublishService(
                 genres = resolvedGenres,
                 bpm = bpm,
                 duration = computedStats.duration,
-            )
-            StoragePaths.trackAudioPreview(trackId)
+            ).toString()
         }.getOrElse { e ->
-            log.warn("Failed to pre-resolve track for audio preview key: ${e.message}")
+            log.warn("Failed to pre-resolve track for audio preview id: ${e.message}")
             null
         }
 
         val createForDb = CreateChartRequest(
             artist = mediaInfo?.artist ?: artistName,
             track = mediaInfo?.track ?: trackName,
-            album = albumName,
             albumId = albumEntity.id.value,
             trackUrls = streamingLinks,
             coverUrl = storageService.albumCoverUrl(albumEntity.id.value),
@@ -280,7 +276,6 @@ class ChartPublishService(
             isDeluxe = isDeluxe,
             fileSizeBytes = bundleBytes.size.toLong(),
             bundleHash = bundleHash,
-            audioPreviewUrl = overrides.audioPreviewUrl,
             previewVideoId = previewVideoId,
             catalogId = catalogId,
             isrc = resolvedIsrc,
@@ -313,7 +308,7 @@ class ChartPublishService(
             notes = computedStats.notesAmount,
             effects = computedStats.effectsAmount,
             contributors = metadataContributors,
-            audioPreviewKey = audioPreviewKey,
+            audioTrackId = audioTrackId,
             previewVideoId = previewVideoId,
         )
         val enrichedBundleBytes = DecodingUtils.injectMetadata(bundleBytes, chartMetadata)
@@ -351,6 +346,20 @@ class ChartPublishService(
         } catch (e: Exception) {
             runCatching { uploadService.deleteMessage(discordResponse.id) }
             throw e
+        }
+
+        // Notify initial contributors (best-effort: must never fail a publish
+        // that already committed its chart + Discord message).
+        if (createForDb.contributors.isNotEmpty()) {
+            runCatching {
+                notificationService.notifyContributorAdded(
+                    catalogItemId = createdChart.id,
+                    actorId = user.id,
+                    recipientIds = createForDb.contributors.map { it.userId }.distinct(),
+                )
+            }.onFailure { e ->
+                log.warn("Failed to notify contributors for chart ${createdChart.id}: ${e.message}")
+            }
         }
 
         emitEvent(PublishStep.FINALIZING_VERSION)

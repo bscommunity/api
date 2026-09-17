@@ -90,25 +90,6 @@ class TrackRepository(
         }
     }
 
-    fun applyMetadataUpdates(
-        track: TrackEntity,
-        title: String?,
-        artist: String?,
-        album: AlbumEntity?,
-        genres: List<Genre>?,
-    ) {
-        title?.let {
-            track.title = it
-            track.normalizedTitle = QueryUtils.getNormalizedQuery(it)
-        }
-        artist?.let {
-            track.artist = it
-            track.normalizedArtist = QueryUtils.getNormalizedQuery(it)
-        }
-        album?.let { track.album = it }
-        genres?.let { track.genres = it }
-    }
-
     fun toTrack(entity: TrackEntity, streamingRefs: List<StreamingRef>): Track = Track(
         id = entity.id.value,
         title = entity.title,

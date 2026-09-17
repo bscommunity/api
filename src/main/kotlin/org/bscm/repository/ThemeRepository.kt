@@ -315,6 +315,8 @@ class ThemeRepository(
         }
 
         request.previewVideoId?.let { catalogItemRepository.updatePreviewVideoId(id, it) }
+        request.visibility?.let { catalogItemRepository.updateVisibility(id, it) }
+        request.isFeatured?.let { catalogItemRepository.updateFeatured(id, it) }
 
         val (likesCount, bookmarksCount) = fetchAggregateStats(listOf(id))[id] ?: (0 to 0)
         themeEntityToTheme(entity, likesCount = likesCount, bookmarksCount = bookmarksCount)

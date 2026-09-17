@@ -18,6 +18,7 @@ import org.bscm.models.interfaces.IUserRepository
 import org.bscm.models.interfaces.IVersionRepository
 import org.bscm.plugins.ConflictException
 import org.bscm.services.AvatarService
+import org.bscm.services.NotificationService
 import org.bscm.services.UploadService
 import org.bscm.storage.StorageService
 import org.bscm.utils.DecodingUtils
@@ -39,6 +40,7 @@ class ThemePublishService(
     private val publishEventService: PublishEventService,
     private val userRepository: IUserRepository,
     private val avatarService: AvatarService,
+    private val notificationService: NotificationService,
 ) {
     data class Assets(
         val coverArtBytes: ByteArray?,
@@ -194,6 +196,20 @@ class ThemePublishService(
         } catch (e: Exception) {
             runCatching { uploadService.deleteMessage(discordResponse.id) }
             throw e
+        }
+
+        // Notify initial contributors (best-effort: must never fail a publish
+        // that already committed its theme + Discord message).
+        if (request.contributors.isNotEmpty()) {
+            runCatching {
+                notificationService.notifyContributorAdded(
+                    catalogItemId = theme.id,
+                    actorId = uploader.id,
+                    recipientIds = request.contributors.map { it.userId }.distinct(),
+                )
+            }.onFailure { e ->
+                log.warn("Failed to notify contributors for theme ${theme.id}: ${e.message}")
+            }
         }
 
         emitEvent(PublishStep.LOGGING_ACTIVITY)

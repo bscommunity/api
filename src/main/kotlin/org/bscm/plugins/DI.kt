@@ -199,6 +199,7 @@ fun mainModule(config: ApplicationConfig) = module {
             trackRepository = get(),
             userRepository = get(),
             avatarService = get(),
+            notificationService = get(),
         )
     }
     single {
@@ -209,6 +210,7 @@ fun mainModule(config: ApplicationConfig) = module {
             storageService = get(),
             activityRepository = get(),
             publishEventService = get(),
+            notificationService = get(),
         )
     }
     single {
@@ -221,6 +223,7 @@ fun mainModule(config: ApplicationConfig) = module {
             publishEventService = get(),
             userRepository = get(),
             avatarService = get(),
+            notificationService = get(),
         )
     }
     single {

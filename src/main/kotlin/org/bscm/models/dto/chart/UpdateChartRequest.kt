@@ -1,21 +1,18 @@
 package org.bscm.models.dto.chart
 
 import kotlinx.serialization.Serializable
-import org.bscm.models.enums.Difficulty
-import org.bscm.models.enums.Genre
 import org.bscm.models.enums.Visibility
 
+/**
+ * User-editable chart fields only.
+ *
+ * Track metadata (title, artist, album, genres, bpm) is bound at creation,
+ * shared system-wide across charts, and never edited. Difficulty and deluxe
+ * come from each uploaded bundle version. Featured is system-managed.
+ */
 @Serializable
 data class UpdateChartRequest (
-    val artist: String? = null,
-    val track: String? = null,
-    val album: String? = null,
-    val coverUrl: String? = null,
-    val difficulty: Difficulty? = null,
-    val genres: List<Genre>? = null,
-    val isDeluxe: Boolean? = null,
     val isExplicit: Boolean? = null,
-    val isFeatured: Boolean? = null,
     val visibility: Visibility? = null,
     val previewVideoId: String? = null,
 )

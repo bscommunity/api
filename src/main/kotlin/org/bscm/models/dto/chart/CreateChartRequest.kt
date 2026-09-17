@@ -12,11 +12,9 @@ import java.util.*
 data class CreateChartRequest (
     val artist: String,
     val track: String,
-    val album: String? = null,
     val isrc: String? = null,
     @Contextual val albumId: UUID? = null,
     val trackUrls: List<StreamingRef>,
-    val audioPreviewUrl: String? = null,
     val previewVideoId: String? = null,
     val coverUrl: String,
     val genres: List<Genre> = emptyList(),
@@ -24,7 +22,6 @@ data class CreateChartRequest (
     val contributors: List<SimplifiedContributor> = emptyList(),
 
     // Server-side properties
-    val versionId: ULong? = null,
     val catalogId: String? = null,
 
     // First version properties

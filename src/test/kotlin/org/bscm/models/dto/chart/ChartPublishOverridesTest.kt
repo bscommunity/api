@@ -27,7 +27,6 @@ class ChartPublishOverridesTest {
           "track": "Track Title",
           "album": null,
           "trackUrls": [],
-          "audioPreviewUrl": null,
           "previewVideoId": null,
           "coverUrl": null,
           "genre": null,
@@ -50,7 +49,6 @@ class ChartPublishOverridesTest {
         val overrides = jsonClient.decodeFromString<ChartPublishOverrides>(websitePayload)
 
         assertEquals(true, overrides.isExplicit)
-        assertNull(overrides.audioPreviewUrl)
         assertNull(overrides.previewVideoId)
         assertEquals(2, overrides.contributors.size)
         assertEquals(
@@ -76,7 +74,6 @@ class ChartPublishOverridesTest {
 
         assertEquals(emptyList(), overrides.contributors)
         assertNull(overrides.isExplicit)
-        assertNull(overrides.audioPreviewUrl)
         assertNull(overrides.previewVideoId)
     }
 

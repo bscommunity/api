@@ -13,6 +13,7 @@ import org.bscm.models.interfaces.IActivityRepository
 import org.bscm.models.interfaces.IChartRepository
 import org.bscm.models.interfaces.ITourPassRepository
 import org.bscm.repository.ChartRepository
+import org.bscm.services.NotificationService
 import org.bscm.services.UploadService
 import org.bscm.storage.StorageService
 import org.bscm.utils.MediaConverter
@@ -31,6 +32,7 @@ class TourPassPublishService(
     private val storageService: StorageService,
     private val activityRepository: IActivityRepository,
     private val publishEventService: PublishEventService,
+    private val notificationService: NotificationService,
 ) {
     suspend fun createAndPublish(
         uploader: User,
@@ -181,6 +183,20 @@ class TourPassPublishService(
         } catch (e: Exception) {
             runCatching { uploadService.deleteMessage(discordResponse.id) }
             throw e
+        }
+
+        // Notify initial contributors (best-effort: must never fail a publish
+        // that already committed its tour pass + Discord message).
+        if (request.contributors.isNotEmpty()) {
+            runCatching {
+                notificationService.notifyContributorAdded(
+                    catalogItemId = tourPass.id,
+                    actorId = uploader.id,
+                    recipientIds = request.contributors.map { it.userId }.distinct(),
+                )
+            }.onFailure { e ->
+                log.warn("Failed to notify contributors for tour pass ${tourPass.id}: ${e.message}")
+            }
         }
 
         emitEvent(PublishStep.LOGGING_ACTIVITY)

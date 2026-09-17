@@ -11,10 +11,11 @@ import kotlin.time.Clock
 object UserTable : UUIDTable("users") {
     val username = varchar("username", 255).uniqueIndex()
     val email = varchar("email", 255).uniqueIndex()
-    val imageUrl = varchar("image_url", 255).nullable()
     val bannerUrl = varchar("banner_url", 255).nullable()
     // Self-hosted avatar mirror: storage object key (e.g. users/<uuid>/avatar.avif),
     // resolved to a CDN URL via StorageService. Replaces the old Discord CDN avatar_url.
+    // Null doubles as the "not mirrored yet" flag (see avatarHash); the path itself
+    // is deterministic today, but the column preserves per-row variance.
     val avatarKey = varchar("avatar_key", 255).nullable()
     // Last-mirrored Discord avatar hash — drives change detection (re-fetch on change).
     val avatarHash = varchar("avatar_hash", 255).nullable()

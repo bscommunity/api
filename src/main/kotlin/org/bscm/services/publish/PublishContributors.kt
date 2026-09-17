@@ -16,11 +16,11 @@ import java.util.*
  * enum names ("chart", "audio", ...) — the exact keys the Android
  * `ChartStorageScanner.roleIdsByName` map resolves.
  *
- * Like `cover`, avatars are embedded as storage keys (`users.avatar_key`),
- * resolved client-side — never full URLs, so old bundles survive CDN
- * base-URL changes. Unknown user IDs are skipped: the repository layer rejects
- * them right after, aborting the publish with Discord cleanup, so they must
- * never reach the bundle.
+ * Like `cover`, avatars are embedded as **user IDs**, resolved client-side to
+ * `users/<id>/avatar.avif` — never full URLs or storage keys, so old bundles
+ * survive CDN base-URL changes. Unknown user IDs are skipped: the repository
+ * layer rejects them right after, aborting the publish with Discord cleanup,
+ * so they must never reach the bundle.
  *
  * Users are resolved with batched [IUserRepository.getUsersByIds] /
  * [IUserRepository.getAvatarKeys] lookups instead of one query per contributor
@@ -44,7 +44,7 @@ suspend fun IUserRepository.resolveMetadataContributors(
         add(
             DecodingUtils.MetadataContributor(
                 username = authorUsername,
-                avatarKey = getAvatarKeys(listOf(authorId))[authorId],
+                avatarUserId = authorId.toString().takeIf { getAvatarKeys(listOf(authorId))[authorId] != null },
                 roles = listOf("author"),
             )
         )
@@ -58,7 +58,7 @@ suspend fun IUserRepository.resolveMetadataContributors(
     add(
         DecodingUtils.MetadataContributor(
             username = authorUsername,
-            avatarKey = avatarKeys[authorId],
+            avatarUserId = authorId.toString().takeIf { avatarKeys[authorId] != null },
             roles = buildList {
                 add("author")
                 rolesByUser[authorId]?.let { addAll(it) }
@@ -73,7 +73,7 @@ suspend fun IUserRepository.resolveMetadataContributors(
                 ?: return@mapNotNull null
             DecodingUtils.MetadataContributor(
                 username = contributorUser.username,
-                avatarKey = avatarKeys[userId],
+                avatarUserId = userId.toString().takeIf { avatarKeys[userId] != null },
                 roles = roles,
             )
         }.forEach { add(it) }

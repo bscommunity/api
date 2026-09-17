@@ -180,12 +180,10 @@ private suspend fun createSeedCharts(
                         chart = CreateChartRequest(
                             catalogId = NanoIdUtils.generateCatalogId(),
                             artist = seedArtist(), track = seedTrack(),
-                            album = if (Random.nextFloat() > 0.3f) seedAlbum() else null,
                             trackUrls = listOf(
                                 StreamingRef(StreamingPlatform.SPOTIFY, "https://open.spotify.com/track/${hexId(22)}"),
                                 StreamingRef(StreamingPlatform.entries.random(), "https://example.com/track/${hexId(10)}"),
                             ),
-                            audioPreviewUrl = "https://example.com/preview/${hexId(10)}.mp3",
                             previewVideoId = "dQw4w9WgXcQ",
                             coverUrl = seedCover(), difficulty = difficulties.random(),
                             isDeluxe = Random.nextFloat() > 0.6f, isExplicit = Random.nextFloat() > 0.7f,
@@ -360,15 +358,6 @@ private fun seedTrack() = listOf(
     "Lose Yourself","Stronger","Blank Space","Wonderwall","Song 2","Californication",
     "Smells Like Teen Spirit","Enter Sandman","Sweet Child O Mine","One More Time",
     "Titanium","Scary Monsters","Bangarang","Alone",
-).random()
-
-private fun seedAlbum() = listOf(
-    "True","Viva la Vida","Evolve","After Hours","Future Nostalgia","Hybrid Theory",
-    "Map of the Soul","When We All Fall Asleep","1989","A Night at the Opera","Abbey Road",
-    "Thriller","Purple Rain","Goodbye Yellow Brick Road","Teenage Dream","Views",
-    "Lemonade","24K Magic","21","Sweetener","Fine Line","Pure Heroine","DAMN",
-    "The Eminem Show","Red","Definitely Maybe","Nevermind","Discovery",
-    "Random Access Memories","Worlds",
 ).random()
 
 private fun seedChangelog() = listOf(
